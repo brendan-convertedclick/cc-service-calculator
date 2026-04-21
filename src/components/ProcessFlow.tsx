@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2, Save, RotateCcw, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useProcessSteps, useReplaceSteps, useUpdateStep, useDeleteStep, useCreateStep } from "@/hooks/useProcessSteps";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useRules } from "@/hooks/useRules";
-import { useSetServiceChecklist } from "@/hooks/useServices";
+import { useSetServiceChecklist, useAllocationMatrix } from "@/hooks/useServices";
+import { useServiceChildren } from "@/hooks/useServiceChildren";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,40 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
   const activeRule = rules.find((r) => r.id === ruleId);
   const hasChecklist = steps.some((s) => s.department_id && s.estimated_hours != null);
   const isPercentage = pricingModel === "percentage";
+
+  const { data: children = [] } = useServiceChildren(serviceId);
+  const { data: matrix } = useAllocationMatrix();
+
+  const hasChildren = children.length > 0;
+  const derived = hasChildren && !hasChecklist;
+  const overrideOfChildren = hasChildren && hasChecklist;
+
+  const derivedSteps = useMemo(() => {
+    if (!derived || !matrix) return [];
+    const byDept = matrix.resolved.get(serviceId);
+    if (!byDept) return [];
+    const out: typeof steps = [];
+    let i = 0;
+    for (const [deptId, row] of byDept) {
+      const dept = depts.find((d) => d.id === deptId);
+      if (!dept) continue;
+      if (!(row.hours > 0)) continue;
+      i += 1;
+      out.push({
+        id: `derived-${deptId}`,
+        service_id: serviceId,
+        ordinal: i,
+        title: `${dept.name} — from included services`,
+        description: null,
+        department_id: deptId,
+        estimated_hours: row.hours,
+        ai_generated: false,
+        created_at: "",
+        updated_at: "",
+      } as unknown as (typeof steps)[number]);
+    }
+    return out;
+  }, [derived, matrix, serviceId, depts]);
 
   async function generateAI() {
     setAiLoading(true);
@@ -118,12 +153,56 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
     );
   }
 
+  function seedFromChildren() {
+    if (!derived) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("service_allocation_resolved")
+        .select("department_id, hours")
+        .eq("service_id", serviceId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const rows = (data ?? [])
+        .filter((r) => r.department_id != null && Number(r.hours ?? 0) > 0)
+        .map((r, i) => {
+          const dept = depts.find((d) => d.id === r.department_id);
+          const h = Math.max(0.25, Math.round(Number(r.hours) / 0.25) * 0.25);
+          return {
+            ordinal: i + 1,
+            title: `${dept?.name ?? "Dept"} — work`,
+            description: null,
+            department_id: r.department_id,
+            estimated_hours: h,
+            ai_generated: false,
+          };
+        });
+      if (rows.length === 0) {
+        toast.error("No derived hours to seed. Do the child services have checklists yet?");
+        return;
+      }
+      replace.mutate(
+        { serviceId, steps: rows },
+        {
+          onSuccess: () => toast.success(`Seeded ${rows.length} steps from included services`),
+          onError: (e: Error) => toast.error(e.message),
+        }
+      );
+    })();
+  }
+
   function clearChecklist() {
-    if (!confirm("Delete all steps and fall back to rule allocation?")) return;
+    const msg = overrideOfChildren
+      ? "Delete this checklist and revert to the included services' hours?"
+      : "Delete all steps and fall back to rule allocation?";
+    if (!confirm(msg)) return;
     setChecklist.mutate(
       { kind: "clear", serviceId },
       {
-        onSuccess: () => toast.success("Checklist cleared; service is now using its rule."),
+        onSuccess: () => toast.success(overrideOfChildren
+          ? "Reverted to included services."
+          : "Checklist cleared; service is now using its rule."),
         onError: (e: Error) => toast.error(e.message),
       }
     );
@@ -136,28 +215,42 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
           <div>
             <h3 className="text-sm font-semibold">Process flow</h3>
             <p className="text-xs text-muted-foreground">
-              {hasChecklist
-                ? `Custom checklist · ${steps.length} steps. Drives dept allocation.`
-                : activeRule
-                  ? `Using rule: ${activeRule.name}. Seed to customize.`
-                  : "No rule or checklist. Add steps manually or generate with AI."}
+              {overrideOfChildren
+                ? `Custom checklist overrides ${children.length} included service${children.length === 1 ? "" : "s"}. · ${steps.length} steps.`
+                : derived
+                  ? `Derived from ${children.length} included service${children.length === 1 ? "" : "s"}. Add a checklist to override.`
+                  : hasChecklist
+                    ? `Custom checklist · ${steps.length} steps. Drives dept allocation.`
+                    : activeRule
+                      ? `Using rule: ${activeRule.name}. Seed to customize.`
+                      : "No rule or checklist. Add steps manually or generate with AI."}
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={generateAI} disabled={aiLoading}>
               <Sparkles className="h-4 w-4" /> {aiLoading ? "Generating…" : "Generate with AI"}
             </Button>
-            {!hasChecklist && activeRule && (
+            {derived && (
+              <Button variant="outline" size="sm" onClick={seedFromChildren} disabled={replace.isPending}>
+                <FileDown className="h-4 w-4" /> Seed from children
+              </Button>
+            )}
+            {!hasChecklist && !hasChildren && activeRule && (
               <Button variant="outline" size="sm" onClick={seedFromRule} disabled={replace.isPending}>
                 <FileDown className="h-4 w-4" /> Seed from rule
               </Button>
             )}
-            {hasChecklist && !isPercentage && priceCents > 0 && (
+            {hasChecklist && !isPercentage && priceCents > 0 && !hasChildren && (
               <Button variant="outline" size="sm" onClick={() => setShowSaveAsRule(true)}>
                 <Save className="h-4 w-4" /> Save as rule
               </Button>
             )}
-            {hasChecklist && (
+            {overrideOfChildren && (
+              <Button variant="ghost" size="sm" onClick={clearChecklist} disabled={setChecklist.isPending}>
+                <RotateCcw className="h-4 w-4" /> Revert to derived
+              </Button>
+            )}
+            {hasChecklist && !hasChildren && (
               <Button variant="ghost" size="sm" onClick={clearChecklist} disabled={setChecklist.isPending}>
                 <RotateCcw className="h-4 w-4" /> Clear checklist
               </Button>
@@ -168,9 +261,9 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
           </div>
         </div>
 
-        {(hasChecklist || steps.length > 0) && (
+        {(hasChecklist || steps.length > 0 || derived) && (
           <ChecklistSummary
-            steps={steps}
+            steps={derived ? derivedSteps : steps}
             departments={depts}
             priceCents={priceCents}
             pricingModel={pricingModel}
@@ -180,9 +273,11 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : steps.length === 0 ? (
+      ) : derived ? null : steps.length === 0 ? (
         <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No process steps yet. Add one manually, seed from the rule, or let AI draft them.
+          {hasChildren
+            ? "This bundle is deriving hours from its included services. Use Seed from children to customize."
+            : "No process steps yet. Add one manually, seed from the rule, or let AI draft them."}
         </p>
       ) : (
         <ol className="space-y-2">
