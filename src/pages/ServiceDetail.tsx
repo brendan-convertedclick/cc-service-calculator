@@ -6,6 +6,7 @@ import { useCreateService, useDeleteService, useService, useUpdateService } from
 import { useRules } from "@/hooks/useRules";
 import { useTeam } from "@/hooks/useTeam";
 import { ProcessFlow } from "@/components/ProcessFlow";
+import { IncludedServices } from "@/components/IncludedServices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
@@ -245,19 +246,29 @@ export function ServiceDetail({ mode }: Props) {
 
         <div className="space-y-6">
           {mode === "edit" && id ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Process flow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ProcessFlow
-                  serviceId={id}
-                  priceCents={form.sell_price_cents}
-                  pricingModel={form.pricing_model}
-                  ruleId={form.rule_id}
-                />
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Includes these services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <IncludedServices serviceId={id} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Process flow</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ProcessFlow
+                    serviceId={id}
+                    priceCents={form.sell_price_cents}
+                    pricingModel={form.pricing_model}
+                    ruleId={form.rule_id}
+                  />
+                </CardContent>
+              </Card>
+            </>
           ) : (
             <Card>
               <CardHeader>
