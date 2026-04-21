@@ -211,6 +211,59 @@ export type Database = {
           },
         ]
       }
+      service_children: {
+        Row: {
+          child_id: string
+          created_at: string
+          ordinal: number
+          parent_id: string
+          quantity: number
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          ordinal: number
+          parent_id: string
+          quantity?: number
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          ordinal?: number
+          parent_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_children_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "service_children_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_children_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "service_children_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           code: string | null
