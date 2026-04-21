@@ -108,6 +108,7 @@ export function ServicesList() {
                       ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
                       resolvedByDept={matrix?.resolved.get(s.id)}
                       hasChecklist={matrix?.hasChecklist.has(s.id) ?? false}
+                      childCount={matrix?.childCounts.get(s.id) ?? 0}
                     />
                   ))}
                 </tbody>
@@ -126,14 +127,19 @@ function ServiceRow({
   ruleName,
   resolvedByDept,
   hasChecklist,
+  childCount,
 }: {
   service: ServiceWithTotals;
   departments: Department[];
   ruleName: string | null;
   resolvedByDept: Map<string, { pct: number | null; hours: number }> | undefined;
   hasChecklist: boolean;
+  childCount: number;
 }) {
   const isPercentage = service.pricing_model === "percentage";
+  const isCompound = childCount > 0;
+  const isDerived = isCompound && !hasChecklist;
+  const cellReadOnly = hasChecklist || isCompound;
   const setChecklist = useSetServiceChecklist();
 
   const initialHours = useMemo(() => {
@@ -227,6 +233,9 @@ function ServiceRow({
         <Link to={`/services/${service.id}`} className="font-medium hover:underline">
           {service.name}
         </Link>
+        {isCompound && (
+          <Badge variant="secondary" className="ml-2 text-[10px]">bundle · {childCount}</Badge>
+        )}
         {hasChecklist && !dirty && (
           <Badge variant="outline" className="ml-2 text-[10px]">checklist</Badge>
         )}
@@ -234,12 +243,22 @@ function ServiceRow({
       <td
         className={cn(
           "px-3 py-2 max-w-[160px] truncate",
-          hasChecklist ? "text-muted-foreground/50" : "text-muted-foreground",
+          cellReadOnly ? "text-muted-foreground/50" : "text-muted-foreground",
           cellBorder
         )}
-        title={ruleName ? (hasChecklist ? `${ruleName} (fallback — checklist is driving allocation)` : ruleName) : undefined}
+        title={
+          isDerived
+            ? "Derived from included services"
+            : ruleName
+              ? hasChecklist
+                ? `${ruleName} (fallback — checklist is driving allocation)`
+                : ruleName
+              : undefined
+        }
       >
-        {ruleName ? (
+        {isDerived ? (
+          <span className="text-muted-foreground">—</span>
+        ) : ruleName ? (
           <>
             {ruleName}
             {hasChecklist && <span className="ml-1 text-[10px]">(fallback)</span>}
@@ -254,13 +273,13 @@ function ServiceRow({
       {departments.map((d) => {
         const inherited = !hasChecklist && !touched.has(d.id);
         const value = hours[d.id] ?? 0;
-        if (hasChecklist) {
+        if (cellReadOnly) {
           return (
             <td key={d.id} className={cn("px-2 py-2 text-right tabular-nums", cellBorder)}>
               <Link
                 to={`/services/${service.id}`}
                 className="text-sm text-muted-foreground hover:underline"
-                title="Edit in service detail"
+                title={isDerived ? "Derived from included services — edit in service detail" : "Edit in service detail"}
               >
                 {value > 0 ? formatHours(value) : "—"}
               </Link>
