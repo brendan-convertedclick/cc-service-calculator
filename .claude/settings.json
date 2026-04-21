@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__cc-supabase__list_tables",
+      "mcp__cc-supabase__get_project_url",
+      "mcp__cc-supabase__list_migrations",
+      "mcp__cc-supabase__list_extensions",
+      "mcp__cc-supabase__generate_typescript_types",
+      "mcp__cc-supabase__get_advisors",
+      "mcp__cc-supabase__search_docs",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx:*)"
+    ],
+    "deny": [
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__deploy_edge_function"
+    ]
+  }
+}
