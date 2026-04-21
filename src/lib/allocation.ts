@@ -7,21 +7,21 @@
 export type DepartmentRef = {
   id: string;
   name: string;
-  hourlyRateCents: number;
+  hourly_rate_cents: number;
 };
 
 export type AllocationRow = {
-  departmentId: string;
+  department_id: string;
   pct: number; // 0..100
 };
 
 export type ResolvedRow = {
-  departmentId: string;
+  department_id: string;
   departmentName: string;
   pct: number;
   priceShareCents: number;
   hours: number;
-  hourlyRateCents: number;
+  hourly_rate_cents: number;
 };
 
 /** 99.5 <= sum <= 100.5 */
@@ -50,22 +50,22 @@ export function resolveAllocation(
   const deptMap = new Map(departments.map((d) => [d.id, d]));
 
   return allocations.map((row) => {
-    const dept = deptMap.get(row.departmentId);
+    const dept = deptMap.get(row.department_id);
     if (!dept) {
-      throw new Error(`Unknown department id: ${row.departmentId}`);
+      throw new Error(`Unknown department id: ${row.department_id}`);
     }
     const priceShareCents = Math.round((sellPriceCents * row.pct) / 100);
     const hours =
-      dept.hourlyRateCents > 0
-        ? round2(priceShareCents / dept.hourlyRateCents)
+      dept.hourly_rate_cents > 0
+        ? round2(priceShareCents / dept.hourly_rate_cents)
         : 0;
     return {
-      departmentId: dept.id,
+      department_id: dept.id,
       departmentName: dept.name,
       pct: row.pct,
       priceShareCents,
       hours,
-      hourlyRateCents: dept.hourlyRateCents,
+      hourly_rate_cents: dept.hourly_rate_cents,
     };
   });
 }
@@ -76,4 +76,28 @@ export function totalHours(rows: ResolvedRow[]): number {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Convert a per-department hours map into a per-department % map,
+ * using each dept's hourly rate and the service's sell price.
+ * pct_dept = hours_dept * rate_dept / price * 100
+ *
+ * Returns empty object if priceCents <= 0 (percentage-priced services).
+ * Skips depts with zero or negative hours or unknown/zero rate.
+ */
+export function hoursToPct(input: {
+  hoursByDept: Record<string, number>;
+  departmentRates: Record<string, number>; // hourly_rate_cents
+  priceCents: number;
+}): Record<string, number> {
+  if (input.priceCents <= 0) return {};
+  const out: Record<string, number> = {};
+  for (const [deptId, hours] of Object.entries(input.hoursByDept)) {
+    if (hours <= 0) continue;
+    const rate = input.departmentRates[deptId] ?? 0;
+    if (rate <= 0) continue;
+    out[deptId] = Math.round(((hours * rate) / input.priceCents) * 100 * 100) / 100;
+  }
+  return out;
 }

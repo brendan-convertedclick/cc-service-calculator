@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DepartmentRef,
+  hoursToPct,
   isSumValid,
   resolveAllocation,
   sumPct,
@@ -8,26 +9,26 @@ import {
 } from "./allocation";
 
 const depts: DepartmentRef[] = [
-  { id: "dev", name: "Development", hourlyRateCents: 107500 },
-  { id: "seo", name: "SEO", hourlyRateCents: 107500 },
-  { id: "pm", name: "Project Management", hourlyRateCents: 115000 },
+  { id: "dev", name: "Development", hourly_rate_cents: 107500 },
+  { id: "seo", name: "SEO", hourly_rate_cents: 107500 },
+  { id: "pm", name: "Project Management", hourly_rate_cents: 115000 },
 ];
 
 describe("sumPct / isSumValid", () => {
   it("sums clean allocations", () => {
-    expect(sumPct([{ departmentId: "dev", pct: 60 }, { departmentId: "seo", pct: 40 }])).toBe(100);
+    expect(sumPct([{ department_id: "dev", pct: 60 }, { department_id: "seo", pct: 40 }])).toBe(100);
   });
 
   it("accepts values inside 99.5..100.5 tolerance", () => {
-    expect(isSumValid([{ departmentId: "dev", pct: 99.7 }])).toBe(true);
-    expect(isSumValid([{ departmentId: "dev", pct: 100.4 }])).toBe(true);
+    expect(isSumValid([{ department_id: "dev", pct: 99.7 }])).toBe(true);
+    expect(isSumValid([{ department_id: "dev", pct: 100.4 }])).toBe(true);
   });
 
   it("rejects values outside tolerance", () => {
-    expect(isSumValid([{ departmentId: "dev", pct: 99.4 }])).toBe(false);
-    expect(isSumValid([{ departmentId: "dev", pct: 100.6 }])).toBe(false);
-    expect(isSumValid([{ departmentId: "dev", pct: 90 }, { departmentId: "seo", pct: 10 }])).toBe(true);
-    expect(isSumValid([{ departmentId: "dev", pct: 50 }])).toBe(false);
+    expect(isSumValid([{ department_id: "dev", pct: 99.4 }])).toBe(false);
+    expect(isSumValid([{ department_id: "dev", pct: 100.6 }])).toBe(false);
+    expect(isSumValid([{ department_id: "dev", pct: 90 }, { department_id: "seo", pct: 10 }])).toBe(true);
+    expect(isSumValid([{ department_id: "dev", pct: 50 }])).toBe(false);
   });
 });
 
@@ -37,9 +38,9 @@ describe("resolveAllocation — worked example from the plan", () => {
   const rows = resolveAllocation(
     price,
     [
-      { departmentId: "dev", pct: 60 },
-      { departmentId: "seo", pct: 25 },
-      { departmentId: "pm", pct: 15 },
+      { department_id: "dev", pct: 60 },
+      { department_id: "seo", pct: 25 },
+      { department_id: "pm", pct: 15 },
     ],
     depts
   );
@@ -68,21 +69,21 @@ describe("resolveAllocation — override vs inherit produces different results",
   const price = 330000;
   const inherit = resolveAllocation(
     price,
-    [{ departmentId: "dev", pct: 100 }],
+    [{ department_id: "dev", pct: 100 }],
     depts
   );
   const override = resolveAllocation(
     price,
     [
-      { departmentId: "dev", pct: 50 },
-      { departmentId: "seo", pct: 50 },
+      { department_id: "dev", pct: 50 },
+      { department_id: "seo", pct: 50 },
     ],
     depts
   );
 
   it("inherit path allocates everything to dev", () => {
     expect(inherit).toHaveLength(1);
-    expect(inherit[0].departmentId).toBe("dev");
+    expect(inherit[0].department_id).toBe("dev");
     expect(inherit[0].hours).toBe(3.07); // 330000/107500 = 3.069... -> 3.07
   });
 
@@ -95,12 +96,49 @@ describe("resolveAllocation — override vs inherit produces different results",
   });
 });
 
+describe("hoursToPct", () => {
+  it("converts hours-per-dept to % using dept rates and total price", () => {
+    // Service price R3,300 (330000 cents).
+    // Dev 1.84h @ R1,075/hr (107500 cents) = 197800 cents = 59.94%
+    // SEO 0.77h @ R1,075/hr = 82775 cents = 25.08%
+    // PM 0.43h @ R1,150/hr (115000 cents) = 49450 cents = 14.98%
+    const result = hoursToPct({
+      hoursByDept: { dev: 1.84, seo: 0.77, pm: 0.43 },
+      departmentRates: { dev: 107500, seo: 107500, pm: 115000 },
+      priceCents: 330000,
+    });
+    expect(result.dev).toBeCloseTo(59.94, 1);
+    expect(result.seo).toBeCloseTo(25.08, 1);
+    expect(result.pm).toBeCloseTo(14.98, 1);
+    const sum = Object.values(result).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(100, 0);
+  });
+
+  it("skips depts with zero hours", () => {
+    const result = hoursToPct({
+      hoursByDept: { dev: 1, seo: 0, pm: 0 },
+      departmentRates: { dev: 100000, seo: 100000, pm: 100000 },
+      priceCents: 100000,
+    });
+    expect(result).toEqual({ dev: 100 });
+  });
+
+  it("returns empty object when priceCents is 0", () => {
+    const result = hoursToPct({
+      hoursByDept: { dev: 1 },
+      departmentRates: { dev: 100000 },
+      priceCents: 0,
+    });
+    expect(result).toEqual({});
+  });
+});
+
 describe("edge cases", () => {
   it("handles zero-rate department without Infinity", () => {
     const rows = resolveAllocation(
       100000,
-      [{ departmentId: "free", pct: 100 }],
-      [{ id: "free", name: "Freebie", hourlyRateCents: 0 }]
+      [{ department_id: "free", pct: 100 }],
+      [{ id: "free", name: "Freebie", hourly_rate_cents: 0 }]
     );
     expect(rows[0].hours).toBe(0);
     expect(Number.isFinite(rows[0].hours)).toBe(true);
@@ -108,7 +146,7 @@ describe("edge cases", () => {
 
   it("throws on unknown department id", () => {
     expect(() =>
-      resolveAllocation(100000, [{ departmentId: "ghost", pct: 100 }], depts)
+      resolveAllocation(100000, [{ department_id: "ghost", pct: 100 }], depts)
     ).toThrow(/Unknown department/);
   });
 });
