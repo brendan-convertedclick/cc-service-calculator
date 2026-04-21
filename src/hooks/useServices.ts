@@ -193,22 +193,29 @@ export function useSetServiceChecklist() {
 export type AllocationMatrix = {
   resolved: Map<string, Map<string, { pct: number | null; hours: number }>>;
   hasChecklist: Set<string>;
+  childCounts: Map<string, number>;
 };
 
 export function useAllocationMatrix() {
   return useQuery({
     queryKey: MATRIX,
     queryFn: async (): Promise<AllocationMatrix> => {
-      const [{ data: resolvedRows, error: rErr }, { data: stepRows, error: sErr }] = await Promise.all([
+      const [
+        { data: resolvedRows, error: rErr },
+        { data: stepRows, error: sErr },
+        { data: childRows, error: cErr },
+      ] = await Promise.all([
         supabase.from("service_allocation_resolved").select("*"),
         supabase
           .from("process_steps")
           .select("service_id")
           .not("department_id", "is", null)
           .not("estimated_hours", "is", null),
+        supabase.from("service_children").select("parent_id"),
       ]);
       if (rErr) throw rErr;
       if (sErr) throw sErr;
+      if (cErr) throw cErr;
 
       const resolved = new Map<string, Map<string, { pct: number | null; hours: number }>>();
       for (const r of (resolvedRows as ResolvedRow[] | null) ?? []) {
@@ -226,7 +233,11 @@ export function useAllocationMatrix() {
       const hasChecklist = new Set<string>(
         ((stepRows as { service_id: string }[] | null) ?? []).map((s) => s.service_id)
       );
-      return { resolved, hasChecklist };
+      const childCounts = new Map<string, number>();
+      for (const row of (childRows as { parent_id: string }[] | null) ?? []) {
+        childCounts.set(row.parent_id, (childCounts.get(row.parent_id) ?? 0) + 1);
+      }
+      return { resolved, hasChecklist, childCounts };
     },
   });
 }
