@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, type ServiceWithTotals } from "@/hooks/useServices";
 import { useSetServiceChecklist } from "@/hooks/useProcessSteps";
-import { useAllocationMatrix } from "@/hooks/useAllocationMatrix";
+import { useAllocationMatrix, type AllocationMatrix } from "@/hooks/useAllocationMatrix";
 import { useRules } from "@/hooks/useRules";
 import { useDepartments } from "@/hooks/useDepartments";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { cn, formatHours, formatZar } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Department = Database["public"]["Tables"]["departments"]["Row"];
+
+type ChecklistMutate = ReturnType<typeof useSetServiceChecklist>["mutate"];
 
 function roundToQuarter(h: number): number {
   if (h <= 0) return 0;
@@ -31,6 +33,12 @@ export function ServicesList() {
   const [q, setQ] = useState("");
   const [ruleFilter, setRuleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
+
+  // Lifted: a single mutation handle drives every row's save/revert. mutate() is
+  // a stable reference across renders, so the per-row React.memo stays effective.
+  const setChecklist = useSetServiceChecklist();
+  const setChecklistMutate = setChecklist.mutate;
+  const setChecklistPending = setChecklist.isPending;
 
   const filtered = useMemo(() => {
     return services.filter((s) => {
@@ -108,9 +116,9 @@ export function ServicesList() {
                       service={s}
                       departments={depts}
                       ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
-                      resolvedByDept={matrix?.resolved[s.id]}
-                      hasChecklist={matrix?.hasChecklist[s.id] ?? false}
-                      childCount={matrix?.childCounts[s.id] ?? 0}
+                      matrix={matrix}
+                      setChecklistMutate={setChecklistMutate}
+                      setChecklistPending={setChecklistPending}
                     />
                   ))}
                 </tbody>
@@ -123,26 +131,34 @@ export function ServicesList() {
   );
 }
 
-function ServiceRow({
-  service,
-  departments,
-  ruleName,
-  resolvedByDept,
-  hasChecklist,
-  childCount,
-}: {
+type ServiceRowProps = {
   service: ServiceWithTotals;
   departments: Department[];
   ruleName: string | null;
-  resolvedByDept: Record<string, { pct: number | null; hours: number }> | undefined;
-  hasChecklist: boolean;
-  childCount: number;
-}) {
+  matrix: AllocationMatrix | undefined;
+  setChecklistMutate: ChecklistMutate;
+  setChecklistPending: boolean;
+};
+
+const ServiceRow = memo(function ServiceRow({
+  service,
+  departments,
+  ruleName,
+  matrix,
+  setChecklistMutate,
+  setChecklistPending,
+}: ServiceRowProps) {
+  // Look up our own slice of the matrix here so the parent passes a single
+  // stable `matrix` reference instead of three derived props that would each
+  // be a fresh value on every parent render and defeat React.memo.
+  const resolvedByDept = matrix?.resolved[service.id];
+  const hasChecklist = matrix?.hasChecklist[service.id] ?? false;
+  const childCount = matrix?.childCounts[service.id] ?? 0;
+
   const isPercentage = service.pricing_model === "percentage";
   const isCompound = childCount > 0;
   const isDerived = isCompound && !hasChecklist;
   const cellReadOnly = hasChecklist || isCompound;
-  const setChecklist = useSetServiceChecklist();
 
   const initialHours = useMemo(() => {
     const out: Record<string, number> = {};
@@ -198,7 +214,7 @@ function ServiceRow({
       toast.error("Enter at least 0.25 hours on one department");
       return;
     }
-    setChecklist.mutate(
+    setChecklistMutate(
       {
         kind: "hours",
         serviceId: service.id,
@@ -217,7 +233,7 @@ function ServiceRow({
 
   function revert() {
     if (!confirm(`Delete the checklist for ${service.name} and fall back to its rule's allocation?`)) return;
-    setChecklist.mutate(
+    setChecklistMutate(
       { kind: "clear", serviceId: service.id },
       {
         onSuccess: () => toast.success(`Reverted ${service.name} to rule`),
@@ -323,15 +339,15 @@ function ServiceRow({
       <td className={cn("px-3 py-2", cellBorder)}>
         {dirty ? (
           <div className="flex items-center justify-end gap-1">
-            <Button size="sm" variant="ghost" onClick={reset} disabled={setChecklist.isPending}>
+            <Button size="sm" variant="ghost" onClick={reset} disabled={setChecklistPending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={save} disabled={!sumValid || setChecklist.isPending}>
+            <Button size="sm" onClick={save} disabled={!sumValid || setChecklistPending}>
               Save
             </Button>
           </div>
         ) : hasChecklist ? (
-          <Button size="sm" variant="ghost" onClick={revert} disabled={setChecklist.isPending} title="Delete checklist and fall back to rule">
+          <Button size="sm" variant="ghost" onClick={revert} disabled={setChecklistPending} title="Delete checklist and fall back to rule">
             <RotateCcw className="h-3.5 w-3.5" /> Revert
           </Button>
         ) : (
@@ -340,4 +356,4 @@ function ServiceRow({
       </td>
     </tr>
   );
-}
+});
