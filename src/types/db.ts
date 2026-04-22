@@ -392,6 +392,89 @@ export type Database = {
           },
         ]
       }
+      quote_line_item_allocations: {
+        Row: {
+          cost_share_cents: number
+          created_at: string
+          dept_id: string
+          dept_name: string
+          hours: number
+          id: string
+          ordinal: number
+          qty: number
+          quote_id: string
+          service_id: string
+          service_name: string
+          snapshot_version: number
+          subtotal_cents: number
+          unit_price_cents: number
+          xero_code: string | null
+        }
+        Insert: {
+          cost_share_cents?: number
+          created_at?: string
+          dept_id: string
+          dept_name: string
+          hours?: number
+          id?: string
+          ordinal: number
+          qty: number
+          quote_id: string
+          service_id: string
+          service_name: string
+          snapshot_version?: number
+          subtotal_cents: number
+          unit_price_cents: number
+          xero_code?: string | null
+        }
+        Update: {
+          cost_share_cents?: number
+          created_at?: string
+          dept_id?: string
+          dept_name?: string
+          hours?: number
+          id?: string
+          ordinal?: number
+          qty?: number
+          quote_id?: string
+          service_id?: string
+          service_name?: string
+          snapshot_version?: number
+          subtotal_cents?: number
+          unit_price_cents?: number
+          xero_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_item_allocations_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_item_allocations_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_item_allocations_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "quote_line_item_allocations_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_services: {
         Row: {
           created_at: string
@@ -490,7 +573,6 @@ export type Database = {
           created_at: string
           discount_room_pct: number
           id: string
-          line_items_jsonb: Json
           margin_pct: number
           rejection_reason: string | null
           scope_id: string
@@ -510,7 +592,6 @@ export type Database = {
           created_at?: string
           discount_room_pct?: number
           id?: string
-          line_items_jsonb?: Json
           margin_pct?: number
           rejection_reason?: string | null
           scope_id: string
@@ -530,7 +611,6 @@ export type Database = {
           created_at?: string
           discount_room_pct?: number
           id?: string
-          line_items_jsonb?: Json
           margin_pct?: number
           rejection_reason?: string | null
           scope_id?: string

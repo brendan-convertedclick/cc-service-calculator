@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/db";
+import type { SnapshotLineItem } from "@/lib/quotes";
 
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type QuoteInsert = Database["public"]["Tables"]["quotes"]["Insert"];
@@ -164,6 +165,53 @@ export function useReplaceQuoteServices() {
         const { error: oErr } = await supabase.from("quote_service_overrides").insert(overrideRows);
         if (oErr) throw oErr;
       }
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: Q_DETAIL(vars.quoteId) }),
+  });
+}
+
+// Replace the frozen line-item snapshot on a quote. Called from Finalise. The
+// table is the source of truth for what was accepted — push-to-clickup and
+// any future reporting read from it directly, never from catalogue joins.
+export function useReplaceQuoteLineItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      quoteId,
+      snapshot,
+    }: {
+      quoteId: string;
+      snapshot: SnapshotLineItem[];
+    }) => {
+      const { error: dErr } = await supabase
+        .from("quote_line_item_allocations")
+        .delete()
+        .eq("quote_id", quoteId);
+      if (dErr) throw dErr;
+
+      if (snapshot.length === 0) return;
+
+      const rows = snapshot.flatMap((line, idx) =>
+        line.allocation.map((alloc) => ({
+          quote_id: quoteId,
+          ordinal: idx + 1,
+          service_id: line.service_id,
+          service_name: line.service_name,
+          xero_code: line.xero_code,
+          qty: line.qty,
+          unit_price_cents: line.unit_price_cents,
+          subtotal_cents: line.subtotal_cents,
+          dept_id: alloc.dept_id,
+          dept_name: alloc.dept_name,
+          hours: alloc.hours,
+          cost_share_cents: alloc.cost_share_cents,
+        })),
+      );
+
+      const { error: iErr } = await supabase
+        .from("quote_line_item_allocations")
+        .insert(rows);
+      if (iErr) throw iErr;
     },
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: Q_DETAIL(vars.quoteId) }),
   });

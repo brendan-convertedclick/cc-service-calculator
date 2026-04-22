@@ -18,6 +18,7 @@ import {
   useCreateQuote,
   useLiveQuoteForScope,
   useQuote,
+  useReplaceQuoteLineItems,
   useReplaceQuoteServices,
   useUpdateQuote,
 } from "@/hooks/useQuotes";
@@ -222,6 +223,7 @@ export function ProjectBuilder() {
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
   const replaceSvcs = useReplaceQuoteServices();
+  const replaceLineItems = useReplaceQuoteLineItems();
   const updateBrief = useUpdateBrief();
 
   const [lines, setLines] = useState<EditorLine[]>([]);
@@ -378,7 +380,6 @@ export function ProjectBuilder() {
       await updateQuote.mutateAsync({
         id: liveQuote.id,
         patch: {
-          line_items_jsonb: snapshot,
           subtotal_cents: totals.subtotal_cents,
           total_cents: totals.total_cents,
           margin_pct: marginPct,
@@ -386,6 +387,7 @@ export function ProjectBuilder() {
           sow_html: sowHtml,
         },
       });
+      await replaceLineItems.mutateAsync({ quoteId: liveQuote.id, snapshot });
       if (sowHtml) {
         const { data: pdfRes, error: pdfErr } = await supabase.functions.invoke("render-sow-pdf", {
           body: { quote_id: liveQuote.id },

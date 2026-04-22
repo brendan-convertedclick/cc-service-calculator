@@ -8,7 +8,7 @@
 // (Deno.env.get('CLICKUP_PAT')).
 //
 // Flow:
-//   1. Load quote + scope + brief + client + line_items_jsonb snapshot.
+//   1. Load quote + scope + brief + client + line allocations.
 //   2. Resolve the client's ClickUp space (substring match on client name).
 //      Cache clickup_folder_id on clients row.
 //   3. Pick a list inside the space named /projects/i, or the first list.
@@ -143,7 +143,44 @@ Deno.serve(async (req: Request) => {
     // atomic — see the file header for the rationale.
     const projectId = crypto.randomUUID();
 
-    const items = (quote.line_items_jsonb as SnapshotLineItem[]) ?? [];
+    // Load the frozen snapshot from the normalized table and re-aggregate
+    // into the items × allocation grouping the task-creation loop expects.
+    const { data: allocRows, error: allocErr } = await supabase
+      .from("quote_line_item_allocations")
+      .select("*")
+      .eq("quote_id", quote.id)
+      .order("ordinal");
+    if (allocErr) return json({ error: allocErr.message }, 500);
+
+    const itemsByOrdinal = new Map<number, SnapshotLineItem>();
+    for (const r of (allocRows ?? []) as Array<{
+      ordinal: number;
+      service_id: string;
+      service_name: string;
+      qty: number | string;
+      dept_id: string;
+      dept_name: string;
+      hours: number | string;
+      cost_share_cents: number | string;
+    }>) {
+      let item = itemsByOrdinal.get(r.ordinal);
+      if (!item) {
+        item = {
+          service_id: r.service_id,
+          service_name: r.service_name,
+          qty: Number(r.qty),
+          allocation: [],
+        };
+        itemsByOrdinal.set(r.ordinal, item);
+      }
+      item.allocation.push({
+        dept_id: r.dept_id,
+        dept_name: r.dept_name,
+        hours: Number(r.hours),
+        cost_share_cents: Number(r.cost_share_cents),
+      });
+    }
+    const items = Array.from(itemsByOrdinal.values());
     type ActualRow = {
       project_id: string;
       clickup_task_id: string;
