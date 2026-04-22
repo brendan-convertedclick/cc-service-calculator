@@ -29,3 +29,7 @@ coverage/
 
 # Supabase local
 .supabase/
+supabase/.temp/
+
+# Playwright MCP scratch
+.playwright-mcp/
