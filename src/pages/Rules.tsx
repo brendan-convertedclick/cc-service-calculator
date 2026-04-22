@@ -6,7 +6,8 @@ import { useCreateRule, useDeleteRule, useRules, useUpdateRule, type RuleWithAll
 import { AllocationEditor, type AllocRow } from "@/components/AllocationEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { isSumValid } from "@/lib/allocation";
