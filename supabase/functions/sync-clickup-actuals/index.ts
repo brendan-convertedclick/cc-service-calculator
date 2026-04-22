@@ -67,20 +67,24 @@ Deno.serve(async () => {
       let allDone = actuals.length > 0;
 
       for (const a of actuals) {
-        const tRes = await fetch(
-          `https://api.clickup.com/api/v2/task/${a.clickup_task_id}?include_subtasks=false`,
-          CU,
-        );
+        // Parallelize the two ClickUp calls — they're independent. Cross-task
+        // and cross-project parallelization is deferred to T3.
+        const [tRes, teRes] = await Promise.all([
+          fetch(
+            `https://api.clickup.com/api/v2/task/${a.clickup_task_id}?include_subtasks=false`,
+            CU,
+          ),
+          fetch(
+            `https://api.clickup.com/api/v2/task/${a.clickup_task_id}/time`,
+            CU,
+          ),
+        ]);
         if (!tRes.ok) {
           allDone = false;
           continue;
         }
         const task = await tRes.json();
 
-        const teRes = await fetch(
-          `https://api.clickup.com/api/v2/task/${a.clickup_task_id}/time`,
-          CU,
-        );
         const timeEntries = teRes.ok ? (await teRes.json()).data : null;
         const actualHours = (timeEntries ?? []).reduce(
           (acc: number, e: { duration?: string }) =>
@@ -93,7 +97,7 @@ Deno.serve(async () => {
 
         // Append-only insert: a brand new row per task per tick. recorded_at
         // defaults to now() via the column default added in migration 0013.
-        await supabase
+        const { error: insErr } = await supabase
           .from("project_actuals")
           .insert({
             project_id: a.project_id,
@@ -105,6 +109,7 @@ Deno.serve(async () => {
             status_at_sync: status,
             synced_at: new Date().toISOString(),
           });
+        if (insErr) throw insErr;
         inserted++;
       }
 

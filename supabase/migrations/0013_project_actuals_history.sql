@@ -8,9 +8,9 @@
 -- schema change.
 --
 -- Changes:
---   1. Add recorded_at (timestamptz, default now()) for snapshot ordering.
---      Backfill existing rows from synced_at so the column is NOT NULL-clean
---      the moment it is added.
+--   1. Add recorded_at (timestamptz) for snapshot ordering, via the
+--      add-nullable / backfill / not-null / default pattern so re-applying
+--      the migration is a true no-op (see section 1 comment for why).
 --   2. Drop the old unique (project_id, clickup_task_id) index — append-only
 --      semantics mean we expect many rows for the same task over time.
 --   3. Add a composite index on (project_id, clickup_task_id, recorded_at desc)
@@ -23,18 +23,33 @@
 --
 -- All statements are idempotent so re-applying is safe.
 
--- 1. recorded_at column
+-- 1. recorded_at column — add-nullable, backfill, set NOT NULL, set default.
+--
+-- The split matters for idempotency. Adding the column nullable means the
+-- backfill UPDATE's `where recorded_at is null` precisely identifies
+-- pre-migration rows: on first apply, every existing row matches and gets
+-- synced_at copied over. On any re-apply, every row either (a) pre-dated
+-- the first apply and was already backfilled to NOT NULL, or (b) was
+-- inserted after the first apply and got recorded_at from the default —
+-- either way, zero rows match `is null`, so the UPDATE is a true no-op.
+--
+-- This avoids the pitfall of a WHERE-on-value guard (e.g.
+-- `recorded_at <> synced_at`): the edge fn sets synced_at in JS, while
+-- postgres evaluates `default now()` for recorded_at independently, so
+-- they typically differ by a few ms and a re-apply would silently rewrite
+-- every post-migration row.
 alter table public.project_actuals
-  add column if not exists recorded_at timestamptz not null default now();
+  add column if not exists recorded_at timestamptz;
 
--- Backfill pre-existing rows. Safe to re-run: rows inserted after the column
--- was added already have recorded_at populated by the default; this only
--- rewrites ones where recorded_at happens to match synced_at (the backfill
--- condition) and is a no-op for fresh inserts.
 update public.project_actuals
    set recorded_at = synced_at
- where recorded_at <> synced_at
-   and synced_at is not null;
+ where recorded_at is null;
+
+alter table public.project_actuals
+  alter column recorded_at set not null;
+
+alter table public.project_actuals
+  alter column recorded_at set default now();
 
 -- 2. Drop legacy uniqueness constraint.
 drop index if exists public.project_actuals_project_task_idx;
