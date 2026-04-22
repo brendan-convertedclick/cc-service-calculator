@@ -173,8 +173,11 @@ Deno.serve(async (req: Request) => {
             (t: { primary_department_id: string | null }) =>
               t.primary_department_id === alloc.dept_id,
           );
+          // ClickUp v2 creates subtasks via the list endpoint with `parent`
+          // in the body (NOT POST /task/{parent_id}, which isn't a real
+          // endpoint). See https://developer.clickup.com/reference/createtask
           const childRes = await fetch(
-            `https://api.clickup.com/api/v2/task/${parent.id}`,
+            `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
             {
               ...CU,
               method: "POST",
@@ -252,9 +255,23 @@ Deno.serve(async (req: Request) => {
       if (aErr) {
         // Compensating delete: the projects row exists but actuals are
         // missing. Roll back so a retry isn't blocked by the unique
-        // constraint on quote_id.
-        await supabase.from("projects").delete().eq("id", projectId);
-        return json({ error: aErr.message }, 500);
+        // constraint on quote_id. If the rollback itself fails, surface
+        // both errors — otherwise the caller would see only aErr and not
+        // realise the projects row is still present (blocking retries).
+        let rollbackErr: string | null = null;
+        try {
+          const { error: delErr } = await supabase
+            .from("projects").delete().eq("id", projectId);
+          if (delErr) rollbackErr = delErr.message;
+        } catch (e) {
+          rollbackErr = e instanceof Error ? e.message : String(e);
+        }
+        return json(
+          rollbackErr
+            ? { error: aErr.message, rollback_error: rollbackErr }
+            : { error: aErr.message },
+          500,
+        );
       }
     }
 
