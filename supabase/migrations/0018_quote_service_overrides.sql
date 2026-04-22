@@ -28,15 +28,23 @@ create policy quote_service_overrides_authed_all
   on public.quote_service_overrides for all to authenticated
   using (true) with check (true);
 
+-- Guarantee ordinals are unique within a quote so callers can match
+-- inserted rows back to their input by ordinal.
+alter table public.quote_services
+  drop constraint if exists quote_services_quote_ordinal_unique,
+  add constraint quote_services_quote_ordinal_unique
+    unique (quote_id, ordinal);
+
 -- Backfill: union dept_ids from both jsonb columns per quote_service.
--- Guarded so it only runs while the jsonb columns still exist (re-run safe).
+-- Guarded so it only runs while EITHER jsonb column is still present
+-- (re-run safe; survives a partial drop where only one column was removed).
 do $$
 begin
   if exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
       and table_name = 'quote_services'
-      and column_name = 'allocation_override'
+      and column_name in ('allocation_override', 'hours_override')
   ) then
     insert into public.quote_service_overrides (quote_service_id, dept_id, pct_override, hours_override)
     select
