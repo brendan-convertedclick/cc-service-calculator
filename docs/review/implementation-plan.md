@@ -176,3 +176,46 @@ Phase 4 is cleanup that should happen continuously, not a discrete step.
 - Does not introduce new external services.
 - Does not touch the design-token / Figma-sync system (already clean).
 - Does not add multi-user auth (out of scope for V1 per CLAUDE.md). Items marked "becomes critical when multi-user lands" are flagged but not scheduled.
+
+---
+
+## Execution summary (rebuild branch `rebuild/phases-0-to-4`)
+
+**Phase 0 — Safety (3/3 tasks complete)**
+- T1 → migration 0012 (commits `145dd90`, `c54aaf4`)
+- T2 → migration 0013 + sync-clickup-actuals append-only (commits `e22a2cc`, `f642e5b`)
+- T3 → push-to-clickup atomicity + parallelization + sync N+1 fix (commits `4847437`, `9071e0b`)
+
+**Phase 1 — Data model (6/6 tasks complete)**
+- T4 → migration 0014 (commit `efe26e1`)
+- T5 → migration 0015 (commit `99e05b0`)
+- T6 → migration 0016 (commit `29c60fd`)
+- T7 → migration 0017 (commit `fbf25bc`)
+- T8 → migration 0018 + normalize quote_services overrides (commits `2e242ab`, `3ba6b2a`)
+- T9 → migration 0019 + normalize line_items_jsonb (commit `c87edd3`)
+
+**Phase 2 — Structural (8/8 tasks complete)**
+- T10 → supabase/functions/_shared/ scaffold (commit `078fe34`)
+- T11 → migrate all 7 edge functions; delete clickup-shared (commit `7b70a28`)
+- T12 → migration 0020; master-sows server-side (commit `0279fce`)
+- T13 → AuthContext + brief-routing + tolerance constants (commit `efafe4b`)
+- T14 → split useServices.ts (commit `a37e8c1`)
+- T15 → fix hooks-bypass sites (commit `39cadb0`)
+- T16 → extract useQuoteBuilder; ProjectBuilder 577 → 172 lines (commit `36cc48b`)
+
+**Phase 3 — Performance (3/3 tasks complete)**
+- T17 → route-level code splitting; main chunk 617 KB → 149 KB gzip (commit `f5b2d55`)
+- T18 → memoize ServiceRow + lift mutation; virtualization deferred (commit `378a5c9`)
+- T19 → hot-path memoization cluster (commit `325c32d`)
+
+**Phase 4 — Cleanup**
+- T20 → user-action items + stale script ref + plan reconciliation (this commit)
+
+**Headline metrics**
+- Bundle: 1936 KB raw / 617 KB gzip → 507 KB raw / 149 KB gzip main chunk (76% reduction)
+- ProjectBuilder.tsx: 577 lines → 172 lines (70% reduction)
+- 9 new migrations (0012–0020) all idempotent on re-apply
+- 7 edge functions consolidated onto a `_shared/` module set
+- 4 hooks-layer bypass sites eliminated
+- Test count: 28 vitest + 9 Deno (covers pure-function lib + shared helpers)
+- All 28 vitest tests pass; typecheck and build clean throughout
