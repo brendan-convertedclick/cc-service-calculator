@@ -3,11 +3,17 @@
 // Invoked on a schedule (pg_cron → net.http_post, see migration 0011).
 //
 // For every in_progress project:
+//   - Read the latest snapshot per child task from project_actuals_current
+//     (the view added in migration 0013). This gives us the task IDs plus
+//     the immutable-in-practice fields (planned_hours, dept_id) we need to
+//     carry forward into the new row.
 //   - Fetch each child ClickUp task's status
 //   - Fetch each child ClickUp task's time entries, sum duration → hours
-//   - Upsert project_actuals by (project_id, clickup_task_id)
+//   - INSERT a fresh row into project_actuals for this tick. Append-only —
+//     no update-in-place — so every prior snapshot is retained for
+//     burn-over-time analysis.
 //   - If every child's status resolves to complete/closed/done, mark the
-//     project completed_at=now(), status='completed'
+//     project completed_at=now(), status='completed'.
 //
 // Uses the service_role key (bypasses anon auth) so it can read/write any
 // project_actuals row without a user session.
@@ -40,13 +46,27 @@ Deno.serve(async () => {
     const { data: projects } = await supabase
       .from("projects").select("*").eq("status", "in_progress");
 
-    let updated = 0;
+    let inserted = 0;
     for (const p of projects ?? []) {
-      const { data: actuals } = await supabase
-        .from("project_actuals").select("*").eq("project_id", p.id);
-      let allDone = (actuals ?? []).length > 0;
+      // Latest snapshot per task from the view. supabase-js doesn't know
+      // about the view in its generated types, but at runtime it's just a
+      // relation and .from() accepts the name. Cast to satisfy TS.
+      const { data: current } = await supabase
+        // deno-lint-ignore no-explicit-any
+        .from("project_actuals_current" as any)
+        .select("*")
+        .eq("project_id", p.id);
 
-      for (const a of actuals ?? []) {
+      const actuals = (current ?? []) as Array<{
+        clickup_task_id: string;
+        dept_id: string | null;
+        planned_hours: number;
+        project_id: string;
+      }>;
+
+      let allDone = actuals.length > 0;
+
+      for (const a of actuals) {
         const tRes = await fetch(
           `https://api.clickup.com/api/v2/task/${a.clickup_task_id}?include_subtasks=false`,
           CU,
@@ -71,16 +91,21 @@ Deno.serve(async () => {
         const status: string | null = task.status?.status?.toLowerCase() ?? null;
         if (status !== "complete" && status !== "closed" && status !== "done") allDone = false;
 
+        // Append-only insert: a brand new row per task per tick. recorded_at
+        // defaults to now() via the column default added in migration 0013.
         await supabase
           .from("project_actuals")
-          .update({
+          .insert({
+            project_id: a.project_id,
+            clickup_task_id: a.clickup_task_id,
+            dept_id: a.dept_id,
+            planned_hours: a.planned_hours,
             actual_hours: actualHours,
             time_entries: timeEntries,
             status_at_sync: status,
             synced_at: new Date().toISOString(),
-          })
-          .eq("id", a.id);
-        updated++;
+          });
+        inserted++;
       }
 
       if (allDone) {
@@ -91,7 +116,7 @@ Deno.serve(async () => {
       }
     }
 
-    return new Response(JSON.stringify({ updated }), {
+    return new Response(JSON.stringify({ inserted }), {
       headers: { "content-type": "application/json" },
     });
   } catch (e) {
