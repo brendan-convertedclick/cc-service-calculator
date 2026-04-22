@@ -1,0 +1,77 @@
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Calculator, LayoutDashboard, LogOut, PackageSearch, SlidersHorizontal, Users, Workflow } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+
+const nav = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/services", label: "Services", icon: PackageSearch, end: false },
+  { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
+  { to: "/departments", label: "Departments", icon: Workflow, end: false },
+  { to: "/team", label: "Team", icon: Users, end: false },
+];
+
+export function AppShell() {
+  const { signOut, user } = useAuth();
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen grid grid-cols-[240px_1fr] bg-m-surface-container-low">
+      <aside className="flex flex-col border-r border-m-outline-variant bg-m-surface">
+        <div className="flex h-16 items-center gap-2.5 px-6">
+          <div className="grid h-9 w-9 place-items-center rounded-md bg-m-primary-container text-m-on-primary-container">
+            <Calculator className="h-[18px] w-[18px]" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-title-small text-m-on-surface">CC Calculator</div>
+            <div className="text-label-small text-m-on-surface-variant">Service pricing</div>
+          </div>
+        </div>
+        <nav className="flex flex-1 flex-col gap-0.5 px-3 pt-2">
+          {nav.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-full px-4 py-2.5 text-label-large transition-colors",
+                  isActive
+                    ? "bg-m-primary-container text-m-on-primary-container"
+                    : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+                )
+              }
+            >
+              <n.icon className="h-[18px] w-[18px]" />
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="border-t border-m-outline-variant px-4 py-3">
+          <div className="text-label-small text-m-on-surface-variant">Signed in as</div>
+          <div className="truncate text-body-small text-m-on-surface">{user?.email}</div>
+        </div>
+      </aside>
+
+      <div className="flex min-h-screen flex-col">
+        <header className="flex h-16 items-center justify-end gap-3 border-b border-m-outline-variant bg-m-surface px-8">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              await signOut();
+              navigate("/login", { replace: true });
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </Button>
+        </header>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

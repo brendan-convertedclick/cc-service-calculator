@@ -1,5 +1,21 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
+import { mColorRoles, radius, fontFamily, elevation, typeScale } from "./src/styles/tokens";
+
+type TypeStyle = typeof typeScale[keyof typeof typeScale];
+
+const fontSize = Object.fromEntries(
+  Object.entries(typeScale).map(([name, s]: [string, TypeStyle]) => {
+    const kebab = name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+    return [
+      kebab,
+      [
+        s.size,
+        { lineHeight: s.lineHeight, letterSpacing: s.tracking, fontWeight: String(s.weight) },
+      ] as const,
+    ];
+  })
+);
 
 const config = {
   darkMode: ["class"],
@@ -45,11 +61,30 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Material 3 role-based colors — synced from Figma variables.
+        m: mColorRoles,
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xs: radius.xs,
+        sm: radius.sm,
+        md: radius.md,
+        lg: radius.lg,
+        xl: radius.xl,
+        full: radius.full,
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
+        display: ["var(--font-sans)"],
+      },
+      fontSize,
+      boxShadow: {
+        "elev-0": elevation.level0,
+        "elev-1": elevation.level1,
+        "elev-2": elevation.level2,
+        "elev-3": elevation.level3,
+        "elev-4": elevation.level4,
+        "elev-5": elevation.level5,
       },
       keyframes: {
         "accordion-down": {
@@ -69,5 +104,8 @@ const config = {
   },
   plugins: [animate],
 } satisfies Config;
+
+// Unused at runtime but kept to silence noUnusedLocals.
+void fontFamily;
 
 export default config;

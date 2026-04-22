@@ -23,7 +23,41 @@ This repo ships a dedicated MCP server in `.mcp.json` named **`cc-supabase`**, p
 - **Hours:** numeric(6,2) in the DB.
 - **Allocation sum tolerance:** 99.5–100.5. Triggers enforce this.
 - **Environment:** `.env.local` is gitignored; `.env.example` shows the shape. Vite prefixes with `VITE_`.
+- **Dev server port:** pinned to `5174` with `strictPort: true` in `vite.config.ts`. Other devs on the team use 5173 — do not change this port.
 - **AI:** Anthropic Claude Sonnet 4.6 via a single Supabase Edge Function `generate-process-steps`. Key stored as Supabase secret, never shipped to the browser.
+
+## Design tokens — Figma is the source of truth
+
+The app's visual language (colors, typography, radius, elevation) is driven by **Material 3 role-based tokens** defined in Figma and synced into the repo.
+
+- **Single source of truth:** `tokens/base.json`. Hand-edits to this file are OK for prototyping but will be overwritten by the sync script.
+- **Generated artefacts (committed):**
+  - `src/styles/tokens.css` — CSS custom properties (`--mcolor-primary`, `--radius-lg`, `--elevation-level1`, `--font-sans`) + shadcn aliases (`--primary`, `--background`, `--border`, …) for both light and `.dark` modes.
+  - `src/styles/tokens.ts` — typed exports consumed by `tailwind.config.ts`.
+- **Never edit the generated files by hand** — they carry a banner. Run `npm run tokens:build`.
+
+### Workflow
+
+1. **Figma variables naming convention** (must match exactly for the sync script to pick them up):
+   - Color variables: `color/<role-kebab-case>` — e.g. `color/primary`, `color/on-primary`, `color/primary-container`, `color/on-primary-container`, `color/surface`, `color/surface-container`, `color/surface-container-high`, `color/outline`, `color/outline-variant`, `color/error`, `color/on-error`, …
+   - Each color variable must define **Light** and **Dark** modes.
+   - Radius variables: `radius/xs`, `radius/sm`, `radius/md`, `radius/lg`, `radius/xl` as FLOAT variables (px).
+2. Set `FIGMA_ACCESS_TOKEN` and `FIGMA_FILE_KEY` in `.env.local` (see `.env.example`). The PAT needs `file_variables:read` scope.
+3. Pull + build: `npm run tokens:sync` — fetches variables from Figma, merges into `tokens/base.json`, regenerates CSS + TS. Commit the diffs.
+4. Local prototyping without Figma: edit `tokens/base.json`, then `npm run tokens:build`.
+
+### Using tokens in components
+
+- **M3 role colors** are exposed as Tailwind classes via the `m-` prefix: `bg-m-primary-container`, `text-m-on-surface-variant`, `border-m-outline-variant`, etc.
+- **Shadcn semantic aliases** still work: `bg-primary`, `text-muted-foreground`, `border-input` — they route to the same CSS vars.
+- **Type scale:** `text-display-large`, `text-headline-medium`, `text-title-small`, `text-body-medium`, `text-label-large`, etc. These set size + line-height + weight + letter-spacing in one class.
+- **Elevation:** `shadow-elev-1` through `shadow-elev-5`. Prefer elevation over heavy borders.
+- **Radius:** `rounded-sm/md/lg/xl` map to M3 shape tokens. Full-round buttons use `rounded-full` (the Button component handles this).
+
+### When to add a new token
+
+- New color role needed → add to `tokens/base.json` (and define it in Figma), then `npm run tokens:build`.
+- Per-component magic values → prefer a new token over a hardcoded hex.
 
 ## Out of scope for V1 (do not implement)
 

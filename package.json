@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/import-csv.ts"
+    "seed": "tsx scripts/import-csv.ts",
+    "tokens:build": "tsx scripts/build-tokens.ts",
+    "tokens:sync": "tsx -r dotenv/config scripts/sync-figma-tokens.ts dotenv_config_path=.env.local && tsx scripts/build-tokens.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -51,6 +53,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.4.2",
     "jsdom": "^26.0.0",
     "papaparse": "^5.5.1",
     "postcss": "^8.5.1",

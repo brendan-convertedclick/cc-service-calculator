@@ -1,0 +1,83 @@
+{
+  "$schema": "./schema.json",
+  "meta": {
+    "source": "seed",
+    "generatedAt": null,
+    "figmaFileKey": null,
+    "notes": "Seed values inspired by Material 3 color roles. Override by running `npm run tokens:sync` once a Figma file key + access token are set."
+  },
+  "color": {
+    "primary":                 { "light": "#4F46E5", "dark": "#A5B4FC" },
+    "onPrimary":               { "light": "#FFFFFF", "dark": "#1E1B4B" },
+    "primaryContainer":        { "light": "#E0E7FF", "dark": "#3730A3" },
+    "onPrimaryContainer":      { "light": "#1E1B4B", "dark": "#E0E7FF" },
+
+    "secondary":               { "light": "#475569", "dark": "#CBD5E1" },
+    "onSecondary":             { "light": "#FFFFFF", "dark": "#0F172A" },
+    "secondaryContainer":      { "light": "#E2E8F0", "dark": "#334155" },
+    "onSecondaryContainer":    { "light": "#0F172A", "dark": "#E2E8F0" },
+
+    "tertiary":                { "light": "#0D9488", "dark": "#5EEAD4" },
+    "onTertiary":              { "light": "#FFFFFF", "dark": "#042F2E" },
+    "tertiaryContainer":       { "light": "#CCFBF1", "dark": "#115E59" },
+    "onTertiaryContainer":     { "light": "#042F2E", "dark": "#CCFBF1" },
+
+    "error":                   { "light": "#DC2626", "dark": "#FCA5A5" },
+    "onError":                 { "light": "#FFFFFF", "dark": "#450A0A" },
+    "errorContainer":          { "light": "#FEE2E2", "dark": "#7F1D1D" },
+    "onErrorContainer":        { "light": "#7F1D1D", "dark": "#FECACA" },
+
+    "background":              { "light": "#F8FAFC", "dark": "#020617" },
+    "onBackground":            { "light": "#0F172A", "dark": "#F1F5F9" },
+    "surface":                 { "light": "#FFFFFF", "dark": "#0F172A" },
+    "onSurface":               { "light": "#0F172A", "dark": "#F1F5F9" },
+    "surfaceVariant":          { "light": "#F1F5F9", "dark": "#1E293B" },
+    "onSurfaceVariant":        { "light": "#475569", "dark": "#94A3B8" },
+    "surfaceContainerLow":     { "light": "#F8FAFC", "dark": "#0F172A" },
+    "surfaceContainer":        { "light": "#F1F5F9", "dark": "#1E293B" },
+    "surfaceContainerHigh":    { "light": "#E2E8F0", "dark": "#334155" },
+    "surfaceContainerHighest": { "light": "#CBD5E1", "dark": "#475569" },
+
+    "outline":                 { "light": "#CBD5E1", "dark": "#475569" },
+    "outlineVariant":          { "light": "#E2E8F0", "dark": "#334155" }
+  },
+  "radius": {
+    "xs":   "0.25rem",
+    "sm":   "0.5rem",
+    "md":   "0.75rem",
+    "lg":   "1rem",
+    "xl":   "1.5rem",
+    "full": "9999px"
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace"
+    },
+    "scale": {
+      "displayLarge":   { "size": "3.5625rem", "lineHeight": "4rem",     "weight": 400, "tracking": "-0.016em" },
+      "displayMedium":  { "size": "2.8125rem", "lineHeight": "3.25rem",  "weight": 400, "tracking": "0em" },
+      "displaySmall":   { "size": "2.25rem",   "lineHeight": "2.75rem",  "weight": 400, "tracking": "0em" },
+      "headlineLarge":  { "size": "2rem",      "lineHeight": "2.5rem",   "weight": 600, "tracking": "0em" },
+      "headlineMedium": { "size": "1.75rem",   "lineHeight": "2.25rem",  "weight": 600, "tracking": "0em" },
+      "headlineSmall":  { "size": "1.5rem",    "lineHeight": "2rem",     "weight": 600, "tracking": "0em" },
+      "titleLarge":     { "size": "1.375rem",  "lineHeight": "1.75rem",  "weight": 600, "tracking": "0em" },
+      "titleMedium":    { "size": "1rem",      "lineHeight": "1.5rem",   "weight": 600, "tracking": "0.009em" },
+      "titleSmall":     { "size": "0.875rem",  "lineHeight": "1.25rem",  "weight": 600, "tracking": "0.007em" },
+      "bodyLarge":      { "size": "1rem",      "lineHeight": "1.5rem",   "weight": 400, "tracking": "0.031em" },
+      "bodyMedium":     { "size": "0.875rem",  "lineHeight": "1.25rem",  "weight": 400, "tracking": "0.018em" },
+      "bodySmall":      { "size": "0.75rem",   "lineHeight": "1rem",     "weight": 400, "tracking": "0.033em" },
+      "labelLarge":     { "size": "0.875rem",  "lineHeight": "1.25rem",  "weight": 500, "tracking": "0.007em" },
+      "labelMedium":    { "size": "0.75rem",   "lineHeight": "1rem",     "weight": 500, "tracking": "0.042em" },
+      "labelSmall":     { "size": "0.6875rem", "lineHeight": "1rem",     "weight": 500, "tracking": "0.045em" }
+    }
+  },
+  "elevation": {
+    "level0": "none",
+    "level1": "0 1px 2px 0 rgb(15 23 42 / 0.04)",
+    "level2": "0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.08)",
+    "level3": "0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.08)",
+    "level4": "0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.08)",
+    "level5": "0 20px 25px -5px rgb(15 23 42 / 0.1), 0 8px 10px -6px rgb(15 23 42 / 0.08)"
+  }
+}
