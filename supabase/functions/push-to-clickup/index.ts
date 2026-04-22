@@ -28,7 +28,9 @@
 // compensating delete on the projects row.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cors, json } from "../_shared/helpers.ts";
+import { createUserClient } from "../_shared/supabase-client.ts";
+import { buildBriefComment } from "../_shared/clickup.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -51,11 +53,7 @@ Deno.serve(async (req: Request) => {
     const { quote_id } = await req.json();
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
-    );
+    const supabase = createUserClient(req);
 
     const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
@@ -246,14 +244,14 @@ Deno.serve(async (req: Request) => {
               ...CU,
               method: "POST",
               body: JSON.stringify({
-                comment_text: `BRIEF:: ${JSON.stringify({
+                comment_text: buildBriefComment({
                   client_name: client.name,
                   engagement_type: "Task",
                   work_stream: alloc.dept_name,
                   sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
                   date_of_engagement: new Date().toISOString().slice(0, 10),
                   source_quote_id: quote.id,
-                })}`,
+                }),
               }),
             },
           );
@@ -324,17 +322,3 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...cors() },
-  });
-}
-
-function cors() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type, x-client-info, apikey",
-  };
-}

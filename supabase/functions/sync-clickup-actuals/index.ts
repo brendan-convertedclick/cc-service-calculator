@@ -19,14 +19,11 @@
 // project_actuals row without a user session.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
 Deno.serve(async () => {
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabase = createServiceRoleClient();
 
     const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase

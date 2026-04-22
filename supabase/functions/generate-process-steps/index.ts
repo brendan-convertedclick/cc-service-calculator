@@ -1,28 +1,25 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cors, json } from "../_shared/helpers.ts";
+import { createUserClient } from "../_shared/supabase-client.ts";
+import { callAnthropic } from "../_shared/anthropic.ts";
 
 // Request: { service_id: string }
 // Response: { steps: Array<{ title: string; description?: string; department_id: string|null; estimated_hours?: number|null }> }
 // Auth: verify_jwt is on; the caller's JWT is forwarded to the Supabase client so RLS applies.
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = "claude-sonnet-4-6";
-
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    if (!ANTHROPIC_API_KEY) return json({ error: "ANTHROPIC_API_KEY not configured" }, 500);
     const { service_id } = await req.json();
     if (!service_id) return json({ error: "service_id required" }, 400);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const supabase = createUserClient(req);
+
+    const { data: settings } = await supabase
+      .from("settings").select("anthropic_model").eq("id", 1).single();
+    const model = settings?.anthropic_model ?? "claude-sonnet-4-6";
 
     const { data: service, error: sErr } = await supabase
       .from("services").select("*").eq("id", service_id).single();
@@ -69,33 +66,14 @@ Deno.serve(async (req: Request) => {
       allocationLines || "  (no allocation set)",
     ].filter(Boolean).join("\n");
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2048,
-        system: [
-          {
-            type: "text",
-            text: systemPrompt,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-      }),
+    const body = await callAnthropic({
+      model,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+      maxTokens: 2048,
+      cacheSystem: true,
     });
 
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      return json({ error: `Anthropic API error: ${errBody}` }, 502);
-    }
-
-    const body = await anthropicRes.json();
     const text: string = body.content?.[0]?.text ?? "";
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return json({ error: "AI did not return JSON", raw: text }, 502);
@@ -121,21 +99,8 @@ Deno.serve(async (req: Request) => {
 
     return json({ steps });
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith("Anthropic ")) return json({ error: msg }, 502);
+    return json({ error: msg }, 500);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...corsHeaders() },
-  });
-}
-
-function corsHeaders() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type, x-client-info, apikey",
-  };
-}

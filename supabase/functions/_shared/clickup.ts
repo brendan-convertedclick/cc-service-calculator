@@ -2,7 +2,7 @@
 //
 // Canonical home for ClickUp helper functions. Imported by push-to-clickup
 // (and any future edge function that posts BRIEF:: comments or resolves
-// list aliases). The src/lib/clickup-shared.ts copy will be deleted in T11.
+// list aliases). Replaces the old src/lib/clickup-shared.ts (deleted in T11).
 
 export type AliasRow = { work_stream: string; aliases: string[] };
 export type OverrideRow = { client_id: string; work_stream: string; list_name: string };
