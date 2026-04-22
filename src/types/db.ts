@@ -247,6 +247,135 @@ export type Database = {
           },
         ]
       }
+      quote_services: {
+        Row: {
+          allocation_override: Json | null
+          created_at: string
+          hours_override: Json | null
+          id: string
+          notes: string | null
+          ordinal: number
+          qty: number
+          quote_id: string
+          service_id: string
+        }
+        Insert: {
+          allocation_override?: Json | null
+          created_at?: string
+          hours_override?: Json | null
+          id?: string
+          notes?: string | null
+          ordinal: number
+          qty?: number
+          quote_id: string
+          service_id: string
+        }
+        Update: {
+          allocation_override?: Json | null
+          created_at?: string
+          hours_override?: Json | null
+          id?: string
+          notes?: string | null
+          ordinal?: number
+          qty?: number
+          quote_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_services_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "quote_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          discount_room_pct: number
+          id: string
+          line_items_jsonb: Json
+          margin_pct: number
+          rejection_reason: string | null
+          scope_id: string
+          sent_at: string | null
+          sow_html: string | null
+          sow_pdf_url: string | null
+          status: Database["public"]["Enums"]["quote_status"]
+          subtotal_cents: number
+          total_cents: number
+          updated_at: string
+          version: number
+          xero_quote_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          discount_room_pct?: number
+          id?: string
+          line_items_jsonb?: Json
+          margin_pct?: number
+          rejection_reason?: string | null
+          scope_id: string
+          sent_at?: string | null
+          sow_html?: string | null
+          sow_pdf_url?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal_cents?: number
+          total_cents?: number
+          updated_at?: string
+          version?: number
+          xero_quote_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          discount_room_pct?: number
+          id?: string
+          line_items_jsonb?: Json
+          margin_pct?: number
+          rejection_reason?: string | null
+          scope_id?: string
+          sent_at?: string | null
+          sow_html?: string | null
+          sow_pdf_url?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal_cents?: number
+          total_cents?: number
+          updated_at?: string
+          version?: number
+          xero_quote_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_scope_id_fkey"
+            columns: ["scope_id"]
+            isOneToOne: false
+            referencedRelation: "scopes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rule_allocations: {
         Row: {
           department_id: string
@@ -638,6 +767,7 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "archived"
+      quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -777,6 +907,7 @@ export const Constants = {
         "rejected",
         "archived",
       ],
+      quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
     },
   },
 } as const
