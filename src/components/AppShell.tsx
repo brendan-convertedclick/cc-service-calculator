@@ -1,15 +1,18 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Calculator, LayoutDashboard, LogOut, PackageSearch, SlidersHorizontal, Users, Workflow } from "lucide-react";
+import { Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/inbox", label: "Inbox", icon: InboxIcon, end: false },
   { to: "/services", label: "Services", icon: PackageSearch, end: false },
+  { to: "/projects", label: "Projects", icon: FolderKanban, end: false },
   { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
   { to: "/departments", label: "Departments", icon: Workflow, end: false },
   { to: "/team", label: "Team", icon: Users, end: false },
+  { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ];
 
 export function AppShell() {
