@@ -749,6 +749,48 @@ export type Database = {
           },
         ]
       }
+      settings: {
+        Row: {
+          anthropic_enabled: boolean
+          anthropic_model: string
+          burn_sync_cron_minutes: number
+          clickup_enabled: boolean
+          clickup_pat: string | null
+          clickup_workspace_id: string | null
+          id: number
+          inbound_email_secret: string | null
+          updated_at: string
+          xero_enabled: boolean
+          xero_oauth_tokens: Json | null
+        }
+        Insert: {
+          anthropic_enabled?: boolean
+          anthropic_model?: string
+          burn_sync_cron_minutes?: number
+          clickup_enabled?: boolean
+          clickup_pat?: string | null
+          clickup_workspace_id?: string | null
+          id?: number
+          inbound_email_secret?: string | null
+          updated_at?: string
+          xero_enabled?: boolean
+          xero_oauth_tokens?: Json | null
+        }
+        Update: {
+          anthropic_enabled?: boolean
+          anthropic_model?: string
+          burn_sync_cron_minutes?: number
+          clickup_enabled?: boolean
+          clickup_pat?: string | null
+          clickup_workspace_id?: string | null
+          id?: number
+          inbound_email_secret?: string | null
+          updated_at?: string
+          xero_enabled?: boolean
+          xero_oauth_tokens?: Json | null
+        }
+        Relationships: []
+      }
       team_member_departments: {
         Row: {
           department_id: string
