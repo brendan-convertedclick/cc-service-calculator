@@ -1,0 +1,223 @@
+// supabase/functions/push-to-clickup/index.ts
+//
+// Request:  POST { quote_id: string }
+// Response: 200 { project_id, clickup_parent_task_id, child_count }
+//
+// Preconditions (in settings): clickup_enabled=true, clickup_pat set,
+// clickup_workspace_id set.
+//
+// Flow:
+//   1. Load quote + scope + brief + client + line_items_jsonb snapshot.
+//   2. Resolve the client's ClickUp space (substring match on client name).
+//      Cache clickup_folder_id on clients row.
+//   3. Pick a list inside the space named /projects/i, or the first list.
+//   4. Create a parent task named after brief.raw_subject.
+//   5. For each line_item × allocation: create a child task with
+//      time_estimate = hours * 60 * 60000 ms (matches /brief's convention),
+//      optional assignee resolved from team_members, then post a BRIEF::
+//      comment mirroring /brief's grammar.
+//   6. Insert projects row + project_actuals rows (one per child, planned
+//      hours from the snapshot allocation).
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+type SnapshotAllocation = {
+  dept_id: string;
+  dept_name: string;
+  hours: number;
+  cost_share_cents: number;
+};
+type SnapshotLineItem = {
+  service_id: string;
+  service_name: string;
+  qty: number;
+  allocation: SnapshotAllocation[];
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
+  if (req.method !== "POST") return json({ error: "POST only" }, 405);
+
+  try {
+    const { quote_id } = await req.json();
+    if (!quote_id) return json({ error: "quote_id required" }, 400);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
+    );
+
+    const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
+    if (!settings?.clickup_enabled) return json({ error: "ClickUp disabled in settings" }, 400);
+    if (!settings.clickup_pat || !settings.clickup_workspace_id) {
+      return json({ error: "ClickUp PAT or workspace_id missing" }, 400);
+    }
+
+    const { data: quote, error } = await supabase
+      .from("quotes")
+      .select("*, scope:scopes(*, brief:briefs(*, client:clients(*)))")
+      .eq("id", quote_id).single();
+    if (error || !quote) return json({ error: error?.message ?? "Not found" }, 404);
+
+    const scope = (quote as {
+      scope: {
+        brief: {
+          raw_subject: string | null;
+          client_id: string;
+          client: { id: string; name: string; clickup_folder_id: string | null } | null;
+        } | null;
+      };
+    }).scope;
+    const client = scope.brief?.client;
+    if (!client) return json({ error: "Client missing" }, 400);
+
+    const CU = {
+      headers: {
+        Authorization: settings.clickup_pat!,
+        "Content-Type": "application/json",
+      },
+    };
+
+    // Resolve the ClickUp space for the client (cache id on clients row).
+    let spaceId = client.clickup_folder_id;
+    if (!spaceId) {
+      const spacesRes = await fetch(
+        `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/space`,
+        CU,
+      );
+      if (!spacesRes.ok) return json({ error: `CU spaces: ${await spacesRes.text()}` }, 502);
+      const spaces = await spacesRes.json();
+      const space = (spaces.spaces ?? []).find((s: { name: string }) =>
+        s.name.toLowerCase().includes(client.name.toLowerCase()),
+      );
+      if (!space) return json({ error: `No ClickUp space found matching '${client.name}'` }, 404);
+      spaceId = space.id;
+      await supabase.from("clients").update({ clickup_folder_id: spaceId }).eq("id", client.id);
+    }
+
+    // Find a list inside the space. Prefer one named /projects/i.
+    const listsRes = await fetch(`https://api.clickup.com/api/v2/space/${spaceId}/list`, CU);
+    if (!listsRes.ok) return json({ error: `CU lists: ${await listsRes.text()}` }, 502);
+    const lists = await listsRes.json();
+    const projectsList =
+      (lists.lists ?? []).find((l: { name: string }) => /projects/i.test(l.name)) ??
+      (lists.lists ?? [])[0];
+    if (!projectsList) return json({ error: "No list found in client space" }, 404);
+
+    // Create parent task.
+    const parentRes = await fetch(
+      `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
+      {
+        ...CU,
+        method: "POST",
+        body: JSON.stringify({
+          name: scope.brief?.raw_subject ?? "Untitled project",
+          description: `Project from quote ${quote.id}`,
+        }),
+      },
+    );
+    if (!parentRes.ok) return json({ error: `CU parent: ${await parentRes.text()}` }, 502);
+    const parent = await parentRes.json();
+
+    // Load team_members + list_aliases (for future alias resolution — payload
+    // currently just routes by the parent list so the alias table isn't used
+    // in Phase 1, but we keep the roster lookup for assignee resolution).
+    const { data: team } = await supabase
+      .from("team_members")
+      .select("id,full_name,email,primary_department_id")
+      .is("archived_at", null);
+
+    // Create a projects row so we have project_id before inserting actuals.
+    const { data: project, error: pErr } = await supabase
+      .from("projects")
+      .insert({
+        quote_id: quote.id,
+        clickup_parent_task_id: parent.id,
+        status: "in_progress",
+      })
+      .select().single();
+    if (pErr || !project) return json({ error: pErr?.message ?? "project insert failed" }, 500);
+
+    const items = (quote.line_items_jsonb as SnapshotLineItem[]) ?? [];
+    const actualsRows: Array<{
+      project_id: string;
+      clickup_task_id: string;
+      dept_id: string;
+      planned_hours: number;
+    }> = [];
+    let childCount = 0;
+
+    for (const item of items) {
+      for (const alloc of item.allocation) {
+        const assignee = (team ?? []).find(
+          (t: { primary_department_id: string | null }) => t.primary_department_id === alloc.dept_id,
+        );
+        const childRes = await fetch(`https://api.clickup.com/api/v2/task/${parent.id}`, {
+          ...CU,
+          method: "POST",
+          body: JSON.stringify({
+            name: `${item.service_name} — ${alloc.dept_name}`,
+            parent: parent.id,
+            assignees: assignee ? [Number(assignee.id)] : [],
+            time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
+          }),
+        });
+        if (!childRes.ok) continue; // log & continue; don't abort the whole push
+        const child = await childRes.json();
+
+        // BRIEF:: audit comment (matches /brief grammar).
+        await fetch(`https://api.clickup.com/api/v2/task/${child.id}/comment`, {
+          ...CU,
+          method: "POST",
+          body: JSON.stringify({
+            comment_text: `BRIEF:: ${JSON.stringify({
+              client_name: client.name,
+              engagement_type: "Task",
+              work_stream: alloc.dept_name,
+              sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
+              date_of_engagement: new Date().toISOString().slice(0, 10),
+              source_quote_id: quote.id,
+            })}`,
+          }),
+        });
+
+        actualsRows.push({
+          project_id: project.id,
+          clickup_task_id: child.id,
+          dept_id: alloc.dept_id,
+          planned_hours: alloc.hours,
+        });
+        childCount++;
+      }
+    }
+
+    if (actualsRows.length > 0) {
+      await supabase.from("project_actuals").insert(actualsRows);
+    }
+
+    return json({
+      project_id: project.id,
+      clickup_parent_task_id: parent.id,
+      child_count: childCount,
+    });
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...cors() },
+  });
+}
+
+function cors() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-headers": "authorization, content-type",
+  };
+}
