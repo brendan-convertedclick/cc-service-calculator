@@ -18,6 +18,13 @@
 //      comment mirroring /brief's grammar.
 //   6. Insert projects row + project_actuals rows (one per child, planned
 //      hours from the snapshot allocation).
+//
+// Atomicity: we generate the project id client-side and only insert the
+// projects row AFTER every ClickUp child task + comment succeeds. If any
+// ClickUp call fails we bubble the error and never write to the DB — so
+// retries are not blocked by the projects.quote_id unique constraint. If
+// the project_actuals bulk insert fails after projects inserted, we run a
+// compensating delete on the projects row.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -129,76 +136,130 @@ Deno.serve(async (req: Request) => {
       .select("id,full_name,email,primary_department_id")
       .is("archived_at", null);
 
-    // Create a projects row so we have project_id before inserting actuals.
-    const { data: project, error: pErr } = await supabase
-      .from("projects")
-      .insert({
-        quote_id: quote.id,
-        clickup_parent_task_id: parent.id,
-        status: "in_progress",
-      })
-      .select().single();
-    if (pErr || !project) return json({ error: pErr?.message ?? "project insert failed" }, 500);
+    // Generate the project id up front so each actuals row can reference it
+    // while we're still in the ClickUp loop. The projects row itself is
+    // inserted LAST (after every ClickUp child succeeds) to keep the push
+    // atomic — see the file header for the rationale.
+    const projectId = crypto.randomUUID();
 
     const items = (quote.line_items_jsonb as SnapshotLineItem[]) ?? [];
-    const actualsRows: Array<{
+    type ActualRow = {
       project_id: string;
       clickup_task_id: string;
       dept_id: string;
       planned_hours: number;
-    }> = [];
+    };
+    const actualsRows: ActualRow[] = [];
     let childCount = 0;
 
-    for (const item of items) {
-      for (const alloc of item.allocation) {
-        const assignee = (team ?? []).find(
-          (t: { primary_department_id: string | null }) => t.primary_department_id === alloc.dept_id,
-        );
-        const childRes = await fetch(`https://api.clickup.com/api/v2/task/${parent.id}`, {
-          ...CU,
-          method: "POST",
-          body: JSON.stringify({
-            name: `${item.service_name} — ${alloc.dept_name}`,
-            parent: parent.id,
-            assignees: assignee ? [Number(assignee.id)] : [],
-            time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
-          }),
-        });
-        if (!childRes.ok) continue; // log & continue; don't abort the whole push
-        const child = await childRes.json();
+    // Flatten (item × allocation) so we can batch across the entire push
+    // rather than just within a single line item.
+    const tasks = items.flatMap((item) =>
+      item.allocation.map((alloc) => ({ item, alloc })),
+    );
 
-        // BRIEF:: audit comment (matches /brief grammar).
-        await fetch(`https://api.clickup.com/api/v2/task/${child.id}/comment`, {
-          ...CU,
-          method: "POST",
-          body: JSON.stringify({
-            comment_text: `BRIEF:: ${JSON.stringify({
-              client_name: client.name,
-              engagement_type: "Task",
-              work_stream: alloc.dept_name,
-              sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
-              date_of_engagement: new Date().toISOString().slice(0, 10),
-              source_quote_id: quote.id,
-            })}`,
-          }),
-        });
+    // ClickUp's free tier rate-limits us to 100 req/min. Each task = 2 calls
+    // (create + comment), so a batch of 5 in parallel = ~10 req/sec peak,
+    // leaving comfortable headroom. Using Promise.all (fail-fast, not
+    // allSettled) is deliberate: any failure aborts the whole push BEFORE
+    // we insert the projects row, preserving atomicity so the user can
+    // retry the same quote without hitting the unique constraint.
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+      const batch = tasks.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async ({ item, alloc }): Promise<ActualRow> => {
+          const assignee = (team ?? []).find(
+            (t: { primary_department_id: string | null }) =>
+              t.primary_department_id === alloc.dept_id,
+          );
+          const childRes = await fetch(
+            `https://api.clickup.com/api/v2/task/${parent.id}`,
+            {
+              ...CU,
+              method: "POST",
+              body: JSON.stringify({
+                name: `${item.service_name} — ${alloc.dept_name}`,
+                parent: parent.id,
+                assignees: assignee ? [Number(assignee.id)] : [],
+                time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
+              }),
+            },
+          );
+          // Fail-fast: previously this did `continue` and silently dropped
+          // the child. That left us with a projects row and a partial
+          // actuals set, making the quote un-pushable on retry (unique
+          // constraint on projects.quote_id). Throwing aborts the batch
+          // before any DB writes happen, so retries are clean.
+          if (!childRes.ok) {
+            throw new Error(
+              `CU child task failed (${item.service_name} / ${alloc.dept_name}): ${await childRes.text()}`,
+            );
+          }
+          const child = await childRes.json();
 
-        actualsRows.push({
-          project_id: project.id,
-          clickup_task_id: child.id,
-          dept_id: alloc.dept_id,
-          planned_hours: alloc.hours,
-        });
-        childCount++;
+          // BRIEF:: audit comment (matches /brief grammar).
+          const commentRes = await fetch(
+            `https://api.clickup.com/api/v2/task/${child.id}/comment`,
+            {
+              ...CU,
+              method: "POST",
+              body: JSON.stringify({
+                comment_text: `BRIEF:: ${JSON.stringify({
+                  client_name: client.name,
+                  engagement_type: "Task",
+                  work_stream: alloc.dept_name,
+                  sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
+                  date_of_engagement: new Date().toISOString().slice(0, 10),
+                  source_quote_id: quote.id,
+                })}`,
+              }),
+            },
+          );
+          if (!commentRes.ok) {
+            throw new Error(
+              `CU comment failed (task ${child.id}): ${await commentRes.text()}`,
+            );
+          }
+
+          return {
+            project_id: projectId,
+            clickup_task_id: child.id,
+            dept_id: alloc.dept_id,
+            planned_hours: alloc.hours,
+          };
+        }),
+      );
+      actualsRows.push(...results);
+      childCount += results.length;
+    }
+
+    // All ClickUp work succeeded — safe to write the projects row now.
+    const { error: pErr } = await supabase
+      .from("projects")
+      .insert({
+        id: projectId,
+        quote_id: quote.id,
+        clickup_parent_task_id: parent.id,
+        status: "in_progress",
+      });
+    if (pErr) return json({ error: pErr.message }, 500);
+
+    if (actualsRows.length > 0) {
+      const { error: aErr } = await supabase
+        .from("project_actuals")
+        .insert(actualsRows);
+      if (aErr) {
+        // Compensating delete: the projects row exists but actuals are
+        // missing. Roll back so a retry isn't blocked by the unique
+        // constraint on quote_id.
+        await supabase.from("projects").delete().eq("id", projectId);
+        return json({ error: aErr.message }, 500);
       }
     }
 
-    if (actualsRows.length > 0) {
-      await supabase.from("project_actuals").insert(actualsRows);
-    }
-
     return json({
-      project_id: project.id,
+      project_id: projectId,
       clickup_parent_task_id: parent.id,
       child_count: childCount,
     });

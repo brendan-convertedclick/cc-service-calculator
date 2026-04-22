@@ -46,23 +46,33 @@ Deno.serve(async () => {
     const { data: projects } = await supabase
       .from("projects").select("*").eq("status", "in_progress");
 
-    let inserted = 0;
-    for (const p of projects ?? []) {
-      // Latest snapshot per task from the view. supabase-js doesn't know
-      // about the view in its generated types, but at runtime it's just a
-      // relation and .from() accepts the name. Cast to satisfy TS.
-      const { data: current } = await supabase
+    // Bulk-fetch all current actuals for every in-progress project in a
+    // single round-trip, then group in JS. This replaces a per-project
+    // query (N+1: one projects fetch + one actuals fetch per project).
+    type CurrentActual = {
+      clickup_task_id: string;
+      dept_id: string | null;
+      planned_hours: number;
+      project_id: string;
+    };
+    const actualsByProject = new Map<string, CurrentActual[]>();
+    const projectIds = (projects ?? []).map((p) => p.id);
+    if (projectIds.length > 0) {
+      const { data: allActuals } = await supabase
         // deno-lint-ignore no-explicit-any
         .from("project_actuals_current" as any)
         .select("*")
-        .eq("project_id", p.id);
+        .in("project_id", projectIds);
+      for (const a of (allActuals ?? []) as CurrentActual[]) {
+        const list = actualsByProject.get(a.project_id) ?? [];
+        list.push(a);
+        actualsByProject.set(a.project_id, list);
+      }
+    }
 
-      const actuals = (current ?? []) as Array<{
-        clickup_task_id: string;
-        dept_id: string | null;
-        planned_hours: number;
-        project_id: string;
-      }>;
+    let inserted = 0;
+    for (const p of projects ?? []) {
+      const actuals = actualsByProject.get(p.id) ?? [];
 
       let allDone = actuals.length > 0;
 
