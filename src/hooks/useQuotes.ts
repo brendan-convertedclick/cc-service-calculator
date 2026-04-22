@@ -6,7 +6,11 @@ type Quote = Database["public"]["Tables"]["quotes"]["Row"];
 type QuoteInsert = Database["public"]["Tables"]["quotes"]["Insert"];
 type QuoteUpdate = Database["public"]["Tables"]["quotes"]["Update"];
 type QuoteService = Database["public"]["Tables"]["quote_services"]["Row"];
-type QuoteServiceInsert = Database["public"]["Tables"]["quote_services"]["Insert"];
+
+export type QuoteServiceWithOverrides = QuoteService & {
+  allocation_override: Record<string, number>;
+  hours_override: Record<string, number>;
+};
 
 const Q_DETAIL = (id: string) => ["quote", id] as const;
 const Q_BY_SCOPE = (scopeId: string) => ["quote", "by-scope", scopeId] as const;
@@ -15,15 +19,41 @@ export function useQuote(id: string | undefined) {
   return useQuery({
     enabled: !!id,
     queryKey: id ? Q_DETAIL(id) : ["quote", "none"],
-    queryFn: async (): Promise<{ quote: Quote; services: QuoteService[] } | null> => {
+    queryFn: async (): Promise<{ quote: Quote; services: QuoteServiceWithOverrides[] } | null> => {
       if (!id) return null;
       const [{ data: quote, error: qErr }, { data: svcs, error: sErr }] = await Promise.all([
         supabase.from("quotes").select("*").eq("id", id).single(),
-        supabase.from("quote_services").select("*").eq("quote_id", id).order("ordinal"),
+        supabase
+          .from("quote_services")
+          .select("*, overrides:quote_service_overrides(*)")
+          .eq("quote_id", id)
+          .order("ordinal"),
       ]);
       if (qErr) throw qErr;
       if (sErr) throw sErr;
-      return { quote, services: svcs ?? [] };
+
+      const services: QuoteServiceWithOverrides[] = (svcs ?? []).map((s) => {
+        const row = s as QuoteService & {
+          overrides: Array<{
+            dept_id: string;
+            pct_override: number | null;
+            hours_override: number | null;
+          }>;
+        };
+        const overrides = row.overrides ?? [];
+        const allocation_override: Record<string, number> = {};
+        const hours_override: Record<string, number> = {};
+        for (const o of overrides) {
+          if (o.pct_override != null) allocation_override[o.dept_id] = Number(o.pct_override);
+          if (o.hours_override != null) hours_override[o.dept_id] = Number(o.hours_override);
+        }
+        // strip the embedded overrides array; only the flattened maps survive
+        const { overrides: _drop, ...rest } = row;
+        void _drop;
+        return { ...rest, allocation_override, hours_override };
+      });
+
+      return { quote, services };
     },
   });
 }
@@ -76,17 +106,64 @@ export function useUpdateQuote() {
   });
 }
 
+export type ReplaceQuoteServiceRow = {
+  service_id: string;
+  qty: number;
+  ordinal: number;
+  notes: string | null;
+  allocation_override: Record<string, number>;
+  hours_override: Record<string, number>;
+};
+
 export function useReplaceQuoteServices() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ quoteId, rows }: { quoteId: string; rows: Omit<QuoteServiceInsert, "quote_id">[] }) => {
+    mutationFn: async ({
+      quoteId,
+      rows,
+    }: {
+      quoteId: string;
+      rows: ReplaceQuoteServiceRow[];
+    }) => {
+      // delete cascades to quote_service_overrides via FK
       const { error: dErr } = await supabase.from("quote_services").delete().eq("quote_id", quoteId);
       if (dErr) throw dErr;
       if (rows.length === 0) return;
-      const { error: iErr } = await supabase
+
+      // insert quote_services WITHOUT the override maps
+      const insertPayload = rows.map((r) => ({
+        quote_id: quoteId,
+        service_id: r.service_id,
+        qty: r.qty,
+        ordinal: r.ordinal,
+        notes: r.notes,
+      }));
+      const { data: inserted, error: iErr } = await supabase
         .from("quote_services")
-        .insert(rows.map((r) => ({ ...r, quote_id: quoteId })));
+        .insert(insertPayload)
+        .select("id, ordinal");
       if (iErr) throw iErr;
+
+      // build per-(quote_service, dept) override rows
+      const overrideRows = (inserted ?? []).flatMap((qs) => {
+        const input = rows.find((r) => r.ordinal === qs.ordinal);
+        if (!input) return [];
+        const deptIds = new Set<string>([
+          ...Object.keys(input.allocation_override ?? {}),
+          ...Object.keys(input.hours_override ?? {}),
+        ]);
+        return Array.from(deptIds).map((dept_id) => ({
+          quote_service_id: qs.id,
+          dept_id,
+          pct_override: input.allocation_override?.[dept_id] ?? null,
+          hours_override: input.hours_override?.[dept_id] ?? null,
+        }));
+      });
+
+      if (overrideRows.length > 0) {
+        const { error: oErr } = await supabase.from("quote_service_overrides").insert(overrideRows);
+        if (oErr) throw oErr;
+      }
     },
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: Q_DETAIL(vars.quoteId) }),
   });

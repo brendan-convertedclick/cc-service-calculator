@@ -17,6 +17,7 @@ import { useClients } from "@/hooks/useClients";
 import {
   useCreateQuote,
   useLiveQuoteForScope,
+  useQuote,
   useReplaceQuoteServices,
   useUpdateQuote,
 } from "@/hooks/useQuotes";
@@ -217,6 +218,7 @@ export function ProjectBuilder() {
   const { data: depts = [] } = useDepartments();
   const { data: clients = [] } = useClients();
   const { data: liveQuote } = useLiveQuoteForScope(scope?.id);
+  const { data: quoteData } = useQuote(liveQuote?.id);
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
   const replaceSvcs = useReplaceQuoteServices();
@@ -241,27 +243,20 @@ export function ProjectBuilder() {
   }, [scope?.id, liveQuote?.id]);
 
   useEffect(() => {
-    if (!liveQuote || hydratedForQuote === liveQuote.id) return;
+    if (!liveQuote || hydratedForQuote === liveQuote.id || !quoteData) return;
     setMarginPct(Number(liveQuote.margin_pct));
     setDiscountPct(Number(liveQuote.discount_room_pct));
     setSowHtml(liveQuote.sow_html ?? "");
-    void (async () => {
-      const { data } = await supabase
-        .from("quote_services")
-        .select("*")
-        .eq("quote_id", liveQuote.id)
-        .order("ordinal");
-      setLines(
-        (data ?? []).map((r): EditorLine => ({
-          service_id: r.service_id,
-          qty: Number(r.qty),
-          allocation: (r.allocation_override as Record<string, number> | null) ?? {},
-          hours: (r.hours_override as Record<string, number> | null) ?? {},
-        })),
-      );
-      setHydratedForQuote(liveQuote.id);
-    })();
-  }, [liveQuote, hydratedForQuote]);
+    setLines(
+      quoteData.services.map((r): EditorLine => ({
+        service_id: r.service_id,
+        qty: Number(r.qty),
+        allocation: r.allocation_override,
+        hours: r.hours_override,
+      })),
+    );
+    setHydratedForQuote(liveQuote.id);
+  }, [liveQuote, hydratedForQuote, quoteData]);
 
   const lineTotals = useMemo<QuoteLine[]>(() => {
     return lines.map((l) => {

@@ -394,9 +394,7 @@ export type Database = {
       }
       quote_services: {
         Row: {
-          allocation_override: Json | null
           created_at: string
-          hours_override: Json | null
           id: string
           notes: string | null
           ordinal: number
@@ -405,9 +403,7 @@ export type Database = {
           service_id: string
         }
         Insert: {
-          allocation_override?: Json | null
           created_at?: string
-          hours_override?: Json | null
           id?: string
           notes?: string | null
           ordinal: number
@@ -416,9 +412,7 @@ export type Database = {
           service_id: string
         }
         Update: {
-          allocation_override?: Json | null
           created_at?: string
-          hours_override?: Json | null
           id?: string
           notes?: string | null
           ordinal?: number
@@ -446,6 +440,45 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_service_overrides: {
+        Row: {
+          created_at: string
+          dept_id: string
+          hours_override: number | null
+          pct_override: number | null
+          quote_service_id: string
+        }
+        Insert: {
+          created_at?: string
+          dept_id: string
+          hours_override?: number | null
+          pct_override?: number | null
+          quote_service_id: string
+        }
+        Update: {
+          created_at?: string
+          dept_id?: string
+          hours_override?: number | null
+          pct_override?: number | null
+          quote_service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_service_overrides_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_service_overrides_quote_service_id_fkey"
+            columns: ["quote_service_id"]
+            isOneToOne: false
+            referencedRelation: "quote_services"
             referencedColumns: ["id"]
           },
         ]
