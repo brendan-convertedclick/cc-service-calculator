@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { useAllocationMatrix, useServices, useSetServiceChecklist, type ServiceWithTotals } from "@/hooks/useServices";
+import { useServices, type ServiceWithTotals } from "@/hooks/useServices";
+import { useSetServiceChecklist } from "@/hooks/useProcessSteps";
+import { useAllocationMatrix } from "@/hooks/useAllocationMatrix";
 import { useRules } from "@/hooks/useRules";
 import { useDepartments } from "@/hooks/useDepartments";
 import { Button } from "@/components/ui/button";
@@ -106,9 +108,9 @@ export function ServicesList() {
                       service={s}
                       departments={depts}
                       ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
-                      resolvedByDept={matrix?.resolved.get(s.id)}
-                      hasChecklist={matrix?.hasChecklist.has(s.id) ?? false}
-                      childCount={matrix?.childCounts.get(s.id) ?? 0}
+                      resolvedByDept={matrix?.resolved[s.id]}
+                      hasChecklist={matrix?.hasChecklist[s.id] ?? false}
+                      childCount={matrix?.childCounts[s.id] ?? 0}
                     />
                   ))}
                 </tbody>
@@ -132,7 +134,7 @@ function ServiceRow({
   service: ServiceWithTotals;
   departments: Department[];
   ruleName: string | null;
-  resolvedByDept: Map<string, { pct: number | null; hours: number }> | undefined;
+  resolvedByDept: Record<string, { pct: number | null; hours: number }> | undefined;
   hasChecklist: boolean;
   childCount: number;
 }) {
@@ -145,7 +147,7 @@ function ServiceRow({
   const initialHours = useMemo(() => {
     const out: Record<string, number> = {};
     for (const d of departments) {
-      out[d.id] = roundToQuarter(resolvedByDept?.get(d.id)?.hours ?? 0);
+      out[d.id] = roundToQuarter(resolvedByDept?.[d.id]?.hours ?? 0);
     }
     return out;
   }, [departments, resolvedByDept]);

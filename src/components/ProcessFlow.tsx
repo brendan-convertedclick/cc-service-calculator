@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2, Save, RotateCcw, FileDown } from "lucide-react";
 import { toast } from "sonner";
-import { useProcessSteps, useReplaceSteps, useUpdateStep, useDeleteStep, useCreateStep } from "@/hooks/useProcessSteps";
+import { useProcessSteps, useReplaceSteps, useUpdateStep, useDeleteStep, useCreateStep, useSetServiceChecklist } from "@/hooks/useProcessSteps";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useRules } from "@/hooks/useRules";
-import { useSetServiceChecklist, useAllocationMatrix } from "@/hooks/useServices";
+import { useAllocationMatrix } from "@/hooks/useAllocationMatrix";
 import { useServiceChildren } from "@/hooks/useServiceChildren";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +47,11 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
 
   const derivedSteps = useMemo(() => {
     if (!derived || !matrix) return [];
-    const byDept = matrix.resolved.get(serviceId);
+    const byDept = matrix.resolved[serviceId];
     if (!byDept) return [];
     const out: typeof steps = [];
     let i = 0;
-    for (const [deptId, row] of byDept) {
+    for (const [deptId, row] of Object.entries(byDept)) {
       const dept = depts.find((d) => d.id === deptId);
       if (!dept) continue;
       if (!(row.hours > 0)) continue;
