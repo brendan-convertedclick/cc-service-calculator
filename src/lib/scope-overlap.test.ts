@@ -20,8 +20,9 @@ describe("jaccard", () => {
 
 describe("isMostlyAi", () => {
   it("is true when overlap >= 0.85", () => {
-    const ai = "the client wants a new website with seo and a blog section";
-    const edited = "the client wants a new website with seo and a blog area";
+    const ai = "the client wants a new website with seo and a blog section and contact form";
+    const edited = "the client wants a new website with seo and a blog section and contact page";
+    // one-word swap across 13 unique tokens: intersection=12, union=14, j≈0.857
     expect(isMostlyAi(edited, ai)).toBe(true);
   });
   it("is false when overlap < 0.85", () => {
