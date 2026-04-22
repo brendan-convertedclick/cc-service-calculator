@@ -100,17 +100,17 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
     }
   }
 
-  function moveStep(id: string, direction: -1 | 1) {
+  async function moveStep(id: string, direction: -1 | 1) {
     const i = steps.findIndex((s) => s.id === id);
     const j = i + direction;
     if (j < 0 || j >= steps.length) return;
     const a = steps[i], b = steps[j];
-    // swap ordinals (two separate updates; ordinals unique per service)
-    update.mutate({ id: a.id, patch: { ordinal: b.ordinal + 10000 } });
-    setTimeout(() => {
-      update.mutate({ id: b.id, patch: { ordinal: a.ordinal } });
-      update.mutate({ id: a.id, patch: { ordinal: b.ordinal } });
-    }, 50);
+    // Three-stage swap to avoid violating the unique (service_id, ordinal) index.
+    // Parking `a` at a high ordinal first frees up a.ordinal for b, then we
+    // settle a into b.ordinal. Awaiting each mutation guarantees ordering.
+    await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal + 10000 } });
+    await update.mutateAsync({ id: b.id, patch: { ordinal: a.ordinal } });
+    await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal } });
   }
 
   function addStep() {

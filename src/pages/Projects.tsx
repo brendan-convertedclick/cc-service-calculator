@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,10 @@ export function Projects() {
   const { data: projects = [] } = useProjects();
   const { data: inFlight = [] } = useBriefs(IN_PROGRESS);
   const { data: clients = [] } = useClients();
-  const clientById = new Map(clients.map((c) => [c.id, c.name]));
+  const clientById = useMemo(
+    () => new Map(clients.map((c) => [c.id, c.name])),
+    [clients],
+  );
 
   const empty = projects.length === 0 && inFlight.length === 0;
 

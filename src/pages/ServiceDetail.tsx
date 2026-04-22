@@ -65,7 +65,11 @@ export function ServiceDetail({ mode }: Props) {
         notes: s.notes ?? "",
       });
     }
-  }, [detail]);
+    // Only re-seed the form when the underlying service identity changes.
+    // Depending on `detail` itself would reset the form on every background
+    // refetch (new object identity), clobbering in-progress edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.service?.id]);
 
   function onSave() {
     const payload = {

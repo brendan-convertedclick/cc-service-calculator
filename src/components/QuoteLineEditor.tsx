@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, memo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,14 +18,22 @@ export type EditorLine = {
 };
 
 type Props = {
+  index: number;
   line: EditorLine;
   service: Service;
   depts: Dept[];
-  onChange: (patch: Partial<EditorLine>) => void;
-  onRemove: () => void;
+  onChange: (index: number, patch: Partial<EditorLine>) => void;
+  onRemove: (serviceId: string) => void;
 };
 
-export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Props) {
+export const QuoteLineEditor = memo(function QuoteLineEditor({
+  index,
+  line,
+  service,
+  depts,
+  onChange,
+  onRemove,
+}: Props) {
   const [open, setOpen] = useState(false);
   const sumPct = Object.values(line.allocation).reduce((a, b) => a + b, 0);
   const sumOutOfTolerance = sumPct < SUM_TOLERANCE_MIN || sumPct > SUM_TOLERANCE_MAX;
@@ -101,13 +109,13 @@ export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Pr
           aria-label="Remove line"
           onClick={(e) => {
             e.stopPropagation();
-            onRemove();
+            onRemove(line.service_id);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               e.stopPropagation();
-              onRemove();
+              onRemove(line.service_id);
             }
           }}
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-m-on-surface-variant transition-colors hover:bg-destructive/10 hover:text-destructive"
@@ -133,7 +141,7 @@ export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Pr
                 min="0.25"
                 className="h-9 text-right tabular-nums"
                 value={line.qty}
-                onChange={(e) => onChange({ qty: Number(e.target.value) })}
+                onChange={(e) => onChange(index, { qty: Number(e.target.value) })}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -188,7 +196,7 @@ export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Pr
                         className="h-8 w-full pr-7 text-right tabular-nums"
                         value={pct}
                         onChange={(e) =>
-                          onChange({
+                          onChange(index, {
                             allocation: { ...line.allocation, [d.id]: Number(e.target.value) },
                           })
                         }
@@ -231,4 +239,4 @@ export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Pr
       )}
     </Card>
   );
-}
+});

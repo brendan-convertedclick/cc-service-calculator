@@ -10,6 +10,12 @@ type BriefStatus = Database["public"]["Enums"]["brief_status"];
 const LIST = (key: string) => ["briefs", key] as const;
 const DETAIL = (id: string) => ["briefs", "detail", id] as const;
 
+/**
+ * Fetch briefs, optionally filtered by status. When called with no argument,
+ * fetches ALL briefs (cache key `["briefs", "all"]`, no WHERE clause) — callers
+ * that need multiple buckets should prefer this form and group client-side
+ * rather than firing one query per status.
+ */
 export function useBriefs(status?: BriefStatus | BriefStatus[]) {
   const key = Array.isArray(status) ? status.join(",") : status ?? "all";
   return useQuery({

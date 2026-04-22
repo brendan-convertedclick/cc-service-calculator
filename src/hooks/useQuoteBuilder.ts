@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -133,10 +133,10 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     });
   }, [lines, services]);
 
-  const totals = aggregateTotals(lineTotals, {
-    margin_pct: marginPct,
-    discount_room_pct: discountPct,
-  });
+  const totals = useMemo(
+    () => aggregateTotals(lineTotals, { margin_pct: marginPct, discount_room_pct: discountPct }),
+    [lineTotals, marginPct, discountPct],
+  );
 
   function addService(serviceId: string) {
     if (lines.some((l) => l.service_id === serviceId)) return;
@@ -150,11 +150,11 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     setLines((prev) => [...prev, { service_id: serviceId, qty: 1, allocation, hours }]);
   }
 
-  function removeLine(serviceId: string) {
+  const removeLine = useCallback((serviceId: string) => {
     setLines((prev) => prev.filter((x) => x.service_id !== serviceId));
-  }
+  }, []);
 
-  function patchLine(index: number, patch: Partial<EditorLine>) {
+  const patchLine = useCallback((index: number, patch: Partial<EditorLine>) => {
     setLines((prev) => {
       const next = [...prev];
       next[index] = {
@@ -165,7 +165,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       };
       return next;
     });
-  }
+  }, []);
 
   async function saveLines(silent = false) {
     if (!liveQuote) return;

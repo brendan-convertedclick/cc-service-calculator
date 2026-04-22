@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,12 +43,33 @@ function HistoricRow({
 }
 
 export function Inbox() {
-  const { data: newBriefs = [] } = useBriefs("new");
-  const { data: needsInfo = [] } = useBriefs("needs_info");
-  const { data: inProgress = [] } = useBriefs(IN_PROGRESS);
-  const { data: closed = [] } = useBriefs(CLOSED);
+  const { data: allBriefs = [] } = useBriefs();
   const { data: clients = [] } = useClients();
-  const clientById = new Map(clients.map((c) => [c.id, c.name]));
+  const clientById = useMemo(
+    () => new Map(clients.map((c) => [c.id, c.name])),
+    [clients],
+  );
+
+  const byBucket = useMemo(() => {
+    const buckets = {
+      new: [] as Brief[],
+      needs_info: [] as Brief[],
+      inProgress: [] as Brief[],
+      closed: [] as Brief[],
+    };
+    for (const b of allBriefs) {
+      if (b.status === "new") buckets.new.push(b);
+      else if (b.status === "needs_info") buckets.needs_info.push(b);
+      else if (IN_PROGRESS.includes(b.status)) buckets.inProgress.push(b);
+      else if (CLOSED.includes(b.status)) buckets.closed.push(b);
+    }
+    return buckets;
+  }, [allBriefs]);
+
+  const newBriefs = byBucket.new;
+  const needsInfo = byBucket.needs_info;
+  const inProgress = byBucket.inProgress;
+  const closed = byBucket.closed;
 
   return (
     <div className="container mx-auto max-w-4xl p-6">

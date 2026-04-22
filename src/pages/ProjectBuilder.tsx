@@ -75,11 +75,12 @@ export function ProjectBuilder() {
                 return (
                   <QuoteLineEditor
                     key={l.service_id}
+                    index={i}
                     line={l}
                     service={svc}
                     depts={qb.depts ?? []}
-                    onChange={(patch) => qb.patchLine(i, patch)}
-                    onRemove={() => qb.removeLine(l.service_id)}
+                    onChange={qb.patchLine}
+                    onRemove={qb.removeLine}
                   />
                 );
               })
