@@ -14,6 +14,142 @@ export type Database = {
   }
   public: {
     Tables: {
+      briefs: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          gmail_thread_id: string | null
+          id: string
+          raw_attachments: Json | null
+          raw_body: string
+          raw_subject: string | null
+          received_at: string
+          rejection_reason: string | null
+          sender_email: string | null
+          source: Database["public"]["Enums"]["brief_source"]
+          status: Database["public"]["Enums"]["brief_status"]
+          triaged_at: string | null
+          triaged_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          gmail_thread_id?: string | null
+          id?: string
+          raw_attachments?: Json | null
+          raw_body: string
+          raw_subject?: string | null
+          received_at?: string
+          rejection_reason?: string | null
+          sender_email?: string | null
+          source: Database["public"]["Enums"]["brief_source"]
+          status?: Database["public"]["Enums"]["brief_status"]
+          triaged_at?: string | null
+          triaged_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          gmail_thread_id?: string | null
+          id?: string
+          raw_attachments?: Json | null
+          raw_body?: string
+          raw_subject?: string | null
+          received_at?: string
+          rejection_reason?: string | null
+          sender_email?: string | null
+          source?: Database["public"]["Enums"]["brief_source"]
+          status?: Database["public"]["Enums"]["brief_status"]
+          triaged_at?: string | null
+          triaged_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "briefs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          archived_at: string | null
+          clickup_folder_id: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          primary_domain: string | null
+          updated_at: string
+          xero_contact_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          clickup_folder_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          primary_domain?: string | null
+          updated_at?: string
+          xero_contact_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          clickup_folder_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          primary_domain?: string | null
+          updated_at?: string
+          xero_contact_id?: string | null
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          client_id: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          is_primary: boolean
+          role: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          is_primary?: boolean
+          role?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_primary?: boolean
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           archived_at: string | null
@@ -170,6 +306,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      scopes: {
+        Row: {
+          ai_drafted: boolean
+          brief_id: string
+          created_at: string
+          enhanced_prose: string | null
+          id: string
+          in_scope_md: string | null
+          locked_at: string | null
+          locked_by: string | null
+          open_questions_md: string | null
+          out_of_scope_md: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_drafted?: boolean
+          brief_id: string
+          created_at?: string
+          enhanced_prose?: string | null
+          id?: string
+          in_scope_md?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          open_questions_md?: string | null
+          out_of_scope_md?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_drafted?: boolean
+          brief_id?: string
+          created_at?: string
+          enhanced_prose?: string | null
+          id?: string
+          in_scope_md?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          open_questions_md?: string | null
+          out_of_scope_md?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scopes_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: true
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_allocation_overrides: {
         Row: {
@@ -441,7 +627,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      brief_source: "email" | "manual"
+      brief_status:
+        | "new"
+        | "triaged"
+        | "spam"
+        | "needs_info"
+        | "scoped"
+        | "quoted"
+        | "accepted"
+        | "rejected"
+        | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -568,7 +764,20 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      brief_source: ["email", "manual"],
+      brief_status: [
+        "new",
+        "triaged",
+        "spam",
+        "needs_info",
+        "scoped",
+        "quoted",
+        "accepted",
+        "rejected",
+        "archived",
+      ],
+    },
   },
 } as const
 
