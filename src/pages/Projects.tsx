@@ -92,8 +92,9 @@ export function Projects() {
                 <Card className="transition-colors hover:bg-m-surface-container">
                   <CardContent className="flex items-center justify-between gap-4 p-4">
                     <div>
+                      {/* Cast until `npm run supabase:gen-types` regenerates src/types/db.ts post-0015. */}
                       <div className="text-title-small">
-                        ClickUp task {p.clickup_parent_task_id}
+                        {(p as { name?: string }).name ?? "Untitled project"}
                       </div>
                       <div className="text-label-small text-m-on-surface-variant">
                         Started {new Date(p.started_at).toLocaleDateString("en-ZA")}

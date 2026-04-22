@@ -244,6 +244,7 @@ Deno.serve(async (req: Request) => {
         id: projectId,
         quote_id: quote.id,
         clickup_parent_task_id: parent.id,
+        name: scope.brief?.raw_subject ?? "Untitled project",
         status: "in_progress",
       });
     if (pErr) return json({ error: pErr.message }, 500);
