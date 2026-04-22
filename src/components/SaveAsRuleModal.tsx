@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { hoursToPct } from "@/lib/allocation";
+import { useRules, useCreateRule, useUpdateRule } from "@/hooks/useRules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,10 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
   const [collision, setCollision] = useState<null | string>(null);
   const [busy, setBusy] = useState(false);
 
+  const { data: rules = [] } = useRules();
+  const createRule = useCreateRule();
+  const updateRule = useUpdateRule();
+
   const pcts = useMemo(() => {
     const hoursByDept: Record<string, number> = {};
     for (const s of steps) {
@@ -42,48 +46,32 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
     if (!name.trim()) return;
     setBusy(true);
     try {
-      let ruleId: string | null = null;
-
+      const allocations = Object.entries(pcts).map(([department_id, pct]) => ({ department_id, pct }));
       if (mode === "overwrite") {
-        const { data: existing, error: fErr } = await supabase
-          .from("rules").select("id").eq("name", name.trim()).maybeSingle();
-        if (fErr) throw fErr;
+        const existing = rules.find((r) => r.name === name.trim());
         if (!existing) throw new Error("Rule vanished");
-        ruleId = existing.id;
-
-        const { error: dErr } = await supabase
-          .from("rule_allocations").delete().eq("rule_id", ruleId);
-        if (dErr) throw dErr;
-
-        const { error: uErr } = await supabase
-          .from("rules").update({ description: description.trim() || null }).eq("id", ruleId);
-        if (uErr) throw uErr;
+        await updateRule.mutateAsync({
+          id: existing.id,
+          description: description.trim() || null,
+          allocations,
+        });
       } else {
-        const { data: created, error: cErr } = await supabase
-          .from("rules")
-          .insert({ name: name.trim(), description: description.trim() || null })
-          .select()
-          .single();
-        if (cErr) {
-          if (cErr.code === "23505") {
+        try {
+          await createRule.mutateAsync({
+            name: name.trim(),
+            description: description.trim() || null,
+            allocations,
+          });
+        } catch (e: unknown) {
+          // Supabase-js exposes the postgres error code as `code` on the error object.
+          // 23505 = unique_violation — surface as the name-collision UI branch.
+          if ((e as { code?: string }).code === "23505") {
             setCollision(name.trim());
             return;
           }
-          throw cErr;
+          throw e;
         }
-        ruleId = created.id;
       }
-
-      const rows = Object.entries(pcts).map(([dept_id, pct]) => ({
-        rule_id: ruleId!,
-        department_id: dept_id,
-        pct,
-      }));
-      if (rows.length > 0) {
-        const { error: iErr } = await supabase.from("rule_allocations").insert(rows);
-        if (iErr) throw iErr;
-      }
-
       toast.success(`Rule "${name.trim()}" saved`);
       onSaved();
       onClose();

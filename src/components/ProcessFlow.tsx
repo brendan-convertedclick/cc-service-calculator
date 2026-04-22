@@ -155,42 +155,37 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
   }
 
   function seedFromChildren() {
-    if (!derived) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from("service_allocation_resolved")
-        .select("department_id, hours")
-        .eq("service_id", serviceId);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      const rows = (data ?? [])
-        .filter((r) => r.department_id != null && Number(r.hours ?? 0) > 0)
-        .map((r, i) => {
-          const dept = depts.find((d) => d.id === r.department_id);
-          const h = Math.max(0.25, Math.round(Number(r.hours) / 0.25) * 0.25);
-          return {
-            ordinal: i + 1,
-            title: `${dept?.name ?? "Dept"} — work`,
-            description: null,
-            department_id: r.department_id,
-            estimated_hours: h,
-            ai_generated: false,
-          };
-        });
-      if (rows.length === 0) {
-        toast.error("No derived hours to seed. Do the child services have checklists yet?");
-        return;
-      }
-      replace.mutate(
-        { serviceId, steps: rows },
-        {
-          onSuccess: () => toast.success(`Seeded ${rows.length} steps from included services`),
-          onError: (e: Error) => toast.error(e.message),
-        }
-      );
-    })();
+    if (!derived || !matrix) return;
+    const byDept = matrix.resolved[serviceId];
+    if (!byDept) {
+      toast.error("No derived hours to seed. Do the child services have checklists yet?");
+      return;
+    }
+    const rows = Object.entries(byDept)
+      .filter(([, row]) => row.hours > 0)
+      .map(([department_id, row], i) => {
+        const dept = depts.find((d) => d.id === department_id);
+        const h = Math.max(0.25, Math.round(row.hours / 0.25) * 0.25);
+        return {
+          ordinal: i + 1,
+          title: `${dept?.name ?? "Dept"} — work`,
+          description: null,
+          department_id,
+          estimated_hours: h,
+          ai_generated: false,
+        };
+      });
+    if (rows.length === 0) {
+      toast.error("No derived hours to seed. Do the child services have checklists yet?");
+      return;
+    }
+    replace.mutate(
+      { serviceId, steps: rows },
+      {
+        onSuccess: () => toast.success(`Seeded ${rows.length} steps from included services`),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
   }
 
   function clearChecklist() {

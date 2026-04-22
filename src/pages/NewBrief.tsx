@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { useClients, useCreateClient } from "@/hooks/useClients";
-import { useCreateBrief } from "@/hooks/useBriefs";
+import { useCreateBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { supabase } from "@/lib/supabase";
 
 const schema = z.object({
@@ -28,6 +28,7 @@ export function NewBrief() {
   const { data: clients = [] } = useClients();
   const createClient = useCreateClient();
   const createBrief = useCreateBrief();
+  const updateBrief = useUpdateBrief();
   const [files, setFiles] = useState<File[]>([]);
 
   const form = useForm<FormValues>({
@@ -64,7 +65,7 @@ export function NewBrief() {
         records.push({ name: f.name, storage_path: path, mime: f.type, size: f.size });
       }
       if (records.length > 0) {
-        await supabase.from("briefs").update({ raw_attachments: records }).eq("id", brief.id);
+        await updateBrief.mutateAsync({ id: brief.id, patch: { raw_attachments: records } });
       }
     }
 

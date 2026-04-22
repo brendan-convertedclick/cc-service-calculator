@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { FeatureFlagGate } from "@/components/FeatureFlagGate";
 import { useQuote, useUpdateQuote } from "@/hooks/useQuotes";
-import { supabase } from "@/lib/supabase";
+import { useScopeById } from "@/hooks/useScopes";
 import { mailto } from "@/lib/mailto";
 import { sendQuoteEmail } from "@/content/email-templates";
 
@@ -17,30 +17,23 @@ export function QuoteSend() {
   const navigate = useNavigate();
   const { data } = useQuote(id);
   const update = useUpdateQuote();
+  const { data: scope } = useScopeById(data?.quote.scope_id);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (!data) return;
-    void (async () => {
-      const { data: scope } = await supabase
-        .from("scopes")
-        .select("*, brief:briefs(*, client:clients(*))")
-        .eq("id", data.quote.scope_id)
-        .single();
-      const brief = (scope as { brief: { raw_subject: string | null; sender_email: string | null; client: { name: string } | null } | null })
-        ?.brief;
-      if (!brief) return;
-      const tmpl = sendQuoteEmail({
-        subject: brief.raw_subject ?? "",
-        clientName: brief.client?.name ?? null,
-      });
-      setSubject(tmpl.subject);
-      setBody(tmpl.body);
-      setRecipient(brief.sender_email ?? "");
-    })();
-  }, [data]);
+    if (hydrated || !scope?.brief) return;
+    const tmpl = sendQuoteEmail({
+      subject: scope.brief.raw_subject ?? "",
+      clientName: scope.brief.client?.name ?? null,
+    });
+    setSubject(tmpl.subject);
+    setBody(tmpl.body);
+    setRecipient(scope.brief.sender_email ?? "");
+    setHydrated(true);
+  }, [scope, hydrated]);
 
   if (!data) return <div className="p-6">Loading…</div>;
   const q = data.quote;
