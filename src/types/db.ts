@@ -186,6 +186,59 @@ export type Database = {
         }
         Relationships: []
       }
+      list_alias_overrides: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          list_name: string
+          work_stream: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          list_name: string
+          work_stream: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          list_name?: string
+          work_stream?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "list_alias_overrides_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      list_aliases: {
+        Row: {
+          aliases: string[]
+          id: string
+          updated_at: string
+          work_stream: string
+        }
+        Insert: {
+          aliases: string[]
+          id?: string
+          updated_at?: string
+          work_stream: string
+        }
+        Update: {
+          aliases?: string[]
+          id?: string
+          updated_at?: string
+          work_stream?: string
+        }
+        Relationships: []
+      }
       process_steps: {
         Row: {
           ai_generated: boolean
