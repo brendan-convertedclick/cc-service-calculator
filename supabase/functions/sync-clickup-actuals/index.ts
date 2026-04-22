@@ -28,17 +28,18 @@ Deno.serve(async () => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase
       .from("settings").select("*").eq("id", 1).single();
-    if (!settings?.clickup_enabled || !settings.clickup_pat) {
-      return new Response(JSON.stringify({ skipped: "clickup disabled" }), {
+    if (!settings?.clickup_enabled || !clickupPat) {
+      return new Response(JSON.stringify({ skipped: "clickup disabled or CLICKUP_PAT not set" }), {
         headers: { "content-type": "application/json" },
       });
     }
 
     const CU = {
       headers: {
-        Authorization: settings.clickup_pat!,
+        Authorization: clickupPat,
         "Content-Type": "application/json",
       },
     };

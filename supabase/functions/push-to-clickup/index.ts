@@ -3,8 +3,9 @@
 // Request:  POST { quote_id: string }
 // Response: 200 { project_id, clickup_parent_task_id, child_count }
 //
-// Preconditions (in settings): clickup_enabled=true, clickup_pat set,
-// clickup_workspace_id set.
+// Preconditions: settings.clickup_enabled=true, settings.clickup_workspace_id
+// set, and the CLICKUP_PAT Edge Function secret is configured
+// (Deno.env.get('CLICKUP_PAT')).
 //
 // Flow:
 //   1. Load quote + scope + brief + client + line_items_jsonb snapshot.
@@ -56,11 +57,11 @@ Deno.serve(async (req: Request) => {
       { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
     );
 
+    const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
     if (!settings?.clickup_enabled) return json({ error: "ClickUp disabled in settings" }, 400);
-    if (!settings.clickup_pat || !settings.clickup_workspace_id) {
-      return json({ error: "ClickUp PAT or workspace_id missing" }, 400);
-    }
+    if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
+    if (!settings.clickup_workspace_id) return json({ error: "clickup_workspace_id missing in settings" }, 400);
 
     const { data: quote, error } = await supabase
       .from("quotes")
@@ -82,7 +83,7 @@ Deno.serve(async (req: Request) => {
 
     const CU = {
       headers: {
-        Authorization: settings.clickup_pat!,
+        Authorization: clickupPat,
         "Content-Type": "application/json",
       },
     };
