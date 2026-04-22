@@ -7,7 +7,6 @@ type ServiceInsert = Database["public"]["Tables"]["services"]["Insert"];
 type ServiceUpdate = Database["public"]["Tables"]["services"]["Update"];
 type ResolvedRow = Database["public"]["Views"]["service_allocation_resolved"]["Row"];
 type TotalsRow = Database["public"]["Views"]["service_totals"]["Row"];
-type Override = Database["public"]["Tables"]["service_allocation_overrides"]["Row"];
 
 const LIST = ["services"] as const;
 const DETAIL = (id: string) => ["services", id] as const;
@@ -65,15 +64,9 @@ export function useService(id: string | undefined) {
         .select("*")
         .eq("service_id", id);
 
-      const { data: overrides } = await supabase
-        .from("service_allocation_overrides")
-        .select("*")
-        .eq("service_id", id);
-
       return {
         service,
         resolved: (resolved as ResolvedRow[] | null) ?? [],
-        overrides: (overrides as Override[] | null) ?? [],
       };
     },
   });
