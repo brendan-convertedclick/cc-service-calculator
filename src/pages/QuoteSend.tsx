@@ -46,16 +46,14 @@ export function QuoteSend() {
   const q = data.quote;
 
   const openEmail = () => {
-    if (!q.sow_pdf_url) {
-      toast.error("No PDF on this quote");
-      return;
+    if (q.sow_pdf_url) {
+      const link = document.createElement("a");
+      link.href = q.sow_pdf_url;
+      link.download = `SOW-${q.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
-    const link = document.createElement("a");
-    link.href = q.sow_pdf_url;
-    link.download = `SOW-${q.id}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
     window.open(mailto({ to: recipient, subject, body }), "_blank");
   };
 
@@ -87,8 +85,24 @@ export function QuoteSend() {
         </CardContent>
       </Card>
 
+      {!q.sow_pdf_url && (
+        <div className="rounded-md border border-m-outline-variant bg-m-surface-container-low/40 p-3 text-body-small text-m-on-surface-variant">
+          No SOW PDF attached to this quote — you can still send the email, or{" "}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-m-primary"
+            onClick={() => navigate(-1)}
+          >
+            go back to the builder
+          </button>{" "}
+          to draft one.
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <Button onClick={openEmail} disabled={!recipient}>Open email + download PDF</Button>
+        <Button onClick={openEmail} disabled={!recipient}>
+          {q.sow_pdf_url ? "Open email + download PDF" : "Open email"}
+        </Button>
         <Button variant="secondary" onClick={markSent}>Mark as sent</Button>
         <FeatureFlagGate flag="xero_enabled">
           <Button variant="secondary" onClick={() => toast("Phase 2 — not yet implemented")}>

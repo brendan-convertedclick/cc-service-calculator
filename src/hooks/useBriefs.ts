@@ -7,15 +7,17 @@ type BriefInsert = Database["public"]["Tables"]["briefs"]["Insert"];
 type BriefUpdate = Database["public"]["Tables"]["briefs"]["Update"];
 type BriefStatus = Database["public"]["Enums"]["brief_status"];
 
-const LIST = (status?: BriefStatus) => ["briefs", status ?? "all"] as const;
+const LIST = (key: string) => ["briefs", key] as const;
 const DETAIL = (id: string) => ["briefs", "detail", id] as const;
 
-export function useBriefs(status?: BriefStatus) {
+export function useBriefs(status?: BriefStatus | BriefStatus[]) {
+  const key = Array.isArray(status) ? status.join(",") : status ?? "all";
   return useQuery({
-    queryKey: LIST(status),
+    queryKey: LIST(key),
     queryFn: async (): Promise<Brief[]> => {
       let q = supabase.from("briefs").select("*").order("received_at", { ascending: false });
-      if (status) q = q.eq("status", status);
+      if (Array.isArray(status)) q = q.in("status", status);
+      else if (status) q = q.eq("status", status);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
