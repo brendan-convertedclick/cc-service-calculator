@@ -239,6 +239,27 @@ export type Database = {
         }
         Relationships: []
       }
+      master_sows: {
+        Row: {
+          body_md: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body_md: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body_md?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       process_steps: {
         Row: {
           ai_generated: boolean

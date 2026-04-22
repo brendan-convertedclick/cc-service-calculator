@@ -14,7 +14,7 @@
     "seed": "tsx scripts/import-csv.ts",
     "tokens:build": "tsx scripts/build-tokens.ts",
     "tokens:sync": "tsx -r dotenv/config scripts/sync-figma-tokens.ts dotenv_config_path=.env.local && tsx scripts/build-tokens.ts",
-    "sync-sows": "tsx scripts/sync-sows.ts"
+    "sync-sows": "tsx -r dotenv/config scripts/sync-sows.ts dotenv_config_path=.env.local"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

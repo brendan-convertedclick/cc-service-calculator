@@ -1,11 +1,12 @@
 // supabase/functions/draft-sow/index.ts
 //
-// Request:  POST { quote_id: string; master_sows: Array<{ slug, title, body_md }> }
+// Request:  POST { quote_id: string }
 // Response: 200 { sow_html: string }
 //
-// Loads quote + scope + brief + client + selected services, prompts Claude
-// with the master SoWs as reference. Returns an HTML SOW document scoped to
-// the mapper supported by render-sow-pdf (h1/h2/h3/p/ul/li).
+// Loads quote + scope + brief + client + selected services, plus the master
+// SoW templates from the public.master_sows table, and prompts Claude with
+// them as reference. Returns an HTML SOW document scoped to the mapper
+// supported by render-sow-pdf (h1/h2/h3/p/ul/li).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -17,7 +18,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { quote_id, master_sows } = await req.json();
+    const { quote_id } = await req.json();
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
     const supabase = createUserClient(req);
@@ -34,6 +35,12 @@ Deno.serve(async (req: Request) => {
       .from("quote_services").select("*, service:services(*)")
       .eq("quote_id", quote_id).order("ordinal");
 
+    const { data: sows, error: sowsErr } = await supabase
+      .from("master_sows")
+      .select("title, body_md")
+      .order("slug");
+    if (sowsErr) return json({ error: sowsErr.message }, 500);
+
     const model = settings?.anthropic_model ?? "claude-sonnet-4-6";
 
     const system = [
@@ -45,8 +52,8 @@ Deno.serve(async (req: Request) => {
       "Do not invent scope commitments not present in the locked scope and selected services.",
       "",
       "Master SoW templates:",
-      (master_sows ?? [])
-        .map((s: { title: string; body_md: string }) => `--- ${s.title} ---\n${s.body_md.slice(0, 3000)}`)
+      (sows ?? [])
+        .map((s) => `--- ${s.title} ---\n${s.body_md.slice(0, 3000)}`)
         .join("\n\n"),
     ].join("\n");
 

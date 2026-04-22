@@ -24,7 +24,6 @@ import {
 } from "@/hooks/useQuotes";
 import { aggregateTotals, buildLineItems, type QuoteLine } from "@/lib/quotes";
 import { supabase } from "@/lib/supabase";
-import masterSows from "@/data/master-sows.json";
 import { formatZar } from "@/lib/utils";
 
 const STEPS = [
@@ -358,7 +357,7 @@ export function ProjectBuilder() {
       setDrafting(true);
       await saveLines(true);
       const { data, error } = await supabase.functions.invoke("draft-sow", {
-        body: { quote_id: liveQuote.id, master_sows: masterSows },
+        body: { quote_id: liveQuote.id },
       });
       if (error) throw error;
       setSowHtml(data.sow_html);
