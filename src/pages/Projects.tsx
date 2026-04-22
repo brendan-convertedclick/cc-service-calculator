@@ -4,37 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { useProjects } from "@/hooks/useProjects";
 import { useBriefs } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
-import type { Database } from "@/types/db";
-
-type Brief = Database["public"]["Tables"]["briefs"]["Row"];
-type BriefStatus = Database["public"]["Enums"]["brief_status"];
+import { STATUS_LABEL, resumeHref, type BriefStatus } from "@/lib/brief-routing";
 
 const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
-
-const STATUS_LABEL: Record<BriefStatus, string> = {
-  new: "New",
-  needs_info: "Awaiting client",
-  triaged: "Scoping",
-  scoped: "Building",
-  quoted: "Quoted",
-  accepted: "Accepted",
-  rejected: "Rejected",
-  archived: "Archived",
-  spam: "Spam",
-};
-
-function resumeHref(b: Brief): string {
-  switch (b.status) {
-    case "triaged":
-      return `/briefs/${b.id}/scope`;
-    case "scoped":
-    case "quoted":
-    case "accepted":
-      return `/briefs/${b.id}/builder`;
-    default:
-      return `/briefs/${b.id}/scope`;
-  }
-}
 
 export function Projects() {
   const { data: projects = [] } = useProjects();

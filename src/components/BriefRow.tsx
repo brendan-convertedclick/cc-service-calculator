@@ -8,7 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients, useCreateClient } from "@/hooks/useClients";
-import { useCurrentUserName } from "@/hooks/useCurrentUserName";
+import { useCurrentUserName } from "@/context/AuthContext";
 import { needsInfoReply } from "@/content/email-templates";
 import { mailto } from "@/lib/mailto";
 import type { Database } from "@/types/db";

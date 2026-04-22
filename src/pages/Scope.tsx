@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
-import { useCurrentUserName } from "@/hooks/useCurrentUserName";
+import { useCurrentUserName } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { isMostlyAi } from "@/lib/scope-overlap";
 

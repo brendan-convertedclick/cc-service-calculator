@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, X } from "lucide-react";
 import { formatZar } from "@/lib/utils";
+import { SUM_TOLERANCE_MIN, SUM_TOLERANCE_MAX } from "@/lib/allocation";
 import type { Database } from "@/types/db";
 
 type Service = Database["public"]["Tables"]["services"]["Row"];
@@ -27,7 +28,7 @@ type Props = {
 export function QuoteLineEditor({ line, service, depts, onChange, onRemove }: Props) {
   const [open, setOpen] = useState(false);
   const sumPct = Object.values(line.allocation).reduce((a, b) => a + b, 0);
-  const sumOutOfTolerance = sumPct < 99.5 || sumPct > 100.5;
+  const sumOutOfTolerance = sumPct < SUM_TOLERANCE_MIN || sumPct > SUM_TOLERANCE_MAX;
   const activeDepts = depts.filter((d) => (line.allocation[d.id] ?? 0) > 0);
   const totalHours = Object.values(line.hours).reduce((a, b) => a + b, 0) * line.qty;
   const unitCents = service.sell_price_cents ?? 0;

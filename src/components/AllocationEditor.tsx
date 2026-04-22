@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Database } from "@/types/db";
-import { isSumValid, resolveAllocation, sumPct, totalHours } from "@/lib/allocation";
+import { SUM_TOLERANCE_MAX, SUM_TOLERANCE_MIN, isSumValid, resolveAllocation, sumPct, totalHours } from "@/lib/allocation";
 
 type Department = Database["public"]["Tables"]["departments"]["Row"];
 
@@ -112,7 +112,11 @@ export function AllocationEditor({ allocations, departments, priceCents, readOnl
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Total</span>
           <Badge variant={valid ? "success" : "destructive"}>{sum.toFixed(2)}%</Badge>
-          {!valid && <span className="text-xs text-muted-foreground">must be between 99.5 and 100.5</span>}
+          {!valid && (
+            <span className="text-xs text-muted-foreground">
+              must be between {SUM_TOLERANCE_MIN} and {SUM_TOLERANCE_MAX}
+            </span>
+          )}
         </div>
         {resolved && (
           <div className="text-muted-foreground">

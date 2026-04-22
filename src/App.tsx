@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
+import { AuthProvider } from "@/context/AuthContext";
 import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { ServicesList } from "@/pages/ServicesList";
@@ -21,7 +22,7 @@ import { Settings } from "@/pages/Settings";
 
 export default function App() {
   return (
-    <>
+    <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<RequireAuth />}>
@@ -46,6 +47,6 @@ export default function App() {
         </Route>
       </Routes>
       <Toaster richColors position="top-right" />
-    </>
+    </AuthProvider>
   );
 }

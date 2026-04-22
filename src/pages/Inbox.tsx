@@ -6,39 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BriefRow } from "@/components/BriefRow";
 import { useBriefs } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
-import type { Database } from "@/types/db";
-
-type Brief = Database["public"]["Tables"]["briefs"]["Row"];
-type BriefStatus = Database["public"]["Enums"]["brief_status"];
+import { STATUS_LABEL, resumeHref, type Brief, type BriefStatus } from "@/lib/brief-routing";
 
 const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted"];
 const CLOSED: BriefStatus[] = ["accepted", "rejected", "archived", "spam"];
-
-function resumeHref(b: Brief): string {
-  switch (b.status) {
-    case "triaged":
-      return `/briefs/${b.id}/scope`;
-    case "scoped":
-      return `/briefs/${b.id}/builder`;
-    case "quoted":
-    case "accepted":
-      return `/briefs/${b.id}/builder`;
-    default:
-      return `/briefs/${b.id}/scope`;
-  }
-}
-
-const STATUS_LABEL: Record<BriefStatus, string> = {
-  new: "New",
-  needs_info: "Awaiting client",
-  triaged: "Scoping",
-  scoped: "Building",
-  quoted: "Quoted",
-  accepted: "Accepted",
-  rejected: "Rejected",
-  archived: "Archived",
-  spam: "Spam",
-};
 
 function HistoricRow({
   brief,

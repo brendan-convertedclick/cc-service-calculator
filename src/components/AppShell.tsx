@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 
 const nav = [
