@@ -247,6 +247,98 @@ export type Database = {
           },
         ]
       }
+      project_actuals: {
+        Row: {
+          actual_hours: number
+          clickup_task_id: string
+          dept_id: string | null
+          id: string
+          planned_hours: number
+          project_id: string
+          status_at_sync: string | null
+          synced_at: string
+          time_entries: Json | null
+        }
+        Insert: {
+          actual_hours?: number
+          clickup_task_id: string
+          dept_id?: string | null
+          id?: string
+          planned_hours: number
+          project_id: string
+          status_at_sync?: string | null
+          synced_at?: string
+          time_entries?: Json | null
+        }
+        Update: {
+          actual_hours?: number
+          clickup_task_id?: string
+          dept_id?: string | null
+          id?: string
+          planned_hours?: number
+          project_id?: string
+          status_at_sync?: string | null
+          synced_at?: string
+          time_entries?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_actuals_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_actuals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          clickup_parent_task_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          quote_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["project_status"]
+          updated_at: string
+        }
+        Insert: {
+          clickup_parent_task_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          quote_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+        }
+        Update: {
+          clickup_parent_task_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          quote_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_services: {
         Row: {
           allocation_override: Json | null
@@ -767,6 +859,7 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "archived"
+      project_status: "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
     }
     CompositeTypes: {
@@ -907,6 +1000,7 @@ export const Constants = {
         "rejected",
         "archived",
       ],
+      project_status: ["in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
     },
   },
