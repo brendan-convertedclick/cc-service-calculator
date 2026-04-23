@@ -19,9 +19,12 @@
 // project_actuals row without a user session.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
+
   try {
     const supabase = createServiceRoleClient();
 
@@ -29,9 +32,7 @@ Deno.serve(async () => {
     const { data: settings } = await supabase
       .from("settings").select("*").eq("id", 1).single();
     if (!settings?.clickup_enabled || !clickupPat) {
-      return new Response(JSON.stringify({ skipped: "clickup disabled or CLICKUP_PAT not set" }), {
-        headers: { "content-type": "application/json" },
-      });
+      return json({ skipped: "clickup disabled or CLICKUP_PAT not set" });
     }
 
     const CU = {
@@ -129,13 +130,8 @@ Deno.serve(async () => {
       }
     }
 
-    return new Response(JSON.stringify({ inserted }), {
-      headers: { "content-type": "application/json" },
-    });
+    return json({ inserted });
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
-      { status: 500, headers: { "content-type": "application/json" } },
-    );
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
