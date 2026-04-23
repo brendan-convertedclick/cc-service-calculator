@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
-import { useCurrentUserName } from "@/context/AuthContext";
+import { useCurrentUserId } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { isMostlyAi } from "@/lib/scope-overlap";
 
@@ -32,7 +32,7 @@ function concat(v: ScopeValues) {
 export function Scope() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const user = useCurrentUserName();
+  const userId = useCurrentUserId();
   const { data: brief } = useBrief(id);
   const { data: scope, refetch } = useScope(id);
   const updateBrief = useUpdateBrief();
@@ -105,7 +105,7 @@ export function Scope() {
       ...values,
       ai_drafted: lastAiDraft ? isMostlyAi(concat(values), lastAiDraft) : false,
       locked_at: new Date().toISOString(),
-      locked_by: user,
+      locked_by: userId,
     });
     await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
     navigate(`/briefs/${id}/builder`);

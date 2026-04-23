@@ -8,16 +8,17 @@ import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients, useCreateClient } from "@/hooks/useClients";
-import { useCurrentUserName } from "@/context/AuthContext";
+import { useCurrentUserId } from "@/context/AuthContext";
 import { needsInfoReply } from "@/content/email-templates";
 import { mailto } from "@/lib/mailto";
+import { errorMessage } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
 export function BriefRow({ brief }: { brief: Brief }) {
   const navigate = useNavigate();
-  const user = useCurrentUserName();
+  const userId = useCurrentUserId();
   const [expanded, setExpanded] = useState(false);
   const [clientId, setClientId] = useState<string | undefined>(brief.client_id ?? undefined);
   const [newClientName, setNewClientName] = useState("");
@@ -43,14 +44,13 @@ export function BriefRow({ brief }: { brief: Brief }) {
         patch: {
           client_id: cid,
           status: "triaged",
-          triaged_by: user,
+          triaged_by: userId,
           triaged_at: new Date().toISOString(),
         },
       });
       navigate(`/briefs/${brief.id}/scope`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`Accept failed: ${msg}`);
+      toast.error(`Accept failed: ${errorMessage(e)}`);
       console.error("Accept failed", e);
     }
   };
@@ -62,7 +62,7 @@ export function BriefRow({ brief }: { brief: Brief }) {
       patch: {
         status: "spam",
         rejection_reason: reason || null,
-        triaged_by: user,
+        triaged_by: userId,
         triaged_at: new Date().toISOString(),
       },
     });
@@ -80,7 +80,7 @@ export function BriefRow({ brief }: { brief: Brief }) {
       id: brief.id,
       patch: {
         status: "needs_info",
-        triaged_by: user,
+        triaged_by: userId,
         triaged_at: new Date().toISOString(),
       },
     });

@@ -10,7 +10,7 @@ import {
   useUpdateQuote,
 } from "@/hooks/useQuotes";
 import { useSettings } from "@/hooks/useSettings";
-import { useCurrentUserName } from "@/context/AuthContext";
+import { useCurrentUserId } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { formatZar } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export function QuoteDetail() {
   const navigate = useNavigate();
   const { data } = useQuote(id);
   const { data: settings } = useSettings();
-  const user = useCurrentUserName();
+  const userId = useCurrentUserId();
   const update = useUpdateQuote();
   const create = useCreateQuote();
   const replaceSvcs = useReplaceQuoteServices();
@@ -33,7 +33,7 @@ export function QuoteDetail() {
       patch: {
         status: "accepted",
         accepted_at: new Date().toISOString(),
-        accepted_by: user,
+        accepted_by: userId,
       },
     });
     if (settings?.clickup_enabled) {
