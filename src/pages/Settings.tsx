@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
+import { useClickUpSpaces } from "@/hooks/useClients";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -70,6 +72,21 @@ export function Settings() {
           >
             Save workspace ID
           </Button>
+          <div className="space-y-2">
+            <Label htmlFor="cu-clients-space">Clients space</Label>
+            <ClickUpSpaceSelect
+              value={s.clickup_clients_space_id ?? ""}
+              onChange={(v) =>
+                update.mutate(
+                  { clickup_clients_space_id: v || null },
+                  { onSuccess: () => toast.success("Saved") },
+                )
+              }
+            />
+            <p className="text-label-small text-m-on-surface-variant">
+              The ClickUp top-level space that holds your client folders. Required before you can link clients to folders.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -119,5 +136,35 @@ export function Settings() {
 
       {/* Xero card omitted: Phase 1 hides the card entirely (spec §7.6). Added in Phase 2. */}
     </div>
+  );
+}
+
+function ClickUpSpaceSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { data: spaces, isLoading, error } = useClickUpSpaces();
+  if (isLoading) {
+    return <div className="text-body-small text-m-on-surface-variant">Loading spaces...</div>;
+  }
+  if (error) {
+    return (
+      <div className="text-body-small text-destructive">
+        Couldn't load spaces: {error instanceof Error ? error.message : String(error)}
+      </div>
+    );
+  }
+  const options = (spaces ?? []).map((s) => ({ value: s.id, label: s.name }));
+  return (
+    <Combobox
+      options={options}
+      value={value}
+      onChange={onChange}
+      placeholder="Select a space..."
+      emptyLabel="No spaces in this workspace."
+    />
   );
 }
