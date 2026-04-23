@@ -46,6 +46,7 @@ export function ProjectDetail() {
       byDept.set(key, cur);
     }
     return Array.from(byDept.entries()).map(([dept_id, v]) => ({
+      dept_id,
       dept_name: depts.find((d) => d.id === dept_id)?.name ?? "Unknown",
       planned: v.planned,
       actual: v.actual,

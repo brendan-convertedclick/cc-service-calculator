@@ -12,6 +12,7 @@ import {
 import { useSettings } from "@/hooks/useSettings";
 import { useCurrentUserId } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { useQuery } from "@tanstack/react-query";
 import { formatZar } from "@/lib/utils";
 
 export function QuoteDetail() {
@@ -23,6 +24,18 @@ export function QuoteDetail() {
   const update = useUpdateQuote();
   const create = useCreateQuote();
   const replaceSvcs = useReplaceQuoteServices();
+  const { data: existingProject, refetch: refetchProject } = useQuery({
+    queryKey: ["project-for-quote", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("quote_id", id!)
+        .maybeSingle();
+      return data;
+    },
+  });
 
   if (!data) return <div className="p-6">Loading…</div>;
   const q = data.quote;
@@ -41,7 +54,10 @@ export function QuoteDetail() {
         body: { quote_id: q.id },
       });
       if (error) toast.error(`ClickUp push failed: ${error.message}`);
-      else toast.success("Accepted + pushed to ClickUp");
+      else {
+        toast.success("Accepted + pushed to ClickUp");
+        refetchProject();
+      }
     } else {
       toast.success("Accepted (ClickUp disabled — use Retry push when ready)");
     }
@@ -60,7 +76,10 @@ export function QuoteDetail() {
       body: { quote_id: q.id },
     });
     if (error) toast.error(error.message);
-    else toast.success("Pushed");
+    else {
+      toast.success("Pushed to ClickUp");
+      refetchProject();
+    }
   };
 
   const revise = async () => {
@@ -124,7 +143,7 @@ export function QuoteDetail() {
         {q.status === "draft" && (
           <Button onClick={() => navigate(`/quotes/${q.id}/send`)}>Go to send</Button>
         )}
-        {q.status === "accepted" && !settings?.clickup_enabled && (
+        {q.status === "accepted" && settings?.clickup_enabled && !existingProject && (
           <Button variant="secondary" onClick={retryPush}>Retry ClickUp push</Button>
         )}
       </div>

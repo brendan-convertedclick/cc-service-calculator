@@ -2,6 +2,13 @@
 
 Internal service calculator for Converted Click. React SPA + Supabase. See the plan at `~/.claude/plans/https-lpgwxacoqiqpcfpkklib-supabase-co-i-cuddly-puffin.md` for the full V1 spec.
 
+## Shared dev login
+
+- Email: `team@convertedclick.co.za`
+- Password: `cc-calc-2026-temp`
+
+Single shared login (V1 has no per-user roles). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
+
 ## Supabase — use the project-scoped MCP server ONLY
 
 This repo ships a dedicated MCP server in `.mcp.json` named **`cc-supabase`**, pinned with `--project-ref=lpgwxacoqiqpcfpkklib`.
