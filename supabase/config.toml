@@ -1,0 +1,41 @@
+# Supabase CLI config for cc-service-calculator.
+# Sourced by `supabase functions deploy` and the Supabase CLI in general.
+
+project_id = "lpgwxacoqiqpcfpkklib"
+
+# JWT verification is disabled on every function because this project uses
+# asymmetric (ES256) JWT signing keys for Auth, and the Edge Function
+# gateway's verify_jwt check only validates HS256 — so user JWTs are
+# rejected with 401 UNAUTHORIZED_INVALID_JWT_FORMAT even when valid.
+# Supabase's own docs state this is expected and the documented fix is
+# verify_jwt = false per function. Authorization is still enforced: each
+# function forwards the caller's JWT to PostgREST via createUserClient(req),
+# and PostgREST + RLS handle ES256 correctly. See:
+# https://supabase.com/docs/guides/auth/signing-keys
+
+[functions.push-to-clickup]
+verify_jwt = false
+
+[functions.draft-scope]
+verify_jwt = false
+
+[functions.suggest-services]
+verify_jwt = false
+
+[functions.draft-sow]
+verify_jwt = false
+
+[functions.generate-process-steps]
+verify_jwt = false
+
+[functions.list-clickup-folders]
+verify_jwt = false
+
+[functions.list-clickup-spaces]
+verify_jwt = false
+
+[functions.render-sow-pdf]
+verify_jwt = false
+
+[functions.sync-clickup-actuals]
+verify_jwt = false
