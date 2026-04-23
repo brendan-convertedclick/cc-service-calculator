@@ -8,7 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients, useCreateClient } from "@/hooks/useClients";
-import { useCurrentUserName } from "@/hooks/useCurrentUserName";
+import { useCurrentUserName } from "@/context/AuthContext";
 import { needsInfoReply } from "@/content/email-templates";
 import { mailto } from "@/lib/mailto";
 import type { Database } from "@/types/db";
@@ -28,25 +28,31 @@ export function BriefRow({ brief }: { brief: Brief }) {
   const clientName = clients.find((c) => c.id === brief.client_id)?.name;
 
   const accept = async () => {
-    let cid = clientId;
-    if (!cid && newClientName) {
-      const c = await createClient.mutateAsync({ name: newClientName });
-      cid = c.id;
+    try {
+      let cid = clientId;
+      if (!cid && newClientName) {
+        const c = await createClient.mutateAsync({ name: newClientName });
+        cid = c.id;
+      }
+      if (!cid) {
+        toast.error("Assign a client before accepting");
+        return;
+      }
+      await update.mutateAsync({
+        id: brief.id,
+        patch: {
+          client_id: cid,
+          status: "triaged",
+          triaged_by: user,
+          triaged_at: new Date().toISOString(),
+        },
+      });
+      navigate(`/briefs/${brief.id}/scope`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Accept failed: ${msg}`);
+      console.error("Accept failed", e);
     }
-    if (!cid) {
-      toast.error("Assign a client before accepting");
-      return;
-    }
-    await update.mutateAsync({
-      id: brief.id,
-      patch: {
-        client_id: cid,
-        status: "triaged",
-        triaged_by: user,
-        triaged_at: new Date().toISOString(),
-      },
-    });
-    navigate(`/briefs/${brief.id}/scope`);
   };
 
   const spam = async () => {

@@ -7,11 +7,9 @@ type ServiceInsert = Database["public"]["Tables"]["services"]["Insert"];
 type ServiceUpdate = Database["public"]["Tables"]["services"]["Update"];
 type ResolvedRow = Database["public"]["Views"]["service_allocation_resolved"]["Row"];
 type TotalsRow = Database["public"]["Views"]["service_totals"]["Row"];
-type Override = Database["public"]["Tables"]["service_allocation_overrides"]["Row"];
 
-const LIST = ["services"] as const;
-const DETAIL = (id: string) => ["services", id] as const;
-const MATRIX = ["allocation-matrix"] as const;
+export const SERVICES_LIST_KEY = ["services"] as const;
+export const SERVICE_DETAIL_KEY = (id: string) => ["services", id] as const;
 
 export type ServiceWithTotals = Service & {
   total_hours: number;
@@ -20,15 +18,14 @@ export type ServiceWithTotals = Service & {
 
 export function useServices() {
   return useQuery({
-    queryKey: LIST,
+    queryKey: SERVICES_LIST_KEY,
+    staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<ServiceWithTotals[]> => {
-      const { data: services, error } = await supabase
-        .from("services")
-        .select("*")
-        .order("name");
+      const [{ data: services, error }, { data: totals, error: tErr }] = await Promise.all([
+        supabase.from("services").select("*").order("name"),
+        supabase.from("service_totals").select("*"),
+      ]);
       if (error) throw error;
-
-      const { data: totals, error: tErr } = await supabase.from("service_totals").select("*");
       if (tErr) throw tErr;
 
       const totalsMap = new Map(
@@ -50,7 +47,8 @@ export function useServices() {
 export function useService(id: string | undefined) {
   return useQuery({
     enabled: !!id,
-    queryKey: id ? DETAIL(id) : ["services", "none"],
+    queryKey: id ? SERVICE_DETAIL_KEY(id) : ["services", "none"],
+    staleTime: 60_000,
     queryFn: async () => {
       if (!id) return null;
       const { data: service, error } = await supabase
@@ -65,15 +63,9 @@ export function useService(id: string | undefined) {
         .select("*")
         .eq("service_id", id);
 
-      const { data: overrides } = await supabase
-        .from("service_allocation_overrides")
-        .select("*")
-        .eq("service_id", id);
-
       return {
         service,
         resolved: (resolved as ResolvedRow[] | null) ?? [],
-        overrides: (overrides as Override[] | null) ?? [],
       };
     },
   });
@@ -87,7 +79,7 @@ export function useCreateService() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: LIST }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SERVICES_LIST_KEY }),
   });
 }
 
@@ -100,8 +92,8 @@ export function useUpdateService() {
       return data;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: LIST });
-      qc.invalidateQueries({ queryKey: DETAIL(vars.id) });
+      qc.invalidateQueries({ queryKey: SERVICES_LIST_KEY });
+      qc.invalidateQueries({ queryKey: SERVICE_DETAIL_KEY(vars.id) });
     },
   });
 }
@@ -113,131 +105,6 @@ export function useDeleteService() {
       const { error } = await supabase.from("services").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: LIST }),
-  });
-}
-
-type ChecklistInput =
-  | { kind: "hours"; serviceId: string; hoursByDept: Record<string, number>; departmentOrder: string[] }
-  | { kind: "steps"; serviceId: string; steps: {
-        ordinal: number;
-        title: string;
-        description: string | null;
-        department_id: string | null;
-        estimated_hours: number | null;
-        ai_generated: boolean;
-      }[] }
-  | { kind: "clear"; serviceId: string };
-
-export function useSetServiceChecklist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: ChecklistInput) => {
-      // Always delete existing steps for the service first
-      const { error: dErr } = await supabase
-        .from("process_steps")
-        .delete()
-        .eq("service_id", input.serviceId);
-      if (dErr) throw dErr;
-
-      if (input.kind === "clear") return;
-
-      if (input.kind === "hours") {
-        // Build one step per dept with non-zero hours, in display order
-        const rows = input.departmentOrder
-          .map((dept_id, i) => ({
-            service_id: input.serviceId,
-            ordinal: i + 1,
-            title: "Department work",
-            description: null,
-            department_id: dept_id,
-            estimated_hours: input.hoursByDept[dept_id] ?? 0,
-            ai_generated: false,
-          }))
-          .filter((r) => (r.estimated_hours ?? 0) >= 0.25);
-
-        if (rows.length === 0) return;
-
-        const { error: iErr } = await supabase.from("process_steps").insert(rows);
-        if (iErr) throw iErr;
-        return;
-      }
-
-      // kind === "steps"
-      if (input.steps.length > 0) {
-        const { error: iErr } = await supabase
-          .from("process_steps")
-          .insert(
-            input.steps.map((s) => ({
-              service_id: input.serviceId,
-              ordinal: s.ordinal,
-              title: s.title,
-              description: s.description,
-              department_id: s.department_id,
-              estimated_hours: s.estimated_hours,
-              ai_generated: s.ai_generated,
-            }))
-          );
-        if (iErr) throw iErr;
-      }
-    },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: LIST });
-      qc.invalidateQueries({ queryKey: DETAIL(vars.serviceId) });
-      qc.invalidateQueries({ queryKey: MATRIX });
-      qc.invalidateQueries({ queryKey: ["process_steps", vars.serviceId] });
-    },
-  });
-}
-
-export type AllocationMatrix = {
-  resolved: Map<string, Map<string, { pct: number | null; hours: number }>>;
-  hasChecklist: Set<string>;
-  childCounts: Map<string, number>;
-};
-
-export function useAllocationMatrix() {
-  return useQuery({
-    queryKey: MATRIX,
-    queryFn: async (): Promise<AllocationMatrix> => {
-      const [
-        { data: resolvedRows, error: rErr },
-        { data: stepRows, error: sErr },
-        { data: childRows, error: cErr },
-      ] = await Promise.all([
-        supabase.from("service_allocation_resolved").select("*"),
-        supabase
-          .from("process_steps")
-          .select("service_id")
-          .not("department_id", "is", null)
-          .not("estimated_hours", "is", null),
-        supabase.from("service_children").select("parent_id"),
-      ]);
-      if (rErr) throw rErr;
-      if (sErr) throw sErr;
-      if (cErr) throw cErr;
-
-      const resolved = new Map<string, Map<string, { pct: number | null; hours: number }>>();
-      for (const r of (resolvedRows as ResolvedRow[] | null) ?? []) {
-        if (!r.service_id || !r.department_id) continue;
-        let byDept = resolved.get(r.service_id);
-        if (!byDept) {
-          byDept = new Map();
-          resolved.set(r.service_id, byDept);
-        }
-        byDept.set(r.department_id, {
-          pct: r.pct == null ? null : Number(r.pct),
-          hours: Number(r.hours ?? 0),
-        });
-      }
-      const hasChecklist = new Set<string>(
-        ((stepRows as { service_id: string }[] | null) ?? []).map((s) => s.service_id)
-      );
-      const childCounts = new Map<string, number>();
-      for (const row of (childRows as { parent_id: string }[] | null) ?? []) {
-        childCounts.set(row.parent_id, (childCounts.get(row.parent_id) ?? 0) + 1);
-      }
-      return { resolved, hasChecklist, childCounts };
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SERVICES_LIST_KEY }),
   });
 }

@@ -1,31 +1,27 @@
 // supabase/functions/draft-sow/index.ts
 //
-// Request:  POST { quote_id: string; master_sows: Array<{ slug, title, body_md }> }
+// Request:  POST { quote_id: string }
 // Response: 200 { sow_html: string }
 //
-// Loads quote + scope + brief + client + selected services, prompts Claude
-// with the master SoWs as reference. Returns an HTML SOW document scoped to
-// the mapper supported by render-sow-pdf (h1/h2/h3/p/ul/li).
+// Loads quote + scope + brief + client + selected services, plus the master
+// SoW templates from the public.master_sows table, and prompts Claude with
+// them as reference. Returns an HTML SOW document scoped to the mapper
+// supported by render-sow-pdf (h1/h2/h3/p/ul/li).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+import { cors, json } from "../_shared/helpers.ts";
+import { createUserClient } from "../_shared/supabase-client.ts";
+import { callAnthropic } from "../_shared/anthropic.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    if (!ANTHROPIC_API_KEY) return json({ error: "ANTHROPIC_API_KEY not set" }, 500);
-    const { quote_id, master_sows } = await req.json();
+    const { quote_id } = await req.json();
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
-    );
+    const supabase = createUserClient(req);
 
     const { data: settings } = await supabase
       .from("settings").select("anthropic_model").eq("id", 1).single();
@@ -39,6 +35,12 @@ Deno.serve(async (req: Request) => {
       .from("quote_services").select("*, service:services(*)")
       .eq("quote_id", quote_id).order("ordinal");
 
+    const { data: sows, error: sowsErr } = await supabase
+      .from("master_sows")
+      .select("title, body_md")
+      .order("slug");
+    if (sowsErr) return json({ error: sowsErr.message }, 500);
+
     const model = settings?.anthropic_model ?? "claude-sonnet-4-6";
 
     const system = [
@@ -50,8 +52,8 @@ Deno.serve(async (req: Request) => {
       "Do not invent scope commitments not present in the locked scope and selected services.",
       "",
       "Master SoW templates:",
-      (master_sows ?? [])
-        .map((s: { title: string; body_md: string }) => `--- ${s.title} ---\n${s.body_md.slice(0, 3000)}`)
+      (sows ?? [])
+        .map((s) => `--- ${s.title} ---\n${s.body_md.slice(0, 3000)}`)
         .join("\n\n"),
     ].join("\n");
 
@@ -85,43 +87,21 @@ Deno.serve(async (req: Request) => {
         .join("\n"),
     ].join("\n");
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4096,
-        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content: user }],
-      }),
+    const body = await callAnthropic({
+      model,
+      system,
+      messages: [{ role: "user", content: user }],
+      maxTokens: 4096,
+      cacheSystem: true,
     });
-    if (!res.ok) return json({ error: `Anthropic: ${await res.text()}` }, 502);
 
-    const body = await res.json();
     const sow_html: string = body.content?.[0]?.text ?? "";
     if (!sow_html) return json({ error: "AI returned empty content" }, 502);
 
     return json({ sow_html });
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.startsWith("Anthropic ")) return json({ error: msg }, 502);
+    return json({ error: msg }, 500);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...cors() },
-  });
-}
-
-function cors() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type",
-  };
-}

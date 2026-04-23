@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { FeatureFlagGate } from "@/components/FeatureFlagGate";
 import { useQuote, useUpdateQuote } from "@/hooks/useQuotes";
-import { supabase } from "@/lib/supabase";
+import { useScopeById } from "@/hooks/useScopes";
 import { mailto } from "@/lib/mailto";
 import { sendQuoteEmail } from "@/content/email-templates";
 
@@ -17,45 +17,36 @@ export function QuoteSend() {
   const navigate = useNavigate();
   const { data } = useQuote(id);
   const update = useUpdateQuote();
+  const { data: scope } = useScopeById(data?.quote.scope_id);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (!data) return;
-    void (async () => {
-      const { data: scope } = await supabase
-        .from("scopes")
-        .select("*, brief:briefs(*, client:clients(*))")
-        .eq("id", data.quote.scope_id)
-        .single();
-      const brief = (scope as { brief: { raw_subject: string | null; sender_email: string | null; client: { name: string } | null } | null })
-        ?.brief;
-      if (!brief) return;
-      const tmpl = sendQuoteEmail({
-        subject: brief.raw_subject ?? "",
-        clientName: brief.client?.name ?? null,
-      });
-      setSubject(tmpl.subject);
-      setBody(tmpl.body);
-      setRecipient(brief.sender_email ?? "");
-    })();
-  }, [data]);
+    if (hydrated || !scope?.brief) return;
+    const tmpl = sendQuoteEmail({
+      subject: scope.brief.raw_subject ?? "",
+      clientName: scope.brief.client?.name ?? null,
+    });
+    setSubject(tmpl.subject);
+    setBody(tmpl.body);
+    setRecipient(scope.brief.sender_email ?? "");
+    setHydrated(true);
+  }, [scope, hydrated]);
 
   if (!data) return <div className="p-6">Loading…</div>;
   const q = data.quote;
 
   const openEmail = () => {
-    if (!q.sow_pdf_url) {
-      toast.error("No PDF on this quote");
-      return;
+    if (q.sow_pdf_url) {
+      const link = document.createElement("a");
+      link.href = q.sow_pdf_url;
+      link.download = `SOW-${q.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
-    const link = document.createElement("a");
-    link.href = q.sow_pdf_url;
-    link.download = `SOW-${q.id}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
     window.open(mailto({ to: recipient, subject, body }), "_blank");
   };
 
@@ -87,8 +78,24 @@ export function QuoteSend() {
         </CardContent>
       </Card>
 
+      {!q.sow_pdf_url && (
+        <div className="rounded-md border border-m-outline-variant bg-m-surface-container-low/40 p-3 text-body-small text-m-on-surface-variant">
+          No SOW PDF attached to this quote — you can still send the email, or{" "}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-m-primary"
+            onClick={() => navigate(-1)}
+          >
+            go back to the builder
+          </button>{" "}
+          to draft one.
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <Button onClick={openEmail} disabled={!recipient}>Open email + download PDF</Button>
+        <Button onClick={openEmail} disabled={!recipient}>
+          {q.sow_pdf_url ? "Open email + download PDF" : "Open email"}
+        </Button>
         <Button variant="secondary" onClick={markSent}>Mark as sent</Button>
         <FeatureFlagGate flag="xero_enabled">
           <Button variant="secondary" onClick={() => toast("Phase 2 — not yet implemented")}>

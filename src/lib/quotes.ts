@@ -2,8 +2,8 @@
  * Quote aggregation + line-item snapshot. Pure, no I/O.
  *
  * Used by ProjectBuilder for live totals and by Finalise-quote to freeze
- * catalogue state into quotes.line_items_jsonb so later catalogue edits
- * don't retroactively change accepted quotes.
+ * catalogue state into the quote_line_item_allocations snapshot table so
+ * later catalogue edits don't retroactively change accepted quotes.
  */
 
 export type DeptRef = { id: string; name: string; hourly_rate_cents: number };

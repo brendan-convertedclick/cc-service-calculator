@@ -9,7 +9,8 @@
 // (the same subset draft-sow is prompted to produce).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cors, json } from "../_shared/helpers.ts";
+import { createUserClient } from "../_shared/supabase-client.ts";
 import React from "npm:react@18.3.1";
 import {
   Document,
@@ -76,11 +77,7 @@ Deno.serve(async (req: Request) => {
     const { quote_id } = await req.json();
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
-    );
+    const supabase = createUserClient(req);
 
     const { data: quote, error } = await supabase
       .from("quotes")
@@ -143,17 +140,3 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...cors() },
-  });
-}
-
-function cors() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type",
-  };
-}

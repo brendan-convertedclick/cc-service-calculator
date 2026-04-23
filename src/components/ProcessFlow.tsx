@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2, Save, RotateCcw, FileDown } from "lucide-react";
 import { toast } from "sonner";
-import { useProcessSteps, useReplaceSteps, useUpdateStep, useDeleteStep, useCreateStep } from "@/hooks/useProcessSteps";
+import { useProcessSteps, useReplaceSteps, useUpdateStep, useDeleteStep, useCreateStep, useSetServiceChecklist } from "@/hooks/useProcessSteps";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useRules } from "@/hooks/useRules";
-import { useSetServiceChecklist, useAllocationMatrix } from "@/hooks/useServices";
+import { useAllocationMatrix } from "@/hooks/useAllocationMatrix";
 import { useServiceChildren } from "@/hooks/useServiceChildren";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +47,11 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
 
   const derivedSteps = useMemo(() => {
     if (!derived || !matrix) return [];
-    const byDept = matrix.resolved.get(serviceId);
+    const byDept = matrix.resolved[serviceId];
     if (!byDept) return [];
     const out: typeof steps = [];
     let i = 0;
-    for (const [deptId, row] of byDept) {
+    for (const [deptId, row] of Object.entries(byDept)) {
       const dept = depts.find((d) => d.id === deptId);
       if (!dept) continue;
       if (!(row.hours > 0)) continue;
@@ -100,17 +100,17 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
     }
   }
 
-  function moveStep(id: string, direction: -1 | 1) {
+  async function moveStep(id: string, direction: -1 | 1) {
     const i = steps.findIndex((s) => s.id === id);
     const j = i + direction;
     if (j < 0 || j >= steps.length) return;
     const a = steps[i], b = steps[j];
-    // swap ordinals (two separate updates; ordinals unique per service)
-    update.mutate({ id: a.id, patch: { ordinal: b.ordinal + 10000 } });
-    setTimeout(() => {
-      update.mutate({ id: b.id, patch: { ordinal: a.ordinal } });
-      update.mutate({ id: a.id, patch: { ordinal: b.ordinal } });
-    }, 50);
+    // Three-stage swap to avoid violating the unique (service_id, ordinal) index.
+    // Parking `a` at a high ordinal first frees up a.ordinal for b, then we
+    // settle a into b.ordinal. Awaiting each mutation guarantees ordering.
+    await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal + 10000 } });
+    await update.mutateAsync({ id: b.id, patch: { ordinal: a.ordinal } });
+    await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal } });
   }
 
   function addStep() {
@@ -155,42 +155,37 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
   }
 
   function seedFromChildren() {
-    if (!derived) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from("service_allocation_resolved")
-        .select("department_id, hours")
-        .eq("service_id", serviceId);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      const rows = (data ?? [])
-        .filter((r) => r.department_id != null && Number(r.hours ?? 0) > 0)
-        .map((r, i) => {
-          const dept = depts.find((d) => d.id === r.department_id);
-          const h = Math.max(0.25, Math.round(Number(r.hours) / 0.25) * 0.25);
-          return {
-            ordinal: i + 1,
-            title: `${dept?.name ?? "Dept"} — work`,
-            description: null,
-            department_id: r.department_id,
-            estimated_hours: h,
-            ai_generated: false,
-          };
-        });
-      if (rows.length === 0) {
-        toast.error("No derived hours to seed. Do the child services have checklists yet?");
-        return;
-      }
-      replace.mutate(
-        { serviceId, steps: rows },
-        {
-          onSuccess: () => toast.success(`Seeded ${rows.length} steps from included services`),
-          onError: (e: Error) => toast.error(e.message),
-        }
-      );
-    })();
+    if (!derived || !matrix) return;
+    const byDept = matrix.resolved[serviceId];
+    if (!byDept) {
+      toast.error("No derived hours to seed. Do the child services have checklists yet?");
+      return;
+    }
+    const rows = Object.entries(byDept)
+      .filter(([, row]) => row.hours > 0)
+      .map(([department_id, row], i) => {
+        const dept = depts.find((d) => d.id === department_id);
+        const h = Math.max(0.25, Math.round(row.hours / 0.25) * 0.25);
+        return {
+          ordinal: i + 1,
+          title: `${dept?.name ?? "Dept"} — work`,
+          description: null,
+          department_id,
+          estimated_hours: h,
+          ai_generated: false,
+        };
+      });
+    if (rows.length === 0) {
+      toast.error("No derived hours to seed. Do the child services have checklists yet?");
+      return;
+    }
+    replace.mutate(
+      { serviceId, steps: rows },
+      {
+        onSuccess: () => toast.success(`Seeded ${rows.length} steps from included services`),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
   }
 
   function clearChecklist() {

@@ -1,11 +1,8 @@
-/**
- * ClickUp helpers shared between the push-to-clickup Edge Function (server)
- * and any client-side UI that needs to preview what will be sent.
- *
- * The work_stream → list mapping mirrors the /brief skill's list-aliases.md,
- * seeded into the list_aliases Postgres table (migration 0009). Phase 3 will
- * collapse the duplication and make this the authoritative source.
- */
+// supabase/functions/_shared/clickup.ts
+//
+// Canonical home for ClickUp helper functions. Imported by push-to-clickup
+// (and any future edge function that posts BRIEF:: comments or resolves
+// list aliases). Replaces the old src/lib/clickup-shared.ts (deleted in T11).
 
 export type AliasRow = { work_stream: string; aliases: string[] };
 export type OverrideRow = { client_id: string; work_stream: string; list_name: string };

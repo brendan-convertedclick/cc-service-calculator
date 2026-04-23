@@ -1,33 +1,89 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useProjects } from "@/hooks/useProjects";
+import { useBriefs } from "@/hooks/useBriefs";
+import { useClients } from "@/hooks/useClients";
+import { STATUS_LABEL, resumeHref, type BriefStatus } from "@/lib/brief-routing";
+
+const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
 
 export function Projects() {
   const { data: projects = [] } = useProjects();
+  const { data: inFlight = [] } = useBriefs(IN_PROGRESS);
+  const { data: clients = [] } = useClients();
+  const clientById = useMemo(
+    () => new Map(clients.map((c) => [c.id, c.name])),
+    [clients],
+  );
+
+  const empty = projects.length === 0 && inFlight.length === 0;
+
   return (
-    <div className="container mx-auto max-w-5xl p-6 space-y-4">
+    <div className="container mx-auto max-w-5xl space-y-8 p-6">
       <h1 className="text-headline-medium">Projects</h1>
-      {projects.length === 0 && (
+
+      {empty && (
         <div className="text-body-medium text-m-on-surface-variant">
-          No projects yet. Accept a quote with ClickUp enabled to create one.
+          No projects or open briefs yet. Accept a brief from the Inbox to start one.
         </div>
       )}
-      {projects.map((p) => (
-        <Link to={`/projects/${p.id}`} key={p.id} className="block">
-          <Card>
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <div className="text-title-small">ClickUp task {p.clickup_parent_task_id}</div>
-                <div className="text-label-small text-m-on-surface-variant">
-                  Started {new Date(p.started_at).toLocaleDateString("en-ZA")}
-                </div>
-              </div>
-              <Badge>{p.status}</Badge>
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
+
+      {inFlight.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-title-medium">In progress ({inFlight.length})</h2>
+          <div className="space-y-2">
+            {inFlight.map((b) => {
+              const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
+              return (
+                <Link to={resumeHref(b)} key={b.id} className="block">
+                  <Card className="transition-colors hover:bg-m-surface-container">
+                    <CardContent className="flex items-center justify-between gap-4 p-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-title-small">
+                          {b.raw_subject ?? "(no subject)"}
+                        </div>
+                        <div className="text-label-small text-m-on-surface-variant">
+                          {clientName ?? b.sender_email ?? "manual"} ·{" "}
+                          {new Date(b.received_at).toLocaleDateString("en-ZA")}
+                        </div>
+                      </div>
+                      <Badge>{STATUS_LABEL[b.status]}</Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {projects.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-title-medium">Active ({projects.length})</h2>
+          <div className="space-y-2">
+            {projects.map((p) => (
+              <Link to={`/projects/${p.id}`} key={p.id} className="block">
+                <Card className="transition-colors hover:bg-m-surface-container">
+                  <CardContent className="flex items-center justify-between gap-4 p-4">
+                    <div>
+                      {/* Cast until `npm run supabase:gen-types` regenerates src/types/db.ts post-0015. */}
+                      <div className="text-title-small">
+                        {(p as { name?: string }).name ?? "Untitled project"}
+                      </div>
+                      <div className="text-label-small text-m-on-surface-variant">
+                        Started {new Date(p.started_at).toLocaleDateString("en-ZA")}
+                      </div>
+                    </div>
+                    <Badge>{p.status}</Badge>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

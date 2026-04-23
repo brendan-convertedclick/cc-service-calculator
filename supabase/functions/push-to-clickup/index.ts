@@ -3,11 +3,12 @@
 // Request:  POST { quote_id: string }
 // Response: 200 { project_id, clickup_parent_task_id, child_count }
 //
-// Preconditions (in settings): clickup_enabled=true, clickup_pat set,
-// clickup_workspace_id set.
+// Preconditions: settings.clickup_enabled=true, settings.clickup_workspace_id
+// set, and the CLICKUP_PAT Edge Function secret is configured
+// (Deno.env.get('CLICKUP_PAT')).
 //
 // Flow:
-//   1. Load quote + scope + brief + client + line_items_jsonb snapshot.
+//   1. Load quote + scope + brief + client + line allocations.
 //   2. Resolve the client's ClickUp space (substring match on client name).
 //      Cache clickup_folder_id on clients row.
 //   3. Pick a list inside the space named /projects/i, or the first list.
@@ -18,9 +19,18 @@
 //      comment mirroring /brief's grammar.
 //   6. Insert projects row + project_actuals rows (one per child, planned
 //      hours from the snapshot allocation).
+//
+// Atomicity: we generate the project id client-side and only insert the
+// projects row AFTER every ClickUp child task + comment succeeds. If any
+// ClickUp call fails we bubble the error and never write to the DB — so
+// retries are not blocked by the projects.quote_id unique constraint. If
+// the project_actuals bulk insert fails after projects inserted, we run a
+// compensating delete on the projects row.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cors, json } from "../_shared/helpers.ts";
+import { createUserClient } from "../_shared/supabase-client.ts";
+import { buildBriefComment } from "../_shared/clickup.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -43,17 +53,13 @@ Deno.serve(async (req: Request) => {
     const { quote_id } = await req.json();
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
-    );
+    const supabase = createUserClient(req);
 
+    const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
     if (!settings?.clickup_enabled) return json({ error: "ClickUp disabled in settings" }, 400);
-    if (!settings.clickup_pat || !settings.clickup_workspace_id) {
-      return json({ error: "ClickUp PAT or workspace_id missing" }, 400);
-    }
+    if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
+    if (!settings.clickup_workspace_id) return json({ error: "clickup_workspace_id missing in settings" }, 400);
 
     const { data: quote, error } = await supabase
       .from("quotes")
@@ -75,7 +81,7 @@ Deno.serve(async (req: Request) => {
 
     const CU = {
       headers: {
-        Authorization: settings.clickup_pat!,
+        Authorization: clickupPat,
         "Content-Type": "application/json",
       },
     };
@@ -129,76 +135,185 @@ Deno.serve(async (req: Request) => {
       .select("id,full_name,email,primary_department_id")
       .is("archived_at", null);
 
-    // Create a projects row so we have project_id before inserting actuals.
-    const { data: project, error: pErr } = await supabase
-      .from("projects")
-      .insert({
-        quote_id: quote.id,
-        clickup_parent_task_id: parent.id,
-        status: "in_progress",
-      })
-      .select().single();
-    if (pErr || !project) return json({ error: pErr?.message ?? "project insert failed" }, 500);
+    // Generate the project id up front so each actuals row can reference it
+    // while we're still in the ClickUp loop. The projects row itself is
+    // inserted LAST (after every ClickUp child succeeds) to keep the push
+    // atomic — see the file header for the rationale.
+    const projectId = crypto.randomUUID();
 
-    const items = (quote.line_items_jsonb as SnapshotLineItem[]) ?? [];
-    const actualsRows: Array<{
+    // Load the frozen snapshot from the normalized table and re-aggregate
+    // into the items × allocation grouping the task-creation loop expects.
+    const { data: allocRows, error: allocErr } = await supabase
+      .from("quote_line_item_allocations")
+      .select("*")
+      .eq("quote_id", quote.id)
+      .order("ordinal");
+    if (allocErr) return json({ error: allocErr.message }, 500);
+
+    const itemsByOrdinal = new Map<number, SnapshotLineItem>();
+    for (const r of (allocRows ?? []) as Array<{
+      ordinal: number;
+      service_id: string;
+      service_name: string;
+      qty: number | string;
+      dept_id: string;
+      dept_name: string;
+      hours: number | string;
+      cost_share_cents: number | string;
+    }>) {
+      let item = itemsByOrdinal.get(r.ordinal);
+      if (!item) {
+        item = {
+          service_id: r.service_id,
+          service_name: r.service_name,
+          qty: Number(r.qty),
+          allocation: [],
+        };
+        itemsByOrdinal.set(r.ordinal, item);
+      }
+      item.allocation.push({
+        dept_id: r.dept_id,
+        dept_name: r.dept_name,
+        hours: Number(r.hours),
+        cost_share_cents: Number(r.cost_share_cents),
+      });
+    }
+    const items = Array.from(itemsByOrdinal.values());
+    type ActualRow = {
       project_id: string;
       clickup_task_id: string;
       dept_id: string;
       planned_hours: number;
-    }> = [];
+    };
+    const actualsRows: ActualRow[] = [];
     let childCount = 0;
 
-    for (const item of items) {
-      for (const alloc of item.allocation) {
-        const assignee = (team ?? []).find(
-          (t: { primary_department_id: string | null }) => t.primary_department_id === alloc.dept_id,
+    // Flatten (item × allocation) so we can batch across the entire push
+    // rather than just within a single line item.
+    const tasks = items.flatMap((item) =>
+      item.allocation.map((alloc) => ({ item, alloc })),
+    );
+
+    // ClickUp's free tier rate-limits us to 100 req/min. Each task = 2 calls
+    // (create + comment), so a batch of 5 in parallel = ~10 req/sec peak,
+    // leaving comfortable headroom. Using Promise.all (fail-fast, not
+    // allSettled) is deliberate: any failure aborts the whole push BEFORE
+    // we insert the projects row, preserving atomicity so the user can
+    // retry the same quote without hitting the unique constraint.
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+      const batch = tasks.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async ({ item, alloc }): Promise<ActualRow> => {
+          const assignee = (team ?? []).find(
+            (t: { primary_department_id: string | null }) =>
+              t.primary_department_id === alloc.dept_id,
+          );
+          // ClickUp v2 creates subtasks via the list endpoint with `parent`
+          // in the body (NOT POST /task/{parent_id}, which isn't a real
+          // endpoint). See https://developer.clickup.com/reference/createtask
+          const childRes = await fetch(
+            `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
+            {
+              ...CU,
+              method: "POST",
+              body: JSON.stringify({
+                name: `${item.service_name} — ${alloc.dept_name}`,
+                parent: parent.id,
+                assignees: assignee ? [Number(assignee.id)] : [],
+                time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
+              }),
+            },
+          );
+          // Fail-fast: previously this did `continue` and silently dropped
+          // the child. That left us with a projects row and a partial
+          // actuals set, making the quote un-pushable on retry (unique
+          // constraint on projects.quote_id). Throwing aborts the batch
+          // before any DB writes happen, so retries are clean.
+          if (!childRes.ok) {
+            throw new Error(
+              `CU child task failed (${item.service_name} / ${alloc.dept_name}): ${await childRes.text()}`,
+            );
+          }
+          const child = await childRes.json();
+
+          // BRIEF:: audit comment (matches /brief grammar).
+          const commentRes = await fetch(
+            `https://api.clickup.com/api/v2/task/${child.id}/comment`,
+            {
+              ...CU,
+              method: "POST",
+              body: JSON.stringify({
+                comment_text: buildBriefComment({
+                  client_name: client.name,
+                  engagement_type: "Task",
+                  work_stream: alloc.dept_name,
+                  sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
+                  date_of_engagement: new Date().toISOString().slice(0, 10),
+                  source_quote_id: quote.id,
+                }),
+              }),
+            },
+          );
+          if (!commentRes.ok) {
+            throw new Error(
+              `CU comment failed (task ${child.id}): ${await commentRes.text()}`,
+            );
+          }
+
+          return {
+            project_id: projectId,
+            clickup_task_id: child.id,
+            dept_id: alloc.dept_id,
+            planned_hours: alloc.hours,
+          };
+        }),
+      );
+      actualsRows.push(...results);
+      childCount += results.length;
+    }
+
+    // All ClickUp work succeeded — safe to write the projects row now.
+    const { error: pErr } = await supabase
+      .from("projects")
+      .insert({
+        id: projectId,
+        quote_id: quote.id,
+        clickup_parent_task_id: parent.id,
+        name: scope.brief?.raw_subject ?? "Untitled project",
+        status: "in_progress",
+      });
+    if (pErr) return json({ error: pErr.message }, 500);
+
+    if (actualsRows.length > 0) {
+      const { error: aErr } = await supabase
+        .from("project_actuals")
+        .insert(actualsRows);
+      if (aErr) {
+        // Compensating delete: the projects row exists but actuals are
+        // missing. Roll back so a retry isn't blocked by the unique
+        // constraint on quote_id. If the rollback itself fails, surface
+        // both errors — otherwise the caller would see only aErr and not
+        // realise the projects row is still present (blocking retries).
+        let rollbackErr: string | null = null;
+        try {
+          const { error: delErr } = await supabase
+            .from("projects").delete().eq("id", projectId);
+          if (delErr) rollbackErr = delErr.message;
+        } catch (e) {
+          rollbackErr = e instanceof Error ? e.message : String(e);
+        }
+        return json(
+          rollbackErr
+            ? { error: aErr.message, rollback_error: rollbackErr }
+            : { error: aErr.message },
+          500,
         );
-        const childRes = await fetch(`https://api.clickup.com/api/v2/task/${parent.id}`, {
-          ...CU,
-          method: "POST",
-          body: JSON.stringify({
-            name: `${item.service_name} — ${alloc.dept_name}`,
-            parent: parent.id,
-            assignees: assignee ? [Number(assignee.id)] : [],
-            time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
-          }),
-        });
-        if (!childRes.ok) continue; // log & continue; don't abort the whole push
-        const child = await childRes.json();
-
-        // BRIEF:: audit comment (matches /brief grammar).
-        await fetch(`https://api.clickup.com/api/v2/task/${child.id}/comment`, {
-          ...CU,
-          method: "POST",
-          body: JSON.stringify({
-            comment_text: `BRIEF:: ${JSON.stringify({
-              client_name: client.name,
-              engagement_type: "Task",
-              work_stream: alloc.dept_name,
-              sprint_points: Math.max(1, Math.round(alloc.hours / 4)),
-              date_of_engagement: new Date().toISOString().slice(0, 10),
-              source_quote_id: quote.id,
-            })}`,
-          }),
-        });
-
-        actualsRows.push({
-          project_id: project.id,
-          clickup_task_id: child.id,
-          dept_id: alloc.dept_id,
-          planned_hours: alloc.hours,
-        });
-        childCount++;
       }
     }
 
-    if (actualsRows.length > 0) {
-      await supabase.from("project_actuals").insert(actualsRows);
-    }
-
     return json({
-      project_id: project.id,
+      project_id: projectId,
       clickup_parent_task_id: parent.id,
       child_count: childCount,
     });
@@ -207,17 +322,3 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...cors() },
-  });
-}
-
-function cors() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type",
-  };
-}
