@@ -28,6 +28,14 @@ Deno.serve(async (req: Request) => {
   try {
     const supabase = createServiceRoleClient();
 
+    // Optional body: { project_id } to force-sync a specific project
+    // regardless of status (used by the "Sync now" button).
+    let requestedProjectId: string | null = null;
+    try {
+      const body = await req.json();
+      requestedProjectId = body?.project_id ?? null;
+    } catch { /* empty body from pg_cron is fine */ }
+
     const clickupPat = Deno.env.get("CLICKUP_PAT");
     const { data: settings } = await supabase
       .from("settings").select("*").eq("id", 1).single();
@@ -42,8 +50,13 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const { data: projects } = await supabase
-      .from("projects").select("*").eq("status", "in_progress");
+    let projectsQuery = supabase.from("projects").select("*");
+    if (requestedProjectId) {
+      projectsQuery = projectsQuery.eq("id", requestedProjectId);
+    } else {
+      projectsQuery = projectsQuery.eq("status", "in_progress");
+    }
+    const { data: projects } = await projectsQuery;
 
     // Bulk-fetch all current actuals for every in-progress project in a
     // single round-trip, then group in JS. This replaces a per-project

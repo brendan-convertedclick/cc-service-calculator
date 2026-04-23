@@ -13,9 +13,9 @@ import { useDepartments } from "@/hooks/useDepartments";
 function useSyncNow() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (projectId: string) => {
       const { data, error } = await supabase.functions.invoke("sync-clickup-actuals", {
-        body: {},
+        body: { project_id: projectId },
       });
       if (error) throw error;
       return data as { inserted?: number };
@@ -77,7 +77,7 @@ export function ProjectDetail() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => sync.mutate()}
+              onClick={() => sync.mutate(project.id)}
               disabled={sync.isPending}
             >
               <RefreshCw className={`h-4 w-4 ${sync.isPending ? "animate-spin" : ""}`} />
