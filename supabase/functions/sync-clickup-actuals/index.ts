@@ -109,8 +109,8 @@ Deno.serve(async (req: Request) => {
 
         const timeEntries = teRes.ok ? (await teRes.json()).data : null;
         const actualHours = (timeEntries ?? []).reduce(
-          (acc: number, e: { duration?: string }) =>
-            acc + Number(e.duration ?? 0) / 3_600_000,
+          (acc: number, e: { time?: number | string }) =>
+            acc + Number(e.time ?? 0) / 3_600_000,
           0,
         );
 
