@@ -74,6 +74,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "briefs_triaged_by_fkey"
+            columns: ["triaged_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
         ]
       }
       clients: {
@@ -121,6 +128,7 @@ export type Database = {
           id: string
           is_primary: boolean
           role: string | null
+          updated_at: string
         }
         Insert: {
           client_id: string
@@ -130,6 +138,7 @@ export type Database = {
           id?: string
           is_primary?: boolean
           role?: string | null
+          updated_at?: string
         }
         Update: {
           client_id?: string
@@ -139,6 +148,7 @@ export type Database = {
           id?: string
           is_primary?: boolean
           role?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -329,6 +339,7 @@ export type Database = {
           id: string
           planned_hours: number
           project_id: string
+          recorded_at: string
           status_at_sync: string | null
           synced_at: string
           time_entries: Json | null
@@ -340,6 +351,7 @@ export type Database = {
           id?: string
           planned_hours: number
           project_id: string
+          recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
           time_entries?: Json | null
@@ -351,6 +363,7 @@ export type Database = {
           id?: string
           planned_hours?: number
           project_id?: string
+          recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
           time_entries?: Json | null
@@ -378,6 +391,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           id: string
+          name: string
           quote_id: string
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
@@ -388,6 +402,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          name: string
           quote_id: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -398,6 +413,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          name?: string
           quote_id?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -496,6 +512,45 @@ export type Database = {
           },
         ]
       }
+      quote_service_overrides: {
+        Row: {
+          created_at: string
+          dept_id: string
+          hours_override: number | null
+          pct_override: number | null
+          quote_service_id: string
+        }
+        Insert: {
+          created_at?: string
+          dept_id: string
+          hours_override?: number | null
+          pct_override?: number | null
+          quote_service_id: string
+        }
+        Update: {
+          created_at?: string
+          dept_id?: string
+          hours_override?: number | null
+          pct_override?: number | null
+          quote_service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_service_overrides_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_service_overrides_quote_service_id_fkey"
+            columns: ["quote_service_id"]
+            isOneToOne: false
+            referencedRelation: "quote_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_services: {
         Row: {
           created_at: string
@@ -544,45 +599,6 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      quote_service_overrides: {
-        Row: {
-          created_at: string
-          dept_id: string
-          hours_override: number | null
-          pct_override: number | null
-          quote_service_id: string
-        }
-        Insert: {
-          created_at?: string
-          dept_id: string
-          hours_override?: number | null
-          pct_override?: number | null
-          quote_service_id: string
-        }
-        Update: {
-          created_at?: string
-          dept_id?: string
-          hours_override?: number | null
-          pct_override?: number | null
-          quote_service_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quote_service_overrides_dept_id_fkey"
-            columns: ["dept_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quote_service_overrides_quote_service_id_fkey"
-            columns: ["quote_service_id"]
-            isOneToOne: false
-            referencedRelation: "quote_services"
             referencedColumns: ["id"]
           },
         ]
@@ -763,44 +779,11 @@ export type Database = {
             referencedRelation: "briefs"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      service_allocation_overrides: {
-        Row: {
-          department_id: string
-          pct: number
-          service_id: string
-        }
-        Insert: {
-          department_id: string
-          pct: number
-          service_id: string
-        }
-        Update: {
-          department_id?: string
-          pct?: number
-          service_id?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "service_allocation_overrides_department_id_fkey"
-            columns: ["department_id"]
+            foreignKeyName: "scopes_locked_by_fkey"
+            columns: ["locked_by"]
             isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_allocation_overrides_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "service_totals"
-            referencedColumns: ["service_id"]
-          },
-          {
-            foreignKeyName: "service_allocation_overrides_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]
@@ -940,9 +923,7 @@ export type Database = {
         Row: {
           anthropic_enabled: boolean
           anthropic_model: string
-          burn_sync_cron_minutes: number
           clickup_enabled: boolean
-          clickup_pat: string | null
           clickup_workspace_id: string | null
           id: number
           inbound_email_secret: string | null
@@ -953,9 +934,7 @@ export type Database = {
         Insert: {
           anthropic_enabled?: boolean
           anthropic_model?: string
-          burn_sync_cron_minutes?: number
           clickup_enabled?: boolean
-          clickup_pat?: string | null
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
@@ -966,9 +945,7 @@ export type Database = {
         Update: {
           anthropic_enabled?: boolean
           anthropic_model?: string
-          burn_sync_cron_minutes?: number
           clickup_enabled?: boolean
-          clickup_pat?: string | null
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
@@ -1054,6 +1031,36 @@ export type Database = {
       }
     }
     Views: {
+      project_actuals_current: {
+        Row: {
+          actual_hours: number | null
+          clickup_task_id: string | null
+          dept_id: string | null
+          id: string | null
+          planned_hours: number | null
+          project_id: string | null
+          recorded_at: string | null
+          status_at_sync: string | null
+          synced_at: string | null
+          time_entries: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_actuals_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_actuals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_allocation_resolved: {
         Row: {
           department_id: string | null
