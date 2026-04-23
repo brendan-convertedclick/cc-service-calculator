@@ -9,16 +9,15 @@
 //
 // Flow:
 //   1. Load quote + scope + brief + client + line allocations.
-//   2. Resolve the client's ClickUp space (substring match on client name).
-//      Cache clickup_folder_id on clients row.
-//   3. Pick a list inside the space named /projects/i, or the first list.
+//   2. Require client.clickup_folder_id (set via the Clients page). If
+//      null, return 400 pointing the user there.
+//   3. List the folder's lists (GET /folder/{id}/list). Pick one named
+//      /projects/i, or the first.
 //   4. Create a parent task named after brief.raw_subject.
 //   5. For each line_item × allocation: create a child task with
-//      time_estimate = hours * 60 * 60000 ms (matches /brief's convention),
-//      optional assignee resolved from team_members, then post a BRIEF::
-//      comment mirroring /brief's grammar.
-//   6. Insert projects row + project_actuals rows (one per child, planned
-//      hours from the snapshot allocation).
+//      time_estimate = hours * 60 * 60000 ms, optional assignee resolved
+//      from team_members, then post a BRIEF:: comment.
+//   6. Insert projects row + project_actuals rows (one per child).
 //
 // Atomicity: we generate the project id client-side and only insert the
 // projects row AFTER every ClickUp child task + comment succeeds. If any
@@ -86,31 +85,21 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    // Resolve the ClickUp space for the client (cache id on clients row).
-    let spaceId = client.clickup_folder_id;
-    if (!spaceId) {
-      const spacesRes = await fetch(
-        `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/space`,
-        CU,
-      );
-      if (!spacesRes.ok) return json({ error: `CU spaces: ${await spacesRes.text()}` }, 502);
-      const spaces = await spacesRes.json();
-      const space = (spaces.spaces ?? []).find((s: { name: string }) =>
-        s.name.toLowerCase().includes(client.name.toLowerCase()),
-      );
-      if (!space) return json({ error: `No ClickUp space found matching '${client.name}'` }, 404);
-      spaceId = space.id;
-      await supabase.from("clients").update({ clickup_folder_id: spaceId }).eq("id", client.id);
+    const folderId = client.clickup_folder_id;
+    if (!folderId) {
+      return json({
+        error: "Client not linked to a ClickUp folder — link it on the Clients page.",
+      }, 400);
     }
 
-    // Find a list inside the space. Prefer one named /projects/i.
-    const listsRes = await fetch(`https://api.clickup.com/api/v2/space/${spaceId}/list`, CU);
+    // Find a list inside the client's folder. Prefer one named /projects/i.
+    const listsRes = await fetch(`https://api.clickup.com/api/v2/folder/${folderId}/list`, CU);
     if (!listsRes.ok) return json({ error: `CU lists: ${await listsRes.text()}` }, 502);
     const lists = await listsRes.json();
     const projectsList =
       (lists.lists ?? []).find((l: { name: string }) => /projects/i.test(l.name)) ??
       (lists.lists ?? [])[0];
-    if (!projectsList) return json({ error: "No list found in client space" }, 404);
+    if (!projectsList) return json({ error: "No list found in client folder" }, 404);
 
     // Create parent task.
     const parentRes = await fetch(
