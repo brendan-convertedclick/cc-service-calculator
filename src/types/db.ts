@@ -923,6 +923,7 @@ export type Database = {
         Row: {
           anthropic_enabled: boolean
           anthropic_model: string
+          clickup_clients_space_id: string | null
           clickup_enabled: boolean
           clickup_workspace_id: string | null
           id: number
@@ -934,6 +935,7 @@ export type Database = {
         Insert: {
           anthropic_enabled?: boolean
           anthropic_model?: string
+          clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
           clickup_workspace_id?: string | null
           id?: number
@@ -945,6 +947,7 @@ export type Database = {
         Update: {
           anthropic_enabled?: boolean
           anthropic_model?: string
+          clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
           clickup_workspace_id?: string | null
           id?: number
@@ -1241,4 +1244,3 @@ export const Constants = {
     },
   },
 } as const
-
