@@ -403,6 +403,7 @@ export type Database = {
           created_at: string
           id: string
           is_recurring: boolean
+          last_recurring_cycle_at: string | null
           name: string
           quote_id: string
           recurrence_end: string | null
@@ -420,6 +421,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_recurring?: boolean
+          last_recurring_cycle_at?: string | null
           name: string
           quote_id: string
           recurrence_end?: string | null
@@ -437,6 +439,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_recurring?: boolean
+          last_recurring_cycle_at?: string | null
           name?: string
           quote_id?: string
           recurrence_end?: string | null
