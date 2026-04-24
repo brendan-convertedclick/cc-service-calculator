@@ -642,7 +642,13 @@ export type Database = {
           created_at: string
           discount_room_pct: number
           id: string
+          is_recurring: boolean
           margin_pct: number
+          recurrence_end: string | null
+          recurrence_interval:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start: string | null
           rejection_reason: string | null
           scope_id: string
           sent_at: string | null
@@ -661,7 +667,13 @@ export type Database = {
           created_at?: string
           discount_room_pct?: number
           id?: string
+          is_recurring?: boolean
           margin_pct?: number
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           rejection_reason?: string | null
           scope_id: string
           sent_at?: string | null
@@ -680,7 +692,13 @@ export type Database = {
           created_at?: string
           discount_room_pct?: number
           id?: string
+          is_recurring?: boolean
           margin_pct?: number
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           rejection_reason?: string | null
           scope_id?: string
           sent_at?: string | null

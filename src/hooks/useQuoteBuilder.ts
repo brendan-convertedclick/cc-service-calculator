@@ -19,6 +19,7 @@ import {
 import type { EditorLine } from "@/components/QuoteLineEditor";
 import { aggregateTotals, buildLineItems, type QuoteLine } from "@/lib/quotes";
 import type { Suggestion } from "@/components/AISuggestModal";
+import type { RecurrenceState } from "@/components/quote-builder/RecurrencePanel";
 
 export type UseQuoteBuilderResult = {
   // domain refs
@@ -38,6 +39,8 @@ export type UseQuoteBuilderResult = {
   setDiscountPct: (n: number) => void;
   sowHtml: string;
   setSowHtml: (s: string) => void;
+  recurrence: RecurrenceState;
+  setRecurrence: React.Dispatch<React.SetStateAction<RecurrenceState>>;
 
   // computed
   lineTotals: QuoteLine[];
@@ -89,6 +92,12 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
   const [marginPct, setMarginPct] = useState(0);
   const [discountPct, setDiscountPct] = useState(0);
   const [sowHtml, setSowHtml] = useState("");
+  const [recurrence, setRecurrence] = useState<RecurrenceState>({
+    is_recurring: false,
+    recurrence_interval: null,
+    recurrence_start: "",
+    recurrence_end: "",
+  });
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggesting, setSuggesting] = useState(false);
@@ -108,6 +117,12 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     setMarginPct(Number(liveQuote.margin_pct));
     setDiscountPct(Number(liveQuote.discount_room_pct));
     setSowHtml(liveQuote.sow_html ?? "");
+    setRecurrence({
+      is_recurring: liveQuote.is_recurring,
+      recurrence_interval: liveQuote.recurrence_interval,
+      recurrence_start: liveQuote.recurrence_start ?? "",
+      recurrence_end: liveQuote.recurrence_end ?? "",
+    });
     setLines(
       quoteData.services.map((r): EditorLine => ({
         service_id: r.service_id,
@@ -184,7 +199,20 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       });
       await updateQuote.mutateAsync({
         id: liveQuote.id,
-        patch: { margin_pct: marginPct, discount_room_pct: discountPct },
+        patch: {
+          margin_pct: marginPct,
+          discount_room_pct: discountPct,
+          is_recurring: recurrence.is_recurring,
+          recurrence_interval: recurrence.is_recurring ? recurrence.recurrence_interval : null,
+          recurrence_start:
+            recurrence.is_recurring && recurrence.recurrence_start
+              ? recurrence.recurrence_start
+              : null,
+          recurrence_end:
+            recurrence.is_recurring && recurrence.recurrence_end
+              ? recurrence.recurrence_end
+              : null,
+        },
       });
       if (!silent) toast.success("Draft saved");
     } catch (e) {
@@ -258,6 +286,16 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
           margin_pct: marginPct,
           discount_room_pct: discountPct,
           sow_html: sowHtml,
+          is_recurring: recurrence.is_recurring,
+          recurrence_interval: recurrence.is_recurring ? recurrence.recurrence_interval : null,
+          recurrence_start:
+            recurrence.is_recurring && recurrence.recurrence_start
+              ? recurrence.recurrence_start
+              : null,
+          recurrence_end:
+            recurrence.is_recurring && recurrence.recurrence_end
+              ? recurrence.recurrence_end
+              : null,
         },
       });
       await replaceLineItems.mutateAsync({ quoteId: liveQuote.id, snapshot });
@@ -298,6 +336,8 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     setDiscountPct,
     sowHtml,
     setSowHtml,
+    recurrence,
+    setRecurrence,
     lineTotals,
     totals,
     excludeIds,

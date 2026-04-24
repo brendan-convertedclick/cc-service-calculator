@@ -10,6 +10,7 @@ import { ProgressStepper } from "@/components/quote-builder/ProgressStepper";
 import { ScopeSidebar } from "@/components/quote-builder/ScopeSidebar";
 import { EmptyLines } from "@/components/quote-builder/EmptyLines";
 import { SOWPanel } from "@/components/quote-builder/SOWPanel";
+import { RecurrencePanel } from "@/components/quote-builder/RecurrencePanel";
 import { useQuoteBuilder } from "@/hooks/useQuoteBuilder";
 import { formatZar } from "@/lib/utils";
 
@@ -41,6 +42,9 @@ export function ProjectBuilder() {
             outMd={qb.scope.out_of_scope_md}
             qMd={qb.scope.open_questions_md}
           />
+          <div className="border-t border-m-outline-variant pt-6">
+            <RecurrencePanel value={qb.recurrence} onChange={qb.setRecurrence} />
+          </div>
           <div className="border-t border-m-outline-variant pt-6">
             <SOWPanel
               html={qb.sowHtml}

@@ -354,6 +354,15 @@ Deno.serve(async (req: Request) => {
     }
 
     // All ClickUp work succeeded — safe to write the projects row now.
+    // Copy recurrence config from the quote — see the RecurrencePanel on the
+    // quote build page. The cron function reads these fields directly.
+    const q = quote as {
+      id: string;
+      is_recurring: boolean | null;
+      recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly" | null;
+      recurrence_start: string | null;
+      recurrence_end: string | null;
+    };
     const { error: pErr } = await supabase
       .from("projects")
       .insert({
@@ -362,6 +371,10 @@ Deno.serve(async (req: Request) => {
         clickup_parent_task_id: parent.id,
         name: scope.brief?.raw_subject ?? "Untitled project",
         status: "in_progress",
+        is_recurring: q.is_recurring ?? false,
+        recurrence_interval: q.recurrence_interval,
+        recurrence_start: q.recurrence_start,
+        recurrence_end: q.recurrence_end,
       });
     if (pErr) return json({ error: pErr.message }, 500);
 
