@@ -101,6 +101,23 @@ Deno.serve(async (req: Request) => {
       (lists.lists ?? [])[0];
     if (!projectsList) return json({ error: "No list found in client folder" }, 404);
 
+    // Fetch ClickUp custom field definitions from the target list so we
+    // can populate required dropdowns by matching option names at push time.
+    type CuField = {
+      id: string;
+      name: string;
+      type: string;
+      type_config?: { options?: Array<{ id: string; name: string }> };
+    };
+    let cuFields: CuField[] = [];
+    const fieldsRes = await fetch(
+      `https://api.clickup.com/api/v2/list/${projectsList.id}/field`,
+      CU,
+    );
+    if (fieldsRes.ok) {
+      cuFields = (await fieldsRes.json()).fields ?? [];
+    }
+
     // Create parent task.
     const parentRes = await fetch(
       `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
@@ -168,6 +185,49 @@ Deno.serve(async (req: Request) => {
       });
     }
     const items = Array.from(itemsByOrdinal.values());
+
+    // Fetch default_due_days for each service so child tasks get a due date.
+    const serviceIds = [...new Set(items.map((i) => i.service_id))];
+    const { data: svcRows } = serviceIds.length > 0
+      ? await supabase
+          .from("services")
+          .select("id,default_due_days")
+          .in("id", serviceIds)
+      : { data: [] };
+    const dueDaysMap = new Map<string, number | null>(
+      (svcRows ?? []).map((s: { id: string; default_due_days: number | null }) => [
+        s.id,
+        s.default_due_days,
+      ]),
+    );
+
+    // Resolve ClickUp custom field dropdown options by name (case-insensitive).
+    function resolveDropdownOption(
+      fieldName: string,
+      optionName: string,
+    ): { id: string; value: string } | null {
+      const field = cuFields.find(
+        (f) => f.name === fieldName && f.type === "drop_down",
+      );
+      if (!field?.type_config?.options) return null;
+      const needle = optionName.trim().toLowerCase();
+      const option = field.type_config.options.find(
+        (o) => o.name?.trim().toLowerCase() === needle,
+      );
+      return option ? { id: field.id, value: option.id } : null;
+    }
+
+    // Build custom fields that are the same for every child task in this push.
+    const sharedCustomFields: Array<{ id: string; value: string | number }> = [];
+    const clientCf = resolveDropdownOption("Client Name", client.name);
+    if (clientCf) sharedCustomFields.push(clientCf);
+    const engCf = resolveDropdownOption("Engagement Type", "Task");
+    if (engCf) sharedCustomFields.push(engCf);
+    const dateField = cuFields.find(
+      (f) => f.name === "Date of Engagement" && f.type === "date",
+    );
+    if (dateField) sharedCustomFields.push({ id: dateField.id, value: Date.now() });
+
     type ActualRow = {
       project_id: string;
       clickup_task_id: string;
@@ -198,9 +258,17 @@ Deno.serve(async (req: Request) => {
             (t: { primary_department_id: string | null }) =>
               t.primary_department_id === alloc.dept_id,
           );
-          // ClickUp v2 creates subtasks via the list endpoint with `parent`
-          // in the body (NOT POST /task/{parent_id}, which isn't a real
-          // endpoint). See https://developer.clickup.com/reference/createtask
+
+          const taskCf = [...sharedCustomFields];
+          const wsCf = resolveDropdownOption("Work Stream", alloc.dept_name);
+          if (wsCf) taskCf.push(wsCf);
+
+          const dueDays = dueDaysMap.get(item.service_id);
+          const now = Date.now();
+          const dueDateMs = dueDays
+            ? now + dueDays * 24 * 60 * 60 * 1000
+            : undefined;
+
           const childRes = await fetch(
             `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
             {
@@ -210,7 +278,15 @@ Deno.serve(async (req: Request) => {
                 name: `${item.service_name} — ${alloc.dept_name}`,
                 parent: parent.id,
                 assignees: assignee ? [Number(assignee.id)] : [],
-                time_estimate: Math.round(alloc.hours * 60 * 60_000), // hours → ms
+                time_estimate: Math.round(alloc.hours * 60 * 60_000),
+                points: Math.min(10, Math.max(1, Math.round(alloc.hours / 4))),
+                ...(dueDateMs !== undefined && {
+                  due_date: dueDateMs,
+                  due_date_time: false,
+                  start_date: now,
+                  start_date_time: false,
+                }),
+                ...(taskCf.length > 0 && { custom_fields: taskCf }),
               }),
             },
           );
