@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
     // in Phase 1, but we keep the roster lookup for assignee resolution).
     const { data: team } = await supabase
       .from("team_members")
-      .select("id,full_name,email,primary_department_id")
+      .select("id,full_name,email,primary_department_id,clickup_user_id")
       .is("archived_at", null);
 
     // Generate the project id up front so each actuals row can reference it
@@ -255,8 +255,8 @@ Deno.serve(async (req: Request) => {
       const results = await Promise.all(
         batch.map(async ({ item, alloc }): Promise<ActualRow> => {
           const assignee = (team ?? []).find(
-            (t: { primary_department_id: string | null }) =>
-              t.primary_department_id === alloc.dept_id,
+            (t: { primary_department_id: string | null; clickup_user_id: number | null }) =>
+              t.primary_department_id === alloc.dept_id && t.clickup_user_id,
           );
 
           const taskCf = [...sharedCustomFields];
@@ -277,7 +277,7 @@ Deno.serve(async (req: Request) => {
               body: JSON.stringify({
                 name: `${item.service_name} — ${alloc.dept_name}`,
                 parent: parent.id,
-                assignees: assignee ? [Number(assignee.id)] : [],
+                assignees: assignee?.clickup_user_id ? [assignee.clickup_user_id] : [],
                 time_estimate: Math.round(alloc.hours * 60 * 60_000),
                 points: Math.min(10, Math.max(1, Math.round(alloc.hours / 4))),
                 ...(dueDateMs !== undefined && {
