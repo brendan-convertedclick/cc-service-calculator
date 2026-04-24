@@ -402,8 +402,14 @@ export type Database = {
           completed_at: string | null
           created_at: string
           id: string
+          is_recurring: boolean
           name: string
           quote_id: string
+          recurrence_end: string | null
+          recurrence_interval:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start: string | null
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
@@ -413,8 +419,14 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          is_recurring?: boolean
           name: string
           quote_id: string
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -424,8 +436,14 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          is_recurring?: boolean
           name?: string
           quote_id?: string
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -696,6 +714,7 @@ export type Database = {
           recurrence_anchor: string
           recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
           service_id: string
+          source: string
           status: string
         }
         Insert: {
@@ -711,6 +730,7 @@ export type Database = {
           recurrence_anchor: string
           recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
           service_id: string
+          source?: string
           status?: string
         }
         Update: {
@@ -726,6 +746,7 @@ export type Database = {
           recurrence_anchor?: string
           recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
           service_id?: string
+          source?: string
           status?: string
         }
         Relationships: [
@@ -937,17 +958,12 @@ export type Database = {
           default_due_days: number | null
           id: string
           included_revisions: string | null
-          is_recurring: boolean
           name: string
           notes: string | null
           owner_role: string | null
           percentage_value: number | null
           pricing_model: string
           primary_team_member_id: string | null
-          recurrence_anchor: string | null
-          recurrence_interval:
-            | Database["public"]["Enums"]["recurrence_interval"]
-            | null
           rule_id: string | null
           scope_definition: string | null
           sell_price_cents: number
@@ -963,17 +979,12 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
-          is_recurring?: boolean
           name: string
           notes?: string | null
           owner_role?: string | null
           percentage_value?: number | null
           pricing_model: string
           primary_team_member_id?: string | null
-          recurrence_anchor?: string | null
-          recurrence_interval?:
-            | Database["public"]["Enums"]["recurrence_interval"]
-            | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number
@@ -989,17 +1000,12 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
-          is_recurring?: boolean
           name?: string
           notes?: string | null
           owner_role?: string | null
           percentage_value?: number | null
           pricing_model?: string
           primary_team_member_id?: string | null
-          recurrence_anchor?: string | null
-          recurrence_interval?:
-            | Database["public"]["Enums"]["recurrence_interval"]
-            | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number
