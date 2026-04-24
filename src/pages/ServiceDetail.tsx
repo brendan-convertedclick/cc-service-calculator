@@ -43,6 +43,10 @@ export function ServiceDetail({ mode }: Props) {
     completion_definition: "",
     status: "active",
     notes: "",
+    is_recurring: false,
+    recurrence_interval: null as string | null,
+    recurrence_anchor: "",
+    default_due_days: null as number | null,
   });
 
   useEffect(() => {
@@ -63,6 +67,10 @@ export function ServiceDetail({ mode }: Props) {
         completion_definition: s.completion_definition ?? "",
         status: s.status,
         notes: s.notes ?? "",
+        is_recurring: s.is_recurring,
+        recurrence_interval: s.recurrence_interval,
+        recurrence_anchor: s.recurrence_anchor ? s.recurrence_anchor.slice(0, 10) : "",
+        default_due_days: s.default_due_days,
       });
     }
     // Only re-seed the form when the underlying service identity changes.
@@ -87,6 +95,10 @@ export function ServiceDetail({ mode }: Props) {
       completion_definition: form.completion_definition || null,
       status: form.status,
       notes: form.notes || null,
+      is_recurring: form.is_recurring,
+      recurrence_interval: form.is_recurring ? form.recurrence_interval : null,
+      recurrence_anchor: form.is_recurring && form.recurrence_anchor ? form.recurrence_anchor : null,
+      default_due_days: form.default_due_days,
     };
 
     if (mode === "new") {
@@ -232,6 +244,54 @@ export function ServiceDetail({ mode }: Props) {
                     <option key={m.id} value={m.id}>{m.full_name}</option>
                   ))}
                 </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Default due days</Label>
+                <Input
+                  type="number"
+                  value={form.default_due_days ?? ""}
+                  placeholder="—"
+                  onChange={(e) => setForm({ ...form, default_due_days: e.target.value === "" ? null : Number(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">Days from push date to ClickUp task due date</p>
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <Label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.is_recurring}
+                    onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  Recurring service
+                </Label>
+                {form.is_recurring && (
+                  <div className="mt-3 space-y-3">
+                    <div className="space-y-2">
+                      <Label>Interval</Label>
+                      <select
+                        value={form.recurrence_interval ?? ""}
+                        onChange={(e) => setForm({ ...form, recurrence_interval: e.target.value || null })}
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                      >
+                        <option value="">—</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Start date</Label>
+                      <Input
+                        type="date"
+                        value={form.recurrence_anchor}
+                        onChange={(e) => setForm({ ...form, recurrence_anchor: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">Anchor date for recurrence — tasks repeat from this day</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

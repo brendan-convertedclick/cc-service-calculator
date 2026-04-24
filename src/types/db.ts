@@ -682,6 +682,83 @@ export type Database = {
           },
         ]
       }
+      recurring_task_schedules: {
+        Row: {
+          clickup_list_id: string
+          clickup_parent_task_id: string
+          created_at: string
+          dept_id: string
+          id: string
+          last_created_at: string | null
+          next_due_at: string
+          planned_hours: number
+          project_id: string
+          recurrence_anchor: string
+          recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
+          service_id: string
+          status: string
+        }
+        Insert: {
+          clickup_list_id: string
+          clickup_parent_task_id: string
+          created_at?: string
+          dept_id: string
+          id?: string
+          last_created_at?: string | null
+          next_due_at: string
+          planned_hours: number
+          project_id: string
+          recurrence_anchor: string
+          recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
+          service_id: string
+          status?: string
+        }
+        Update: {
+          clickup_list_id?: string
+          clickup_parent_task_id?: string
+          created_at?: string
+          dept_id?: string
+          id?: string
+          last_created_at?: string | null
+          next_due_at?: string
+          planned_hours?: number
+          project_id?: string
+          recurrence_anchor?: string
+          recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
+          service_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_task_schedules_dept_id_fkey"
+            columns: ["dept_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_task_schedules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_task_schedules_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "recurring_task_schedules_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rule_allocations: {
         Row: {
           department_id: string
@@ -860,12 +937,17 @@ export type Database = {
           default_due_days: number | null
           id: string
           included_revisions: string | null
+          is_recurring: boolean
           name: string
           notes: string | null
           owner_role: string | null
           percentage_value: number | null
           pricing_model: string
           primary_team_member_id: string | null
+          recurrence_anchor: string | null
+          recurrence_interval:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
           rule_id: string | null
           scope_definition: string | null
           sell_price_cents: number
@@ -881,12 +963,17 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
+          is_recurring?: boolean
           name: string
           notes?: string | null
           owner_role?: string | null
           percentage_value?: number | null
           pricing_model: string
           primary_team_member_id?: string | null
+          recurrence_anchor?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number
@@ -902,12 +989,17 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
+          is_recurring?: boolean
           name?: string
           notes?: string | null
           owner_role?: string | null
           percentage_value?: number | null
           pricing_model?: string
           primary_team_member_id?: string | null
+          recurrence_anchor?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number
@@ -1117,6 +1209,7 @@ export type Database = {
         | "archived"
       project_status: "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
+      recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1258,6 +1351,7 @@ export const Constants = {
       ],
       project_status: ["in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
+      recurrence_interval: ["weekly", "biweekly", "monthly", "quarterly"],
     },
   },
 } as const

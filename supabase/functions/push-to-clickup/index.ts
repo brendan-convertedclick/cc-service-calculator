@@ -30,6 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { buildBriefComment } from "../_shared/clickup.ts";
+import { advanceDate } from "../_shared/recurrence.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -191,7 +192,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days")
+          .select("id,default_due_days,is_recurring,recurrence_interval,recurrence_anchor")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -199,6 +200,14 @@ Deno.serve(async (req: Request) => {
         s.id,
         s.default_due_days,
       ]),
+    );
+    type SvcRecurrence = {
+      is_recurring: boolean;
+      recurrence_interval: string | null;
+      recurrence_anchor: string | null;
+    };
+    const svcRecurrenceMap = new Map<string, SvcRecurrence>(
+      (svcRows ?? []).map((s: { id: string } & SvcRecurrence) => [s.id, s]),
     );
 
     // Resolve assignees from department → primary team member → clickup_user_id.
@@ -391,6 +400,41 @@ Deno.serve(async (req: Request) => {
           500,
         );
       }
+    }
+
+    // Create recurring task schedules for services flagged as recurring.
+    const scheduleRows: Array<{
+      project_id: string;
+      service_id: string;
+      dept_id: string;
+      planned_hours: number;
+      clickup_parent_task_id: string;
+      clickup_list_id: string;
+      recurrence_interval: string;
+      recurrence_anchor: string;
+      next_due_at: string;
+    }> = [];
+    for (const { item, alloc } of tasks) {
+      const svc = svcRecurrenceMap.get(item.service_id);
+      if (svc?.is_recurring && svc.recurrence_interval && svc.recurrence_anchor) {
+        scheduleRows.push({
+          project_id: projectId,
+          service_id: item.service_id,
+          dept_id: alloc.dept_id,
+          planned_hours: alloc.hours,
+          clickup_parent_task_id: parent.id,
+          clickup_list_id: projectsList.id,
+          recurrence_interval: svc.recurrence_interval,
+          recurrence_anchor: svc.recurrence_anchor,
+          next_due_at: advanceDate(
+            new Date(svc.recurrence_anchor),
+            svc.recurrence_interval as "weekly" | "biweekly" | "monthly" | "quarterly",
+          ).toISOString(),
+        });
+      }
+    }
+    if (scheduleRows.length > 0) {
+      await supabase.from("recurring_task_schedules").insert(scheduleRows);
     }
 
     return json({
