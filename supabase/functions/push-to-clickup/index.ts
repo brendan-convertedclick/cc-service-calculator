@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days,primary_team_member_id")
+          .select("id,default_due_days")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -200,10 +200,19 @@ Deno.serve(async (req: Request) => {
         s.default_due_days,
       ]),
     );
-    const svcOwnerMap = new Map<string, string | null>(
-      (svcRows ?? []).map((s: { id: string; primary_team_member_id: string | null }) => [
-        s.id,
-        s.primary_team_member_id,
+
+    // Resolve assignees from department → primary team member → clickup_user_id.
+    const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
+    const { data: deptRows } = deptIds.length > 0
+      ? await supabase
+          .from("departments")
+          .select("id,primary_team_member_id")
+          .in("id", deptIds)
+      : { data: [] };
+    const deptOwnerMap = new Map<string, string | null>(
+      (deptRows ?? []).map((d: { id: string; primary_team_member_id: string | null }) => [
+        d.id,
+        d.primary_team_member_id,
       ]),
     );
     const teamById = new Map(
@@ -263,7 +272,7 @@ Deno.serve(async (req: Request) => {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
         batch.map(async ({ item, alloc }): Promise<ActualRow> => {
-          const ownerId = svcOwnerMap.get(item.service_id);
+          const ownerId = deptOwnerMap.get(alloc.dept_id);
           const owner = ownerId ? teamById.get(ownerId) : null;
 
           const taskCf = [...sharedCustomFields];

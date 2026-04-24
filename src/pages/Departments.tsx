@@ -2,15 +2,18 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from "@/hooks/useDepartments";
+import { useTeam } from "@/hooks/useTeam";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { formatZar } from "@/lib/utils";
 
 export function Departments() {
   const { data = [], isLoading } = useDepartments();
+  const { data: team = [] } = useTeam();
   const update = useUpdateDepartment();
   const remove = useDeleteDepartment();
 
@@ -36,6 +39,7 @@ export function Departments() {
               <thead>
                 <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2">Name</th>
+                  <th className="py-2">Primary member</th>
                   <th className="py-2 text-right">Sell rate / hr</th>
                   <th className="py-2 text-right">Cost rate / hr</th>
                   <th className="py-2 text-right">Order</th>
@@ -53,6 +57,26 @@ export function Departments() {
                             update.mutate({ id: d.id, patch: { name: e.target.value } });
                         }}
                       />
+                    </td>
+                    <td className="py-3 pl-2">
+                      <Select
+                        value={d.primary_team_member_id ?? "__none__"}
+                        onValueChange={(v) => {
+                          const val = v === "__none__" ? null : v;
+                          if (val !== d.primary_team_member_id)
+                            update.mutate({ id: d.id, patch: { primary_team_member_id: val } });
+                        }}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Unassigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Unassigned</SelectItem>
+                          {team.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="py-3 pl-2">
                       <Input

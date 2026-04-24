@@ -170,6 +170,7 @@ export type Database = {
           hourly_rate_cents: number
           id: string
           name: string
+          primary_team_member_id: string | null
           updated_at: string
         }
         Insert: {
@@ -181,6 +182,7 @@ export type Database = {
           hourly_rate_cents?: number
           id?: string
           name: string
+          primary_team_member_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -192,9 +194,18 @@ export type Database = {
           hourly_rate_cents?: number
           id?: string
           name?: string
+          primary_team_member_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "departments_primary_team_member_id_fkey"
+            columns: ["primary_team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       list_alias_overrides: {
         Row: {
@@ -846,6 +857,7 @@ export type Database = {
           code: string | null
           completion_definition: string | null
           created_at: string
+          default_due_days: number | null
           id: string
           included_revisions: string | null
           name: string
@@ -866,6 +878,7 @@ export type Database = {
           code?: string | null
           completion_definition?: string | null
           created_at?: string
+          default_due_days?: number | null
           id?: string
           included_revisions?: string | null
           name: string
@@ -886,6 +899,7 @@ export type Database = {
           code?: string | null
           completion_definition?: string | null
           created_at?: string
+          default_due_days?: number | null
           id?: string
           included_revisions?: string | null
           name?: string
@@ -991,6 +1005,7 @@ export type Database = {
       team_members: {
         Row: {
           archived_at: string | null
+          clickup_user_id: number | null
           cost_rate_cents: number | null
           created_at: string
           email: string | null
@@ -1002,6 +1017,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          clickup_user_id?: number | null
           cost_rate_cents?: number | null
           created_at?: string
           email?: string | null
@@ -1013,6 +1029,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          clickup_user_id?: number | null
           cost_rate_cents?: number | null
           created_at?: string
           email?: string | null
