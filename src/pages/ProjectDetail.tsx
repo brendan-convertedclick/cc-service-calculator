@@ -1,14 +1,19 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BurnChart } from "@/components/BurnChart";
-import { useProject } from "@/hooks/useProjects";
+import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useDepartments } from "@/hooks/useDepartments";
+import type { Database } from "@/types/db";
+
+type RecurrenceInterval = Database["public"]["Enums"]["recurrence_interval"];
 
 function useSyncNow() {
   const qc = useQueryClient();
@@ -34,6 +39,25 @@ export function ProjectDetail() {
   const { data } = useProject(id);
   const { data: depts = [] } = useDepartments();
   const sync = useSyncNow();
+  const updateProject = useUpdateProject();
+
+  const [recur, setRecur] = useState({
+    is_recurring: false,
+    recurrence_interval: null as RecurrenceInterval | null,
+    recurrence_start: "",
+    recurrence_end: "",
+  });
+
+  useEffect(() => {
+    if (data?.project) {
+      setRecur({
+        is_recurring: data.project.is_recurring,
+        recurrence_interval: data.project.recurrence_interval,
+        recurrence_start: data.project.recurrence_start ?? "",
+        recurrence_end: data.project.recurrence_end ?? "",
+      });
+    }
+  }, [data?.project?.id]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -58,6 +82,25 @@ export function ProjectDetail() {
 
   const totalPlanned = rows.reduce((a, r) => a + r.planned, 0);
   const totalActual = rows.reduce((a, r) => a + r.actual, 0);
+
+  function saveRecurrence() {
+    if (!id) return;
+    updateProject.mutate(
+      {
+        id,
+        patch: {
+          is_recurring: recur.is_recurring,
+          recurrence_interval: recur.is_recurring ? recur.recurrence_interval : null,
+          recurrence_start: recur.is_recurring && recur.recurrence_start ? recur.recurrence_start : null,
+          recurrence_end: recur.is_recurring && recur.recurrence_end ? recur.recurrence_end : null,
+        },
+      },
+      {
+        onSuccess: () => toast.success("Recurrence saved"),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-4">
@@ -91,6 +134,70 @@ export function ProjectDetail() {
       <Card>
         <CardContent className="p-4">
           <BurnChart rows={rows} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recurrence</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={recur.is_recurring}
+              onChange={(e) => setRecur({ ...recur, is_recurring: e.target.checked })}
+              className="h-4 w-4"
+            />
+            Recurring project — repeat all tasks on a schedule
+          </Label>
+          {recur.is_recurring && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Interval</Label>
+                <select
+                  value={recur.recurrence_interval ?? ""}
+                  onChange={(e) =>
+                    setRecur({
+                      ...recur,
+                      recurrence_interval: (e.target.value || null) as RecurrenceInterval | null,
+                    })
+                  }
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="">—</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Biweekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Start date</Label>
+                <Input
+                  type="date"
+                  value={recur.recurrence_start}
+                  onChange={(e) => setRecur({ ...recur, recurrence_start: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End date</Label>
+                <Input
+                  type="date"
+                  value={recur.recurrence_end}
+                  onChange={(e) => setRecur({ ...recur, recurrence_end: e.target.value })}
+                  placeholder="Ongoing"
+                />
+                <p className="text-xs text-muted-foreground">Leave empty for ongoing</p>
+              </div>
+            </div>
+          )}
+          <div>
+            <Button size="sm" onClick={saveRecurrence} disabled={updateProject.isPending}>
+              <Save className="h-4 w-4" />
+              {updateProject.isPending ? "Saving…" : "Save recurrence"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
