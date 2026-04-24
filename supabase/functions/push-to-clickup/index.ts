@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days")
+          .select("id,default_due_days,primary_team_member_id")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -199,6 +199,15 @@ Deno.serve(async (req: Request) => {
         s.id,
         s.default_due_days,
       ]),
+    );
+    const svcOwnerMap = new Map<string, string | null>(
+      (svcRows ?? []).map((s: { id: string; primary_team_member_id: string | null }) => [
+        s.id,
+        s.primary_team_member_id,
+      ]),
+    );
+    const teamById = new Map(
+      (team ?? []).map((t: { id: string; clickup_user_id: number | null }) => [t.id, t]),
     );
 
     // Resolve ClickUp custom field dropdown options by name (case-insensitive).
@@ -254,10 +263,8 @@ Deno.serve(async (req: Request) => {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
         batch.map(async ({ item, alloc }): Promise<ActualRow> => {
-          const assignee = (team ?? []).find(
-            (t: { primary_department_id: string | null; clickup_user_id: number | null }) =>
-              t.primary_department_id === alloc.dept_id && t.clickup_user_id,
-          );
+          const ownerId = svcOwnerMap.get(item.service_id);
+          const owner = ownerId ? teamById.get(ownerId) : null;
 
           const taskCf = [...sharedCustomFields];
           const wsCf = resolveDropdownOption("Work Stream", alloc.dept_name);
@@ -277,7 +284,7 @@ Deno.serve(async (req: Request) => {
               body: JSON.stringify({
                 name: `${item.service_name} — ${alloc.dept_name}`,
                 parent: parent.id,
-                assignees: assignee?.clickup_user_id ? [assignee.clickup_user_id] : [],
+                assignees: owner?.clickup_user_id ? [owner.clickup_user_id] : [],
                 time_estimate: Math.round(alloc.hours * 60 * 60_000),
                 points: Math.min(10, Math.max(1, Math.round(alloc.hours / 4))),
                 ...(dueDateMs !== undefined && {
