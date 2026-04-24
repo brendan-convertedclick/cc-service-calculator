@@ -4,9 +4,10 @@ import { Label } from "@/components/ui/label";
 import type { Database } from "@/types/db";
 
 type Interval = Database["public"]["Enums"]["recurrence_interval"];
+type Mode = Database["public"]["Enums"]["recurrence_mode"];
 
 export type RecurrenceState = {
-  is_recurring: boolean;
+  mode: Mode;
   recurrence_interval: Interval | null;
   recurrence_start: string;
   recurrence_end: string;
@@ -25,17 +26,29 @@ export function RecurrencePanel({
         Recurrence
       </div>
       <div className="rounded-md border border-m-outline-variant bg-m-surface p-3 space-y-3">
-        <Label className="flex items-center gap-2 text-body-small">
-          <input
-            type="checkbox"
-            checked={value.is_recurring}
-            onChange={(e) => onChange({ ...value, is_recurring: e.target.checked })}
-            className="h-4 w-4"
-          />
+        <div className="flex items-center gap-2 text-body-small text-m-on-surface">
           <Repeat className="h-4 w-4 text-m-on-surface-variant" />
-          Recurring engagement — repeat all tasks on a schedule
-        </Label>
-        {value.is_recurring && (
+          <span>How should this engagement repeat?</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-md bg-m-surface-container-low p-1">
+          {(["none", "project", "per_service"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onChange({ ...value, mode: m })}
+              className={
+                "rounded-md px-2 py-1.5 text-label-small transition-colors " +
+                (value.mode === m
+                  ? "bg-m-surface shadow-elev-1 text-m-on-surface"
+                  : "text-m-on-surface-variant hover:text-m-on-surface")
+              }
+            >
+              {m === "none" ? "One-off" : m === "project" ? "Whole project" : "Per service"}
+            </button>
+          ))}
+        </div>
+
+        {value.mode === "project" && (
           <div className="space-y-3 pt-1">
             <div className="space-y-1.5">
               <Label className="text-label-small text-m-on-surface-variant">Interval</Label>
@@ -76,10 +89,15 @@ export function RecurrencePanel({
               </div>
             </div>
             <p className="text-label-small text-m-on-surface-variant">
-              Leave end empty for ongoing retainers. Tasks repeat on each interval from the
-              start date.
+              Every line repeats together. Leave end empty for ongoing retainers.
             </p>
           </div>
+        )}
+
+        {value.mode === "per_service" && (
+          <p className="text-label-small text-m-on-surface-variant pt-1">
+            Configure recurrence on each service below. Lines not marked recurring run once.
+          </p>
         )}
       </div>
     </div>

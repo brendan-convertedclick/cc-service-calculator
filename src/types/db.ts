@@ -410,6 +410,7 @@ export type Database = {
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start: string | null
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
@@ -428,6 +429,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -446,6 +448,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -587,28 +590,46 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_recurring: boolean
           notes: string | null
           ordinal: number
           qty: number
           quote_id: string
+          recurrence_end: string | null
+          recurrence_interval:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start: string | null
           service_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_recurring?: boolean
           notes?: string | null
           ordinal: number
           qty?: number
           quote_id: string
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           service_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_recurring?: boolean
           notes?: string | null
           ordinal?: number
           qty?: number
           quote_id?: string
+          recurrence_end?: string | null
+          recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          recurrence_start?: string | null
           service_id?: string
         }
         Relationships: [
@@ -648,6 +669,7 @@ export type Database = {
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start: string | null
           rejection_reason: string | null
           scope_id: string
@@ -673,6 +695,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
           rejection_reason?: string | null
           scope_id: string
@@ -698,6 +721,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
           rejection_reason?: string | null
           scope_id?: string
@@ -1237,6 +1261,7 @@ export type Database = {
       project_status: "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
+      recurrence_mode: "none" | "project" | "per_service"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1379,6 +1404,7 @@ export const Constants = {
       project_status: ["in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
       recurrence_interval: ["weekly", "biweekly", "monthly", "quarterly"],
+      recurrence_mode: ["none", "project", "per_service"],
     },
   },
 } as const

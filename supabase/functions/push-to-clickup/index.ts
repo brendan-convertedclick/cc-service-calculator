@@ -355,9 +355,11 @@ Deno.serve(async (req: Request) => {
 
     // All ClickUp work succeeded — safe to write the projects row now.
     // Copy recurrence config from the quote — see the RecurrencePanel on the
-    // quote build page. The cron function reads these fields directly.
+    // quote build page. Whole-project mode is driven by projects.*, per_service
+    // mode is driven by recurring_task_schedules rows inserted below.
     const q = quote as {
       id: string;
+      recurrence_mode: "none" | "project" | "per_service";
       is_recurring: boolean | null;
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly" | null;
       recurrence_start: string | null;
@@ -371,10 +373,11 @@ Deno.serve(async (req: Request) => {
         clickup_parent_task_id: parent.id,
         name: scope.brief?.raw_subject ?? "Untitled project",
         status: "in_progress",
-        is_recurring: q.is_recurring ?? false,
-        recurrence_interval: q.recurrence_interval,
-        recurrence_start: q.recurrence_start,
-        recurrence_end: q.recurrence_end,
+        recurrence_mode: q.recurrence_mode,
+        is_recurring: q.recurrence_mode === "project",
+        recurrence_interval: q.recurrence_mode === "project" ? q.recurrence_interval : null,
+        recurrence_start: q.recurrence_mode === "project" ? q.recurrence_start : null,
+        recurrence_end: q.recurrence_mode === "project" ? q.recurrence_end : null,
       });
     if (pErr) return json({ error: pErr.message }, 500);
 
@@ -402,6 +405,63 @@ Deno.serve(async (req: Request) => {
             : { error: aErr.message },
           500,
         );
+      }
+    }
+
+    // Per-service recurrence: seed recurring_task_schedules rows for each
+    // quote line flagged is_recurring. The cron picks these up and creates
+    // the next cycle's tasks. Whole-project mode doesn't populate this table
+    // — it's handled by projects.is_recurring in the cron instead.
+    if (q.recurrence_mode === "per_service") {
+      const { data: qsRows } = await supabase
+        .from("quote_services")
+        .select("service_id,is_recurring,recurrence_interval,recurrence_start,recurrence_end")
+        .eq("quote_id", quote.id)
+        .eq("is_recurring", true);
+
+      const recurringByServiceId = new Map<
+        string,
+        {
+          recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly";
+          recurrence_start: string;
+          recurrence_end: string | null;
+        }
+      >();
+      for (const r of (qsRows ?? []) as Array<{
+        service_id: string;
+        recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly" | null;
+        recurrence_start: string | null;
+        recurrence_end: string | null;
+      }>) {
+        if (!r.recurrence_interval || !r.recurrence_start) continue;
+        recurringByServiceId.set(r.service_id, {
+          recurrence_interval: r.recurrence_interval,
+          recurrence_start: r.recurrence_start,
+          recurrence_end: r.recurrence_end,
+        });
+      }
+
+      const scheduleRows = tasks
+        .map(({ item, alloc }) => {
+          const cfg = recurringByServiceId.get(item.service_id);
+          if (!cfg) return null;
+          return {
+            project_id: projectId,
+            service_id: item.service_id,
+            dept_id: alloc.dept_id,
+            planned_hours: alloc.hours,
+            clickup_parent_task_id: parent.id,
+            clickup_list_id: projectsList.id,
+            recurrence_interval: cfg.recurrence_interval,
+            recurrence_anchor: cfg.recurrence_start,
+            next_due_at: cfg.recurrence_start,
+            source: "per_item",
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+
+      if (scheduleRows.length > 0) {
+        await supabase.from("recurring_task_schedules").insert(scheduleRows);
       }
     }
 

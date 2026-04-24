@@ -142,6 +142,12 @@ export function ProjectDetail() {
           <CardTitle>Recurrence</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {project.recurrence_mode === "per_service" && (
+            <p className="rounded-md bg-m-surface-container-low/60 p-3 text-sm text-m-on-surface-variant">
+              Per-service recurrence — configured on the original quote. Edit schedules directly
+              to adjust.
+            </p>
+          )}
           <Label className="flex items-center gap-2">
             <input
               type="checkbox"

@@ -2,19 +2,24 @@ import { Fragment, memo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Repeat, X } from "lucide-react";
 import { formatZar } from "@/lib/utils";
 import { SUM_TOLERANCE_MIN, SUM_TOLERANCE_MAX } from "@/lib/allocation";
 import type { Database } from "@/types/db";
 
 type Service = Database["public"]["Tables"]["services"]["Row"];
 type Dept = Database["public"]["Tables"]["departments"]["Row"];
+type Interval = Database["public"]["Enums"]["recurrence_interval"];
 
 export type EditorLine = {
   service_id: string;
   qty: number;
   allocation: Record<string, number>;
   hours: Record<string, number>;
+  is_recurring: boolean;
+  recurrence_interval: Interval | null;
+  recurrence_start: string;
+  recurrence_end: string;
 };
 
 type Props = {
@@ -22,6 +27,7 @@ type Props = {
   line: EditorLine;
   service: Service;
   depts: Dept[];
+  perServiceRecurrence: boolean;
   onChange: (index: number, patch: Partial<EditorLine>) => void;
   onRemove: (serviceId: string) => void;
 };
@@ -31,6 +37,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
   line,
   service,
   depts,
+  perServiceRecurrence,
   onChange,
   onRemove,
 }: Props) {
@@ -93,6 +100,15 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
             {line.qty} × {formatZar(unitCents)}
           </div>
         </div>
+        {perServiceRecurrence && line.is_recurring && (
+          <span
+            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-m-primary/10 px-2 py-0.5 text-label-small text-m-primary"
+            title={line.recurrence_interval ?? "Recurring"}
+          >
+            <Repeat className="h-3 w-3" />
+            {line.recurrence_interval ?? "—"}
+          </span>
+        )}
         <span
           className={
             "shrink-0 rounded-full px-2 py-0.5 text-label-small tabular-nums " +
@@ -235,6 +251,60 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
               Allocation {sumPct.toFixed(2)}%
             </span>
           </div>
+
+          {perServiceRecurrence && (
+            <div className="rounded-md border border-m-outline-variant/60 bg-m-surface-container-low/40 p-3 space-y-3">
+              <Label className="flex items-center gap-2 text-body-small">
+                <input
+                  type="checkbox"
+                  checked={line.is_recurring}
+                  onChange={(e) => onChange(index, { is_recurring: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Repeat className="h-4 w-4 text-m-on-surface-variant" />
+                Recurring service
+              </Label>
+              {line.is_recurring && (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">Interval</Label>
+                    <select
+                      value={line.recurrence_interval ?? ""}
+                      onChange={(e) =>
+                        onChange(index, {
+                          recurrence_interval: (e.target.value || null) as Interval | null,
+                        })
+                      }
+                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    >
+                      <option value="">—</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Biweekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">Start</Label>
+                    <Input
+                      type="date"
+                      value={line.recurrence_start}
+                      onChange={(e) => onChange(index, { recurrence_start: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">End</Label>
+                    <Input
+                      type="date"
+                      value={line.recurrence_end}
+                      onChange={(e) => onChange(index, { recurrence_end: e.target.value })}
+                      placeholder="Ongoing"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       )}
     </Card>

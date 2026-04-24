@@ -83,6 +83,7 @@ export function ProjectBuilder() {
                     line={l}
                     service={svc}
                     depts={qb.depts ?? []}
+                    perServiceRecurrence={qb.recurrence.mode === "per_service"}
                     onChange={qb.patchLine}
                     onRemove={qb.removeLine}
                   />

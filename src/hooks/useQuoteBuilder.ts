@@ -93,7 +93,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
   const [discountPct, setDiscountPct] = useState(0);
   const [sowHtml, setSowHtml] = useState("");
   const [recurrence, setRecurrence] = useState<RecurrenceState>({
-    is_recurring: false,
+    mode: "none",
     recurrence_interval: null,
     recurrence_start: "",
     recurrence_end: "",
@@ -118,7 +118,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     setDiscountPct(Number(liveQuote.discount_room_pct));
     setSowHtml(liveQuote.sow_html ?? "");
     setRecurrence({
-      is_recurring: liveQuote.is_recurring,
+      mode: liveQuote.recurrence_mode,
       recurrence_interval: liveQuote.recurrence_interval,
       recurrence_start: liveQuote.recurrence_start ?? "",
       recurrence_end: liveQuote.recurrence_end ?? "",
@@ -129,6 +129,10 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
         qty: Number(r.qty),
         allocation: r.allocation_override,
         hours: r.hours_override,
+        is_recurring: r.is_recurring,
+        recurrence_interval: r.recurrence_interval,
+        recurrence_start: r.recurrence_start ?? "",
+        recurrence_end: r.recurrence_end ?? "",
       })),
     );
     setHydratedForQuote(liveQuote.id);
@@ -162,7 +166,19 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       allocation[deptId] = Number(entry.pct ?? 0);
       hours[deptId] = Number(entry.hours ?? 0);
     }
-    setLines((prev) => [...prev, { service_id: serviceId, qty: 1, allocation, hours }]);
+    setLines((prev) => [
+      ...prev,
+      {
+        service_id: serviceId,
+        qty: 1,
+        allocation,
+        hours,
+        is_recurring: false,
+        recurrence_interval: null,
+        recurrence_start: "",
+        recurrence_end: "",
+      },
+    ]);
   }
 
   const removeLine = useCallback((serviceId: string) => {
@@ -195,6 +211,17 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
           hours_override: l.hours,
           ordinal: i + 1,
           notes: null,
+          is_recurring: recurrence.mode === "per_service" && l.is_recurring,
+          recurrence_interval:
+            recurrence.mode === "per_service" && l.is_recurring ? l.recurrence_interval : null,
+          recurrence_start:
+            recurrence.mode === "per_service" && l.is_recurring && l.recurrence_start
+              ? l.recurrence_start
+              : null,
+          recurrence_end:
+            recurrence.mode === "per_service" && l.is_recurring && l.recurrence_end
+              ? l.recurrence_end
+              : null,
         })),
       });
       await updateQuote.mutateAsync({
@@ -202,14 +229,16 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
         patch: {
           margin_pct: marginPct,
           discount_room_pct: discountPct,
-          is_recurring: recurrence.is_recurring,
-          recurrence_interval: recurrence.is_recurring ? recurrence.recurrence_interval : null,
+          recurrence_mode: recurrence.mode,
+          is_recurring: recurrence.mode === "project",
+          recurrence_interval:
+            recurrence.mode === "project" ? recurrence.recurrence_interval : null,
           recurrence_start:
-            recurrence.is_recurring && recurrence.recurrence_start
+            recurrence.mode === "project" && recurrence.recurrence_start
               ? recurrence.recurrence_start
               : null,
           recurrence_end:
-            recurrence.is_recurring && recurrence.recurrence_end
+            recurrence.mode === "project" && recurrence.recurrence_end
               ? recurrence.recurrence_end
               : null,
         },
@@ -286,14 +315,16 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
           margin_pct: marginPct,
           discount_room_pct: discountPct,
           sow_html: sowHtml,
-          is_recurring: recurrence.is_recurring,
-          recurrence_interval: recurrence.is_recurring ? recurrence.recurrence_interval : null,
+          recurrence_mode: recurrence.mode,
+          is_recurring: recurrence.mode === "project",
+          recurrence_interval:
+            recurrence.mode === "project" ? recurrence.recurrence_interval : null,
           recurrence_start:
-            recurrence.is_recurring && recurrence.recurrence_start
+            recurrence.mode === "project" && recurrence.recurrence_start
               ? recurrence.recurrence_start
               : null,
           recurrence_end:
-            recurrence.is_recurring && recurrence.recurrence_end
+            recurrence.mode === "project" && recurrence.recurrence_end
               ? recurrence.recurrence_end
               : null,
         },

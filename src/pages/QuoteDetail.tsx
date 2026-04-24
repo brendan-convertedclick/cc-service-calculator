@@ -91,6 +91,11 @@ export function QuoteDetail() {
       sow_html: q.sow_html,
       margin_pct: q.margin_pct,
       discount_room_pct: q.discount_room_pct,
+      recurrence_mode: q.recurrence_mode,
+      is_recurring: q.is_recurring,
+      recurrence_interval: q.recurrence_interval,
+      recurrence_start: q.recurrence_start,
+      recurrence_end: q.recurrence_end,
     });
     await replaceSvcs.mutateAsync({
       quoteId: newQuote.id,
@@ -101,6 +106,10 @@ export function QuoteDetail() {
         hours_override: s.hours_override,
         ordinal: s.ordinal,
         notes: s.notes,
+        is_recurring: s.is_recurring,
+        recurrence_interval: s.recurrence_interval,
+        recurrence_start: s.recurrence_start,
+        recurrence_end: s.recurrence_end,
       })),
     });
     const { data: scope } = await supabase

@@ -114,6 +114,10 @@ export type ReplaceQuoteServiceRow = {
   notes: string | null;
   allocation_override: Record<string, number>;
   hours_override: Record<string, number>;
+  is_recurring?: boolean;
+  recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"] | null;
+  recurrence_start?: string | null;
+  recurrence_end?: string | null;
 };
 
 export function useReplaceQuoteServices() {
@@ -138,6 +142,10 @@ export function useReplaceQuoteServices() {
         qty: r.qty,
         ordinal: r.ordinal,
         notes: r.notes,
+        is_recurring: r.is_recurring ?? false,
+        recurrence_interval: r.recurrence_interval ?? null,
+        recurrence_start: r.recurrence_start ?? null,
+        recurrence_end: r.recurrence_end ?? null,
       }));
       const { data: inserted, error: iErr } = await supabase
         .from("quote_services")
