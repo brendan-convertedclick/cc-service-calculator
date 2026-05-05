@@ -39,6 +39,10 @@ Deno.test("timingSafeEqualHex returns false for different lengths", () => {
   assertEquals(timingSafeEqualHex("abc", "abcd"), false);
 });
 
+Deno.test("timingSafeEqualHex returns true for identical strings", () => {
+  assertEquals(timingSafeEqualHex("deadbeef", "deadbeef"), true);
+});
+
 Deno.test("newPlaintextToken returns a long base64url string", () => {
   const t = newPlaintextToken();
   assertEquals(t.length >= 40, true);

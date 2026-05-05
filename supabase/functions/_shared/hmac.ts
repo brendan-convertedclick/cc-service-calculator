@@ -43,8 +43,11 @@ export async function hmacVerify(
 export function newPlaintextToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  // base64url, no padding
-  return btoa(String.fromCharCode(...bytes))
+  // base64url, no padding. Avoid String.fromCharCode(...bytes) spread —
+  // breaks the call-stack argument limit if buffer size grows.
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
