@@ -29,7 +29,14 @@ Deno.serve(async (req: Request) => {
     const { error } = await supabase
       .from("relay_secrets")
       .upsert(
-        { user_email: email, secret: token, revoked_at: null },
+        {
+          user_email: email,
+          secret: token,
+          revoked_at: null,
+          // Refresh on rotation so Settings UI shows the issuance date of the
+          // currently-active token, not the row's first-creation date.
+          created_at: new Date().toISOString(),
+        },
         { onConflict: "user_email" },
       );
     if (error) return json({ error: error.message }, 500);
