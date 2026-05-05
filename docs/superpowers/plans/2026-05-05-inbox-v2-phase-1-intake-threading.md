@@ -104,7 +104,7 @@ alter table public.briefs
   add column last_message_at timestamptz,
   add column message_count int not null default 0;
 
---- 5. relay_secrets — per-teammate Apps Script tokens (plaintext; an API key
+-- 5. relay_secrets — per-teammate Apps Script tokens (plaintext; an API key
 --    rather than a user-chosen password — same threat model as CLICKUP_PAT
 --    stored as a Supabase secret).
 create table public.relay_secrets (
@@ -140,7 +140,7 @@ Expected: success response. If it errors, copy the error verbatim and stop — d
 Run:
 ```
 mcp__cc-supabase__execute_sql(
-  query: "select table_name, column_name, data_type from information_schema.columns where table_schema='public' and table_name in ('brief_messages','briefs','relay_secrets') and column_name in ('gmail_message_id','direction','attachments','gmail_thread_id_unique','last_message_at','message_count','user_email','secret_hash') order by table_name, column_name;"
+  query: "select table_name, column_name, data_type from information_schema.columns where table_schema='public' and table_name in ('brief_messages','briefs','relay_secrets') and column_name in ('gmail_message_id','direction','attachments','gmail_thread_id_unique','last_message_at','message_count','user_email','secret') order by table_name, column_name;"
 )
 ```
 
