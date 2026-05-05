@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useClickUpSpaces } from "@/hooks/useClients";
@@ -135,6 +136,20 @@ export function Settings() {
       </Card>
 
       {/* Xero card omitted: Phase 1 hides the card entirely (spec §7.6). Added in Phase 2. */}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Gmail intake</CardTitle>
+          <CardDescription>
+            Pipe labelled Gmail threads into the shared Inbox. One-time per-teammate setup.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link to="/settings/gmail">Connect Gmail →</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
