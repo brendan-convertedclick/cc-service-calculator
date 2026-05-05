@@ -13,7 +13,10 @@ interface RelaySecretsClient {
   from(table: string): {
     select(cols: string): {
       eq(col: string, val: string): {
-        maybeSingle(): Promise<{ data: { secret: unknown; revoked_at: unknown } | null }>;
+        maybeSingle(): Promise<{
+          data: { secret: unknown; revoked_at: unknown } | null;
+          error: { message: string } | null;
+        }>;
       };
     };
   };
@@ -43,19 +46,30 @@ export async function validateRequest(
   return { ok: true, userEmail };
 }
 
-/** Production wrapper: pulls the plaintext secret from relay_secrets. */
+/** Production wrapper: pulls the plaintext secret from relay_secrets.
+ *  Surfaces DB failures as 503 (vs. the 401 used for missing/revoked rows)
+ *  so an outage is diagnosable in function logs. */
 export async function validateRequestProd(
   req: Request,
   rawBody: string,
   supabase: RelaySecretsClient,
 ): Promise<ValidationResult> {
-  return validateRequest(req, rawBody, async (email) => {
-    const { data: row } = await supabase
-      .from("relay_secrets")
-      .select("secret, revoked_at")
-      .eq("user_email", email)
-      .maybeSingle();
-    if (!row || row.revoked_at) return null;
-    return row.secret as string;
-  });
+  const userEmail = req.headers.get("x-relay-user");
+  const sig = req.headers.get("x-relay-signature");
+  if (!userEmail || !sig) {
+    return { ok: false, status: 401, error: "Missing relay headers" };
+  }
+
+  const { data: row, error } = await supabase
+    .from("relay_secrets")
+    .select("secret, revoked_at")
+    .eq("user_email", userEmail)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, status: 503, error: `relay_secrets lookup failed: ${error.message}` };
+  }
+
+  const secret = !row || row.revoked_at ? null : (row.secret as string);
+  return validateRequest(req, rawBody, async () => secret);
 }

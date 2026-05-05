@@ -17,11 +17,16 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
-  const rawBody = await req.text();
-  const supabase = createServiceRoleClient();
-  const auth = await validateRequestProd(req, rawBody, supabase);
-  if (!auth.ok) return json({ error: auth.error }, auth.status);
+  try {
+    const rawBody = await req.text();
+    const supabase = createServiceRoleClient();
+    const auth = await validateRequestProd(req, rawBody, supabase);
+    if (!auth.ok) return json({ error: auth.error }, auth.status);
 
-  // Body parsing + DB writes land in Task 5.
-  return json({ ok: true, user: auth.userEmail });
+    // Body parsing + DB writes land in Task 5.
+    return json({ ok: true, user: auth.userEmail });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return json({ error: msg }, 500);
+  }
 });
