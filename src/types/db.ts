@@ -14,12 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      brief_messages: {
+        Row: {
+          attachments: Json
+          body_html: string | null
+          body_text: string | null
+          brief_id: string
+          cc_emails: string[]
+          created_at: string
+          direction: string
+          from_email: string | null
+          from_name: string | null
+          gmail_message_id: string
+          id: string
+          relayed_by: string | null
+          sent_at: string
+          subject: string | null
+          to_emails: string[]
+        }
+        Insert: {
+          attachments?: Json
+          body_html?: string | null
+          body_text?: string | null
+          brief_id: string
+          cc_emails?: string[]
+          created_at?: string
+          direction: string
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          id?: string
+          relayed_by?: string | null
+          sent_at: string
+          subject?: string | null
+          to_emails?: string[]
+        }
+        Update: {
+          attachments?: Json
+          body_html?: string | null
+          body_text?: string | null
+          brief_id?: string
+          cc_emails?: string[]
+          created_at?: string
+          direction?: string
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          id?: string
+          relayed_by?: string | null
+          sent_at?: string
+          subject?: string | null
+          to_emails?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brief_messages_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       briefs: {
         Row: {
           client_id: string | null
           created_at: string
           gmail_thread_id: string | null
+          gmail_thread_id_unique: string | null
           id: string
+          last_message_at: string | null
+          message_count: number
           raw_attachments: Json | null
           raw_body: string
           raw_subject: string | null
@@ -36,7 +101,10 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           gmail_thread_id?: string | null
+          gmail_thread_id_unique?: string | null
           id?: string
+          last_message_at?: string | null
+          message_count?: number
           raw_attachments?: Json | null
           raw_body: string
           raw_subject?: string | null
@@ -53,7 +121,10 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           gmail_thread_id?: string | null
+          gmail_thread_id_unique?: string | null
           id?: string
+          last_message_at?: string | null
+          message_count?: number
           raw_attachments?: Json | null
           raw_body?: string
           raw_subject?: string | null
@@ -825,6 +896,30 @@ export type Database = {
           },
         ]
       }
+      relay_secrets: {
+        Row: {
+          created_at: string
+          id: string
+          revoked_at: string | null
+          secret: string
+          user_email: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          secret: string
+          user_email: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          secret?: string
+          user_email?: string
+        }
+        Relationships: []
+      }
       rule_allocations: {
         Row: {
           department_id: string
@@ -1247,7 +1342,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      brief_source: "email" | "manual"
+      brief_source: "email" | "manual" | "gmail_relay"
       brief_status:
         | "new"
         | "triaged"
@@ -1389,7 +1484,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      brief_source: ["email", "manual"],
+      brief_source: ["email", "manual", "gmail_relay"],
       brief_status: [
         "new",
         "triaged",
