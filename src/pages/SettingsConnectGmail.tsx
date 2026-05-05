@@ -11,7 +11,7 @@ import {
   useRevokeRelayToken,
 } from "@/hooks/useRelayTokens";
 
-const RELAY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-relay`;
+const RELAY_URL = `${(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/+$/, "")}/functions/v1/gmail-relay`;
 
 export function SettingsConnectGmail() {
   const { user } = useAuth();
@@ -71,7 +71,11 @@ export function SettingsConnectGmail() {
               {status?.exists && (
                 <Button
                   variant="ghost"
-                  onClick={() => email && revoke.mutate(email)}
+                  onClick={() => {
+                    if (!email) return;
+                    setJustIssued(null);
+                    revoke.mutate(email);
+                  }}
                   disabled={revoke.isPending}
                 >
                   Revoke
