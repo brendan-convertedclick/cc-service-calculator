@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
       const { data: client } = await supabase
         .from("clients")
         .select("id")
-        .eq("primary_domain", domain)
+        .ilike("primary_domain", domain)
         .maybeSingle();
       clientId = client?.id ?? null;
     }
@@ -147,6 +147,11 @@ Deno.serve(async (req: Request) => {
           .from("brief-attachments")
           .upload(objectPath, base64ToBytes(a.base64), { contentType: a.mime, upsert: false });
         if (upErr) {
+          console.error("gmail-relay attachment upload failed", {
+            message_id: m.message_id,
+            attachment_name: a.name,
+            error: upErr.message,
+          });
           uploadFailed = true;
           break;
         }
@@ -169,7 +174,14 @@ Deno.serve(async (req: Request) => {
         sent_at: m.sent_at,
         relayed_by: auth.userEmail,
       });
-      if (msgErr) continue;
+      if (msgErr) {
+        console.error("gmail-relay brief_messages insert failed", {
+          message_id: m.message_id,
+          brief_id: briefId,
+          error: msgErr.message,
+        });
+        continue;
+      }
       inserted++;
     }
 
