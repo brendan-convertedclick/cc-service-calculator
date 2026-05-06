@@ -39,3 +39,9 @@ verify_jwt = false
 
 [functions.sync-clickup-actuals]
 verify_jwt = false
+
+[functions.issue-relay-token]
+verify_jwt = false
+
+[functions.gmail-relay]
+verify_jwt = false

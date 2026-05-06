@@ -52,6 +52,9 @@ const Clients = lazy(() =>
 const Settings = lazy(() =>
   import("@/pages/Settings").then((m) => ({ default: m.Settings })),
 );
+const SettingsConnectGmail = lazy(() =>
+  import("@/pages/SettingsConnectGmail").then((m) => ({ default: m.SettingsConnectGmail })),
+);
 
 function RouteFallback() {
   return (
@@ -80,6 +83,7 @@ export default function App() {
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="settings/gmail" element={<SettingsConnectGmail />} />
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
