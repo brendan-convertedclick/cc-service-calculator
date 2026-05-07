@@ -472,10 +472,12 @@ export type Database = {
           clickup_parent_task_id: string
           completed_at: string | null
           created_at: string
+          git_remote_url: string | null
           id: string
           is_recurring: boolean
           last_recurring_cycle_at: string | null
           name: string
+          project_code: string
           quote_id: string
           recurrence_end: string | null
           recurrence_interval:
@@ -491,10 +493,12 @@ export type Database = {
           clickup_parent_task_id: string
           completed_at?: string | null
           created_at?: string
+          git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
           last_recurring_cycle_at?: string | null
           name: string
+          project_code: string
           quote_id: string
           recurrence_end?: string | null
           recurrence_interval?:
@@ -510,10 +514,12 @@ export type Database = {
           clickup_parent_task_id?: string
           completed_at?: string | null
           created_at?: string
+          git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
           last_recurring_cycle_at?: string | null
           name?: string
+          project_code?: string
           quote_id?: string
           recurrence_end?: string | null
           recurrence_interval?:
@@ -1180,6 +1186,7 @@ export type Database = {
           clickup_workspace_id: string | null
           id: number
           inbound_email_secret: string | null
+          unallocated_ai_clickup_task_id: string | null
           updated_at: string
           xero_enabled: boolean
           xero_oauth_tokens: Json | null
@@ -1192,6 +1199,7 @@ export type Database = {
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
+          unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
@@ -1204,6 +1212,7 @@ export type Database = {
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
+          unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
@@ -1339,7 +1348,17 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      generate_project_code: { Args: never; Returns: string }
+      normalise_git_remote: { Args: { remote: string }; Returns: string }
+      resolve_project_for_repo: {
+        Args: { remote: string }
+        Returns: {
+          calculator_project_id: string
+          clickup_parent_task_id: string
+          project_code: string
+          project_name: string
+        }[]
+      }
     }
     Enums: {
       brief_source: "email" | "manual" | "gmail_relay"
