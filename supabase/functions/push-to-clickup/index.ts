@@ -29,7 +29,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
-import { buildBriefComment } from "../_shared/clickup.ts";
+import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -49,7 +49,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { quote_id } = await req.json();
+    const body = await req.json();
+    const { quote_id, git_remote_url } = body as {
+      quote_id: string;
+      git_remote_url?: string;
+    };
     if (!quote_id) return json({ error: "quote_id required" }, 400);
 
     const supabase = createUserClient(req);
@@ -118,6 +122,17 @@ Deno.serve(async (req: Request) => {
       cuFields = (await fieldsRes.json()).fields ?? [];
     }
 
+    // Reserve the project_code BEFORE creating the parent task so we can
+    // stamp it into the task name and the Project Code custom field. The
+    // generator function returns the NEXT available code; the BEFORE INSERT
+    // trigger on projects re-runs it on insert — both will return the same
+    // value because no other project insert can race in between (the
+    // function is called from a single edge function invocation).
+    const { data: codeRow, error: codeErr } = await supabase
+      .rpc("generate_project_code");
+    if (codeErr) return json({ error: `code gen: ${codeErr.message}` }, 500);
+    const projectCode = codeRow as string;
+
     // Create parent task.
     const parentRes = await fetch(
       `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
@@ -125,13 +140,54 @@ Deno.serve(async (req: Request) => {
         ...CU,
         method: "POST",
         body: JSON.stringify({
-          name: scope.brief?.raw_subject ?? "Untitled project",
-          description: `Project from quote ${quote.id}`,
+          name: `[${projectCode}] ${scope.brief?.raw_subject ?? "Untitled project"}`,
+          description: `Project from quote ${quote.id}\nProject code: ${projectCode}`,
         }),
       },
     );
     if (!parentRes.ok) return json({ error: `CU parent: ${await parentRes.text()}` }, 502);
     const parent = await parentRes.json();
+
+    // Set custom fields on the parent task: project_code (text) +
+    // four AI tracking fields initialised to 0. The Stop hook in
+    // ~/.claude/hooks/stop-ai-cost.py increments the AI fields on every
+    // Claude Code session end. Missing fields = warn + continue (the
+    // ClickUp UI setup may lag behind a code deploy).
+    type CfValue = { id: string; value: string | number };
+    const parentFields: CfValue[] = [];
+    const codeField = findCustomField(cuFields, "Project Code");
+    if (codeField) {
+      parentFields.push({ id: codeField.id, value: projectCode });
+    } else {
+      console.warn(`Custom field "Project Code" not found on list ${projectsList.id}`);
+    }
+    for (const fname of [
+      "AI Input Tokens",
+      "AI Output Tokens",
+      "AI Cost ZAR",
+      "AI Duration Minutes",
+    ]) {
+      const f = findCustomField(cuFields, fname);
+      if (f) parentFields.push({ id: f.id, value: 0 });
+    }
+
+    // Set fields one-at-a-time via the per-field POST endpoint. PUT /task
+    // silently drops custom fields — see CLAUDE.md and Quartz wiki entry.
+    for (const f of parentFields) {
+      const cfRes = await fetch(
+        `https://api.clickup.com/api/v2/task/${parent.id}/field/${f.id}`,
+        {
+          ...CU,
+          method: "POST",
+          body: JSON.stringify({ value: f.value }),
+        },
+      );
+      if (!cfRes.ok) {
+        console.warn(
+          `CU custom field ${f.id} on parent ${parent.id}: ${await cfRes.text()}`,
+        );
+      }
+    }
 
     // Load team_members + list_aliases (for future alias resolution — payload
     // currently just routes by the parent list so the alias table isn't used
@@ -372,6 +428,8 @@ Deno.serve(async (req: Request) => {
         quote_id: quote.id,
         clickup_parent_task_id: parent.id,
         name: scope.brief?.raw_subject ?? "Untitled project",
+        project_code: projectCode,
+        git_remote_url: git_remote_url ?? null,
         status: "in_progress",
         recurrence_mode: q.recurrence_mode,
         is_recurring: q.recurrence_mode === "project",
@@ -467,6 +525,7 @@ Deno.serve(async (req: Request) => {
 
     return json({
       project_id: projectId,
+      project_code: projectCode,
       clickup_parent_task_id: parent.id,
       child_count: childCount,
     });

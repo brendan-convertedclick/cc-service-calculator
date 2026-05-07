@@ -52,3 +52,23 @@ export type BriefCommentPayload = {
 export function buildBriefComment(p: BriefCommentPayload): string {
   return `BRIEF:: ${JSON.stringify(p)}`;
 }
+
+/**
+ * Find a ClickUp custom field definition by name (case-insensitive).
+ * Returns the field id + type, or null. Caller decides how to format the
+ * value for `POST /task/{id}/field/{field_id}` based on the type.
+ *
+ * Handles the same cuFields shape that push-to-clickup loads via
+ * `GET /list/{id}/field`.
+ */
+export function findCustomField(
+  cuFields: Array<{ id: string; name: string; type: string }>,
+  name: string,
+  expectedType?: string,
+): { id: string; type: string } | null {
+  const needle = name.trim().toLowerCase();
+  const field = cuFields.find((f) => f.name.trim().toLowerCase() === needle);
+  if (!field) return null;
+  if (expectedType && field.type !== expectedType) return null;
+  return { id: field.id, type: field.type };
+}
