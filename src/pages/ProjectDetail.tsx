@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { RefreshCw, Save } from "lucide-react";
+import { Copy, RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -48,6 +48,8 @@ export function ProjectDetail() {
     recurrence_end: "",
   });
 
+  const [remoteDraft, setRemoteDraft] = useState("");
+
   useEffect(() => {
     if (data?.project) {
       setRecur({
@@ -56,6 +58,7 @@ export function ProjectDetail() {
         recurrence_start: data.project.recurrence_start ?? "",
         recurrence_end: data.project.recurrence_end ?? "",
       });
+      setRemoteDraft(data.project.git_remote_url ?? "");
     }
   }, [data?.project?.id]);
 
@@ -102,13 +105,41 @@ export function ProjectDetail() {
     );
   }
 
+  function saveGitRemote() {
+    if (!id || !data) return;
+    updateProject.mutate(
+      { id, patch: { git_remote_url: remoteDraft.trim() || null } },
+      {
+        onSuccess: () => toast.success("Git remote saved"),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  }
+
+  function copyCcProject() {
+    if (!data) return;
+    const payload = {
+      project_code: data.project.project_code,
+      project_name: data.project.name,
+      clickup_parent_task_id: data.project.clickup_parent_task_id,
+      calculator_project_id: data.project.id,
+    };
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    toast.success(".cc-project copied — paste into a file at repo root");
+  }
+
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-4">
       <Card>
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-headline-small">{project.name ?? "Untitled project"}</h1>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-label-small px-2 py-0.5 rounded bg-m-surface-container border border-m-outline-variant">
+                  {project.project_code}
+                </span>
+                <h1 className="text-headline-small">{project.name ?? "Untitled project"}</h1>
+              </div>
               <div className="text-label-small text-m-on-surface-variant">
                 Started {new Date(project.started_at).toLocaleDateString("en-ZA")} · Status:{" "}
                 {project.status}
@@ -127,6 +158,50 @@ export function ProjectDetail() {
               <RefreshCw className={`h-4 w-4 ${sync.isPending ? "animate-spin" : ""}`} />
               {sync.isPending ? "Syncing…" : "Sync now"}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Claude Code attribution</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-body-small text-m-on-surface-variant">
+            Token usage from Claude Code sessions in the linked repo will accumulate on the
+            ClickUp parent task. The SessionStart hook resolves the binding via either a
+            <code className="mx-1 px-1 rounded bg-m-surface-container">.cc-project</code>
+            file at repo root, or by matching{" "}
+            <code className="mx-1 px-1 rounded bg-m-surface-container">git remote get-url origin</code>{" "}
+            against the URL below.
+          </div>
+          <div className="space-y-2">
+            <Label>Git remote URL</Label>
+            <div className="flex gap-2">
+              <Input
+                value={remoteDraft}
+                onChange={(e) => setRemoteDraft(e.target.value)}
+                placeholder="https://github.com/org/repo.git"
+                className="font-mono text-xs"
+              />
+              <Button size="sm" onClick={saveGitRemote} disabled={updateProject.isPending}>
+                <Save className="h-4 w-4" />
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Both HTTPS and SSH forms work — they normalise to the same canonical key.
+            </p>
+          </div>
+          <div>
+            <Button size="sm" variant="outline" onClick={copyCcProject}>
+              <Copy className="h-4 w-4" />
+              Copy .cc-project
+            </Button>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Paste into a file named <code>.cc-project</code> at the repo root and commit it
+              — the binding is a property of the codebase.
+            </p>
           </div>
         </CardContent>
       </Card>
