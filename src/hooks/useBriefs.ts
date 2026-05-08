@@ -5,25 +5,29 @@ import type { Database } from "@/types/db";
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 type BriefInsert = Database["public"]["Tables"]["briefs"]["Insert"];
 type BriefUpdate = Database["public"]["Tables"]["briefs"]["Update"];
-type BriefStatus = Database["public"]["Enums"]["brief_status"];
-
-const LIST = (key: string) => ["briefs", key] as const;
 const DETAIL = (id: string) => ["briefs", "detail", id] as const;
 
-/**
- * Fetch briefs, optionally filtered by status. When called with no argument,
- * fetches ALL briefs (cache key `["briefs", "all"]`, no WHERE clause) — callers
- * that need multiple buckets should prefer this form and group client-side
- * rather than firing one query per status.
- */
-export function useBriefs(status?: BriefStatus | BriefStatus[]) {
-  const key = Array.isArray(status) ? status.join(",") : status ?? "all";
+export type BriefScope = "mine" | "unassigned" | "waiting" | "all";
+
+export function useBriefs(scope: BriefScope = "all", currentUserId?: string | null) {
   return useQuery({
-    queryKey: LIST(key),
+    queryKey: ["briefs", scope, currentUserId ?? "anon"],
     queryFn: async (): Promise<Brief[]> => {
-      let q = supabase.from("briefs").select("*").order("received_at", { ascending: false });
-      if (Array.isArray(status)) q = q.in("status", status);
-      else if (status) q = q.eq("status", status);
+      let q = supabase
+        .from("briefs")
+        .select("*")
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("received_at", { ascending: false });
+
+      if (scope === "mine") {
+        if (!currentUserId) return [];
+        q = q.eq("assignee_id", currentUserId);
+      } else if (scope === "unassigned") {
+        q = q.is("assignee_id", null).not("status", "in", '("accepted","rejected","archived","spam")');
+      } else if (scope === "waiting") {
+        q = q.eq("status", "needs_info");
+      }
+
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

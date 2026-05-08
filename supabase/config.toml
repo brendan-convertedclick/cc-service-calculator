@@ -45,3 +45,6 @@ verify_jwt = false
 
 [functions.gmail-relay]
 verify_jwt = false
+
+[functions.provision-client-wiki]
+verify_jwt = false
