@@ -1,4 +1,4 @@
-// src/pages/GuidesPage.tsx
+// src/pages/Guides.tsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -41,17 +41,23 @@ function StepCard({
       }`}
     >
       <button
+        type="button"
         className="flex w-full items-center gap-4 p-4 text-left"
         onClick={onToggle}
       >
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-          style={{
-            background: `linear-gradient(135deg, ${step.gradient[0]}, ${step.gradient[1]})`,
-          }}
-        >
-          {index + 1}
-        </div>
+        {(() => {
+          const StepIcon = iconMap[step.icon]
+          return (
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
+              style={{
+                background: `linear-gradient(135deg, ${step.gradient[0]}, ${step.gradient[1]})`,
+              }}
+            >
+              {StepIcon ? <StepIcon className="h-[18px] w-[18px]" /> : <span className="text-sm font-bold">{index + 1}</span>}
+            </div>
+          )
+        })()}
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-foreground">{step.title}</div>
           <div className="mt-0.5 text-xs text-muted-foreground">{step.subtitle}</div>
@@ -130,7 +136,7 @@ function StepCard({
   )
 }
 
-export function GuidesPage() {
+export function Guides() {
   const [activeDeckKey, setActiveDeckKey] = useState(decks[0].key)
   const [expandedStepKey, setExpandedStepKey] = useState<string | null>(null)
 
@@ -153,11 +159,12 @@ export function GuidesPage() {
       </p>
 
       <div className="mt-6 flex gap-6">
-        <div className="w-44 shrink-0 space-y-0.5">
+        <div className="w-44 shrink-0 space-y-0.5 sticky top-0 self-start">
           {decks.map((deck) => {
             const Icon = iconMap[deck.icon]
             return (
               <button
+                type="button"
                 key={deck.key}
                 onClick={() => handleDeckChange(deck.key)}
                 className={`flex w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-left text-label-large transition-colors ${

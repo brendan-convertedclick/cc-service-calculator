@@ -1,7 +1,7 @@
-// src/pages/GuidesPage.test.tsx
+// src/pages/Guides.test.tsx
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { GuidesPage } from './GuidesPage'
+import { Guides } from './Guides'
 import { decks } from '@/data/guides'
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -10,18 +10,18 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 describe('GuidesPage', () => {
   it('renders page heading', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     expect(screen.getByRole('heading', { name: /guides/i })).toBeInTheDocument()
   })
 
   it('renders the first deck steps by default', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     const firstStep = decks[0].steps[0]
     expect(screen.getByText(firstStep.title)).toBeInTheDocument()
   })
 
   it('switches to the second deck when its button is clicked', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     const secondDeck = decks[1]
     fireEvent.click(screen.getByRole('button', { name: secondDeck.label }))
     expect(screen.getByText(secondDeck.steps[0].title)).toBeInTheDocument()
@@ -29,7 +29,7 @@ describe('GuidesPage', () => {
   })
 
   it('expands a step card when clicked', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     const firstStep = decks[0].steps[0]
     expect(screen.queryByText('Why this matters')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText(firstStep.title))
@@ -37,7 +37,7 @@ describe('GuidesPage', () => {
   })
 
   it('collapses an open step when clicked again', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     const firstStep = decks[0].steps[0]
     fireEvent.click(screen.getByText(firstStep.title))
     expect(screen.getByText('Why this matters')).toBeInTheDocument()
@@ -46,7 +46,7 @@ describe('GuidesPage', () => {
   })
 
   it('only one step expanded at a time', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     const [step1, step2] = decks[0].steps
     fireEvent.click(screen.getByText(step1.title))
     expect(screen.getByText('Why this matters')).toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('GuidesPage', () => {
   })
 
   it('resets expanded step when switching deck', () => {
-    render(<GuidesPage />, { wrapper: Wrapper })
+    render(<Guides />, { wrapper: Wrapper })
     fireEvent.click(screen.getByText(decks[0].steps[0].title))
     expect(screen.getByText('Why this matters')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: decks[1].label }))
