@@ -78,6 +78,7 @@ export type Database = {
       }
       briefs: {
         Row: {
+          assignee_id: string | null
           client_id: string | null
           created_at: string
           gmail_thread_id: string | null
@@ -98,6 +99,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignee_id?: string | null
           client_id?: string | null
           created_at?: string
           gmail_thread_id?: string | null
@@ -118,6 +120,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignee_id?: string | null
           client_id?: string | null
           created_at?: string
           gmail_thread_id?: string | null
@@ -138,6 +141,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "briefs_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "briefs_client_id_fkey"
             columns: ["client_id"]
@@ -1522,3 +1532,4 @@ export const Constants = {
     },
   },
 } as const
+<claude-code-hint v="1" type="plugin" value="supabase@claude-plugins-official" />
