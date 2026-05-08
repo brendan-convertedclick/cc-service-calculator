@@ -33,3 +33,4 @@ supabase/.temp/
 
 # Playwright MCP scratch
 .playwright-mcp/
+.superpowers/
