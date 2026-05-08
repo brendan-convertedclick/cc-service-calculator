@@ -25,6 +25,14 @@ function parseFrontmatter(content: string): Record<string, unknown> {
   return fm;
 }
 
+function escapeXmlAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 async function listDir(repo: string, path: string, pat: string): Promise<WikiFile[]> {
   const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path)}?ref=main`;
   const res = await fetch(url, {
@@ -66,6 +74,11 @@ export async function loadClientWikiContext(opts: {
 
   const noteParts: string[] = [];
   for (const file of mdFiles) {
+    if (!file.download_url) {
+      console.warn(`[wiki-context] no download_url for ${file.path}, skipping`);
+      continue;
+    }
+
     let content: string;
     try {
       content = await fetchRaw(file.download_url, pat);
@@ -80,13 +93,13 @@ export async function loadClientWikiContext(opts: {
     }
 
     const body = content.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-    noteParts.push(`  <note path="${file.name}">${body}</note>`);
+    noteParts.push(`  <note path="${escapeXmlAttr(file.name)}">${body}</note>`);
   }
 
   if (noteParts.length === 0) return "";
 
   return [
-    `<client_context client_name="${clientName}" wiki_path="${wikiPath}">`,
+    `<client_context client_name="${escapeXmlAttr(clientName)}" wiki_path="${escapeXmlAttr(wikiPath)}">`,
     ...noteParts,
     `</client_context>`,
   ].join("\n");
