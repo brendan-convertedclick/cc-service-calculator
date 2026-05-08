@@ -16,6 +16,7 @@ import { useAddInternalNote, useBriefDownstream } from "@/hooks/useBriefActions"
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import type { Database } from "@/types/db";
+import type { Json } from "@/types/db";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
@@ -55,7 +56,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             subject: brief.raw_subject,
             body_text: brief.raw_body,
             body_html: null,
-            attachments: [] as unknown[],
+            attachments: [] as Json[],
             sent_at: brief.received_at,
             relayed_by: null,
             created_at: brief.received_at,
