@@ -54,8 +54,9 @@ Deno.serve(async (req: Request) => {
     const content = starterTemplate(client_name);
     const encoded = btoa(unescape(encodeURIComponent(content)));
 
+    const safePath = filePath.split("/").map(encodeURIComponent).join("/");
     const res = await fetch(
-      `https://api.github.com/repos/${WIKI_REPO}/contents/${encodeURIComponent(filePath)}`,
+      `https://api.github.com/repos/${WIKI_REPO}/contents/${safePath}`,
       {
         method: "PUT",
         headers: {
