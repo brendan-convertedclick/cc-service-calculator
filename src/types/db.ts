@@ -174,6 +174,7 @@ export type Database = {
           notes: string | null
           primary_domain: string | null
           updated_at: string
+          wiki_path: string | null
           xero_contact_id: string | null
         }
         Insert: {
@@ -185,6 +186,7 @@ export type Database = {
           notes?: string | null
           primary_domain?: string | null
           updated_at?: string
+          wiki_path?: string | null
           xero_contact_id?: string | null
         }
         Update: {
@@ -196,6 +198,7 @@ export type Database = {
           notes?: string | null
           primary_domain?: string | null
           updated_at?: string
+          wiki_path?: string | null
           xero_contact_id?: string | null
         }
         Relationships: []
@@ -998,6 +1001,7 @@ export type Database = {
       }
       scopes: {
         Row: {
+          ai_context_snapshot: string | null
           ai_drafted: boolean
           brief_id: string
           created_at: string
@@ -1011,6 +1015,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_context_snapshot?: string | null
           ai_drafted?: boolean
           brief_id: string
           created_at?: string
@@ -1024,6 +1029,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_context_snapshot?: string | null
           ai_drafted?: boolean
           brief_id?: string
           created_at?: string
