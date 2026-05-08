@@ -19,6 +19,6 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     // Deno tests under supabase/functions/_shared use `Deno.test` + https:
     // imports and are run via `deno test`, not vitest. Exclude them here.
-    exclude: ["**/node_modules/**", "**/dist/**", "supabase/functions/**"],
+    exclude: ["**/node_modules/**", "**/dist/**", "supabase/functions/**", ".claude/**"],
   },
 });
