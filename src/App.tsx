@@ -77,6 +77,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<Dashboard />} />
               <Route path="inbox" element={<Inbox />} />
+              <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs/new" element={<NewBrief />} />
               <Route path="briefs/:id/scope" element={<Scope />} />
               <Route path="briefs/:id/builder" element={<ProjectBuilder />} />
