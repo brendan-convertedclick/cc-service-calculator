@@ -109,6 +109,7 @@ export function Clients() {
                   <th className="py-2">Name</th>
                   <th className="py-2 pl-2">Primary domain</th>
                   <th className="py-2 pl-2">ClickUp folder</th>
+                  <th className="py-2 pl-2">Wiki path</th>
                   <th className="py-2 pl-2">Status</th>
                   <th className="py-2"></th>
                 </tr>
@@ -203,6 +204,17 @@ function ClientRow({
             placeholder="Pick a folder..."
           />
         )}
+      </td>
+      <td className="py-3 pl-2 pr-2 w-48">
+        <Input
+          defaultValue={c.wiki_path ?? `wiki/clients/${c.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`}
+          placeholder="wiki/clients/..."
+          onBlur={(e) => {
+            const v = e.target.value.trim() || null;
+            if (v !== c.wiki_path)
+              update.mutate({ id: c.id, patch: { wiki_path: v } });
+          }}
+        />
       </td>
       <td className="py-3 pl-2 text-xs text-muted-foreground">
         {c.clickup_folder_id

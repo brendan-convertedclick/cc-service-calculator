@@ -32,6 +32,25 @@ export function useCreateClient() {
     mutationFn: async (input: ClientInsert) => {
       const { data, error } = await supabase.from("clients").insert(input).select().single();
       if (error) throw error;
+      // Fire-and-forget wiki provisioning (do not await)
+      ;(async () => {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token ?? "";
+          const wikiPath = `wiki/clients/${data.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`;
+          await fetch(`${supabaseUrl}/functions/v1/provision-client-wiki`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ client_name: data.name, wiki_path: wikiPath }),
+          });
+        } catch (err) {
+          console.warn("[provision-client-wiki] fire-and-forget failed:", err);
+        }
+      })();
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST }),
