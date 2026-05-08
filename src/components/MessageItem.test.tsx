@@ -2,12 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { MessageItem } from "./MessageItem";
 import type { BriefMessage } from "@/hooks/useBriefMessages";
 
-vi.mock("dompurify", () => ({
-  default: {
-    sanitize: (html: string) => html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ""),
-  },
-}));
-
 const base: BriefMessage = {
   id: "msg-1",
   brief_id: "brief-1",

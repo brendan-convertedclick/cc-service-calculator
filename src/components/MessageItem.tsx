@@ -13,6 +13,7 @@ function sanitize(html: string): string {
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -26,7 +27,10 @@ export function MessageItem({ message }: { message: BriefMessage }) {
   const time = relativeTime(sent_at);
 
   const files = Array.isArray(attachments)
-    ? (attachments as { name: string; storage_path: string; mime: string; size: number }[])
+    ? (attachments as unknown[]).filter(
+        (f): f is { name: string; storage_path: string; mime: string; size: number } =>
+          typeof f === "object" && f !== null && "name" in f && "size" in f,
+      )
     : [];
 
   if (direction === "note") {
