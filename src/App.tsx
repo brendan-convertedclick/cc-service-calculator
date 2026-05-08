@@ -55,6 +55,9 @@ const Settings = lazy(() =>
 const SettingsConnectGmail = lazy(() =>
   import("@/pages/SettingsConnectGmail").then((m) => ({ default: m.SettingsConnectGmail })),
 );
+const GuidesPage = lazy(() =>
+  import("@/pages/GuidesPage").then((m) => ({ default: m.GuidesPage })),
+);
 
 function RouteFallback() {
   return (
@@ -90,6 +93,7 @@ export default function App() {
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />
+              <Route path="guides" element={<GuidesPage />} />
             </Route>
           </Route>
         </Routes>

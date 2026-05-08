@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Building2, Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
+import { BookOpen, Building2, Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ const nav = [
   { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
   { to: "/departments", label: "Departments", icon: Workflow, end: false },
   { to: "/team", label: "Team", icon: Users, end: false },
+  { to: "/guides", label: "Guides", icon: BookOpen, end: false },
   { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ];
 
