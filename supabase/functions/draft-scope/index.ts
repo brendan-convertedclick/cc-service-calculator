@@ -2,14 +2,15 @@
 //
 // Request:  POST { brief_id: string; nudge?: string }
 // Response: 200 { scope: { enhanced_prose, in_scope_md, out_of_scope_md, open_questions_md } }
-//
-// Loads the brief + client, calls Anthropic for a structured JSON draft,
-// upserts the scopes row with ai_drafted=true, returns the draft.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { callAnthropic } from "../_shared/anthropic.ts";
+import { loadClientWikiContext } from "../_shared/wiki-context.ts";
+
+const WIKI_REPO = Deno.env.get("WIKI_GITHUB_REPO") ?? "";
+const WIKI_PAT  = Deno.env.get("WIKI_GITHUB_PAT")  ?? "";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -23,11 +24,31 @@ Deno.serve(async (req: Request) => {
 
     const [{ data: settings }, { data: brief, error: bErr }] = await Promise.all([
       supabase.from("settings").select("anthropic_model").eq("id", 1).single(),
-      supabase.from("briefs").select("*, client:clients(name)").eq("id", brief_id).single(),
+      supabase
+        .from("briefs")
+        .select("*, client:clients(id, name, wiki_path)")
+        .eq("id", brief_id)
+        .single(),
     ]);
     if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
 
     const model = settings?.anthropic_model ?? "claude-sonnet-4-6";
+    const client = (brief as { client?: { id: string; name: string; wiki_path: string | null } | null }).client;
+
+    // Best-effort wiki context — never fails the brief if unavailable
+    let wikiContext = "";
+    if (client?.wiki_path && WIKI_REPO && WIKI_PAT) {
+      try {
+        wikiContext = await loadClientWikiContext({
+          clientName: client.name,
+          wikiPath: client.wiki_path,
+          repo: WIKI_REPO,
+          pat: WIKI_PAT,
+        });
+      } catch (err) {
+        console.warn(`[draft-scope] wiki context failed: ${err}`);
+      }
+    }
 
     const system = [
       "You are a digital agency scoping analyst at Converted Click.",
@@ -40,20 +61,23 @@ Deno.serve(async (req: Request) => {
       "Do not invent services or commitments.",
     ].join("\n");
 
-    const clientName = (brief as { client?: { name: string } | null }).client?.name;
-    const user = [
+    const clientName = client?.name;
+    const userParts = [
       clientName ? `Client: ${clientName}` : null,
       `Subject: ${brief.raw_subject ?? "(none)"}`,
       "",
       "Body:",
       brief.raw_body,
       nudge ? `\n\nAdditional guidance from staff: ${nudge}` : null,
-    ].filter(Boolean).join("\n");
+      wikiContext ? `\n\n${wikiContext}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const body = await callAnthropic({
       model,
       system,
-      messages: [{ role: "user", content: user }],
+      messages: [{ role: "user", content: userParts }],
       maxTokens: 2048,
       cacheSystem: true,
     });
@@ -73,7 +97,13 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from("scopes")
       .upsert(
-        { brief_id, ...scope, ai_drafted: true, updated_at: new Date().toISOString() },
+        {
+          brief_id,
+          ...scope,
+          ai_drafted: true,
+          ai_context_snapshot: wikiContext || null,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: "brief_id" },
       );
 
