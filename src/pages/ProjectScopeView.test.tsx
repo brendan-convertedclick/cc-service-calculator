@@ -84,9 +84,9 @@ describe("ProjectScopeView", () => {
     expect(screen.getByRole("link", { name: "ACME" })).toBeInTheDocument();
   });
 
-  it("renders Activity tab selected by default", () => {
+  it("renders Inbox tab selected by default", () => {
     render(<ProjectScopeView />, { wrapper: Wrapper });
-    expect(screen.getByRole("tab", { name: /Activity/i })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /Inbox/i })).toHaveAttribute(
       "aria-selected",
       "true"
     );
