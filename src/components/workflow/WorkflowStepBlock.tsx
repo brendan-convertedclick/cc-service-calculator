@@ -85,7 +85,9 @@ export function WorkflowStepBlock({ step }: Props) {
       {step.status === 'in_progress' && (
         <p className="text-[11px] text-indigo-300 font-semibold mt-1">
           {step.actual_hours.toFixed(1)}h…
-          <span className="text-[9px] opacity-70 ml-0.5">/ {step.estimated_hours ?? '?'}h</span>
+          {step.estimated_hours && (
+            <span className="text-[9px] opacity-70 ml-0.5">/ {step.estimated_hours}h</span>
+          )}
         </p>
       )}
       {isPending && step.estimated_hours && (

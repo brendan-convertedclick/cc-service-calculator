@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -34,7 +35,7 @@ export function WorkflowTimeline({ projectId, projectName }: Props) {
     setSyncing(true)
     try {
       await supabase.functions.invoke('sync-clickup-actuals', {
-        body: { projectId },
+        body: { project_id: projectId },
       })
       qc.invalidateQueries({ queryKey: ['workflow-steps', projectId] })
       qc.invalidateQueries({ queryKey: ['workflow-handoffs', projectId] })
@@ -53,9 +54,9 @@ export function WorkflowTimeline({ projectId, projectName }: Props) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         No process steps defined for the services in this project.{' '}
-        <a href="/services" className="text-indigo-400 underline">
+        <Link to="/services" className="text-indigo-400 underline">
           Add steps to services
-        </a>{' '}
+        </Link>{' '}
         to enable workflow tracking.
       </div>
     )

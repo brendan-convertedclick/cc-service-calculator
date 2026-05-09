@@ -34,7 +34,8 @@ create trigger trg_step_instances_touch
   for each row execute function public.tg_touch_updated_at();
 
 -- View: handoff time between consecutive steps
-create view process_step_handoffs as
+-- security_invoker ensures RLS on process_step_instances is enforced for the querying user
+create view process_step_handoffs with (security_invoker = true) as
 select
   a.project_id,
   a.id                                                                              as from_step_id,
