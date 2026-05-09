@@ -6,10 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefList } from "@/components/BriefList";
 import { BriefConversation } from "@/components/BriefConversation";
 import { InboxFilterPanel } from "@/components/InboxFilterPanel";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { useBrief } from "@/hooks/useBriefs";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
 import type { BriefScope, BriefFilterOptions } from "@/hooks/useBriefs";
+import type { ClaudePrompt } from "@/types/claude";
+
+const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
 const SCOPES: BriefScope[] = ["mine", "unassigned", "waiting", "all"];
 
@@ -66,6 +71,28 @@ export function Inbox() {
     : activeClientId !== undefined && filterTree
     ? filterTree.clients.find((c) => c.id === activeClientId)?.name
     : undefined;
+
+  const inboxPrompts: ClaudePrompt[] = selectedBrief
+    ? [
+        {
+          id: "brief-from-email",
+          label: "Brief from email",
+          build: () => `${ROLE}
+
+Context:
+Subject: ${selectedBrief.raw_subject ?? "(no subject)"}
+From: ${selectedBrief.sender_email ?? "(unknown)"}
+Notes: ${selectedBrief.am_notes ?? "(none)"}
+Brief ID: ${selectedBrief.id}
+
+${MCP_NOTE}
+
+Action: Run /intake or /brief using the email thread above as context. Look up the client via find-client using the sender email or client name. Create or update a brief in cc-service-calculator with the relevant context, classify the intent, and generate a scope or draft reply as appropriate.
+
+Output: Confirmation of brief created or updated, with intent classification and any generated scope lines or draft reply.`,
+        },
+      ]
+    : [];
 
   return (
     <div className="flex h-full">
@@ -127,6 +154,12 @@ export function Inbox() {
           />
         )}
       </div>
+
+      {selectedBrief && (
+        <aside className="w-[200px] shrink-0 border-l border-m-outline-variant bg-m-surface overflow-y-auto">
+          <ClaudePromptPanel prompts={inboxPrompts} />
+        </aside>
+      )}
     </div>
   );
 }
