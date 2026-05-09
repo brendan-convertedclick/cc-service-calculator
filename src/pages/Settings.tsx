@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SOWLevelsManager } from "@/components/sow/SOWLevelsManager";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -291,6 +292,42 @@ export function Settings() {
           <Button asChild>
             <Link to="/settings/gmail">Connect Gmail →</Link>
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SOW Clause Hierarchy</CardTitle>
+          <CardDescription>
+            Define the priority order for scope-of-work clause inheritance. Higher levels override lower ones.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SOWLevelsManager />
+          <div className="pt-2 border-t border-white/10">
+            <p className="text-xs text-muted-foreground mb-2">Edit clause values per service family:</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                'paid-media-management',
+                'creative-production',
+                'website-build',
+                'seo-content',
+                'website-hosting-maintenance',
+                'social-media-management',
+                'analytics-tracking',
+                'video-3d-production',
+                'marketing-automation',
+              ].map(slug => (
+                <Link
+                  key={slug}
+                  to={`/sow/${slug}`}
+                  className="text-xs text-indigo-400 underline hover:text-indigo-300 transition-colors"
+                >
+                  {slug}
+                </Link>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

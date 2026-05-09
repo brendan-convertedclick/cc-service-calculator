@@ -65,6 +65,7 @@ const ProjectScopeView = lazy(() =>
 const ReconciliationView = lazy(() =>
   import("@/pages/ReconciliationView").then((m) => ({ default: m.ReconciliationView })),
 );
+const SOWFamilyPage = lazy(() => import("@/pages/SOWFamilyPage"));
 
 function RouteFallback() {
   return (
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
+              <Route path="sow/:familySlug" element={<SOWFamilyPage />} />
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
