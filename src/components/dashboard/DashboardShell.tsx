@@ -3,6 +3,8 @@ import { useClientProjects } from "@/hooks/useClientProjects";
 import { useOpsOverview } from "@/hooks/useOpsOverview";
 import { useHiddenProjects } from "@/hooks/useHiddenProjects";
 import { useMonthlyHoursBurned } from "@/hooks/useMonthlyHoursBurned";
+import { useDeliveryRate } from "@/hooks/useDeliveryRate";
+import { useAvgDftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useLastBriefActivity } from "@/hooks/useLastBriefActivity";
 import { IconRail } from "@/components/nav/IconRail";
 import { NavOverlay } from "@/components/nav/NavOverlay";
@@ -15,6 +17,8 @@ export function DashboardShell() {
   const opsData = useOpsOverview(clientsData);
   const { hiddenIds, hide } = useHiddenProjects();
   const monthlyHours = useMonthlyHoursBurned();
+  const deliveryRate = useDeliveryRate();
+  const dftCycleTime = useAvgDftCycleTime();
   const lastBriefActivity = useLastBriefActivity();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
@@ -63,7 +67,13 @@ export function DashboardShell() {
             onComplete={handleComplete}
           />
         ) : (
-          <OpsOverview opsData={opsData} onSelect={handleSelect} monthlyHours={monthlyHours} />
+          <OpsOverview
+            opsData={opsData}
+            onSelect={handleSelect}
+            monthlyHours={monthlyHours}
+            deliveryRate={deliveryRate}
+            dftCycleTime={dftCycleTime}
+          />
         )}
       </main>
 

@@ -604,7 +604,9 @@ export type Database = {
           client_id: string | null
           completed_at: string | null
           created_at: string
+          due_date: string | null
           engagement_type: string
+          first_delivery_at: string | null
           git_remote_url: string | null
           id: string
           is_recurring: boolean
@@ -628,7 +630,9 @@ export type Database = {
           client_id?: string | null
           completed_at?: string | null
           created_at?: string
+          due_date?: string | null
           engagement_type?: string
+          first_delivery_at?: string | null
           git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
@@ -652,7 +656,9 @@ export type Database = {
           client_id?: string | null
           completed_at?: string | null
           created_at?: string
+          due_date?: string | null
           engagement_type?: string
+          first_delivery_at?: string | null
           git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
@@ -1455,6 +1461,7 @@ export type Database = {
         Row: {
           actual_hours: number | null
           clickup_task_id: string | null
+          cost_cents: number | null
           dept_id: string | null
           id: string | null
           planned_hours: number | null

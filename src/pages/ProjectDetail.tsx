@@ -49,6 +49,7 @@ export function ProjectDetail() {
   });
 
   const [remoteDraft, setRemoteDraft] = useState("");
+  const [dueDateDraft, setDueDateDraft] = useState("");
 
   useEffect(() => {
     if (data?.project) {
@@ -59,6 +60,10 @@ export function ProjectDetail() {
         recurrence_end: data.project.recurrence_end ?? "",
       });
       setRemoteDraft(data.project.git_remote_url ?? "");
+      // due_date is a timestamptz — strip to YYYY-MM-DD for <input type="date">
+      setDueDateDraft(
+        data.project.due_date ? data.project.due_date.slice(0, 10) : "",
+      );
     }
   }, [data?.project?.id]);
 
@@ -111,6 +116,22 @@ export function ProjectDetail() {
       { id, patch: { git_remote_url: remoteDraft.trim() || null } },
       {
         onSuccess: () => toast.success("Git remote saved"),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  }
+
+  function saveDueDate() {
+    if (!id) return;
+    updateProject.mutate(
+      {
+        id,
+        patch: {
+          due_date: dueDateDraft ? new Date(dueDateDraft).toISOString() : null,
+        },
+      },
+      {
+        onSuccess: () => toast.success("Due date saved"),
         onError: (e: Error) => toast.error(e.message),
       },
     );
@@ -201,6 +222,31 @@ export function ProjectDetail() {
             <p className="mt-1 text-xs text-muted-foreground">
               Paste into a file named <code>.cc-project</code> at the repo root and commit it
               — the binding is a property of the codebase.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Due date</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <Label>Project due date</Label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={dueDateDraft}
+                onChange={(e) => setDueDateDraft(e.target.value)}
+              />
+              <Button size="sm" onClick={saveDueDate} disabled={updateProject.isPending}>
+                <Save className="h-4 w-4" />
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Used for on-time delivery tracking in the ops overview.
             </p>
           </div>
         </CardContent>

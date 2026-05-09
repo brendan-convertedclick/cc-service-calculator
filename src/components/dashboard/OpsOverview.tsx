@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
+import type { DeliveryRate } from "@/hooks/useDeliveryRate";
+import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
 
 const scopeStatusColor: Record<string, string> = {
   on_track: "bg-green-100 text-green-800",
@@ -47,9 +49,11 @@ interface Props {
   opsData: OpsOverviewData;
   onSelect: (id: string) => void;
   monthlyHours: number | null;
+  deliveryRate: DeliveryRate | null;
+  dftCycleTime: DftCycleTime | null;
 }
 
-export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
+export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dftCycleTime }: Props) {
   const today = new Date().toLocaleDateString("en-ZA", {
     weekday: "long",
     year: "numeric",
@@ -69,7 +73,7 @@ export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
       </div>
 
       {/* Health cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-lg border border-green-200 bg-green-50 p-4">
           <div className="text-display-small text-green-800">{opsData.onTrackCount}</div>
           <div className="mt-1 text-label-small font-semibold text-green-700">On track</div>
@@ -89,6 +93,71 @@ export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
           <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
             Burned this month
           </div>
+        </div>
+
+        {/* On-time delivery card */}
+        {(() => {
+          const rate = deliveryRate;
+          const ragColor =
+            rate === null || rate.total === 0
+              ? "border-m-outline-variant bg-m-surface-container"
+              : rate.rate >= 90
+                ? "border-green-200 bg-green-50"
+                : rate.rate >= 70
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-red-200 bg-red-50";
+          const textColor =
+            rate === null || rate.total === 0
+              ? "text-m-on-surface"
+              : rate.rate >= 90
+                ? "text-green-800"
+                : rate.rate >= 70
+                  ? "text-amber-800"
+                  : "text-red-800";
+          const labelColor =
+            rate === null || rate.total === 0
+              ? "text-m-on-surface-variant"
+              : rate.rate >= 90
+                ? "text-green-700"
+                : rate.rate >= 70
+                  ? "text-amber-700"
+                  : "text-red-700";
+          return (
+            <div className={cn("rounded-lg border p-4", ragColor)}>
+              <div className={cn("text-display-small", textColor)}>
+                {rate === null || rate.total === 0 ? "—" : `${rate.rate}%`}
+              </div>
+              <div className={cn("mt-1 text-label-small font-semibold", labelColor)}>
+                On-time delivery
+              </div>
+              {rate !== null && rate.total > 0 && (
+                <div className="mt-0.5 text-label-small text-m-on-surface-variant">
+                  {rate.onTime}/{rate.total} this month
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Avg brief→DFT cycle time card */}
+        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
+          <div className="text-display-small text-m-on-surface">
+            {dftCycleTime === null || dftCycleTime.avgDays === null
+              ? "—"
+              : `${dftCycleTime.avgDays}d`}
+          </div>
+          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
+            Avg brief→DFT
+          </div>
+          {dftCycleTime !== null && dftCycleTime.avgDays !== null ? (
+            <div className="mt-0.5 text-label-small text-m-on-surface-variant">
+              ({dftCycleTime.sampleSize} project{dftCycleTime.sampleSize !== 1 ? "s" : ""})
+            </div>
+          ) : (
+            <div className="mt-0.5 text-label-small text-m-on-surface-variant">
+              Baseline: no data yet
+            </div>
+          )}
         </div>
       </div>
 

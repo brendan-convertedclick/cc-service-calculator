@@ -60,10 +60,28 @@ export function QuoteSend() {
   };
 
   const markSent = async () => {
+    const now = new Date().toISOString();
     await update.mutateAsync({
       id: q.id,
-      patch: { status: "sent", sent_at: new Date().toISOString() },
+      patch: { status: "sent", sent_at: now },
     });
+
+    // Set first_delivery_at on the linked project if not already set
+    const projectId = scope?.brief?.parent_project_id;
+    if (projectId) {
+      const { data: proj } = await supabase
+        .from("projects")
+        .select("first_delivery_at")
+        .eq("id", projectId)
+        .single();
+      if (proj && proj.first_delivery_at == null) {
+        await supabase
+          .from("projects")
+          .update({ first_delivery_at: now })
+          .eq("id", projectId);
+      }
+    }
+
     toast.success("Marked sent");
     navigate(`/quotes/${q.id}`);
   };

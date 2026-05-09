@@ -110,6 +110,16 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
           <div className="mt-0.5 text-label-small text-m-on-surface-variant">
             {clientName} · {project.engagement_type ?? "fixed"} · Started{" "}
             {new Date(project.started_at).toLocaleDateString("en-ZA")}
+            {project.due_date && (
+              <span className="ml-2 text-m-on-surface-variant">
+                · Due:{" "}
+                {new Date(project.due_date).toLocaleDateString("en-ZA", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            )}
           </div>
         </div>
 
