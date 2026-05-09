@@ -7,12 +7,14 @@ import { useRules } from "@/hooks/useRules";
 import { useTeam } from "@/hooks/useTeam";
 import { ProcessFlow } from "@/components/ProcessFlow";
 import { IncludedServices } from "@/components/IncludedServices";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { formatZar } from "@/lib/utils";
+import type { ClaudePrompt } from "@/types/claude";
 
 interface Props {
   mode: "new" | "edit";
@@ -111,7 +113,37 @@ export function ServiceDetail({ mode }: Props) {
     }
   }
 
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+
+  const servicePrompts: ClaudePrompt[] = mode === "edit" && form.name
+    ? [
+        {
+          id: "process-steps",
+          label: "Process steps",
+          build: () => `${ROLE}
+
+Context:
+Service name: ${form.name}
+Pricing model: ${form.pricing_model}
+Unit of sale: ${form.unit_of_sale || "(not set)"}
+Scope definition: ${form.scope_definition || "(not set)"}
+Trigger to start: ${form.trigger_to_start || "(not set)"}
+Completion definition: ${form.completion_definition || "(not set)"}
+Default due days: ${form.default_due_days ?? "(not set)"}
+
+${MCP_NOTE}
+
+Action: Generate a numbered process step list (5–10 steps) for delivering this service. Each step should include: step number, action title, responsible role, estimated time, and done-when criteria. Steps should flow from client briefing through to delivery sign-off.
+
+Output: A numbered markdown list of process steps, suitable for pasting into the service record's process_steps field.`,
+        },
+      ]
+    : [];
+
   return (
+    <div className="flex h-full">
+      <div className="min-w-0 flex-1 overflow-auto">
     <div className="container mx-auto max-w-5xl p-6">
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link to="/services"><ArrowLeft className="h-4 w-4" /> Services</Link>
@@ -301,6 +333,11 @@ export function ServiceDetail({ mode }: Props) {
           )}
         </div>
       </div>
+    </div>
+      </div>
+      <aside className="w-[200px] shrink-0 border-l border-m-outline-variant bg-m-surface">
+        <ClaudePromptPanel prompts={servicePrompts} />
+      </aside>
     </div>
   );
 }
