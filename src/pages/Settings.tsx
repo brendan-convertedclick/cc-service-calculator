@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useClickUpSpaces } from "@/hooks/useClients";
+import { useXeroConnectionStatus } from "@/hooks/useClientMargin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,12 +19,50 @@ export function Settings() {
   const { data: s, isLoading } = useSettings();
   const update = useUpdateSettings();
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [workspaceId, setWorkspaceId] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const xeroStatus = useXeroConnectionStatus();
+
+  // Show toast if redirected back from Xero OAuth
+  const xeroParam = searchParams.get("xero");
+  if (xeroParam === "connected") {
+    toast.success("Xero connected successfully!");
+  }
 
   if (isLoading || !s) return <div className="p-6">Loading…</div>;
 
-  const xeroConnectUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-oauth?action=connect`;
+  const xeroConnectUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-oauth?action=start`;
+
+  const handleXeroSync = async () => {
+    setSyncing(true);
+    try {
+      const { data: sessionData } = await (await import("@/lib/supabase")).supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? "";
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-sync`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        },
+      );
+      const body = await res.json() as { synced?: number; message?: string; error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Sync failed");
+      toast.success(body.message ?? `Synced ${body.synced} invoice(s)`);
+      await qc.invalidateQueries({ queryKey: ["xeroConnectionStatus"] });
+      await qc.invalidateQueries({ queryKey: ["xeroHasInvoices"] });
+      await qc.invalidateQueries({ queryKey: ["clientMargin"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleXeroDisconnect = async () => {
     setDisconnecting(true);
@@ -172,35 +211,59 @@ export function Settings() {
         <CardHeader>
           <CardTitle>Xero</CardTitle>
           <CardDescription>
-            Connect Xero to push quotes directly from the Quote Send page.
+            Connect Xero to push quotes and sync invoices for margin tracking.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {s.xero_enabled && s.xero_oauth_tokens ? (
+          {(s.xero_enabled && s.xero_oauth_tokens) || xeroStatus.data?.connected ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
                   Connected
                 </span>
-                {(s.xero_oauth_tokens as { xero_userid?: string; preferred_username?: string })
-                  ?.preferred_username && (
+                {xeroStatus.data?.tenantName && (
                   <span className="text-body-small text-m-on-surface-variant">
-                    {(s.xero_oauth_tokens as { preferred_username: string }).preferred_username}
+                    {xeroStatus.data.tenantName}
                   </span>
                 )}
+                {!xeroStatus.data?.tenantName &&
+                  (s.xero_oauth_tokens as { preferred_username?: string } | null)
+                    ?.preferred_username && (
+                    <span className="text-body-small text-m-on-surface-variant">
+                      {(s.xero_oauth_tokens as { preferred_username: string }).preferred_username}
+                    </span>
+                  )}
               </div>
+              {xeroStatus.data?.lastSyncedAt && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  Last synced:{" "}
+                  {new Date(xeroStatus.data.lastSyncedAt).toLocaleString("en-ZA", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </p>
+              )}
               <p className="text-label-small text-m-on-surface-variant">
                 OAuth tokens are stored securely. Client credentials (XERO_CLIENT_ID,
                 XERO_CLIENT_SECRET) must be set as Supabase Edge Function secrets.
               </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleXeroDisconnect}
-                disabled={disconnecting}
-              >
-                {disconnecting ? "Disconnecting…" : "Disconnect Xero"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleXeroSync}
+                  disabled={syncing}
+                >
+                  {syncing ? "Syncing…" : "Sync invoices"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleXeroDisconnect}
+                  disabled={disconnecting}
+                >
+                  {disconnecting ? "Disconnecting…" : "Disconnect Xero"}
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

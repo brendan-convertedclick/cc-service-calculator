@@ -110,6 +110,8 @@ export function Clients() {
                   <th className="py-2 pl-2">Primary domain</th>
                   <th className="py-2 pl-2">ClickUp folder</th>
                   <th className="py-2 pl-2">Wiki path</th>
+                  <th className="py-2 pl-2">Margin target</th>
+                  <th className="py-2 pl-2">Xero Contact ID</th>
                   <th className="py-2 pl-2">Status</th>
                   <th className="py-2"></th>
                 </tr>
@@ -216,6 +218,34 @@ function ClientRow({
           }}
         />
       </td>
+      <td className="py-3 pl-2 pr-2 w-28">
+        <Input
+          type="number"
+          min="0"
+          max="100"
+          step="0.5"
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          defaultValue={(c as any).margin_target_pct ?? 40}
+          onBlur={(e) => {
+            const v = parseFloat(e.target.value);
+            if (!isNaN(v)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              update.mutate({ id: c.id, patch: { margin_target_pct: v as any } });
+            }
+          }}
+        />
+      </td>
+      <td className="py-3 pl-2 pr-2 w-48">
+        <Input
+          defaultValue={c.xero_contact_id ?? ""}
+          placeholder="Xero UUID"
+          onBlur={(e) => {
+            const v = e.target.value.trim() || null;
+            if (v !== c.xero_contact_id)
+              update.mutate({ id: c.id, patch: { xero_contact_id: v } });
+          }}
+        />
+      </td>
       <td className="py-3 pl-2 text-xs text-muted-foreground">
         {c.clickup_folder_id
           ? `✓ Linked${folderNameById.get(c.clickup_folder_id) ? ` to ${folderNameById.get(c.clickup_folder_id)}` : ""}`
@@ -253,6 +283,8 @@ function NewClientDialog({
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [folderId, setFolderId] = useState<string>(UNLINKED);
+  const [xeroContactId, setXeroContactId] = useState("");
+  const [marginTarget, setMarginTarget] = useState("40");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -289,6 +321,25 @@ function NewClientDialog({
               />
             </div>
           )}
+          <div className="space-y-2">
+            <Label>Margin target (%)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={marginTarget}
+              onChange={(e) => setMarginTarget(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Xero Contact ID (optional)</Label>
+            <Input
+              value={xeroContactId}
+              onChange={(e) => setXeroContactId(e.target.value)}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            />
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
@@ -298,17 +349,23 @@ function NewClientDialog({
             onClick={() => {
               const trimmed = name.trim();
               if (!trimmed) return toast.error("Name required");
+              const marginNum = parseFloat(marginTarget);
               create.mutate(
                 {
                   name: trimmed,
                   primary_domain: domain.trim() || null,
                   clickup_folder_id: folderId === UNLINKED ? null : folderId,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  margin_target_pct: (!isNaN(marginNum) ? marginNum : 40) as any,
+                  xero_contact_id: xeroContactId.trim() || null,
                 },
                 {
                   onSuccess: () => {
                     setName("");
                     setDomain("");
                     setFolderId(UNLINKED);
+                    setXeroContactId("");
+                    setMarginTarget("40");
                     setOpen(false);
                     toast.success(`Created ${trimmed}`);
                   },

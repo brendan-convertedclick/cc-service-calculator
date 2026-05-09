@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
+import { useClientMargin } from "@/hooks/useClientMargin";
 
 const scopeStatusColor: Record<string, string> = {
   on_track: "bg-green-100 text-green-800",
@@ -47,6 +48,128 @@ interface Props {
   opsData: OpsOverviewData;
   onSelect: (id: string) => void;
   monthlyHours: number | null;
+}
+
+const zarFormat = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
+function fmtZAR(cents: number) {
+  return zarFormat.format(cents / 100);
+}
+
+const ragDot: Record<string, string> = {
+  green: "bg-green-500",
+  amber: "bg-amber-400",
+  red: "bg-red-500",
+};
+
+function MarginSection() {
+  const { data: marginRows, isLoading, connectionStatus, hasInvoices } = useClientMargin();
+
+  if (isLoading) {
+    return <p className="text-body-small text-m-on-surface-variant">Loading margin data…</p>;
+  }
+
+  if (!connectionStatus?.connected) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
+        <div className="flex-1">
+          <p className="text-body-small text-m-on-surface">Xero not connected</p>
+          <p className="text-label-small text-m-on-surface-variant">
+            Connect Xero to see client margin data.
+          </p>
+        </div>
+        <a
+          href="/settings?connect=xero"
+          className="shrink-0 rounded-full bg-m-primary px-4 py-1.5 text-label-medium font-semibold text-m-on-primary transition-colors hover:opacity-90"
+        >
+          Connect Xero
+        </a>
+      </div>
+    );
+  }
+
+  if (!hasInvoices) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
+        <p className="text-body-small text-m-on-surface-variant">
+          No invoices synced yet — run sync from{" "}
+          <a href="/settings" className="underline">
+            Settings
+          </a>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  if (!marginRows || marginRows.length === 0) {
+    return (
+      <p className="text-body-small text-m-on-surface-variant">
+        No margin data for the last 30 days.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-m-outline-variant">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-m-outline-variant bg-m-surface-container">
+            <th className="px-4 py-2.5 text-left text-label-small font-semibold text-m-on-surface-variant uppercase tracking-wide">
+              Client
+            </th>
+            <th className="px-4 py-2.5 text-right text-label-small font-semibold text-m-on-surface-variant uppercase tracking-wide">
+              Revenue
+            </th>
+            <th className="px-4 py-2.5 text-right text-label-small font-semibold text-m-on-surface-variant uppercase tracking-wide">
+              Cost
+            </th>
+            <th className="px-4 py-2.5 text-right text-label-small font-semibold text-m-on-surface-variant uppercase tracking-wide">
+              Margin %
+            </th>
+            <th className="px-4 py-2.5 text-right text-label-small font-semibold text-m-on-surface-variant uppercase tracking-wide">
+              vs Target
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {marginRows.map((row) => (
+            <tr
+              key={row.clientId}
+              className="border-b border-m-outline-variant last:border-0 hover:bg-m-surface-container"
+            >
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      ragDot[row.rag] ?? "bg-gray-400",
+                    )}
+                  />
+                  <span className="text-body-small font-medium text-m-on-surface">
+                    {row.clientName}
+                  </span>
+                </div>
+              </td>
+              <td className="px-4 py-3 text-right text-body-small text-m-on-surface">
+                {fmtZAR(row.revenueCents)}
+              </td>
+              <td className="px-4 py-3 text-right text-body-small text-m-on-surface">
+                {fmtZAR(row.costCents)}
+              </td>
+              <td className="px-4 py-3 text-right text-body-small font-medium text-m-on-surface">
+                {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "—"}
+              </td>
+              <td className="px-4 py-3 text-right text-body-small text-m-on-surface-variant">
+                {row.marginPct !== null
+                  ? `${row.marginPct - row.targetPct >= 0 ? "+" : ""}${(row.marginPct - row.targetPct).toFixed(1)}pp`
+                  : `target ${row.targetPct}%`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
@@ -128,6 +251,14 @@ export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
           </p>
         </div>
       )}
+
+      {/* Margin summary */}
+      <section>
+        <h2 className="mb-3 text-label-large font-bold uppercase tracking-wide text-m-on-surface-variant">
+          Client margin — rolling 30 days
+        </h2>
+        <MarginSection />
+      </section>
     </div>
   );
 }
