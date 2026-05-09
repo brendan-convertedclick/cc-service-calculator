@@ -19,7 +19,7 @@
       ],
       "env": {
         "SUPABASE_URL": "https://lpgwxacoqiqpcfpkklib.supabase.co",
-        "SUPABASE_SERVICE_ROLE_KEY": "REDACTED_SERVICE_ROLE_KEY"
+        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY_CC_CALCULATOR}"
       }
     }
   }
