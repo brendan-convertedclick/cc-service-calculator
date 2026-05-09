@@ -59,21 +59,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      // First check: is there ANY team_members row for this email (active or archived)?
+      const { data: anyRow } = await supabase
         .from("team_members")
-        .select("id")
+        .select("id, archived_at")
         .eq("email", email)
-        .is("archived_at", null)
         .maybeSingle();
 
       if (cancelled) return;
 
-      if (data) {
-        setCurrentUserId(data.id);
+      if (anyRow) {
+        // Active member → resolve their id; archived member → null (don't re-provision)
+        setCurrentUserId(anyRow.archived_at === null ? anyRow.id : null);
         return;
       }
 
-      // Auto-provision: only for real company accounts, not the shared login
+      // No row at all — auto-provision for real company accounts only
       if (email.endsWith('@convertedclick.co.za') && email !== 'team@convertedclick.co.za') {
         const fullName =
           session?.user?.user_metadata?.full_name ??
@@ -98,7 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     domainError,
     currentUserId,
-    signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    signIn: (email, password) => {
+      setDomainError(false);
+      return supabase.auth.signInWithPassword({ email, password });
+    },
     signInWithGoogle: () => {
       setDomainError(false);
       return supabase.auth.signInWithOAuth({
