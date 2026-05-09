@@ -99,14 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     domainError,
     currentUserId,
     signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
-    signInWithGoogle: () =>
-      supabase.auth.signInWithOAuth({
+    signInWithGoogle: () => {
+      setDomainError(false);
+      return supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
           queryParams: { hd: 'convertedclick.co.za' },
         },
-      }),
+      });
+    },
     signOut: () => supabase.auth.signOut(),
   };
 
