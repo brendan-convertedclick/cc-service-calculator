@@ -103,6 +103,33 @@ This replaces hand-edits made during the rebuild for tables (`master_sows`, `quo
   - `SUPABASE_SERVICE_ROLE_KEY=<service-role-key>` (NOT the anon key)
 - Migration 0020 self-seeds with current content, so this is only needed when SOW templates change.
 
+## Google OAuth setup (HIGH)
+
+Required before individual Google sign-in works in a real browser. The code is already merged — this is dashboard-only configuration.
+
+### 1. Create Google Cloud OAuth credentials
+
+In [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID:
+- Application type: **Web application**
+- Authorised redirect URI: `https://lpgwxacoqiqpcfpkklib.supabase.co/auth/v1/callback`
+
+Copy the **Client ID** and **Client Secret**.
+
+### 2. Enable Google provider in Supabase
+
+In Supabase dashboard → Authentication → Providers → Google:
+- Toggle **Enabled**
+- Paste the Client ID and Client Secret from step 1
+- Save
+
+### 3. Add redirect URLs
+
+In Supabase dashboard → Authentication → URL Configuration → Redirect URLs, add:
+- `http://localhost:5174`
+- Production URL (when available)
+
+---
+
 ## Items deferred from the original plan (LOW)
 
 These were part of the original plan but consciously deferred during execution. Track or schedule as needed.
