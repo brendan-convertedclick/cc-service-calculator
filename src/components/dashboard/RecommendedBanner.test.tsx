@@ -68,6 +68,22 @@ describe("RecommendedBanner", () => {
     expect(screen.getByText(/Quote not yet accepted/)).toBeInTheDocument();
   });
 
+  it("shows no-brief-activity warning when latest brief is 14+ days old", () => {
+    const oldBriefTimestamp = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const events = [
+      { type: "brief", id: "b1", timestamp: oldBriefTimestamp, brief: {} },
+    ] as any;
+    wrap(
+      <RecommendedBanner
+        project={baseProject}
+        actuals={baseActuals}
+        events={events}
+        onDismiss={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/No brief activity in/)).toBeInTheDocument();
+  });
+
   it("calls onDismiss when × button is clicked", () => {
     const onDismiss = vi.fn();
     const actuals = [{ actual_hours: 85, planned_hours: 100, dept_id: "d1", id: "a1" } as any];
