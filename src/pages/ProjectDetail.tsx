@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BurnChart } from "@/components/BurnChart";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useDepartments } from "@/hooks/useDepartments";
 import type { Database } from "@/types/db";
+import type { ClaudePrompt } from "@/types/claude";
 
 type RecurrenceInterval = Database["public"]["Enums"]["recurrence_interval"];
 
@@ -148,6 +150,61 @@ export function ProjectDetail() {
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     toast.success(".cc-project copied — paste into a file at repo root");
   }
+
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+
+  const engagementType = project.engagement_type ?? "fixed";
+  const isRetainer = engagementType === "retainer";
+
+  const actualsSummary = rows
+    .map((r) => `  ${r.dept_name}: ${r.actual}h actual / ${r.planned}h planned`)
+    .join("\n");
+
+  const projectPrompts: ClaudePrompt[] = [
+    ...(isRetainer
+      ? [
+          {
+            id: "retainer-review",
+            label: "Retainer review",
+            build: () => `${ROLE}
+
+Context:
+Project ID: ${project.id}
+Engagement type: retainer
+Retainer hours/month: ${project.retainer_hours_target ?? "(not set)"}
+Monthly fee: ${project.retainer_monthly_fee_cents != null ? `R${(project.retainer_monthly_fee_cents / 100).toFixed(2)}` : "(not set)"}
+Hours used this period: ${totalActual}h of ${totalPlanned}h planned
+By department:
+${actualsSummary || "  (no actuals)"}
+
+${MCP_NOTE}
+
+Action: Produce a retainer health summary and renewal recommendation. Cover: hours pacing (on track / over / under), value delivered vs fee, and a recommended action (renew as-is, adjust hours, or flag for discussion). Keep it under 200 words.
+
+Output: A short markdown report with sections: Pacing, Value Assessment, Recommendation.`,
+          } as ClaudePrompt,
+        ]
+      : []),
+    {
+      id: "invoice-line-items",
+      label: "Invoice line items",
+      build: () => `${ROLE}
+
+Context:
+Project ID: ${project.id}
+Engagement type: ${engagementType}
+Hours delivered this period: ${totalActual}h
+By department:
+${actualsSummary || "  (no actuals)"}
+
+${MCP_NOTE}
+
+Action: Format the hours above as Xero-ready invoice line item descriptions. For each department with actual hours > 0, produce: description (department + service type + period), quantity (hours), and amount note. Use professional billing language.
+
+Output: A markdown table with columns: Department | Description | Hours | Notes.`,
+    },
+  ];
 
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-4">
@@ -311,6 +368,10 @@ export function ProjectDetail() {
           <BurnChart rows={rows} />
         </CardContent>
       </Card>
+
+      <div className="mt-4">
+        <ClaudePromptPanel prompts={projectPrompts} />
+      </div>
 
       <Card>
         <CardHeader>
