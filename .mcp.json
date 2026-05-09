@@ -12,9 +12,9 @@
       }
     },
     "cc-calculator": {
-      "command": "node",
-      "args": ["mcp-server/dist/index.js"],
-      "cwd": "/Users/brendangunn/Github/cc-service-calculator"
+      "command": "npm",
+      "args": ["run", "dev"],
+      "cwd": "/Users/brendangunn/Github/cc-service-calculator/mcp-server"
     }
   }
 }

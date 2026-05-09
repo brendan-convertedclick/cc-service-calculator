@@ -17,6 +17,23 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 
 Single shared login (V1 has no per-user roles). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
 
+## cc-calculator MCP server setup
+
+The repo ships a local MCP server at `mcp-server/` that exposes 7 agency tools (find-client, check-duplicate-brief, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief).
+
+**First-time setup (once per machine):**
+
+```sh
+cd mcp-server
+npm install
+cp .env.example .env
+# Edit .env — fill in SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+```
+
+The server runs via `npm run dev` (tsx, no build step needed). It is registered in `.mcp.json` as `cc-calculator` and starts automatically when Claude Code opens this repo.
+
+To call tools in agent sessions: use `mcp__cc-calculator__<tool-name>`.
+
 ## Supabase — use the project-scoped MCP server ONLY
 
 This repo ships a dedicated MCP server in `.mcp.json` named **`cc-supabase`**, pinned with `--project-ref=lpgwxacoqiqpcfpkklib`.
