@@ -65,6 +65,9 @@ const ProjectScopeView = lazy(() =>
 const ReconciliationView = lazy(() =>
   import("@/pages/ReconciliationView").then((m) => ({ default: m.ReconciliationView })),
 );
+const PulseView = lazy(() =>
+  import("@/pages/PulseView").then((m) => ({ default: m.PulseView })),
+);
 const SOWFamilyPage = lazy(() => import("@/pages/SOWFamilyPage"));
 
 function RouteFallback() {
@@ -107,6 +110,7 @@ export default function App() {
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />
+              <Route path="pulse" element={<PulseView />} />
               <Route path="reconciliation" element={<ReconciliationView />} />
               <Route path="guides" element={<Guides />} />
             </Route>

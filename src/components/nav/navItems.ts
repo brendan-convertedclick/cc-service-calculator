@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Users,
   Workflow,
+  Zap,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -26,6 +27,7 @@ export const navItems: NavItem[] = [
   { to: "/services", label: "Services", icon: PackageSearch, end: false },
   { to: "/clients", label: "Clients", icon: Building2, end: false },
   { to: "/projects", label: "Projects", icon: FolderKanban, end: false },
+  { to: "/pulse", label: "Pulse", icon: Zap, end: false },
   { to: "/reconciliation", label: "Reconciliation", icon: FileBarChart2, end: false },
   { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
   { to: "/departments", label: "Departments", icon: Workflow, end: false },
