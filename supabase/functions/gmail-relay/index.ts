@@ -69,7 +69,7 @@ function base64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(async (req: Request, ctx) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
@@ -123,6 +123,19 @@ Deno.serve(async (req: Request) => {
         .single();
       if (insertErr || !created) return json({ error: insertErr?.message ?? "Insert failed" }, 500);
       briefId = created.id;
+
+      // Fire-and-forget: auto-scope runs in background, relay returns immediately.
+      const autoScopeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-scope`;
+      ctx.waitUntil(
+        fetch(autoScopeUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ brief_id: briefId }),
+        }).catch((e) => console.error("[gmail-relay] auto-scope fire failed", e)),
+      );
     }
 
     // 3. For each message: skip if gmail_message_id already exists; else upload
