@@ -92,3 +92,89 @@ test.describe("Static routes — load without crash", () => {
   });
 
 });
+
+// ─── Dynamic routes — navigate from list ──────────────────────────────────────
+
+test.describe("Dynamic routes — click-through from list", () => {
+
+  test("/services/:id — Service detail via list click", async ({ page }) => {
+    const errors = await smokeCheck(page, "/services");
+    await expect(page.getByRole("heading", { name: "Services" })).toBeVisible();
+
+    // ServicesList renders <tr> rows inside a <table>
+    const rowCount = await page.locator("table tbody tr").count();
+    if (rowCount === 0) {
+      test.skip(true, "No services in DB — skipping detail page test");
+      return;
+    }
+
+    await page.locator("table tbody tr").first().click();
+    await page.waitForURL(/\/services\/.+/, { timeout: 10_000 });
+    // ServiceDetail h1 shows the service name — just assert any h1 is present
+    await expect(page.locator("h1")).toBeVisible();
+    expect(errors, "unexpected JS errors").toHaveLength(0);
+  });
+
+  test("/projects/:id — Project detail via list click", async ({ page }) => {
+    const errors = await smokeCheck(page, "/projects");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+
+    // Projects page renders Cards wrapped in <Link to="/projects/:id">
+    const cardCount = await page.locator("a[href^='/projects/']").count();
+    if (cardCount === 0) {
+      test.skip(true, "No projects in DB — skipping detail page test");
+      return;
+    }
+
+    await page.locator("a[href^='/projects/']").first().click();
+    await page.waitForURL(/\/projects\/.+/, { timeout: 10_000 });
+    await expect(page.locator("h1")).toBeVisible();
+    expect(errors, "unexpected JS errors").toHaveLength(0);
+  });
+
+  test("/inbox/:briefId — Brief conversation via list click", async ({ page }) => {
+    const errors = await smokeCheck(page, "/inbox");
+    await expect(page.getByRole("tab", { name: "Mine" })).toBeVisible();
+
+    // Switch to All tab to see every brief regardless of assignment
+    await page.getByRole("tab", { name: "All" }).click();
+
+    // BriefList renders <Link to="/inbox/:id"> for each brief
+    const linkCount = await page.locator("a[href^='/inbox/']").count();
+    if (linkCount === 0) {
+      test.skip(true, "No briefs in DB — skipping conversation test");
+      return;
+    }
+
+    await page.locator("a[href^='/inbox/']").first().click();
+    await page.waitForURL(/\/inbox\/.+/, { timeout: 10_000 });
+    // BriefConversation sheet opens — check for the dialog role
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(errors, "unexpected JS errors").toHaveLength(0);
+  });
+
+  test("/clients/:clientId/projects/:projectId — ProjectScopeView via sidebar", async ({ page }) => {
+    const errors = await smokeCheck(page, "/");
+
+    // The AppShell sidebar has ClientNavSection links to /clients/:id/projects/:id
+    const linkCount = await page
+      .locator("aside nav a[href*='/projects/']")
+      .count();
+
+    if (linkCount === 0) {
+      test.skip(true, "No client projects in sidebar — skipping ProjectScopeView test");
+      return;
+    }
+
+    await page.locator("aside nav a[href*='/projects/']").first().click();
+    await page.waitForURL(/\/clients\/.+\/projects\/.+/, { timeout: 10_000 });
+
+    // ProjectScopeView: Activity tab selected by default
+    await expect(page.getByRole("tab", { name: "Activity" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(errors, "unexpected JS errors").toHaveLength(0);
+  });
+
+});
