@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/hooks/useProjects";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { ActivityFeed } from "@/components/scope/ActivityFeed";
 import { StatusStrip } from "@/components/scope/StatusStrip";
+import { BriefConversation } from "@/components/BriefConversation";
+import type { Database } from "@/types/db";
+
+type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
 const scopeStatusColor: Record<string, string> = {
   on_track: "bg-green-100 text-green-800",
@@ -30,7 +35,10 @@ export function ProjectScopeView() {
     project?.quote_id ?? undefined
   );
 
-  const linkedBriefCount = events.filter((e) => e.type === "brief").length;
+  const [selectedBrief, setSelectedBrief] = useState<Brief | null>(null);
+
+  const briefEvents = events.filter((e) => e.type === "brief");
+  const linkedBriefCount = briefEvents.length;
   const quoteEvent = events.find((e) => e.type === "quote");
   const activeQuote = quoteEvent?.type === "quote" ? quoteEvent.quote : null;
   const engagementType = project?.engagement_type ?? projectMeta?.engagement_type ?? "fixed";
@@ -74,13 +82,105 @@ export function ProjectScopeView() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="activity" className="flex flex-1 flex-col overflow-hidden">
+        <Tabs defaultValue="inbox" className="flex flex-1 flex-col overflow-hidden">
           <TabsList className="shrink-0 justify-start rounded-none border-b border-m-outline-variant bg-m-surface px-6">
+            <TabsTrigger value="inbox">Inbox</TabsTrigger>
+            <TabsTrigger value="brief">Brief</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="quote">Quote / SOW</TabsTrigger>
             <TabsTrigger value="time">Time</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="inbox" className="flex-1 overflow-auto">
+            {activityLoading ? (
+              <div className="flex flex-col gap-4 p-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 animate-pulse rounded-lg bg-m-surface-container" />
+                ))}
+              </div>
+            ) : briefEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+                <p className="text-body-medium text-m-on-surface-variant">No messages yet</p>
+                <p className="text-label-small text-m-on-surface-variant">
+                  Emails linked to this project will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-m-outline-variant">
+                {briefEvents.map((e) => {
+                  if (e.type !== "brief") return null;
+                  const b = e.brief;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => setSelectedBrief(b)}
+                      className="flex items-start gap-3 px-6 py-4 text-left transition-colors hover:bg-m-surface-container"
+                    >
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-m-primary-container">
+                        <Mail className="h-3.5 w-3.5 text-m-on-primary-container" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-body-medium text-m-on-surface">
+                            {b.raw_subject ?? "(no subject)"}
+                          </span>
+                          {b.intent_type && (
+                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+                              {b.intent_type === "project_thread" ? "Project thread" : b.intent_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-label-small text-m-on-surface-variant">
+                          {b.sender_email} · {new Date(e.timestamp).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="brief" className="flex-1 overflow-auto">
+            {briefEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+                <p className="text-body-medium text-m-on-surface-variant">No briefs linked</p>
+                <p className="text-label-small text-m-on-surface-variant">
+                  Briefs assigned to this project will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-m-outline-variant">
+                {briefEvents.map((e) => {
+                  if (e.type !== "brief") return null;
+                  const b = e.brief;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => setSelectedBrief(b)}
+                      className="flex items-start gap-3 px-6 py-4 text-left transition-colors hover:bg-m-surface-container"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-body-medium text-m-on-surface">
+                          {b.raw_subject ?? "(no subject)"}
+                        </div>
+                        <div className="mt-0.5 text-label-small text-m-on-surface-variant">
+                          {b.sender_email} · {new Date(e.timestamp).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                        {b.am_notes && (
+                          <p className="mt-1 text-label-small text-m-on-surface-variant line-clamp-2">
+                            {b.am_notes}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-label-small text-m-on-surface-variant">Open →</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="activity" className="flex-1 overflow-auto">
             <ActivityFeed events={events} isLoading={activityLoading} />
@@ -106,6 +206,14 @@ export function ProjectScopeView() {
             </p>
           </TabsContent>
         </Tabs>
+
+        {selectedBrief && (
+          <BriefConversation
+            brief={selectedBrief}
+            open={!!selectedBrief}
+            onClose={() => setSelectedBrief(null)}
+          />
+        )}
       </div>
 
       {/* Right pane */}
