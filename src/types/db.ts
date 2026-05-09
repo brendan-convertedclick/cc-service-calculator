@@ -81,9 +81,11 @@ export type Database = {
           assignee_id: string | null
           client_id: string | null
           created_at: string
+          draft_reply: string | null
           gmail_thread_id: string | null
           gmail_thread_id_unique: string | null
           id: string
+          intent_type: string | null
           last_message_at: string | null
           message_count: number
           raw_attachments: Json | null
@@ -102,9 +104,11 @@ export type Database = {
           assignee_id?: string | null
           client_id?: string | null
           created_at?: string
+          draft_reply?: string | null
           gmail_thread_id?: string | null
           gmail_thread_id_unique?: string | null
           id?: string
+          intent_type?: string | null
           last_message_at?: string | null
           message_count?: number
           raw_attachments?: Json | null
@@ -123,9 +127,11 @@ export type Database = {
           assignee_id?: string | null
           client_id?: string | null
           created_at?: string
+          draft_reply?: string | null
           gmail_thread_id?: string | null
           gmail_thread_id_unique?: string | null
           id?: string
+          intent_type?: string | null
           last_message_at?: string | null
           message_count?: number
           raw_attachments?: Json | null
@@ -1012,6 +1018,7 @@ export type Database = {
           locked_by: string | null
           open_questions_md: string | null
           out_of_scope_md: string | null
+          scope_type: string | null
           updated_at: string
         }
         Insert: {
@@ -1026,6 +1033,7 @@ export type Database = {
           locked_by?: string | null
           open_questions_md?: string | null
           out_of_scope_md?: string | null
+          scope_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -1040,6 +1048,7 @@ export type Database = {
           locked_by?: string | null
           open_questions_md?: string | null
           out_of_scope_md?: string | null
+          scope_type?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1538,4 +1547,4 @@ export const Constants = {
     },
   },
 } as const
-<claude-code-hint v="1" type="plugin" value="supabase@claude-plugins-official" />
+

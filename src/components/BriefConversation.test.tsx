@@ -70,6 +70,8 @@ const brief: Brief = {
   triaged_by: null,
   triaged_at: null,
   rejection_reason: null,
+  draft_reply: null,
+  intent_type: null,
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };

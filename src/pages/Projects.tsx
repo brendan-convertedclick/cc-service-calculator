@@ -11,7 +11,11 @@ const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
 
 export function Projects() {
   const { data: projects = [] } = useProjects();
-  const { data: inFlight = [] } = useBriefs(IN_PROGRESS);
+  const { data: allBriefs = [] } = useBriefs("all");
+  const inFlight = useMemo(
+    () => allBriefs.filter((b) => IN_PROGRESS.includes(b.status as BriefStatus)),
+    [allBriefs],
+  );
   const { data: clients = [] } = useClients();
   const clientById = useMemo(
     () => new Map(clients.map((c) => [c.id, c.name])),
