@@ -11,6 +11,7 @@ import { useQuote, useUpdateQuote } from "@/hooks/useQuotes";
 import { useScopeById } from "@/hooks/useScopes";
 import { mailto } from "@/lib/mailto";
 import { sendQuoteEmail } from "@/content/email-templates";
+import { supabase } from "@/lib/supabase";
 
 export function QuoteSend() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,14 @@ export function QuoteSend() {
 
   if (!data) return <div className="p-6">Loading…</div>;
   const q = data.quote;
+
+  const pushXero = async () => {
+    const { error } = await supabase.functions.invoke("push-to-xero", {
+      body: { quote_id: q.id },
+    });
+    if (error) toast.error(`Xero push failed: ${error.message}`);
+    else toast.success("Quote pushed to Xero");
+  };
 
   const openEmail = () => {
     if (q.sow_pdf_url) {
@@ -98,7 +107,7 @@ export function QuoteSend() {
         </Button>
         <Button variant="secondary" onClick={markSent}>Mark as sent</Button>
         <FeatureFlagGate flag="xero_enabled">
-          <Button variant="secondary" onClick={() => toast("Phase 2 — not yet implemented")}>
+          <Button variant="secondary" onClick={pushXero}>
             Push to Xero
           </Button>
         </FeatureFlagGate>

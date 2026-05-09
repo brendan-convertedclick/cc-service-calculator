@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useClickUpSpaces } from "@/hooks/useClients";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,9 +17,41 @@ import {
 export function Settings() {
   const { data: s, isLoading } = useSettings();
   const update = useUpdateSettings();
+  const qc = useQueryClient();
   const [workspaceId, setWorkspaceId] = useState("");
+  const [disconnecting, setDisconnecting] = useState(false);
 
   if (isLoading || !s) return <div className="p-6">Loading…</div>;
+
+  const xeroConnectUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-oauth?action=connect`;
+
+  const handleXeroDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      // xero-oauth?action=disconnect uses GET-style query param but we POST
+      // so the edge function's OPTIONS + method guard is satisfied.
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-oauth?action=disconnect`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body?.error ?? "Disconnect failed");
+      }
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("Xero disconnected");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto max-w-3xl p-6 space-y-6">
@@ -135,7 +168,54 @@ export function Settings() {
         </CardContent>
       </Card>
 
-      {/* Xero card omitted: Phase 1 hides the card entirely (spec §7.6). Added in Phase 2. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Xero</CardTitle>
+          <CardDescription>
+            Connect Xero to push quotes directly from the Quote Send page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {s.xero_enabled && s.xero_oauth_tokens ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
+                  Connected
+                </span>
+                {(s.xero_oauth_tokens as { xero_userid?: string; preferred_username?: string })
+                  ?.preferred_username && (
+                  <span className="text-body-small text-m-on-surface-variant">
+                    {(s.xero_oauth_tokens as { preferred_username: string }).preferred_username}
+                  </span>
+                )}
+              </div>
+              <p className="text-label-small text-m-on-surface-variant">
+                OAuth tokens are stored securely. Client credentials (XERO_CLIENT_ID,
+                XERO_CLIENT_SECRET) must be set as Supabase Edge Function secrets.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleXeroDisconnect}
+                disabled={disconnecting}
+              >
+                {disconnecting ? "Disconnecting…" : "Disconnect Xero"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-label-small text-m-on-surface-variant">
+                Not connected. Clicking below will redirect you to Xero to authorise access.
+                Ensure XERO_CLIENT_ID and XERO_CLIENT_SECRET are set as Supabase Edge Function
+                secrets before connecting.
+              </p>
+              <Button asChild size="sm">
+                <a href={xeroConnectUrl}>Connect Xero</a>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
