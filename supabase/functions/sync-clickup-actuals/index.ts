@@ -141,6 +141,67 @@ Deno.serve(async (req: Request) => {
           .update({ status: "completed", completed_at: new Date().toISOString() })
           .eq("id", p.id);
       }
+
+      // Sync process_step_instances for this project.
+      // Skip any instance the ops manager has manually overridden (manual_override=true).
+      const { data: stepInstances } = await supabase
+        .from("process_step_instances")
+        .select("id,clickup_task_id,manual_override")
+        .eq("project_id", p.id)
+        .not("clickup_task_id", "is", null)
+        .eq("manual_override", false);
+
+      for (const instance of (stepInstances ?? []) as Array<{
+        id: string;
+        clickup_task_id: string;
+        manual_override: boolean;
+      }>) {
+        try {
+          const taskRes = await fetch(
+            `https://api.clickup.com/api/v2/task/${instance.clickup_task_id}?include_subtasks=false`,
+            CU,
+          );
+          if (!taskRes.ok) continue;
+          const task = await taskRes.json();
+
+          const statusMap: Record<string, string> = {
+            "to do": "pending",
+            "in progress": "in_progress",
+            "complete": "done",
+            "done": "done",
+            "closed": "done",
+            "blocked": "blocked",
+          };
+          const rawStatus: string = task.status?.status?.toLowerCase() ?? "";
+          const mappedStatus = statusMap[rawStatus] ?? "pending";
+
+          // time_spent is in milliseconds
+          const actualHours = task.time_spent ? task.time_spent / 3_600_000 : 0;
+
+          // start_date and date_closed are ms epoch strings in ClickUp
+          const startedAt = task.start_date
+            ? new Date(parseInt(task.start_date)).toISOString()
+            : null;
+          const completedAt = mappedStatus === "done" && task.date_closed
+            ? new Date(parseInt(task.date_closed)).toISOString()
+            : null;
+
+          await supabase
+            .from("process_step_instances")
+            .update({
+              status: mappedStatus,
+              actual_hours: actualHours,
+              started_at: startedAt,
+              completed_at: completedAt,
+              last_synced_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", instance.id);
+        } catch (e) {
+          console.error(`Failed to sync step instance ${instance.id}:`, e);
+          // Continue — other steps should still sync
+        }
+      }
     }
 
     return json({ inserted });
