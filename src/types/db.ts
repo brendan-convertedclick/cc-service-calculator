@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      brief_intelligence: {
+        Row: {
+          am_notes: string | null
+          am_reviewed_at: string | null
+          am_reviewed_by: string | null
+          am_status: string
+          audit_trail: Json
+          brief_id: string
+          business_objective: string | null
+          client_context_snap: Json | null
+          confidence_level: string | null
+          created_at: string
+          estimated_price_cents: number | null
+          id: string
+          inferred_deadline: string | null
+          inferred_start_date: string | null
+          open_questions: Json | null
+          pipeline_version: string | null
+          priority_tier: string | null
+          requirements: Json | null
+          services_snapshot: Json | null
+          summary: string | null
+          total_ai_hours: number | null
+          total_human_hours_high: number | null
+          total_human_hours_low: number | null
+          total_human_hours_mid: number | null
+          updated_at: string
+          work_breakdown: Json | null
+        }
+        Insert: {
+          am_notes?: string | null
+          am_reviewed_at?: string | null
+          am_reviewed_by?: string | null
+          am_status?: string
+          audit_trail?: Json
+          brief_id: string
+          business_objective?: string | null
+          client_context_snap?: Json | null
+          confidence_level?: string | null
+          created_at?: string
+          estimated_price_cents?: number | null
+          id?: string
+          inferred_deadline?: string | null
+          inferred_start_date?: string | null
+          open_questions?: Json | null
+          pipeline_version?: string | null
+          priority_tier?: string | null
+          requirements?: Json | null
+          services_snapshot?: Json | null
+          summary?: string | null
+          total_ai_hours?: number | null
+          total_human_hours_high?: number | null
+          total_human_hours_low?: number | null
+          total_human_hours_mid?: number | null
+          updated_at?: string
+          work_breakdown?: Json | null
+        }
+        Update: {
+          am_notes?: string | null
+          am_reviewed_at?: string | null
+          am_reviewed_by?: string | null
+          am_status?: string
+          audit_trail?: Json
+          brief_id?: string
+          business_objective?: string | null
+          client_context_snap?: Json | null
+          confidence_level?: string | null
+          created_at?: string
+          estimated_price_cents?: number | null
+          id?: string
+          inferred_deadline?: string | null
+          inferred_start_date?: string | null
+          open_questions?: Json | null
+          pipeline_version?: string | null
+          priority_tier?: string | null
+          requirements?: Json | null
+          services_snapshot?: Json | null
+          summary?: string | null
+          total_ai_hours?: number | null
+          total_human_hours_high?: number | null
+          total_human_hours_low?: number | null
+          total_human_hours_mid?: number | null
+          updated_at?: string
+          work_breakdown?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brief_intelligence_am_reviewed_by_fkey"
+            columns: ["am_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_intelligence_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: true
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brief_messages: {
         Row: {
           attachments: Json
@@ -1573,4 +1675,3 @@ export const Constants = {
     },
   },
 } as const
-
