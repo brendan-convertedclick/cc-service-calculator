@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockBriefUpdate = vi.fn()
 const mockBriefEq = vi.fn(() => ({ error: null }))
 
 const mockScopeUpsert = vi.fn(() => ({ error: null }))
@@ -20,7 +19,18 @@ beforeEach(() => {
 })
 
 describe('set-brief-intent', () => {
-  it('updates intent_type on brief for quick_response (no scope row)', async () => {
+  it('updates intent_type and draft_reply on brief for quick_response (no scope row)', async () => {
+    let capturedUpdate: Record<string, unknown> | null = null
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'briefs') return {
+        update: (payload: Record<string, unknown>) => {
+          capturedUpdate = payload
+          return { eq: mockBriefEq }
+        }
+      }
+      if (table === 'scopes') return { upsert: mockScopeUpsert }
+      throw new Error(`Unexpected table: ${table}`)
+    })
     const result = await handler({
       brief_id: 'brief-1',
       intent_type: 'quick_response',
@@ -28,7 +38,7 @@ describe('set-brief-intent', () => {
     })
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed).toEqual({ updated: true })
-    expect(mockFrom).toHaveBeenCalledWith('briefs')
+    expect(capturedUpdate).toEqual({ intent_type: 'quick_response', draft_reply: 'Thanks for reaching out, we will confirm shortly.' })
     expect(mockFrom).not.toHaveBeenCalledWith('scopes')
   })
 

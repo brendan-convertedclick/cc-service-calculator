@@ -30,7 +30,7 @@ export async function handler(input: Input) {
 
     if (briefError) throw new Error(briefError.message)
 
-    if (input.scope) {
+    if (input.scope && input.intent_type !== 'quick_response') {
       const { error: scopeError } = await supabase
         .from('scopes')
         .upsert(
