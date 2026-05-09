@@ -50,4 +50,10 @@ describe("IconRail", () => {
     render(<IconRail navOpen={false} onToggle={vi.fn()} />, { wrapper: Wrapper })
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument()
   })
+
+  it("calls signOut and navigates to /login when sign-out button is clicked", async () => {
+    const { getByRole } = render(<IconRail navOpen={false} onToggle={vi.fn()} />, { wrapper: Wrapper })
+    await fireEvent.click(getByRole("button", { name: /sign out/i }))
+    expect(mockSignOut).toHaveBeenCalledOnce()
+  })
 })

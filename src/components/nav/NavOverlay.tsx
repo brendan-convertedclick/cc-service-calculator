@@ -1,7 +1,13 @@
 import { useEffect } from "react"
 import { NavLink } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { navItems } from "./navItems"
+import { navItems, ICON_RAIL_WIDTH } from "./navItems"
+
+declare module "react" {
+  interface HTMLAttributes<T> {
+    inert?: ""
+  }
+}
 
 interface NavOverlayProps {
   open: boolean
@@ -24,18 +30,18 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
       <div
         data-testid="nav-scrim"
         onClick={onClose}
-        aria-hidden={!open}
+        {...(!open ? { inert: "" } : {})}
         className={cn(
           "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
           open ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
-        style={{ left: 56, visibility: open ? "visible" : "hidden" }}
+        style={{ left: ICON_RAIL_WIDTH, visibility: open ? "visible" : "hidden" }}
       />
 
       {/* Overlay panel */}
       <nav
         aria-label="Main navigation"
-        aria-hidden={!open}
+        {...(!open ? { inert: "" } : {})}
         className={cn(
           "fixed top-0 bottom-0 z-50 w-[220px] bg-m-surface border-r-2 border-m-primary shadow-elev-3",
           "flex flex-col gap-0.5 px-3 pt-4 pb-3",
@@ -44,7 +50,7 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
             ? "translate-x-0 opacity-100"
             : "-translate-x-full opacity-0 pointer-events-none"
         )}
-        style={{ left: 56, visibility: open ? "visible" : "hidden" }}
+        style={{ left: ICON_RAIL_WIDTH, visibility: open ? "visible" : "hidden" }}
       >
         <p className="px-3 pb-2 text-label-small uppercase tracking-wide text-m-on-surface-variant">
           Navigation

@@ -9,9 +9,10 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 describe("NavOverlay", () => {
   it("is not visible when open is false", () => {
-    render(<NavOverlay open={false} onClose={vi.fn()} />, { wrapper: Wrapper })
-    // query with hidden:true so aria-hidden elements are still found
-    expect(screen.queryByRole("navigation", { hidden: true })).not.toBeVisible()
+    const { container } = render(<NavOverlay open={false} onClose={vi.fn()} />, { wrapper: Wrapper })
+    const nav = container.querySelector("nav")
+    expect(nav).not.toBeNull()
+    expect(nav).toHaveAttribute("inert")
   })
 
   it("is visible when open is true", () => {
