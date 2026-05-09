@@ -46,7 +46,7 @@ export function matchesQuickResponseRule(
  */
 export function parseClassifyResponse(text: string): IntentType {
   try {
-    const match = text.match(/\{[\s\S]*?\}/);
+    const match = text.match(/\{[\s\S]*\}/);
     if (!match) return "new_brief";
     const parsed = JSON.parse(match[0]);
     const t = parsed?.intent_type;
