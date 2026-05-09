@@ -52,6 +52,11 @@ create table if not exists brief_intelligence (
 create index brief_intelligence_brief_id_idx on brief_intelligence(brief_id);
 create index brief_intelligence_am_status_idx  on brief_intelligence(am_status);
 
+create trigger trg_brief_intelligence_touch
+  before update on public.brief_intelligence
+  for each row execute function public.tg_touch_updated_at();
+
 alter table brief_intelligence enable row level security;
-create policy "authenticated full access" on brief_intelligence
+drop policy if exists brief_intelligence_authed_all on brief_intelligence;
+create policy brief_intelligence_authed_all on brief_intelligence
   for all to authenticated using (true) with check (true);
