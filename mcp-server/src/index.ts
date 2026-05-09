@@ -10,6 +10,8 @@ import * as getActiveRetainer from './tools/get-active-retainer.js'
 import * as listBriefs from './tools/list-briefs.js'
 import * as getBrief from './tools/get-brief.js'
 import * as createBrief from './tools/create-brief.js'
+import * as syncMessages from './tools/sync-messages.js'
+import * as setBriefIntent from './tools/set-brief-intent.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -76,6 +78,20 @@ server.tool(
   'Idempotently create a new brief from an email. Dedupes by gmail_thread_id, fires auto-scope in background. Returns { brief_id, created: bool }.',
   rawShape(createBrief.schema),
   h(createBrief.handler),
+)
+
+server.tool(
+  'sync-messages',
+  'Idempotently insert new Gmail messages into brief_messages. Skips any gmail_message_id already stored. Returns { inserted, skipped }.',
+  rawShape(syncMessages.schema),
+  h(syncMessages.handler),
+)
+
+server.tool(
+  'set-brief-intent',
+  'Update a brief with its AI-classified intent_type and store scope fields or draft_reply. Upserts scope row on conflict with brief_id.',
+  rawShape(setBriefIntent.schema),
+  h(setBriefIntent.handler),
 )
 
 const transport = new StdioServerTransport()
