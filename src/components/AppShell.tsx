@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { BookOpen, Building2, Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
+import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -98,12 +99,11 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* InboxAssignModal will be wired in Task 10 */}
       {inboxBrief && (
-        <div
-          aria-label="inbox-assign-placeholder"
-          data-brief-id={inboxBrief.id}
-          className="hidden"
+        <InboxAssignModal
+          brief={inboxBrief}
+          open={!!inboxBrief}
+          onClose={() => setInboxBrief(null)}
         />
       )}
     </div>
