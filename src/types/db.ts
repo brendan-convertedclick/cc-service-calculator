@@ -288,6 +288,7 @@ export type Database = {
           clickup_folder_id: string | null
           created_at: string
           id: string
+          margin_target_pct: number | null
           name: string
           notes: string | null
           primary_domain: string | null
@@ -300,6 +301,7 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          margin_target_pct?: number | null
           name: string
           notes?: string | null
           primary_domain?: string | null
@@ -312,6 +314,7 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          margin_target_pct?: number | null
           name?: string
           notes?: string | null
           primary_domain?: string | null
@@ -624,6 +627,7 @@ export type Database = {
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
+          xero_invoice_id: string | null
         }
         Insert: {
           clickup_parent_task_id: string
@@ -650,6 +654,7 @@ export type Database = {
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
+          xero_invoice_id?: string | null
         }
         Update: {
           clickup_parent_task_id?: string
@@ -676,6 +681,7 @@ export type Database = {
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
+          xero_invoice_id?: string | null
         }
         Relationships: [
           {
@@ -1404,6 +1410,99 @@ export type Database = {
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xero_connection: {
+        Row: {
+          access_token: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          tenant_id: string
+          tenant_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          tenant_id: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          tenant_id?: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      xero_invoices: {
+        Row: {
+          amount_cents: number
+          client_id: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          invoice_number: string | null
+          paid_at: string | null
+          project_id: string | null
+          status: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
+          synced_at: string
+          xero_contact_id: string | null
+          xero_contact_name: string | null
+          xero_invoice_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          client_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          paid_at?: string | null
+          project_id?: string | null
+          status: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
+          synced_at?: string
+          xero_contact_id?: string | null
+          xero_contact_name?: string | null
+          xero_invoice_id: string
+        }
+        Update: {
+          amount_cents?: number
+          client_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          paid_at?: string | null
+          project_id?: string | null
+          status?: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
+          synced_at?: string
+          xero_contact_id?: string | null
+          xero_contact_name?: string | null
+          xero_invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xero_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xero_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
