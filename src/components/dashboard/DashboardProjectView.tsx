@@ -67,13 +67,13 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
   if (!data) return null;
 
   const { project, actuals } = data;
-  const quoteEvent = events.find((e) => e.type === "quote");
-  const activeQuote = quoteEvent?.type === "quote" ? quoteEvent.quote : null;
+  const quoteEvent = events.find((e): e is Extract<typeof e, { type: "quote" }> => e.type === "quote");
+  const activeQuote = quoteEvent?.quote ?? null;
   const briefCount = events.filter((e) => e.type === "brief").length;
   const scopeStatus = project.scope_status ?? "on_track";
 
   function handleComplete() {
-    if (!window.confirm(`Mark "${project.name}" as complete?`)) return;
+    if (!window.confirm(`Mark "${project.name ?? "Untitled project"}" as complete?`)) return;
     updateProject.mutate(
       { id: projectId, patch: { status: "completed" } },
       {
