@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useSOWLevels } from '@/hooks/useSOWLevels'
 import { useClauseSchema, useClauseValuesForLevel } from '@/hooks/useClauseValues'
 import { ClauseCell } from './ClauseCell'
@@ -54,8 +55,8 @@ export function ClauseTable({ scopeIds }: Props) {
         <tbody>
           {sections.map(section =>
             bySection[section].length > 0 ? (
-              <>
-                <tr key={`section-${section}`} className="bg-white/[0.02]">
+              <Fragment key={`section-${section}`}>
+                <tr className="bg-white/[0.02]">
                   <td
                     colSpan={levels.length + 2}
                     className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
@@ -71,7 +72,7 @@ export function ClauseTable({ scopeIds }: Props) {
                     scopeIds={scopeIds}
                   />
                 ))}
-              </>
+              </Fragment>
             ) : null
           )}
         </tbody>
