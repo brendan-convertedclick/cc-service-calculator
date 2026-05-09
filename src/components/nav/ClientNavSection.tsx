@@ -27,14 +27,16 @@ export function ClientNavSection({ client, defaultOpen = true }: Props) {
       </button>
 
       <div data-testid="projects-list" className={cn("flex flex-col gap-0.5 pl-2", !open && "hidden")}>
-        {client.projects.length === 0 && (
+        {client.projects.filter((p) => p.status === "in_progress").length === 0 && (
           <p className="px-3 py-1 text-label-small text-m-on-surface-variant italic">
             No active projects
           </p>
         )}
-        {client.projects.map((p) => (
-          <ProjectNavRow key={p.id} project={p} clientId={client.id} />
-        ))}
+        {client.projects
+          .filter((p) => p.status === "in_progress")
+          .map((p) => (
+            <ProjectNavRow key={p.id} project={p} clientId={client.id} />
+          ))}
       </div>
     </div>
   );

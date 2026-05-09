@@ -29,7 +29,7 @@ const mockActual = {
 const mockQuote = {
   id: "quote-1",
   status: "sent",
-  total_price_cents: 4850000,
+  total_cents: 4850000,
   sent_at: "2026-05-07T10:00:00Z",
   scope_id: "scope-1",
 };

@@ -12,6 +12,7 @@ const client = {
       id: "proj-1",
       name: "Website Rebuild",
       project_code: "ACME-001",
+      status: "in_progress",
       engagement_type: "fixed",
       scope_status: "on_track",
       client_id: "client-1",

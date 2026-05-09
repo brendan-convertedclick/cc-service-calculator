@@ -31,6 +31,8 @@ export function ProjectScopeView() {
   );
 
   const linkedBriefCount = events.filter((e) => e.type === "brief").length;
+  const quoteEvent = events.find((e) => e.type === "quote");
+  const activeQuote = quoteEvent?.type === "quote" ? quoteEvent.quote : null;
   const engagementType = project?.engagement_type ?? projectMeta?.engagement_type ?? "fixed";
   const scopeStatus = project?.scope_status ?? projectMeta?.scope_status ?? "on_track";
   const projectName = project?.name ?? projectMeta?.name ?? "Project";
@@ -109,7 +111,7 @@ export function ProjectScopeView() {
       {/* Right pane */}
       <StatusStrip
         actuals={actuals}
-        quote={null}
+        quote={activeQuote}
         briefCount={linkedBriefCount}
       />
     </div>
