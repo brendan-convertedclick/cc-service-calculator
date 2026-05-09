@@ -1,8 +1,9 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { vi, describe, it, expect } from "vitest"
+import { vi, describe, it, expect, beforeEach } from "vitest"
 
 const mockSignOut = vi.fn()
+const mockNavigate = vi.fn()
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -15,6 +16,14 @@ vi.mock("@/context/AuthContext", () => ({
   }),
 }))
 
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom")
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
+
 import { IconRail } from "./IconRail"
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -22,6 +31,11 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("IconRail", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear()
+    mockSignOut.mockClear()
+  })
+
   it("renders all nav item icons with aria-labels", () => {
     render(<IconRail navOpen={false} onToggle={vi.fn()} />, { wrapper: Wrapper })
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument()
@@ -52,8 +66,9 @@ describe("IconRail", () => {
   })
 
   it("calls signOut and navigates to /login when sign-out button is clicked", async () => {
-    const { getByRole } = render(<IconRail navOpen={false} onToggle={vi.fn()} />, { wrapper: Wrapper })
-    await fireEvent.click(getByRole("button", { name: /sign out/i }))
+    render(<IconRail navOpen={false} onToggle={vi.fn()} />, { wrapper: Wrapper })
+    await fireEvent.click(screen.getByRole("button", { name: /sign out/i }))
     expect(mockSignOut).toHaveBeenCalledOnce()
+    expect(mockNavigate).toHaveBeenCalledWith("/login", { replace: true })
   })
 })

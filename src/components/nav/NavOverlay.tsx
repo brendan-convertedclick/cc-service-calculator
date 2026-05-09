@@ -3,12 +3,6 @@ import { NavLink } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { navItems, ICON_RAIL_WIDTH } from "./navItems"
 
-declare module "react" {
-  interface HTMLAttributes<T> {
-    inert?: ""
-  }
-}
-
 interface NavOverlayProps {
   open: boolean
   onClose: () => void
