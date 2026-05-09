@@ -31,3 +31,5 @@ export const navItems: NavItem[] = [
   { to: "/guides", label: "Guides", icon: BookOpen, end: false },
   { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ]
+
+export const ICON_RAIL_WIDTH = 56
