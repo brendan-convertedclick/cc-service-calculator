@@ -252,6 +252,60 @@ export function ProjectDetail() {
         </CardContent>
       </Card>
 
+      {project.engagement_type === 'retainer' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Retainer — Monthly target</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-2">
+                <Label>Hours target / month</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  defaultValue={project.retainer_hours_target ?? ''}
+                  onBlur={e => {
+                    const val = parseFloat(e.target.value)
+                    if (!isNaN(val)) {
+                      updateProject.mutate(
+                        { id: project.id, patch: { retainer_hours_target: val } },
+                        {
+                          onSuccess: () => toast.success("Hours target saved"),
+                          onError: (err: Error) => toast.error(err.message),
+                        }
+                      )
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex-1 space-y-2">
+                <Label>Monthly fee (ZAR)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  defaultValue={project.retainer_monthly_fee_cents != null ? project.retainer_monthly_fee_cents / 100 : ''}
+                  onBlur={e => {
+                    const val = parseFloat(e.target.value)
+                    if (!isNaN(val)) {
+                      updateProject.mutate(
+                        { id: project.id, patch: { retainer_monthly_fee_cents: Math.round(val * 100) } },
+                        {
+                          onSuccess: () => toast.success("Monthly fee saved"),
+                          onError: (err: Error) => toast.error(err.message),
+                        }
+                      )
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-4">
           <BurnChart rows={rows} />
