@@ -12,9 +12,15 @@
       }
     },
     "cc-calculator": {
-      "command": "npm",
-      "args": ["run", "dev"],
-      "cwd": "/Users/brendangunn/Github/cc-service-calculator/mcp-server"
+      "command": "/Users/brendangunn/.nvm/versions/node/v22.22.0/bin/node",
+      "args": [
+        "/Users/brendangunn/Github/cc-service-calculator/mcp-server/node_modules/.bin/tsx",
+        "/Users/brendangunn/Github/cc-service-calculator/mcp-server/src/index.ts"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://lpgwxacoqiqpcfpkklib.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "REDACTED_SERVICE_ROLE_KEY"
+      }
     }
   }
 }

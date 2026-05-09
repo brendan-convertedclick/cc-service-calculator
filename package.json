@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:start": "pm2 start ecosystem.config.cjs",
+    "dev:stop": "pm2 stop cc-calculator",
+    "dev:logs": "pm2 logs cc-calculator",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
