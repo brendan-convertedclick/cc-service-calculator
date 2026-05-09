@@ -104,3 +104,36 @@ export async function loadClientWikiContext(opts: {
     `</client_context>`,
   ].join("\n");
 }
+
+/**
+ * Fetch a single markdown file from a GitHub repo by path.
+ * Returns empty string on 404 or any error — never throws.
+ */
+export async function loadWikiFile(opts: {
+  path: string;
+  repo: string;
+  pat: string;
+}): Promise<string> {
+  const { path, repo, pat } = opts;
+  const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path)}?ref=main`;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${pat}`, Accept: "application/vnd.github+json" },
+    });
+    if (res.status === 404) return "";
+    if (!res.ok) {
+      console.warn(`[wiki-context] loadWikiFile ${res.status} for ${path}`);
+      return "";
+    }
+    const meta = await res.json() as { download_url?: string };
+    if (!meta.download_url) return "";
+    const raw = await fetch(meta.download_url, {
+      headers: { Authorization: `Bearer ${pat}` },
+    });
+    if (!raw.ok) return "";
+    return await raw.text();
+  } catch (e) {
+    console.warn(`[wiki-context] loadWikiFile failed for ${path}: ${e}`);
+    return "";
+  }
+}
