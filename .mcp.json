@@ -10,6 +10,11 @@
       "env": {
         "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN_CC_CALCULATOR}"
       }
+    },
+    "cc-calculator": {
+      "command": "npm",
+      "args": ["run", "dev"],
+      "cwd": "/Users/brendangunn/Github/cc-service-calculator/mcp-server"
     }
   }
 }
