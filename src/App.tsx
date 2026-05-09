@@ -62,6 +62,9 @@ const Guides = lazy(() =>
 const ProjectScopeView = lazy(() =>
   import("@/pages/ProjectScopeView").then((m) => ({ default: m.ProjectScopeView })),
 );
+const ReconciliationView = lazy(() =>
+  import("@/pages/ReconciliationView").then((m) => ({ default: m.ReconciliationView })),
+);
 
 function RouteFallback() {
   return (
@@ -102,6 +105,7 @@ export default function App() {
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />
+              <Route path="reconciliation" element={<ReconciliationView />} />
               <Route path="guides" element={<Guides />} />
             </Route>
           </Route>

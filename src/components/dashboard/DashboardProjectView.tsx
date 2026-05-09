@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,42 @@ import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { ActivityFeed } from "@/components/scope/ActivityFeed";
 import { StatusStrip } from "@/components/scope/StatusStrip";
-import { RecommendedBanner } from "./RecommendedBanner";
+import { RecommendedBanner, type OverdueInvoice } from "./RecommendedBanner";
+
+function useOverdueInvoiceForClient(clientId: string | null | undefined): OverdueInvoice | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = useQuery({
+    enabled: !!clientId,
+    queryKey: ["overdueInvoice", clientId],
+    queryFn: async () => {
+      if (!clientId) return null;
+      try {
+        const { data, error } = await supabase
+          .from("xero_invoices")
+          .select("invoice_number, due_date")
+          .eq("client_id", clientId)
+          .lt("due_date", today)
+          .not("status", "in", '("PAID","VOIDED")')
+          .order("due_date", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (error || !data) return null;
+        const daysPastDue = Math.floor(
+          (Date.now() - new Date(data.due_date!).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        return {
+          invoiceNumber: data.invoice_number,
+          dueDate: data.due_date!,
+          daysPastDue,
+        } satisfies OverdueInvoice;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  return data ?? null;
+}
 
 const scopeStatusColor: Record<string, string> = {
   on_track: "bg-green-100 text-green-800",
@@ -55,6 +90,7 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
   const sync = useSyncNow();
   const updateProject = useUpdateProject();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const overdueInvoice = useOverdueInvoiceForClient(data?.project.client_id);
 
   if (isLoading) {
     return (
@@ -159,6 +195,7 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
           actuals={actuals}
           events={events}
           onDismiss={() => setBannerDismissed(true)}
+          overdueInvoice={overdueInvoice}
         />
       )}
 

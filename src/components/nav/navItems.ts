@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Building2,
+  FileBarChart2,
   FolderKanban,
   LayoutDashboard,
   Inbox as InboxIcon,
@@ -25,6 +26,7 @@ export const navItems: NavItem[] = [
   { to: "/services", label: "Services", icon: PackageSearch, end: false },
   { to: "/clients", label: "Clients", icon: Building2, end: false },
   { to: "/projects", label: "Projects", icon: FolderKanban, end: false },
+  { to: "/reconciliation", label: "Reconciliation", icon: FileBarChart2, end: false },
   { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
   { to: "/departments", label: "Departments", icon: Workflow, end: false },
   { to: "/team", label: "Team", icon: Users, end: false },

@@ -5,16 +5,24 @@ import type { ActivityEvent } from "@/hooks/useProjectActivity";
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 type ActualRow = Database["public"]["Views"]["project_actuals_current"]["Row"];
 
+export interface OverdueInvoice {
+  invoiceNumber: string | null;
+  dueDate: string;
+  daysPastDue: number;
+}
+
 interface Props {
   project: Project;
   actuals: ActualRow[];
   events: ActivityEvent[];
   onDismiss: () => void;
+  overdueInvoice?: OverdueInvoice | null;
 }
 
-export function RecommendedBanner({ project, actuals, events, onDismiss }: Props) {
+export function RecommendedBanner({ project, actuals, events, onDismiss, overdueInvoice }: Props) {
   const messages: string[] = [];
   let quoteAction: { label: string; to: string } | null = null;
+  let reconciliationAction: { label: string; to: string } | null = null;
 
   const totalActual = actuals.reduce((s, a) => s + (a.actual_hours ?? 0), 0);
   const totalPlanned = actuals.reduce((s, a) => s + (a.planned_hours ?? 0), 0);
@@ -41,6 +49,14 @@ export function RecommendedBanner({ project, actuals, events, onDismiss }: Props
 
   if (project.scope_status === "overdue") messages.push("Project is overdue");
 
+  if (overdueInvoice) {
+    const label = overdueInvoice.invoiceNumber
+      ? `Invoice overdue ${overdueInvoice.daysPastDue} days — ${overdueInvoice.invoiceNumber}`
+      : `Invoice overdue ${overdueInvoice.daysPastDue} days`;
+    messages.push(label);
+    reconciliationAction = { label: "View reconciliation", to: "/reconciliation" };
+  }
+
   const briefEvents = events.filter((e) => e.type === "brief");
   if (briefEvents.length > 0) {
     const latest = briefEvents[0];
@@ -59,6 +75,11 @@ export function RecommendedBanner({ project, actuals, events, onDismiss }: Props
       {quoteAction && (
         <Link to={quoteAction.to} className="text-label-small text-amber-700 hover:underline">
           {quoteAction.label}
+        </Link>
+      )}
+      {reconciliationAction && (
+        <Link to={reconciliationAction.to} className="text-label-small text-amber-700 hover:underline">
+          {reconciliationAction.label}
         </Link>
       )}
       <button
