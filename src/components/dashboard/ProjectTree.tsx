@@ -10,6 +10,7 @@ interface Props {
   opsData: OpsOverviewData;
   selectedProjectId: string | null;
   hiddenIds: Set<string>;
+  lastBriefActivity: Map<string, string>;
   onSelect: (projectId: string) => void;
   onHide: (projectId: string) => void;
 }
@@ -23,6 +24,7 @@ function ClientSection({
   scopeFilter,
   filterText,
   showCompleted,
+  lastBriefActivity,
   onSelect,
   onHide,
 }: {
@@ -32,6 +34,7 @@ function ClientSection({
   scopeFilter: ScopeFilter;
   filterText: string;
   showCompleted: boolean;
+  lastBriefActivity: Map<string, string>;
   onSelect: (id: string) => void;
   onHide: (id: string) => void;
 }) {
@@ -83,6 +86,7 @@ function ClientSection({
               scopeStatus={p.scope_status ?? "on_track"}
               isSelected={p.id === selectedProjectId}
               isCompleted={p.status === "completed"}
+              lastActivityAt={lastBriefActivity.get(p.id)}
               onSelect={p.status === "completed" ? () => {} : onSelect}
               onHide={onHide}
             />
@@ -93,7 +97,7 @@ function ClientSection({
   );
 }
 
-export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds, onSelect, onHide }: Props) {
+export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds, lastBriefActivity, onSelect, onHide }: Props) {
   const [filterText, setFilterText] = useState("");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [showCompleted, setShowCompleted] = useState(false);
@@ -176,6 +180,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
             scopeFilter={scopeFilter}
             filterText={filterText}
             showCompleted={showCompleted}
+            lastBriefActivity={lastBriefActivity}
             onSelect={onSelect}
             onHide={onHide}
           />

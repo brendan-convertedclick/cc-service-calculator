@@ -9,6 +9,7 @@ export type OpsProject = {
   scopeStatus: string;
   engagementType: string;
   startedAt: string;
+  reasonText: string;
 };
 
 export type OpsOverviewData = {
@@ -34,6 +35,7 @@ export function useOpsOverview(clientsData: ClientWithProjects[]): OpsOverviewDa
           scopeStatus: p.scope_status ?? "on_track",
           engagementType: p.engagement_type ?? "fixed",
           startedAt: p.started_at,
+          reasonText: "",
         }))
     );
 
@@ -43,7 +45,11 @@ export function useOpsOverview(clientsData: ClientWithProjects[]): OpsOverviewDa
 
     const attentionProjects = activeProjects
       .filter((p) => p.scopeStatus === "needs_attention" || p.scopeStatus === "overdue")
-      .sort((a, b) => (a.scopeStatus === "overdue" ? -1 : b.scopeStatus === "overdue" ? 1 : 0));
+      .sort((a, b) => (a.scopeStatus === "overdue" ? -1 : b.scopeStatus === "overdue" ? 1 : 0))
+      .map((p) => ({
+        ...p,
+        reasonText: p.scopeStatus === "overdue" ? "Overdue" : "Needs attention",
+      }));
 
     const recentProjects = activeProjects
       .filter((p) => p.scopeStatus === "on_track")
