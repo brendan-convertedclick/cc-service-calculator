@@ -9,9 +9,24 @@ const DETAIL = (id: string) => ["briefs", "detail", id] as const;
 
 export type BriefScope = "mine" | "unassigned" | "waiting" | "all";
 
-export function useBriefs(scope: BriefScope = "all", currentUserId?: string | null) {
+export type BriefFilterOptions = {
+  clientId?: string | null;   // undefined = no filter; null = unassigned only
+  contactEmail?: string;
+};
+
+export function useBriefs(
+  scope: BriefScope = "all",
+  currentUserId?: string | null,
+  filterOptions?: BriefFilterOptions,
+) {
   return useQuery({
-    queryKey: ["briefs", scope, currentUserId ?? "anon"],
+    queryKey: [
+      "briefs",
+      scope,
+      currentUserId ?? "anon",
+      filterOptions?.clientId ?? "any",
+      filterOptions?.contactEmail ?? "any",
+    ],
     queryFn: async (): Promise<Brief[]> => {
       let q = supabase
         .from("briefs")
@@ -26,6 +41,17 @@ export function useBriefs(scope: BriefScope = "all", currentUserId?: string | nu
         q = q.is("assignee_id", null).not("status", "in", '("accepted","rejected","archived","spam")');
       } else if (scope === "waiting") {
         q = q.eq("status", "needs_info");
+      }
+
+      if (filterOptions?.clientId !== undefined) {
+        if (filterOptions.clientId === null) {
+          q = q.is("client_id", null);
+        } else {
+          q = q.eq("client_id", filterOptions.clientId);
+        }
+      }
+      if (filterOptions?.contactEmail !== undefined) {
+        q = q.eq("sender_email", filterOptions.contactEmail);
       }
 
       const { data, error } = await q;
