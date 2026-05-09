@@ -1818,3 +1818,41 @@ export interface ProcessStepHandoff {
   to_started_at: string
   handoff_hours: number
 }
+
+// SOW inheritance system types
+export interface SOWLevel {
+  id: string
+  name: string
+  slug: string
+  level_type: 'agency' | 'service' | 'client' | 'project'
+  priority: number
+  created_at: string
+}
+
+export interface ClauseSchema {
+  key: string
+  label: string
+  value_type: 'string' | 'number' | 'string[]' | 'boolean'
+  merge_strategy: 'replace' | 'append'
+  section: 'commercial' | 'delivery' | 'legal' | 'scope'
+  sort_order: number
+}
+
+export interface ClauseValue {
+  id: string
+  clause_key: string
+  level_id: string
+  scope_id: string | null
+  value_text: string | null
+  value_number: number | null
+  value_bool: boolean | null
+  updated_at: string
+}
+
+export interface ResolvedClause {
+  value: string | number | boolean | string[] | null
+  value_type: ClauseSchema['value_type']
+  merge_strategy: ClauseSchema['merge_strategy']
+  source_level_id: string | null
+  source_level_name: string
+}
