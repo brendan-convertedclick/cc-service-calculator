@@ -1782,7 +1782,7 @@ export const Constants = {
   },
 } as const
 
-// Custom Row interfaces for process_step_instances and process_step_handoffs
+// Manually maintained types for tables not yet in the auto-generated schema
 export interface ProcessStepInstance {
   id: string
   project_id: string

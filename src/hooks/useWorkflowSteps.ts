@@ -1,4 +1,3 @@
-// src/hooks/useWorkflowSteps.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { ProcessStepInstance, ProcessStepHandoff } from '@/types/db'

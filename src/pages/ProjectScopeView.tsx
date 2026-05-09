@@ -10,6 +10,7 @@ import { ActivityFeed } from "@/components/scope/ActivityFeed";
 import { StatusStrip } from "@/components/scope/StatusStrip";
 import { BriefConversation } from "@/components/BriefConversation";
 import type { Database } from "@/types/db";
+import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
@@ -90,6 +91,7 @@ export function ProjectScopeView() {
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="quote">Quote / SOW</TabsTrigger>
             <TabsTrigger value="time">Time</TabsTrigger>
+            <TabsTrigger value="workflow">Workflow</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inbox" className="flex-1 overflow-auto">
@@ -204,6 +206,15 @@ export function ProjectScopeView() {
             <p className="text-body-medium text-m-on-surface-variant">
               Time breakdown by department.
             </p>
+          </TabsContent>
+
+          <TabsContent value="workflow" className="flex-1 overflow-auto">
+            {projectId && (
+              <WorkflowTimeline
+                projectId={projectId}
+                projectName={projectName}
+              />
+            )}
           </TabsContent>
         </Tabs>
 
