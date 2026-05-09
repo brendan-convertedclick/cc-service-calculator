@@ -79,12 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           session?.user?.user_metadata?.full_name ??
           session?.user?.user_metadata?.name ??
           email;
-        const { data: newMember } = await supabase
+        const { data: upserted } = await supabase
           .from("team_members")
-          .insert({ full_name: fullName, email })
+          .upsert({ full_name: fullName, email }, { onConflict: 'email', ignoreDuplicates: false })
           .select("id")
           .single();
-        if (!cancelled) setCurrentUserId(newMember?.id ?? null);
+        if (!cancelled) setCurrentUserId(upserted?.id ?? null);
       } else {
         setCurrentUserId(null);
       }
