@@ -53,9 +53,11 @@ Deno.serve(async (req: Request) => {
 
     const client = (brief as { client?: { id: string; name: string; wiki_path: string | null } | null }).client;
 
-    const [{ data: settings }] = await Promise.all([
-      supabase.from("settings").select("anthropic_model").eq("id", 1).single(),
-    ]);
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("anthropic_model")
+      .eq("id", 1)
+      .single();
     const model = settings?.anthropic_model ?? "claude-sonnet-4-6";
 
     // 2. Load wiki context (best-effort — never throws)
@@ -129,23 +131,24 @@ Deno.serve(async (req: Request) => {
     }
 
     // 6. Write to DB
-    await supabase
+    const { error: updateErr } = await supabase
       .from("briefs")
       .update({
         intent_type: intentType,
         draft_reply: intentType === "quick_response"
           ? (typeof scopeData.draft_reply === "string" ? scopeData.draft_reply : null)
           : null,
-        status: "needs_review",
+        status: "triaged",
         updated_at: new Date().toISOString(),
       })
       .eq("id", brief_id);
+    if (updateErr) console.error("[auto-scope] briefs update failed:", updateErr.message);
 
     if (intentType !== "quick_response") {
       const toStrings = (v: unknown): string[] =>
         Array.isArray(v) ? (v as unknown[]).map(String) : [];
 
-      await supabase
+      const { error: upsertErr } = await supabase
         .from("scopes")
         .upsert(
           {
@@ -163,6 +166,7 @@ Deno.serve(async (req: Request) => {
           },
           { onConflict: "brief_id" },
         );
+      if (upsertErr) console.error("[auto-scope] scopes upsert failed:", upsertErr.message);
     }
 
     return json({ ok: true, intent_type: intentType });
