@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useOpsOverview } from "@/hooks/useOpsOverview";
 import { useHiddenProjects } from "@/hooks/useHiddenProjects";
+import { useMonthlyHoursBurned } from "@/hooks/useMonthlyHoursBurned";
 import { IconRail } from "@/components/nav/IconRail";
 import { NavOverlay } from "@/components/nav/NavOverlay";
 import { ProjectTree } from "./ProjectTree";
@@ -12,6 +13,7 @@ export function DashboardShell() {
   const { data: clientsData = [] } = useClientProjects();
   const opsData = useOpsOverview(clientsData);
   const { hiddenIds, hide } = useHiddenProjects();
+  const monthlyHours = useMonthlyHoursBurned();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
 
@@ -58,7 +60,7 @@ export function DashboardShell() {
             onComplete={handleComplete}
           />
         ) : (
-          <OpsOverview opsData={opsData} onSelect={handleSelect} />
+          <OpsOverview opsData={opsData} onSelect={handleSelect} monthlyHours={monthlyHours} />
         )}
       </main>
 

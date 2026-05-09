@@ -31,6 +31,9 @@ function OpsProjectRow({ project, onSelect }: ProjectRowProps) {
         <span className="text-label-medium text-m-on-surface font-medium">{project.clientName}</span>
         <span className="mx-1 text-m-on-surface-variant">—</span>
         <span className="text-label-medium text-m-on-surface">{project.name}</span>
+        {project.reasonText && (
+          <span className="text-label-small text-m-on-surface-variant italic ml-1">{project.reasonText}</span>
+        )}
       </span>
       <span className={cn("shrink-0 rounded px-2 py-0.5 text-label-small", scopeStatusColor[project.scopeStatus] ?? "bg-m-surface-container text-m-on-surface-variant")}>
         {project.scopeStatus.replace(/_/g, " ")}
@@ -43,9 +46,10 @@ function OpsProjectRow({ project, onSelect }: ProjectRowProps) {
 interface Props {
   opsData: OpsOverviewData;
   onSelect: (id: string) => void;
+  monthlyHours: number | null;
 }
 
-export function OpsOverview({ opsData, onSelect }: Props) {
+export function OpsOverview({ opsData, onSelect, monthlyHours }: Props) {
   const today = new Date().toLocaleDateString("en-ZA", {
     weekday: "long",
     year: "numeric",
@@ -79,8 +83,12 @@ export function OpsOverview({ opsData, onSelect }: Props) {
           <div className="mt-1 text-label-small font-semibold text-red-700">Overdue</div>
         </div>
         <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
-          <div className="text-display-small text-m-on-surface">{opsData.totalActiveProjects}</div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">Active</div>
+          <div className="text-display-small text-m-on-surface">
+            {monthlyHours !== null ? `${monthlyHours}h` : "—"}
+          </div>
+          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
+            Burned this month
+          </div>
         </div>
       </div>
 
