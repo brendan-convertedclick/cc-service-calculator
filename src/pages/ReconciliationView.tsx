@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useReconciliation, type ReconciliationRow } from "@/hooks/useReconciliation";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
+import type { ClaudePrompt } from "@/types/claude";
 
 const ZAR = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" });
 
@@ -236,6 +238,53 @@ export function ReconciliationView() {
 
   const { data: rows = [], isLoading } = useReconciliation(year, month);
 
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+
+  const monthLabel = formatMonthLabel(year, month);
+
+  const rowSummary = rows
+    .map(
+      (r) =>
+        `- ${r.clientName}: ${r.deliveredHours}h delivered, invoiced R${(r.invoicedCents / 100).toFixed(2)}, cost R${(r.costCents / 100).toFixed(2)}${r.flags.length ? `, flags: ${r.flags.join(", ")}` : ""}`
+    )
+    .join("\n");
+
+  const reconPrompts: ClaudePrompt[] = [
+    {
+      id: "recon-explanation",
+      label: "Recon explanation",
+      build: () => `${ROLE}
+
+Context:
+Month: ${monthLabel}
+Reconciliation data:
+${rowSummary || "(no data)"}
+
+${MCP_NOTE}
+
+Action: Write a plain-English reconciliation explanation for ${monthLabel}. For each client with flags or notable variances, explain what happened and why (e.g. work not invoiced, invoice overdue, cost vs invoiced gap). Keep each client explanation to 2–3 sentences. Suitable for an internal debrief or client conversation.
+
+Output: A markdown report with one section per flagged client, plus a one-paragraph overall summary.`,
+    },
+    {
+      id: "invoice-line-items",
+      label: "Invoice line items",
+      build: () => `${ROLE}
+
+Context:
+Month: ${monthLabel}
+Billable hours by client:
+${rowSummary || "(no data)"}
+
+${MCP_NOTE}
+
+Action: Format the billable hours above as Xero-ready invoice line item descriptions for ${monthLabel}. For each client, produce: description (service type + period), quantity (hours), unit (hours), and amount note. Use professional billing language.
+
+Output: A markdown table with columns: Client | Description | Hours | Notes. One row per client with delivered hours > 0.`,
+    },
+  ];
+
   function prevMonth() {
     if (month === 0) {
       setMonth(11);
@@ -259,6 +308,8 @@ export function ReconciliationView() {
   const totalHours = rows.reduce((s, r) => s + r.deliveredHours, 0);
 
   return (
+    <div className="flex h-full">
+      <div className="min-w-0 flex-1 overflow-auto">
     <div className="flex h-full flex-col overflow-hidden bg-m-surface">
       {/* Page header */}
       <div className="flex shrink-0 items-center justify-between border-b border-m-outline-variant bg-m-surface px-6 py-4">
@@ -414,6 +465,11 @@ export function ReconciliationView() {
       {selectedRow && (
         <DetailDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />
       )}
+    </div>
+      </div>
+      <aside className="w-[200px] shrink-0 border-l border-m-outline-variant bg-m-surface">
+        <ClaudePromptPanel prompts={reconPrompts} />
+      </aside>
     </div>
   );
 }
