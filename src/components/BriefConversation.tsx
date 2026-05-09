@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { X } from "lucide-react";
+import { X, Copy } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +19,14 @@ import type { Database } from "@/types/db";
 import type { Json } from "@/types/db";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
+
+const INTENT_LABEL: Record<string, string> = {
+  new_brief: "New brief",
+  project_thread: "Project thread",
+  retainer_thread: "Retainer",
+  general_query: "General query",
+  quick_response: "Quick response",
+};
 
 interface BriefConversationProps {
   brief: Brief;
@@ -115,6 +123,15 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1">
+            {brief.intent_type ? (
+              <Badge className="text-label-small">
+                {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-label-small text-muted-foreground">
+                Scope pending…
+              </Badge>
+            )}
             {brief.sender_email && (
               <Badge variant="secondary" className="text-label-small">
                 {brief.sender_email}
@@ -126,6 +143,27 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {brief.intent_type === "quick_response" && brief.draft_reply && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-label-small font-medium text-green-800">Draft reply</span>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded px-2 py-0.5 text-label-small text-green-700 hover:bg-green-100"
+                  onClick={() => {
+                    navigator.clipboard.writeText(brief.draft_reply!);
+                    toast.success("Copied to clipboard");
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                  Copy
+                </button>
+              </div>
+              <p className="whitespace-pre-wrap text-body-small text-green-900">
+                {brief.draft_reply}
+              </p>
+            </div>
+          )}
           {isLoading && (
             <div className="text-body-medium text-m-on-surface-variant">Loading…</div>
           )}
