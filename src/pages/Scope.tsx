@@ -1,27 +1,43 @@
+// src/pages/Scope.tsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScopeEditor } from "@/components/ScopeEditor";
+import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
+import {
+  useBriefIntelligence,
+  useApproveBriefIntelligence,
+  useRejectBriefIntelligence,
+} from "@/hooks/useBriefIntelligence";
 import { useCurrentUserId } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 import { isMostlyAi } from "@/lib/scope-overlap";
 
+const INTENT_LABEL: Record<string, string> = {
+  new_brief:       "New brief",
+  project_thread:  "Project thread",
+  retainer_thread: "Retainer",
+  general_query:   "General query",
+  quick_response:  "Quick response",
+};
+
 type ScopeValues = {
-  enhanced_prose: string;
-  in_scope_md: string;
-  out_of_scope_md: string;
+  enhanced_prose:   string;
+  in_scope_md:      string;
+  out_of_scope_md:  string;
   open_questions_md: string;
 };
 
 const EMPTY: ScopeValues = {
-  enhanced_prose: "",
-  in_scope_md: "",
-  out_of_scope_md: "",
+  enhanced_prose:   "",
+  in_scope_md:      "",
+  out_of_scope_md:  "",
   open_questions_md: "",
 };
 
@@ -33,77 +49,70 @@ export function Scope() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const userId = useCurrentUserId();
+
   const { data: brief } = useBrief(id);
-  const { data: scope, refetch } = useScope(id);
+  const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id);
+  const { data: scope } = useScope(id);
   const updateBrief = useUpdateBrief();
   const upsertScope = useUpsertScope();
-  const [values, setValues] = useState<ScopeValues>(EMPTY);
-  const [lastAiDraft, setLastAiDraft] = useState<string>("");
-  const [nudge, setNudge] = useState("");
-  const [drafting, setDrafting] = useState(false);
-  const [autoDraftAttempted, setAutoDraftAttempted] = useState(false);
+  const approve = useApproveBriefIntelligence(id ?? "");
+  const reject = useRejectBriefIntelligence(id ?? "");
 
+  const [rejectNotes, setRejectNotes] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [scopeValues, setScopeValues] = useState<ScopeValues>(EMPTY);
+  const [lastAiDraft, setLastAiDraft] = useState("");
+
+  // Pre-populate scopeValues from an existing scope row (e.g. on page reload).
   useEffect(() => {
     if (scope) {
       const v: ScopeValues = {
-        enhanced_prose: scope.enhanced_prose ?? "",
-        in_scope_md: scope.in_scope_md ?? "",
-        out_of_scope_md: scope.out_of_scope_md ?? "",
+        enhanced_prose:   scope.enhanced_prose   ?? "",
+        in_scope_md:      scope.in_scope_md      ?? "",
+        out_of_scope_md:  scope.out_of_scope_md  ?? "",
         open_questions_md: scope.open_questions_md ?? "",
       };
-      setValues(v);
+      setScopeValues(v);
       if (scope.ai_drafted) setLastAiDraft(concat(v));
     }
   }, [scope]);
 
-  // Auto-draft on first load when no scope row exists yet.
-  useEffect(() => {
-    if (!brief || scope || drafting || autoDraftAttempted) return;
-    setAutoDraftAttempted(true);
-    void draft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brief, scope]);
+  if (!brief) return <div className="p-6 text-body-medium">Loading…</div>;
 
-  const draft = async () => {
-    if (!id) return;
-    setDrafting(true);
-    const { data, error } = await supabase.functions.invoke("draft-scope", {
-      body: { brief_id: id, nudge: nudge || undefined },
-    });
-    setDrafting(false);
-    if (error) {
-      toast.error(error.message);
+  const amStatus = intelligence?.am_status ?? "pending";
+  const isApproved = amStatus === "approved";
+  const isRejected = amStatus === "rejected";
+
+  const handleApprove = async () => {
+    try {
+      await approve.mutateAsync();
+      toast.success("Brief approved — you can now build the scope");
+    } catch {
+      toast.error("Failed to approve");
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectNotes.trim()) {
+      toast.error("Add notes so the AI knows what to fix");
       return;
     }
-    const s = data.scope;
-    const v: ScopeValues = {
-      enhanced_prose: s.enhanced_prose,
-      in_scope_md: s.in_scope_md,
-      out_of_scope_md: s.out_of_scope_md,
-      open_questions_md: s.open_questions_md,
-    };
-    setValues(v);
-    setLastAiDraft(concat(v));
-    void refetch();
-    toast.success("Drafted");
+    try {
+      await reject.mutateAsync({ notes: rejectNotes });
+      setRejectNotes("");
+      setShowRejectInput(false);
+      toast.success("Rejected — intake will regenerate on next run");
+    } catch {
+      toast.error("Failed to reject");
+    }
   };
 
-  const save = async () => {
+  const lockScope = async () => {
     if (!id) return;
     await upsertScope.mutateAsync({
       brief_id: id,
-      ...values,
-      ai_drafted: lastAiDraft ? isMostlyAi(concat(values), lastAiDraft) : false,
-    });
-    toast.success("Saved");
-  };
-
-  const lock = async () => {
-    if (!id) return;
-    await upsertScope.mutateAsync({
-      brief_id: id,
-      ...values,
-      ai_drafted: lastAiDraft ? isMostlyAi(concat(values), lastAiDraft) : false,
+      ...scopeValues,
+      ai_drafted: lastAiDraft ? isMostlyAi(concat(scopeValues), lastAiDraft) : false,
       locked_at: new Date().toISOString(),
       locked_by: userId,
     });
@@ -111,45 +120,119 @@ export function Scope() {
     navigate(`/briefs/${id}/builder`);
   };
 
-  if (!brief) return <div className="p-6">Loading…</div>;
-
   return (
-    <div className="container mx-auto max-w-7xl p-6 grid gap-6 lg:grid-cols-[minmax(280px,380px)_1fr]">
-      <aside className="space-y-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-label-small text-m-on-surface-variant">Subject</div>
-            <div className="text-title-small">{brief.raw_subject}</div>
-            <div className="mt-3 text-label-small text-m-on-surface-variant">From</div>
-            <div>{brief.sender_email ?? "manual"}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-label-small text-m-on-surface-variant mb-2">Raw body</div>
-            <pre className="whitespace-pre-wrap text-body-small">{brief.raw_body}</pre>
-          </CardContent>
-        </Card>
-      </aside>
+    <div className="container mx-auto max-w-5xl p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" asChild>
+          <Link to="/inbox"><ArrowLeft className="h-4 w-4" /></Link>
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-title-large truncate">{brief.raw_subject ?? "(no subject)"}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            {brief.intent_type && (
+              <Badge className="text-label-small">
+                {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
+              </Badge>
+            )}
+            {brief.sender_email && (
+              <span className="text-body-small text-m-on-surface-variant">
+                {brief.sender_email}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Textarea
-            placeholder="Optional redraft nudge…"
-            rows={2}
-            value={nudge}
-            onChange={(e) => setNudge(e.target.value)}
+      {/* Intelligence view — always visible */}
+      <BriefIntelligenceView
+        intelligence={intelligence ?? null}
+        isLoading={intelLoading}
+      />
+
+      {/* AM Review actions — only when pending and intelligence exists */}
+      {!isApproved && !isRejected && intelligence && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            {showRejectInput ? (
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="What needs to change? The AI will use these notes when it regenerates…"
+                  rows={3}
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRejectInput(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleReject}
+                    disabled={reject.isPending}
+                  >
+                    {reject.isPending ? "Rejecting…" : "Reject & regenerate"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRejectInput(true)}
+                >
+                  Reject — needs changes
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  disabled={approve.isPending}
+                >
+                  {approve.isPending ? "Approving…" : "Approve → build scope"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Rejected state */}
+      {isRejected && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-body-small text-red-800">
+          Rejected. Intake will regenerate the intelligence on the next run.
+          {intelligence?.am_notes && (
+            <p className="mt-1 font-medium">Notes: {intelligence.am_notes}</p>
+          )}
+        </div>
+      )}
+
+      {/* Scope editor — only after approval */}
+      {isApproved && (
+        <div className="space-y-4 pt-2">
+          <h2 className="text-title-medium">Scope</h2>
+          <ScopeEditor
+            value={scopeValues}
+            onChange={(v) => setScopeValues({ ...scopeValues, ...v })}
           />
-          <Button variant="secondary" onClick={draft} disabled={drafting}>
-            {drafting ? "Drafting…" : scope ? "Redraft" : "Draft"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() =>
+                upsertScope.mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
+                  .then(() => toast.success("Saved"))
+              }
+            >
+              Save draft
+            </Button>
+            <Button onClick={lockScope}>Lock scope</Button>
+          </div>
         </div>
-        <ScopeEditor value={values} onChange={(v) => setValues({ ...values, ...v })} />
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={save}>Save draft</Button>
-          <Button onClick={lock}>Lock scope</Button>
-        </div>
-      </section>
+      )}
     </div>
   );
 }
