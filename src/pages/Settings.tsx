@@ -16,6 +16,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow";
+
+const NAV: { key: SectionKey; label: string }[] = [
+  { key: "clickup",   label: "ClickUp" },
+  { key: "anthropic", label: "Anthropic" },
+  { key: "xero",      label: "Xero" },
+  { key: "gmail",     label: "Gmail" },
+  { key: "sow",       label: "SOW Clauses" },
+];
+
 export function Settings() {
   const { data: s, isLoading } = useSettings();
   const update = useUpdateSettings();
@@ -24,9 +34,9 @@ export function Settings() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionKey>("clickup");
   const xeroStatus = useXeroConnectionStatus();
 
-  // Show toast if redirected back from Xero OAuth
   const xeroParam = searchParams.get("xero");
   if (xeroParam === "connected") {
     toast.success("Xero connected successfully!");
@@ -68,8 +78,6 @@ export function Settings() {
   const handleXeroDisconnect = async () => {
     setDisconnecting(true);
     try {
-      // xero-oauth?action=disconnect uses GET-style query param but we POST
-      // so the edge function's OPTIONS + method guard is satisfied.
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-oauth?action=disconnect`,
         {
@@ -94,242 +102,276 @@ export function Settings() {
   };
 
   return (
-    <div className="container mx-auto max-w-3xl p-6 space-y-6">
-      <h1 className="text-headline-medium">Settings</h1>
+    <div className="container mx-auto max-w-5xl p-8">
+      <h1 className="text-headline-medium text-m-on-surface">Settings</h1>
+      <p className="mt-1 text-body-medium text-m-on-surface-variant">
+        Configure integrations and workspace preferences.
+      </p>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>ClickUp</CardTitle>
-          <CardDescription>
-            Workspace + enable toggle. Toggle fires pushes on acceptance.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="cu-enabled">Enabled</Label>
-            <Switch
-              id="cu-enabled"
-              checked={s.clickup_enabled}
-              onCheckedChange={(v) =>
-                update.mutate(
-                  { clickup_enabled: v },
-                  { onSuccess: () => toast.success("Saved") },
-                )
-              }
-            />
-          </div>
-          <p className="text-label-small text-m-on-surface-variant">
-            PAT is stored as the CLICKUP_PAT Supabase Edge Function secret. Update it in the project dashboard, not here.
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="cu-ws">Workspace ID</Label>
-            <Input
-              id="cu-ws"
-              placeholder={s.clickup_workspace_id ?? "9008…"}
-              value={workspaceId}
-              onChange={(e) => setWorkspaceId(e.target.value)}
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={() =>
-              update.mutate(
-                { clickup_workspace_id: workspaceId || s.clickup_workspace_id },
-                {
-                  onSuccess: () => {
-                    toast.success("Saved");
-                    setWorkspaceId("");
-                  },
-                },
-              )
-            }
-          >
-            Save workspace ID
-          </Button>
-          <div className="space-y-2">
-            <Label htmlFor="cu-clients-space">Clients space</Label>
-            <ClickUpSpaceSelect
-              value={s.clickup_clients_space_id ?? ""}
-              onChange={(v) =>
-                update.mutate(
-                  { clickup_clients_space_id: v || null },
-                  { onSuccess: () => toast.success("Saved") },
-                )
-              }
-            />
-            <p className="text-label-small text-m-on-surface-variant">
-              The ClickUp top-level space that holds your client folders. Required before you can link clients to folders.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Anthropic</CardTitle>
-          <CardDescription>
-            Model for draft-scope, suggest-services, draft-sow.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="anth-enabled">Enabled</Label>
-            <Switch
-              id="anth-enabled"
-              checked={s.anthropic_enabled}
-              onCheckedChange={(v) =>
-                update.mutate(
-                  { anthropic_enabled: v },
-                  { onSuccess: () => toast.success("Saved") },
-                )
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Model</Label>
-            <Select
-              value={s.anthropic_model}
-              onValueChange={(v) =>
-                update.mutate(
-                  { anthropic_model: v },
-                  { onSuccess: () => toast.success("Saved") },
-                )
-              }
+      <div className="mt-6 flex gap-6">
+        {/* Left nav */}
+        <div className="w-44 shrink-0 space-y-0.5 sticky top-0 self-start">
+          {NAV.map(({ key, label }) => (
+            <button
+              type="button"
+              key={key}
+              onClick={() => setActiveSection(key)}
+              className={`flex w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-left text-label-large transition-colors ${
+                key === activeSection
+                  ? "bg-m-primary-container font-semibold text-m-on-primary-container"
+                  : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+              }`}
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="claude-sonnet-4-6">claude-sonnet-4-6</SelectItem>
-                <SelectItem value="claude-opus-4-7">claude-opus-4-7</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+              {label}
+            </button>
+          ))}
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Xero</CardTitle>
-          <CardDescription>
-            Connect Xero to push quotes and sync invoices for margin tracking.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {(s.xero_enabled && s.xero_oauth_tokens) || xeroStatus.data?.connected ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
-                  Connected
-                </span>
-                {xeroStatus.data?.tenantName && (
-                  <span className="text-body-small text-m-on-surface-variant">
-                    {xeroStatus.data.tenantName}
-                  </span>
-                )}
-                {!xeroStatus.data?.tenantName &&
-                  (s.xero_oauth_tokens as { preferred_username?: string } | null)
-                    ?.preferred_username && (
-                    <span className="text-body-small text-m-on-surface-variant">
-                      {(s.xero_oauth_tokens as { preferred_username: string }).preferred_username}
-                    </span>
-                  )}
-              </div>
-              {xeroStatus.data?.lastSyncedAt && (
+        {/* Right content */}
+        <div className="flex-1 min-w-0">
+
+          {activeSection === "clickup" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>ClickUp</CardTitle>
+                <CardDescription>
+                  Workspace + enable toggle. Toggle fires pushes on acceptance.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="cu-enabled">Enabled</Label>
+                  <Switch
+                    id="cu-enabled"
+                    checked={s.clickup_enabled}
+                    onCheckedChange={(v) =>
+                      update.mutate(
+                        { clickup_enabled: v },
+                        { onSuccess: () => toast.success("Saved") },
+                      )
+                    }
+                  />
+                </div>
                 <p className="text-label-small text-m-on-surface-variant">
-                  Last synced:{" "}
-                  {new Date(xeroStatus.data.lastSyncedAt).toLocaleString("en-ZA", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  PAT is stored as the CLICKUP_PAT Supabase Edge Function secret. Update it in the project dashboard, not here.
                 </p>
-              )}
-              <p className="text-label-small text-m-on-surface-variant">
-                OAuth tokens are stored securely. Client credentials (XERO_CLIENT_ID,
-                XERO_CLIENT_SECRET) must be set as Supabase Edge Function secrets.
-              </p>
-              <div className="flex gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="cu-ws">Workspace ID</Label>
+                  <Input
+                    id="cu-ws"
+                    placeholder={s.clickup_workspace_id ?? "9008…"}
+                    value={workspaceId}
+                    onChange={(e) => setWorkspaceId(e.target.value)}
+                  />
+                </div>
                 <Button
                   size="sm"
-                  onClick={handleXeroSync}
-                  disabled={syncing}
+                  onClick={() =>
+                    update.mutate(
+                      { clickup_workspace_id: workspaceId || s.clickup_workspace_id },
+                      {
+                        onSuccess: () => {
+                          toast.success("Saved");
+                          setWorkspaceId("");
+                        },
+                      },
+                    )
+                  }
                 >
-                  {syncing ? "Syncing…" : "Sync invoices"}
+                  Save workspace ID
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleXeroDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? "Disconnecting…" : "Disconnect Xero"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-label-small text-m-on-surface-variant">
-                Not connected. Clicking below will redirect you to Xero to authorise access.
-                Ensure XERO_CLIENT_ID and XERO_CLIENT_SECRET are set as Supabase Edge Function
-                secrets before connecting.
-              </p>
-              <Button asChild size="sm">
-                <a href={xeroConnectUrl}>Connect Xero</a>
-              </Button>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cu-clients-space">Clients space</Label>
+                  <ClickUpSpaceSelect
+                    value={s.clickup_clients_space_id ?? ""}
+                    onChange={(v) =>
+                      update.mutate(
+                        { clickup_clients_space_id: v || null },
+                        { onSuccess: () => toast.success("Saved") },
+                      )
+                    }
+                  />
+                  <p className="text-label-small text-m-on-surface-variant">
+                    The ClickUp top-level space that holds your client folders. Required before you can link clients to folders.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Gmail intake</CardTitle>
-          <CardDescription>
-            Pipe labelled Gmail threads into the shared Inbox. One-time per-teammate setup.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link to="/settings/gmail">Connect Gmail →</Link>
-          </Button>
-        </CardContent>
-      </Card>
+          {activeSection === "anthropic" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Anthropic</CardTitle>
+                <CardDescription>
+                  Model for draft-scope, suggest-services, draft-sow.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="anth-enabled">Enabled</Label>
+                  <Switch
+                    id="anth-enabled"
+                    checked={s.anthropic_enabled}
+                    onCheckedChange={(v) =>
+                      update.mutate(
+                        { anthropic_enabled: v },
+                        { onSuccess: () => toast.success("Saved") },
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Model</Label>
+                  <Select
+                    value={s.anthropic_model}
+                    onValueChange={(v) =>
+                      update.mutate(
+                        { anthropic_model: v },
+                        { onSuccess: () => toast.success("Saved") },
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="claude-sonnet-4-6">claude-sonnet-4-6</SelectItem>
+                      <SelectItem value="claude-opus-4-7">claude-opus-4-7</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>SOW Clause Hierarchy</CardTitle>
-          <CardDescription>
-            Define the priority order for scope-of-work clause inheritance. Higher levels override lower ones.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SOWLevelsManager />
-          <div className="pt-2 border-t border-white/10">
-            <p className="text-xs text-muted-foreground mb-2">Edit clause values per service family:</p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                'paid-media-management',
-                'creative-production',
-                'website-build',
-                'seo-content',
-                'website-hosting-maintenance',
-                'social-media-management',
-                'analytics-tracking',
-                'video-3d-production',
-                'marketing-automation',
-              ].map(slug => (
-                <Link
-                  key={slug}
-                  to={`/sow/${slug}`}
-                  className="text-xs text-indigo-400 underline hover:text-indigo-300 transition-colors"
-                >
-                  {slug}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          {activeSection === "xero" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Xero</CardTitle>
+                <CardDescription>
+                  Connect Xero to push quotes and sync invoices for margin tracking.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(s.xero_enabled && s.xero_oauth_tokens) || xeroStatus.data?.connected ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
+                        Connected
+                      </span>
+                      {xeroStatus.data?.tenantName && (
+                        <span className="text-body-small text-m-on-surface-variant">
+                          {xeroStatus.data.tenantName}
+                        </span>
+                      )}
+                      {!xeroStatus.data?.tenantName &&
+                        (s.xero_oauth_tokens as { preferred_username?: string } | null)
+                          ?.preferred_username && (
+                          <span className="text-body-small text-m-on-surface-variant">
+                            {(s.xero_oauth_tokens as { preferred_username: string }).preferred_username}
+                          </span>
+                        )}
+                    </div>
+                    {xeroStatus.data?.lastSyncedAt && (
+                      <p className="text-label-small text-m-on-surface-variant">
+                        Last synced:{" "}
+                        {new Date(xeroStatus.data.lastSyncedAt).toLocaleString("en-ZA", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                    )}
+                    <p className="text-label-small text-m-on-surface-variant">
+                      OAuth tokens are stored securely. Client credentials (XERO_CLIENT_ID,
+                      XERO_CLIENT_SECRET) must be set as Supabase Edge Function secrets.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleXeroSync} disabled={syncing}>
+                        {syncing ? "Syncing…" : "Sync invoices"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleXeroDisconnect}
+                        disabled={disconnecting}
+                      >
+                        {disconnecting ? "Disconnecting…" : "Disconnect Xero"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-label-small text-m-on-surface-variant">
+                      Not connected. Clicking below will redirect you to Xero to authorise access.
+                      Ensure XERO_CLIENT_ID and XERO_CLIENT_SECRET are set as Supabase Edge Function
+                      secrets before connecting.
+                    </p>
+                    <Button asChild size="sm">
+                      <a href={xeroConnectUrl}>Connect Xero</a>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "gmail" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Gmail intake</CardTitle>
+                <CardDescription>
+                  Pipe labelled Gmail threads into the shared Inbox. One-time per-teammate setup.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/settings/gmail">Connect Gmail →</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "sow" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>SOW Clause Hierarchy</CardTitle>
+                <CardDescription>
+                  Define the priority order for scope-of-work clause inheritance. Higher levels override lower ones.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <SOWLevelsManager />
+                <div className="pt-2 border-t border-white/10">
+                  <p className="text-xs text-muted-foreground mb-2">Edit clause values per service family:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "paid-media-management",
+                      "creative-production",
+                      "website-build",
+                      "seo-content",
+                      "website-hosting-maintenance",
+                      "social-media-management",
+                      "analytics-tracking",
+                      "video-3d-production",
+                      "marketing-automation",
+                    ].map(slug => (
+                      <Link
+                        key={slug}
+                        to={`/sow/${slug}`}
+                        className="text-xs text-indigo-400 underline hover:text-indigo-300 transition-colors"
+                      >
+                        {slug}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }
