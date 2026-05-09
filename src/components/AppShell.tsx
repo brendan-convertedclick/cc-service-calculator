@@ -43,7 +43,7 @@ export function AppShell() {
             <div className="text-label-small text-m-on-surface-variant">Service pricing</div>
           </div>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-3 pt-2">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pt-2">
           {nav.map((n) => (
             <NavLink
               key={n.to}
@@ -69,10 +69,14 @@ export function AppShell() {
           {/* Inbox — unlinked briefs */}
           <InboxNavSection onSelectBrief={(b) => setInboxBrief(b)} />
 
-          {/* Client → Project nav */}
-          {clientsWithProjects.map((client) => (
-            <ClientNavSection key={client.id} client={client} />
-          ))}
+          {/* Client → Project nav — only clients with at least one in_progress project */}
+          {clientsWithProjects
+            .filter((client) =>
+              client.projects.some((p) => p.status === "in_progress")
+            )
+            .map((client) => (
+              <ClientNavSection key={client.id} client={client} />
+            ))}
         </nav>
         <div className="border-t border-m-outline-variant px-4 py-3">
           <div className="text-label-small text-m-on-surface-variant">Signed in as</div>
