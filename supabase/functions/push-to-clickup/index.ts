@@ -523,6 +523,78 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Instantiate process steps for this project.
+    // Each service on the quote may have template steps in process_steps.
+    // We create one process_step_instance per template step, in service-line
+    // order, then create a corresponding ClickUp child task for each.
+    const serviceIdsOrdered = items.map((i) => i.service_id);
+    if (serviceIdsOrdered.length > 0) {
+      const { data: templateSteps } = await supabase
+        .from("process_steps")
+        .select("id,service_id,ordinal,title,description,department_id,estimated_hours")
+        .in("service_id", serviceIdsOrdered)
+        .order("service_id,ordinal");
+
+      if (templateSteps && templateSteps.length > 0) {
+        // Global ordinal: sort by quote service order, then template step ordinal
+        const serviceOrderMap = new Map(serviceIdsOrdered.map((id, i) => [id, i]));
+        const sorted = [...templateSteps].sort((a, b) => {
+          const so = (serviceOrderMap.get(a.service_id) ?? 99) - (serviceOrderMap.get(b.service_id) ?? 99);
+          return so !== 0 ? so : a.ordinal - b.ordinal;
+        });
+
+        const instanceRows = sorted.map((step, idx) => ({
+          project_id: projectId,
+          template_step_id: step.id,
+          service_id: step.service_id,
+          ordinal: idx + 1,
+          title: step.title,
+          description: step.description ?? null,
+          department_id: step.department_id ?? null,
+          estimated_hours: step.estimated_hours ?? null,
+          status: "pending",
+        }));
+
+        const { data: inserted, error: stepInsertErr } = await supabase
+          .from("process_step_instances")
+          .insert(instanceRows)
+          .select("id,ordinal,title");
+
+        if (stepInsertErr) {
+          console.error("Failed to instantiate process steps:", stepInsertErr.message);
+          // Non-fatal: project creation succeeds even if step instantiation fails
+        } else if (inserted) {
+          // Create one ClickUp child task per step instance, store clickup_task_id
+          for (const instance of inserted as Array<{ id: string; ordinal: number; title: string }>) {
+            try {
+              const stepTaskRes = await fetch(
+                `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
+                {
+                  ...CU,
+                  method: "POST",
+                  body: JSON.stringify({
+                    name: `[Step ${instance.ordinal}] ${instance.title}`,
+                    parent: parent.id,
+                    ...(sharedCustomFields.length > 0 && { custom_fields: sharedCustomFields }),
+                  }),
+                },
+              );
+              if (stepTaskRes.ok) {
+                const stepTask = await stepTaskRes.json();
+                await supabase
+                  .from("process_step_instances")
+                  .update({ clickup_task_id: stepTask.id })
+                  .eq("id", instance.id);
+              }
+            } catch (e) {
+              console.error(`Failed to create ClickUp task for step ${instance.ordinal}:`, e);
+              // Continue — remaining steps should still be created
+            }
+          }
+        }
+      }
+    }
+
     return json({
       project_id: projectId,
       project_code: projectCode,
