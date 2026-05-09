@@ -1,3 +1,4 @@
+// src/App.tsx
 import { Suspense, lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -5,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AuthProvider } from "@/context/AuthContext";
 import { Login } from "@/pages/Login";
-import { Dashboard } from "@/pages/Dashboard";
+import { DashboardPage } from "@/pages/DashboardPage";
 
 const ServicesList = lazy(() =>
   import("@/pages/ServicesList").then((m) => ({ default: m.ServicesList })),
@@ -77,8 +78,11 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
+            {/* Dashboard — standalone IDE layout, no AppShell */}
+            <Route index element={<DashboardPage />} />
+
+            {/* All other routes — AppShell without sidebar */}
             <Route element={<AppShell />}>
-              <Route index element={<Dashboard />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs/new" element={<NewBrief />} />
