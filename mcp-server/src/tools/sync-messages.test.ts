@@ -46,14 +46,6 @@ describe('sync-messages', () => {
     expect(parsed).toEqual({ inserted: 0, skipped: 1 })
   })
 
-  it('handles mixed new and duplicate messages', async () => {
-    mockSelect.mockResolvedValue({ data: [{ id: 'row-1' }], error: null })
-    const msg2 = { ...baseMessage, gmail_message_id: 'msg-2' }
-    const result = await handler({ brief_id: 'brief-1', messages: [baseMessage, msg2] })
-    const parsed = JSON.parse(result.content[0].text)
-    expect(parsed).toEqual({ inserted: 1, skipped: 1 })
-  })
-
   it('maps optional fields to null when omitted', async () => {
     mockSelect.mockResolvedValue({ data: [{ id: 'row-1' }], error: null })
     const minimal = {

@@ -42,6 +42,7 @@ export async function handler(input: Input) {
 
     if (error) throw new Error(error.message)
 
+    // PostgREST returns only inserted rows when ignoreDuplicates:true; null means 0 inserted
     const inserted = data?.length ?? 0
     const skipped = input.messages.length - inserted
 
