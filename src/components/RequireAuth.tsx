@@ -5,6 +5,8 @@ export function RequireAuth() {
   const { session, loading } = useAuth();
   const loc = useLocation();
 
+  if (import.meta.env.DEV) return <Outlet />;
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">

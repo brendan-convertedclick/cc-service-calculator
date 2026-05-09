@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
+const DEV_SESSION = import.meta.env.DEV
+  ? ({ user: { id: "dev", email: "team@convertedclick.co.za" } } as unknown as Session)
+  : null;
+
 type AuthContextValue = {
   session: Session | null;
   user: Session["user"] | null;
@@ -17,8 +21,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(DEV_SESSION);
+  const [loading, setLoading] = useState(!import.meta.env.DEV);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {

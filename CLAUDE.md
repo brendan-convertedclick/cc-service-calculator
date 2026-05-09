@@ -2,6 +2,14 @@
 
 Internal service calculator for Converted Click. React SPA + Supabase. See the plan at `~/.claude/plans/https-lpgwxacoqiqpcfpkklib-supabase-co-i-cuddly-puffin.md` for the full V1 spec.
 
+## Development workflow
+
+Feature work defaults to **superpowers subagents with git worktrees**:
+
+1. Use the `superpowers:using-git-worktrees` skill to create an isolated worktree before touching code.
+2. Use the `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development` skills to execute independent tasks in parallel subagents.
+3. Each subagent works in its own worktree branch; changes are reviewed and merged back to main.
+
 ## Shared dev login
 
 - Email: `team@convertedclick.co.za`

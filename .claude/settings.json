@@ -14,7 +14,9 @@
       "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(npx:*)",
-      "mcp__cc-supabase__execute_sql"
+      "mcp__cc-supabase__execute_sql",
+      "mcp__plugin_supabase_supabase__get_logs",
+      "mcp__cc-supabase__get_logs"
     ],
     "deny": [
       "mcp__supabase__apply_migration",
