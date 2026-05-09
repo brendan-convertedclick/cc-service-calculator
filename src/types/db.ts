@@ -88,6 +88,7 @@ export type Database = {
           intent_type: string | null
           last_message_at: string | null
           message_count: number
+          parent_project_id: string | null
           raw_attachments: Json | null
           raw_body: string
           raw_subject: string | null
@@ -111,6 +112,7 @@ export type Database = {
           intent_type?: string | null
           last_message_at?: string | null
           message_count?: number
+          parent_project_id?: string | null
           raw_attachments?: Json | null
           raw_body: string
           raw_subject?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           intent_type?: string | null
           last_message_at?: string | null
           message_count?: number
+          parent_project_id?: string | null
           raw_attachments?: Json | null
           raw_body?: string
           raw_subject?: string | null
@@ -159,6 +162,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "briefs_parent_project_id_fkey"
+            columns: ["parent_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -489,8 +499,10 @@ export type Database = {
       projects: {
         Row: {
           clickup_parent_task_id: string
+          client_id: string | null
           completed_at: string | null
           created_at: string
+          engagement_type: string
           git_remote_url: string | null
           id: string
           is_recurring: boolean
@@ -504,14 +516,17 @@ export type Database = {
             | null
           recurrence_mode: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start: string | null
+          scope_status: string
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
         }
         Insert: {
           clickup_parent_task_id: string
+          client_id?: string | null
           completed_at?: string | null
           created_at?: string
+          engagement_type?: string
           git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
@@ -525,14 +540,17 @@ export type Database = {
             | null
           recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
+          scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
         Update: {
           clickup_parent_task_id?: string
+          client_id?: string | null
           completed_at?: string | null
           created_at?: string
+          engagement_type?: string
           git_remote_url?: string | null
           id?: string
           is_recurring?: boolean
@@ -546,11 +564,19 @@ export type Database = {
             | null
           recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
+          scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_quote_id_fkey"
             columns: ["quote_id"]

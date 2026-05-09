@@ -58,6 +58,9 @@ const SettingsConnectGmail = lazy(() =>
 const Guides = lazy(() =>
   import("@/pages/Guides").then((m) => ({ default: m.Guides })),
 );
+const ProjectScopeView = lazy(() =>
+  import("@/pages/ProjectScopeView").then((m) => ({ default: m.ProjectScopeView })),
+);
 
 function RouteFallback() {
   return (
@@ -84,6 +87,7 @@ export default function App() {
               <Route path="quotes/:id" element={<QuoteDetail />} />
               <Route path="quotes/:id/send" element={<QuoteSend />} />
               <Route path="clients" element={<Clients />} />
+              <Route path="clients/:clientId/projects/:projectId" element={<ProjectScopeView />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="settings" element={<Settings />} />
