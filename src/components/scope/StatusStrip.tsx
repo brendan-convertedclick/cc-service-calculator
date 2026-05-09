@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/db";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
+import type { ClaudePrompt } from "@/types/claude";
 
 type ActualRow = Database["public"]["Views"]["project_actuals_current"]["Row"];
 type Quote = Database["public"]["Tables"]["quotes"]["Row"];
@@ -21,9 +23,10 @@ interface Props {
   actuals: ActualRow[];
   quote?: Quote | null;
   briefCount: number;
+  prompts?: ClaudePrompt[];
 }
 
-export function StatusStrip({ actuals, quote, briefCount }: Props) {
+export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props) {
   const totalUsed = actuals.reduce((s, a) => s + (a.actual_hours ?? 0), 0);
   const totalPlanned = actuals.reduce((s, a) => s + (a.planned_hours ?? 0), 0);
   const pct = totalPlanned > 0 ? Math.min((totalUsed / totalPlanned) * 100, 100) : 0;
@@ -89,6 +92,7 @@ export function StatusStrip({ actuals, quote, briefCount }: Props) {
           </span>
         </section>
       )}
+      <ClaudePromptPanel prompts={prompts} />
     </aside>
   );
 }
