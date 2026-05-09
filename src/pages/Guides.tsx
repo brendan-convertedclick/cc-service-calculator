@@ -2,23 +2,25 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  BarChart3, Boxes, Briefcase, Building2, CheckCircle2, ClipboardList,
-  DollarSign, FileCheck, FileEdit, FilePlus, FileText, FolderKanban,
-  GitBranch, GitMerge, Hammer, HelpCircle, Inbox, ListChecks, Lock,
-  Mail, Package, Paperclip, Repeat, RefreshCcw, RefreshCw, ScanSearch,
-  Search, Send, SendHorizontal, Settings2, SlidersHorizontal, Sliders, Sparkles,
-  Users, Wand2, ChevronRight, ChevronDown, Lightbulb,
+  Activity, BarChart2, BarChart3, Bell, Boxes, Briefcase, Building2,
+  CheckCircle2, ClipboardList, DollarSign, FileCheck, FileEdit, FilePlus,
+  FileText, Filter, Flame, FolderKanban, GitBranch, GitMerge, Hammer,
+  HeartPulse, HelpCircle, Inbox, ListChecks, Lock, Mail, Package, Paperclip,
+  PhoneCall, Receipt, Repeat, RefreshCcw, RefreshCw, ScanSearch, Search,
+  Send, SendHorizontal, Settings2, SlidersHorizontal, Sliders, Sparkles,
+  TrendingUp, Users, Wand2, ChevronRight, ChevronDown, Lightbulb,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { decks, type Step } from '@/data/guides'
 
 const iconMap: Record<string, React.ElementType> = {
-  BarChart3, Boxes, Briefcase, Building2, CheckCircle2, ClipboardList,
-  DollarSign, FileCheck, FileEdit, FilePlus, FileText, FolderKanban,
-  GitBranch, GitMerge, Hammer, HelpCircle, Inbox, ListChecks, Lock,
-  Mail, Package, Paperclip, Repeat, RefreshCcw, RefreshCw, ScanSearch,
-  Search, Send, SendHorizontal, Settings2, SlidersHorizontal, Sliders, Sparkles,
-  Users, Wand2,
+  Activity, BarChart2, BarChart3, Bell, Boxes, Briefcase, Building2,
+  CheckCircle2, ClipboardList, DollarSign, FileCheck, FileEdit, FilePlus,
+  FileText, Filter, Flame, FolderKanban, GitBranch, GitMerge, Hammer,
+  HeartPulse, HelpCircle, Inbox, ListChecks, Lock, Mail, Package, Paperclip,
+  PhoneCall, Receipt, Repeat, RefreshCcw, RefreshCw, ScanSearch, Search,
+  Send, SendHorizontal, Settings2, SlidersHorizontal, Sliders, Sparkles,
+  TrendingUp, Users, Wand2,
 }
 
 function StepCard({
