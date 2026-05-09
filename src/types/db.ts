@@ -1781,3 +1781,40 @@ export const Constants = {
     },
   },
 } as const
+
+// Manually maintained types for tables not yet in the auto-generated schema
+export interface ProcessStepInstance {
+  id: string
+  project_id: string
+  template_step_id: string | null
+  service_id: string | null
+  ordinal: number
+  title: string
+  description: string | null
+  department_id: string | null
+  assignee_id: string | null
+  estimated_hours: number | null
+  actual_hours: number
+  status: 'pending' | 'in_progress' | 'blocked' | 'done' | 'skipped'
+  blocked_reason: string | null
+  manual_override: boolean
+  clickup_task_id: string | null
+  due_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  last_synced_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProcessStepHandoff {
+  project_id: string
+  from_step_id: string
+  to_step_id: string
+  from_ordinal: number
+  from_title: string
+  to_title: string
+  from_completed_at: string
+  to_started_at: string
+  handoff_hours: number
+}
