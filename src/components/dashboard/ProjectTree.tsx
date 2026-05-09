@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardProjectRow } from "./DashboardProjectRow";
 import type { ClientWithProjects } from "@/hooks/useClientProjects";
@@ -22,6 +22,7 @@ function ClientSection({
   hiddenIds,
   scopeFilter,
   filterText,
+  showCompleted,
   onSelect,
   onHide,
 }: {
@@ -30,12 +31,13 @@ function ClientSection({
   hiddenIds: Set<string>;
   scopeFilter: ScopeFilter;
   filterText: string;
+  showCompleted: boolean;
   onSelect: (id: string) => void;
   onHide: (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
 
-  const visibleProjects = client.projects.filter((p) => {
+  const activeProjects = client.projects.filter((p) => {
     if (p.status !== "in_progress") return false;
     if (hiddenIds.has(p.id)) return false;
     if (scopeFilter !== "all" && p.scope_status !== scopeFilter) return false;
@@ -46,6 +48,18 @@ function ClientSection({
     return true;
   });
 
+  const completedProjects = showCompleted
+    ? client.projects.filter((p) => {
+        if (p.status !== "completed") return false;
+        if (filterText) {
+          const q = filterText.toLowerCase();
+          return p.name?.toLowerCase().includes(q) || client.name.toLowerCase().includes(q);
+        }
+        return true;
+      })
+    : [];
+
+  const visibleProjects = [...activeProjects, ...completedProjects];
   if (visibleProjects.length === 0) return null;
 
   return (
@@ -68,7 +82,8 @@ function ClientSection({
               engagementType={p.engagement_type ?? "fixed"}
               scopeStatus={p.scope_status ?? "on_track"}
               isSelected={p.id === selectedProjectId}
-              onSelect={onSelect}
+              isCompleted={p.status === "completed"}
+              onSelect={p.status === "completed" ? () => {} : onSelect}
               onHide={onHide}
             />
           ))}
@@ -81,6 +96,7 @@ function ClientSection({
 export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds, onSelect, onHide }: Props) {
   const [filterText, setFilterText] = useState("");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const pillClasses = (filter: ScopeFilter, active: string, inactive: string) =>
     cn(
@@ -102,6 +118,19 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
           onChange={(e) => setFilterText(e.target.value)}
           className="w-full rounded-md border border-m-outline-variant bg-m-surface px-2 py-1.5 text-label-medium text-m-on-surface placeholder:text-m-on-surface-variant focus:outline-none focus:ring-1 focus:ring-m-primary"
         />
+        <button
+          onClick={() => setShowCompleted((v) => !v)}
+          title={showCompleted ? "Hide completed" : "Show completed"}
+          className={cn(
+            "mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-label-small transition-colors",
+            showCompleted
+              ? "bg-m-primary-container text-m-on-primary-container"
+              : "text-m-on-surface-variant hover:bg-m-surface-container"
+          )}
+        >
+          <CheckCircle className="h-3.5 w-3.5" />
+          <span>Completed</span>
+        </button>
       </div>
 
       {/* Health pills */}
@@ -146,6 +175,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
             hiddenIds={hiddenIds}
             scopeFilter={scopeFilter}
             filterText={filterText}
+            showCompleted={showCompleted}
             onSelect={onSelect}
             onHide={onHide}
           />

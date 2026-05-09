@@ -56,4 +56,10 @@ describe("DashboardProjectRow", () => {
     fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(onHide).toHaveBeenCalledWith("proj-1");
   });
+
+  it("applies opacity and no hover when isCompleted=true", () => {
+    render(<DashboardProjectRow {...baseProps} isCompleted />);
+    const wrapper = screen.getByRole("button", { name: /Google Ads Q2/i }).closest("div");
+    expect(wrapper).toHaveClass("opacity-60");
+  });
 });
