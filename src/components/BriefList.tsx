@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { useBriefs, type BriefScope } from "@/hooks/useBriefs";
+import { useBriefs, type BriefScope, type BriefFilterOptions } from "@/hooks/useBriefs";
 import { STATUS_LABEL } from "@/lib/brief-routing";
 import type { Database } from "@/types/db";
 
@@ -65,10 +65,11 @@ interface BriefListProps {
   scope: BriefScope;
   currentUserId?: string | null;
   selectedBriefId?: string;
+  filterOptions?: BriefFilterOptions;
 }
 
-export function BriefList({ scope, currentUserId, selectedBriefId }: BriefListProps) {
-  const { data: briefs = [], isLoading } = useBriefs(scope, currentUserId);
+export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions }: BriefListProps) {
+  const { data: briefs = [], isLoading } = useBriefs(scope, currentUserId, filterOptions);
 
   if (isLoading) {
     return <div className="text-body-medium text-m-on-surface-variant p-4">Loading…</div>;
