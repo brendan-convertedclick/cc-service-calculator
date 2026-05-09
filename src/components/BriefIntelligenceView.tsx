@@ -10,7 +10,7 @@ type Requirement = {
   text: string;
   interpretation: string;
   mapped_service_ids: string[];
-  confidence: "low" | "med" | "high";
+  confidence: "low" | "medium" | "high";
 };
 
 type DeptBreakdown = {
@@ -164,8 +164,8 @@ export function BriefIntelligenceView({ intelligence, isLoading }: Props) {
             <div>
               <div className="text-label-small text-m-on-surface-variant">Human hours</div>
               <div className="text-title-medium">
-                {intelligence.total_human_hours_low}–
-                {intelligence.total_human_hours_high} hrs
+                {intelligence.total_human_hours_low ?? '?'}–
+                {intelligence.total_human_hours_high ?? '?'} hrs
               </div>
               {(intelligence.total_ai_hours ?? 0) > 0 && (
                 <div className="text-body-small text-m-primary">
