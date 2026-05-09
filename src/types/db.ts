@@ -282,6 +282,30 @@ export type Database = {
           },
         ]
       }
+      client_touchpoints: {
+        Row: {
+          id: string
+          client_id: string
+          type: 'meeting' | 'call' | 'email'
+          notes: string | null
+          occurred_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          type: 'meeting' | 'call' | 'email'
+          notes?: string | null
+          occurred_at?: string
+          created_at?: string
+        }
+        Update: Partial<{
+          type: 'meeting' | 'call' | 'email'
+          notes: string | null
+          occurred_at: string
+        }>
+        Relationships: []
+      }
       clients: {
         Row: {
           archived_at: string | null
@@ -623,6 +647,8 @@ export type Database = {
             | null
           recurrence_mode: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start: string | null
+          retainer_hours_target: number | null
+          retainer_monthly_fee_cents: number | null
           scope_status: string
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
@@ -650,6 +676,8 @@ export type Database = {
             | null
           recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
+          retainer_hours_target?: number | null
+          retainer_monthly_fee_cents?: number | null
           scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -677,6 +705,8 @@ export type Database = {
             | null
           recurrence_mode?: Database["public"]["Enums"]["recurrence_mode"]
           recurrence_start?: string | null
+          retainer_hours_target?: number | null
+          retainer_monthly_fee_cents?: number | null
           scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
