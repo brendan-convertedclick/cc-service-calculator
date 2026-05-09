@@ -117,7 +117,7 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
           <Button
             size="sm"
             variant="outline"
-            onClick={() => navigate(`/briefs/new`)}
+            onClick={() => navigate(`/briefs/new?projectId=${projectId}`)}
           >
             + Brief
           </Button>

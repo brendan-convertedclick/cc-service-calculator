@@ -24,6 +24,11 @@ export function DashboardShell() {
     setSelectedProjectId(projectId);
   }
 
+  function handleHide(projectId: string) {
+    hide(projectId);
+    if (projectId === selectedProjectId) setSelectedProjectId(null);
+  }
+
   function handleComplete() {
     setSelectedProjectId(null);
   }
@@ -40,7 +45,7 @@ export function DashboardShell() {
         selectedProjectId={selectedProjectId}
         hiddenIds={hiddenIds}
         onSelect={handleSelect}
-        onHide={hide}
+        onHide={handleHide}
       />
 
       {/* Column 3: detail or overview */}

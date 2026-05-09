@@ -102,7 +102,7 @@ export function OpsOverview({ opsData, onSelect }: Props) {
       {opsData.recentProjects.length > 0 && (
         <section>
           <h2 className="mb-3 text-label-large font-bold uppercase tracking-wide text-m-on-surface-variant">
-            Recently active
+            Recent projects
           </h2>
           <div className="flex flex-col gap-2">
             {opsData.recentProjects.map((p) => (
