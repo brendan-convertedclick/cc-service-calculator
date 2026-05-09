@@ -109,15 +109,19 @@ export function Scope() {
 
   const lockScope = async () => {
     if (!id) return;
-    await upsertScope.mutateAsync({
-      brief_id: id,
-      ...scopeValues,
-      ai_drafted: lastAiDraft ? isMostlyAi(concat(scopeValues), lastAiDraft) : false,
-      locked_at: new Date().toISOString(),
-      locked_by: userId,
-    });
-    await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
-    navigate(`/briefs/${id}/builder`);
+    try {
+      await upsertScope.mutateAsync({
+        brief_id: id,
+        ...scopeValues,
+        ai_drafted: lastAiDraft ? isMostlyAi(concat(scopeValues), lastAiDraft) : false,
+        locked_at: new Date().toISOString(),
+        locked_by: userId,
+      });
+      await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
+      navigate(`/briefs/${id}/builder`);
+    } catch {
+      toast.error("Failed to lock scope");
+    }
   };
 
   return (
@@ -225,6 +229,7 @@ export function Scope() {
               onClick={() =>
                 upsertScope.mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
                   .then(() => toast.success("Saved"))
+                  .catch(() => toast.error("Failed to save"))
               }
             >
               Save draft
