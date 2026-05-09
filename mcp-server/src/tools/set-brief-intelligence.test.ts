@@ -58,4 +58,50 @@ describe('set-brief-intelligence', () => {
   it('schema rejects missing brief_id', () => {
     expect(() => schema.parse({})).toThrow()
   })
+
+  it('appends audit_trail_entry to existing trail', async () => {
+    const existingTrail = [{ stage: 'classify', completed_at: '2026-01-01T00:00:00Z' }]
+    const newEntry = { stage: 'extract-requirements', completed_at: '2026-01-01T00:01:00Z', confidence: 0.9 }
+
+    // First call: SELECT for existing audit_trail
+    // Second call: UPSERT with merged array
+    let callCount = 0
+    mockFrom.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        // SELECT call
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { audit_trail: existingTrail },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      // UPSERT call
+      return {
+        upsert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          // Verify the merged array contains both entries
+          expect(Array.isArray(payload.audit_trail)).toBe(true)
+          expect((payload.audit_trail as unknown[]).length).toBe(2)
+          expect((payload.audit_trail as Array<{stage: string}>)[0].stage).toBe('classify')
+          expect((payload.audit_trail as Array<{stage: string}>)[1].stage).toBe('extract-requirements')
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'i', brief_id: 'b', am_status: 'pending' },
+                error: null,
+              }),
+            }),
+          }
+        }),
+      }
+    })
+
+    const result = await handler({ brief_id: 'b', audit_trail_entry: newEntry })
+    expect(result.isError).toBeUndefined()
+  })
 })

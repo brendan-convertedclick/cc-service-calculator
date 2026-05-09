@@ -35,7 +35,9 @@ export async function handler(input: Input) {
   try {
     const { audit_trail_entry, ...fields } = input
 
-    // Fetch existing audit_trail if we need to append
+    // Sequential append — the intake orchestrator runs stages sequentially so
+    // concurrent calls to this tool on the same brief_id are not expected in V1.
+    // If parallel stage execution is added, replace with a Postgres jsonb || update.
     let existingAuditTrail: unknown[] = []
     if (audit_trail_entry) {
       const { data: existing } = await supabase
