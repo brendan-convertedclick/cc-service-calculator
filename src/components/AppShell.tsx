@@ -1,8 +1,15 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { BookOpen, Building2, Calculator, FolderKanban, Inbox as InboxIcon, LayoutDashboard, LogOut, PackageSearch, Settings as SettingsIcon, SlidersHorizontal, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useClientProjects } from "@/hooks/useClientProjects";
+import { ClientNavSection } from "@/components/nav/ClientNavSection";
+import { InboxNavSection } from "@/components/nav/InboxNavSection";
+import type { Database } from "@/types/db";
+
+type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -20,6 +27,8 @@ const nav = [
 export function AppShell() {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
+  const { data: clientsWithProjects = [] } = useClientProjects();
+  const [inboxBrief, setInboxBrief] = useState<Brief | null>(null);
 
   return (
     <div className="min-h-screen grid grid-cols-[240px_1fr] bg-m-surface-container-low">
@@ -52,6 +61,17 @@ export function AppShell() {
               {n.label}
             </NavLink>
           ))}
+
+          {/* Divider */}
+          <div className="my-2 border-t border-m-outline-variant" />
+
+          {/* Inbox — unlinked briefs */}
+          <InboxNavSection onSelectBrief={(b) => setInboxBrief(b)} />
+
+          {/* Client → Project nav */}
+          {clientsWithProjects.map((client) => (
+            <ClientNavSection key={client.id} client={client} />
+          ))}
         </nav>
         <div className="border-t border-m-outline-variant px-4 py-3">
           <div className="text-label-small text-m-on-surface-variant">Signed in as</div>
@@ -77,6 +97,15 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* InboxAssignModal will be wired in Task 10 */}
+      {inboxBrief && (
+        <div
+          aria-label="inbox-assign-placeholder"
+          data-brief-id={inboxBrief.id}
+          className="hidden"
+        />
+      )}
     </div>
   );
 }
