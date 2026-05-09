@@ -30,9 +30,9 @@ describe("DashboardProjectRow", () => {
     expect(onSelect).toHaveBeenCalledWith("proj-1");
   });
 
-  it("shows green dot for on_track", () => {
+  it("shows tertiary dot for on_track", () => {
     render(<DashboardProjectRow {...baseProps} scopeStatus="on_track" />);
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-green-500");
+    expect(screen.getByTestId("status-dot")).toHaveClass("bg-m-tertiary");
   });
 
   it("shows amber dot for needs_attention", () => {
@@ -40,9 +40,9 @@ describe("DashboardProjectRow", () => {
     expect(screen.getByTestId("status-dot")).toHaveClass("bg-amber-400");
   });
 
-  it("shows red dot for overdue", () => {
+  it("shows error dot for overdue", () => {
     render(<DashboardProjectRow {...baseProps} scopeStatus="overdue" />);
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-red-500");
+    expect(screen.getByTestId("status-dot")).toHaveClass("bg-m-error");
   });
 
   it("applies selected styles when isSelected=true", () => {

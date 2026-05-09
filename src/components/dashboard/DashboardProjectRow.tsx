@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/timeAgo";
 
 const statusDot: Record<string, string> = {
-  on_track: "bg-green-500",
+  on_track: "bg-m-tertiary",
   needs_attention: "bg-amber-400",
-  overdue: "bg-red-500",
+  overdue: "bg-m-error",
 };
 
 interface Props {
@@ -26,7 +26,7 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
         aria-label={name}
         onClick={() => onSelect(id)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-label-medium transition-colors text-left",
+          "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-label-small transition-colors text-left",
           isSelected
             ? "bg-m-primary-container text-m-on-primary-container"
             : isCompleted
@@ -36,9 +36,9 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
       >
         <span
           data-testid="status-dot"
-          className={cn("h-2 w-2 shrink-0 rounded-full", statusDot[scopeStatus] ?? "bg-gray-400")}
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot[scopeStatus] ?? "bg-gray-400")}
         />
-        <span className="flex-1 truncate">{name}</span>
+        <span className="flex-1 truncate text-m-on-surface-variant group-hover:text-m-on-surface">{name}</span>
         {lastActivityAt && (
           <span className="shrink-0 text-[10px] text-m-on-surface-variant">
             {timeAgo(lastActivityAt)}

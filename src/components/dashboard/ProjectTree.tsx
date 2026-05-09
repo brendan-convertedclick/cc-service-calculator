@@ -5,17 +5,19 @@ import { DashboardProjectRow } from "./DashboardProjectRow";
 import type { ClientWithProjects } from "@/hooks/useClientProjects";
 import type { OpsOverviewData } from "@/hooks/useOpsOverview";
 
+export type ScopeFilter = "all" | "on_track" | "needs_attention" | "overdue";
+
 interface Props {
   clientsData: ClientWithProjects[];
   opsData: OpsOverviewData;
   selectedProjectId: string | null;
   hiddenIds: Set<string>;
   lastBriefActivity: Map<string, string>;
+  scopeFilter: ScopeFilter;
+  onScopeFilterChange: (f: ScopeFilter) => void;
   onSelect: (projectId: string) => void;
   onHide: (projectId: string) => void;
 }
-
-type ScopeFilter = "all" | "on_track" | "needs_attention" | "overdue";
 
 function ClientSection({
   client,
@@ -69,7 +71,7 @@ function ClientSection({
     <div className="mb-1">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-label-small uppercase tracking-wide text-m-on-surface-variant hover:text-m-on-surface transition-colors"
+        className="flex w-full items-center gap-1.5 px-3 py-1 text-label-medium font-semibold uppercase tracking-widest text-m-on-surface transition-colors"
       >
         {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
         <span className="truncate">{client.name}</span>
@@ -97,10 +99,10 @@ function ClientSection({
   );
 }
 
-export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds, lastBriefActivity, onSelect, onHide }: Props) {
+export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds, lastBriefActivity, scopeFilter, onScopeFilterChange, onSelect, onHide }: Props) {
   const [filterText, setFilterText] = useState("");
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [showCompleted, setShowCompleted] = useState(false);
+  const setScopeFilter = onScopeFilterChange;
 
   const pillClasses = (filter: ScopeFilter, active: string, inactive: string) =>
     cn(
@@ -141,7 +143,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
       <div className="flex flex-wrap gap-1.5 border-b border-m-outline-variant px-3 py-2">
         <button
           onClick={() => setScopeFilter("on_track")}
-          className={pillClasses("on_track", "bg-green-200 text-green-900", "bg-green-50 text-green-700")}
+          className={pillClasses("on_track", "bg-m-tertiary-container text-m-on-tertiary-container", "bg-m-surface-container text-m-tertiary")}
         >
           {opsData.onTrackCount} on track
         </button>
@@ -154,7 +156,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
         {opsData.overdueCount > 0 && (
           <button
             onClick={() => setScopeFilter("overdue")}
-            className={pillClasses("overdue", "bg-red-200 text-red-900", "bg-red-50 text-red-700")}
+            className={pillClasses("overdue", "bg-m-error-container text-m-on-error-container", "bg-m-surface-container text-m-error")}
           >
             {opsData.overdueCount} 🔴
           </button>

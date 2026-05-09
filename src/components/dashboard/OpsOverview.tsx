@@ -3,17 +3,18 @@ import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
 import type { DeliveryRate } from "@/hooks/useDeliveryRate";
 import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useClientMargin } from "@/hooks/useClientMargin";
+import type { ScopeFilter } from "./ProjectTree";
 
 const scopeStatusColor: Record<string, string> = {
-  on_track: "bg-green-100 text-green-800",
+  on_track: "bg-m-tertiary-container text-m-on-tertiary-container",
   needs_attention: "bg-amber-100 text-amber-800",
-  overdue: "bg-red-100 text-red-800",
+  overdue: "bg-m-error-container text-m-on-error-container",
 };
 
 const scopeStatusDot: Record<string, string> = {
-  on_track: "bg-green-500",
+  on_track: "bg-m-tertiary",
   needs_attention: "bg-amber-400",
-  overdue: "bg-red-500",
+  overdue: "bg-m-error",
 };
 
 interface ProjectRowProps {
@@ -52,6 +53,8 @@ interface Props {
   monthlyHours: number | null;
   deliveryRate: DeliveryRate | null;
   dftCycleTime: DftCycleTime | null;
+  scopeFilter: ScopeFilter;
+  onScopeFilterChange: (f: ScopeFilter) => void;
 }
 
 const zarFormat = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
@@ -176,7 +179,7 @@ function MarginSection() {
   );
 }
 
-export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dftCycleTime }: Props) {
+export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dftCycleTime, scopeFilter, onScopeFilterChange }: Props) {
   const today = new Date().toLocaleDateString("en-ZA", {
     weekday: "long",
     year: "numeric",
@@ -197,18 +200,42 @@ export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dft
 
       {/* Health cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-          <div className="text-display-small text-green-800">{opsData.onTrackCount}</div>
-          <div className="mt-1 text-label-small font-semibold text-green-700">On track</div>
-        </div>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <button
+          onClick={() => onScopeFilterChange(scopeFilter === "on_track" ? "all" : "on_track")}
+          className={cn(
+            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-tertiary",
+            scopeFilter === "on_track"
+              ? "border-m-tertiary bg-m-tertiary-container ring-2 ring-m-tertiary"
+              : "border-m-outline-variant bg-m-tertiary-container"
+          )}
+        >
+          <div className="text-display-small text-m-on-tertiary-container">{opsData.onTrackCount}</div>
+          <div className="mt-1 text-label-small font-semibold text-m-on-tertiary-container">On track</div>
+        </button>
+        <button
+          onClick={() => onScopeFilterChange(scopeFilter === "needs_attention" ? "all" : "needs_attention")}
+          className={cn(
+            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-amber-400",
+            scopeFilter === "needs_attention"
+              ? "border-amber-400 bg-amber-50 ring-2 ring-amber-400"
+              : "border-amber-200 bg-amber-50"
+          )}
+        >
           <div className="text-display-small text-amber-800">{opsData.needsAttentionCount}</div>
           <div className="mt-1 text-label-small font-semibold text-amber-700">Needs attention</div>
-        </div>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <div className="text-display-small text-red-800">{opsData.overdueCount}</div>
-          <div className="mt-1 text-label-small font-semibold text-red-700">Overdue</div>
-        </div>
+        </button>
+        <button
+          onClick={() => onScopeFilterChange(scopeFilter === "overdue" ? "all" : "overdue")}
+          className={cn(
+            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-error",
+            scopeFilter === "overdue"
+              ? "border-m-error bg-m-error-container ring-2 ring-m-error"
+              : "border-m-outline-variant bg-m-error-container"
+          )}
+        >
+          <div className="text-display-small text-m-on-error-container">{opsData.overdueCount}</div>
+          <div className="mt-1 text-label-small font-semibold text-m-on-error-container">Overdue</div>
+        </button>
         <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
           <div className="text-display-small text-m-on-surface">
             {monthlyHours !== null ? `${monthlyHours}h` : "—"}

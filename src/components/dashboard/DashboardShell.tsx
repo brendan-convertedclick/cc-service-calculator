@@ -12,6 +12,8 @@ import { ProjectTree } from "./ProjectTree";
 import { OpsOverview } from "./OpsOverview";
 import { DashboardProjectView } from "./DashboardProjectView";
 
+type ScopeFilter = "all" | "on_track" | "needs_attention" | "overdue";
+
 export function DashboardShell() {
   const { data: clientsData = [] } = useClientProjects();
   const opsData = useOpsOverview(clientsData);
@@ -22,6 +24,7 @@ export function DashboardShell() {
   const lastBriefActivity = useLastBriefActivity();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   const selectedClient = clientsData.find((c) =>
     c.projects.some((p) => p.id === selectedProjectId)
@@ -53,6 +56,8 @@ export function DashboardShell() {
         selectedProjectId={selectedProjectId}
         hiddenIds={hiddenIds}
         lastBriefActivity={lastBriefActivity}
+        scopeFilter={scopeFilter}
+        onScopeFilterChange={setScopeFilter}
         onSelect={handleSelect}
         onHide={handleHide}
       />
@@ -73,6 +78,8 @@ export function DashboardShell() {
             monthlyHours={monthlyHours}
             deliveryRate={deliveryRate}
             dftCycleTime={dftCycleTime}
+            scopeFilter={scopeFilter}
+            onScopeFilterChange={setScopeFilter}
           />
         )}
       </main>

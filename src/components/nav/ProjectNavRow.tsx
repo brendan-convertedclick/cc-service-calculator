@@ -5,9 +5,9 @@ import type { Database } from "@/types/db";
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
 const statusDot: Record<string, string> = {
-  on_track: "bg-green-500",
+  on_track: "bg-m-tertiary",
   needs_attention: "bg-amber-400",
-  overdue: "bg-red-500",
+  overdue: "bg-m-error",
 };
 
 interface Props {

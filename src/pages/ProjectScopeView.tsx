@@ -14,9 +14,9 @@ import type { Database } from "@/types/db";
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
 const scopeStatusColor: Record<string, string> = {
-  on_track: "bg-green-100 text-green-800",
+  on_track: "bg-m-tertiary-container text-m-on-tertiary-container",
   needs_attention: "bg-amber-100 text-amber-800",
-  overdue: "bg-red-100 text-red-800",
+  overdue: "bg-m-error-container text-m-on-error-container",
 };
 
 export function ProjectScopeView() {

@@ -1,5 +1,24 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Teach tailwind-merge about the M3 custom class groups so they don't collide.
+// Without this, text-label-small and text-m-on-surface-variant both match the
+// unknown text-* pattern and the last one wins — stripping the font-size class.
+const m3TypeScale = [
+  "display-large", "display-medium", "display-small",
+  "headline-large", "headline-medium", "headline-small",
+  "title-large", "title-medium", "title-small",
+  "body-large", "body-medium", "body-small",
+  "label-large", "label-medium", "label-small",
+];
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: m3TypeScale }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
