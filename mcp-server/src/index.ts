@@ -12,6 +12,8 @@ import * as getBrief from './tools/get-brief.js'
 import * as createBrief from './tools/create-brief.js'
 import * as syncMessages from './tools/sync-messages.js'
 import * as setBriefIntent from './tools/set-brief-intent.js'
+import * as setBriefIntelligence from './tools/set-brief-intelligence.js'
+import * as getBriefIntelligence from './tools/get-brief-intelligence.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -92,6 +94,20 @@ server.tool(
   'Update a brief with its AI-classified intent_type and store scope fields or draft_reply. Upserts scope row on conflict with brief_id.',
   rawShape(setBriefIntent.schema),
   h(setBriefIntent.handler),
+)
+
+server.tool(
+  'set-brief-intelligence',
+  'Upsert a brief_intelligence record for a brief. Stages call this after completing their output. Appends audit_trail_entry if provided. Returns { id, brief_id, am_status }.',
+  rawShape(setBriefIntelligence.schema),
+  h(setBriefIntelligence.handler),
+)
+
+server.tool(
+  'get-brief-intelligence',
+  'Get the brief_intelligence record for a brief by brief_id. Returns the full record or null if not yet generated.',
+  rawShape(getBriefIntelligence.schema),
+  h(getBriefIntelligence.handler),
 )
 
 const transport = new StdioServerTransport()
