@@ -10,11 +10,13 @@ type AuthContextValue = {
   session: Session | null;
   user: Session["user"] | null;
   loading: boolean;
+  domainError: boolean;
   /** team_members.id resolved from the signed-in auth.users email.
    * Written to briefs.triaged_by, scopes.locked_by, quotes.accepted_by.
    * Null if no team_members row matches the session email — FKs are on delete set null. */
   currentUserId: string | null;
   signIn: (email: string, password: string) => ReturnType<typeof supabase.auth.signInWithPassword>;
+  signInWithGoogle: () => ReturnType<typeof supabase.auth.signInWithOAuth>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
 
@@ -24,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(DEV_SESSION);
   const [loading, setLoading] = useState(!import.meta.env.DEV);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [domainError, setDomainError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       if (cancelled) return;
+      if (s?.user?.email && !s.user.email.endsWith('@convertedclick.co.za')) {
+        supabase.auth.signOut();
+        setDomainError(true);
+        return;
+      }
+      setDomainError(false);
       setSession(s);
     });
     return () => {
@@ -49,27 +58,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    supabase
-      .from("team_members")
-      .select("id")
-      .eq("email", email)
-      .is("archived_at", null)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCurrentUserId(data?.id ?? null);
-      });
-    return () => {
-      cancelled = true;
-    };
+    (async () => {
+      // First check: is there ANY team_members row for this email (active or archived)?
+      const { data: anyRow } = await supabase
+        .from("team_members")
+        .select("id, archived_at")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (anyRow) {
+        // Active member → resolve their id; archived member → null (don't re-provision)
+        setCurrentUserId(anyRow.archived_at === null ? anyRow.id : null);
+        return;
+      }
+
+      // No row at all — auto-provision for real company accounts only
+      if (email.endsWith('@convertedclick.co.za') && email !== 'team@convertedclick.co.za') {
+        const fullName =
+          session?.user?.user_metadata?.full_name ??
+          session?.user?.user_metadata?.name ??
+          email;
+        const { data: upserted } = await supabase
+          .from("team_members")
+          .upsert({ full_name: fullName, email }, { onConflict: 'email', ignoreDuplicates: false })
+          .select("id")
+          .single();
+        if (!cancelled) setCurrentUserId(upserted?.id ?? null);
+      } else {
+        setCurrentUserId(null);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [session?.user?.email]);
 
   const value: AuthContextValue = {
     session,
     user: session?.user ?? null,
     loading,
+    domainError,
     currentUserId,
-    signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    signIn: (email, password) => {
+      setDomainError(false);
+      return supabase.auth.signInWithPassword({ email, password });
+    },
+    signInWithGoogle: () => {
+      setDomainError(false);
+      return supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: { hd: 'convertedclick.co.za' },
+        },
+      });
+    },
     signOut: () => supabase.auth.signOut(),
   };
 
