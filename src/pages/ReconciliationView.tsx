@@ -2,11 +2,17 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useReconciliation, type ReconciliationRow } from "@/hooks/useReconciliation";
+import {
+  useReconciliation,
+  type ReconciliationRow,
+} from "@/hooks/useReconciliation";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import type { ClaudePrompt } from "@/types/claude";
 
-const ZAR = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" });
+const ZAR = new Intl.NumberFormat("en-ZA", {
+  style: "currency",
+  currency: "ZAR",
+});
 
 function formatZAR(cents: number): string {
   return ZAR.format(cents / 100);
@@ -76,7 +82,9 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-m-outline-variant px-5 py-4">
           <div>
-            <h2 className="text-title-medium text-m-on-surface">{row.clientName}</h2>
+            <h2 className="text-title-medium text-m-on-surface">
+              {row.clientName}
+            </h2>
             <p className="mt-0.5 text-label-small text-m-on-surface-variant">
               {row.deliveredHours}h delivered · {formatZAR(row.costCents)} cost
             </p>
@@ -111,7 +119,9 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
               Invoices this month
             </h3>
             {row.invoices.length === 0 ? (
-              <p className="text-body-small text-m-on-surface-variant">No invoices this month.</p>
+              <p className="text-body-small text-m-on-surface-variant">
+                No invoices this month.
+              </p>
             ) : (
               <div className="flex flex-col gap-2">
                 {row.invoices.map((inv) => (
@@ -126,7 +136,8 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                       <span
                         className={cn(
                           "rounded px-2 py-0.5 text-label-small",
-                          statusColor[inv.status] ?? "bg-m-surface-container text-m-on-surface-variant"
+                          statusColor[inv.status] ??
+                            "bg-m-surface-container text-m-on-surface-variant",
                         )}
                       >
                         {inv.status}
@@ -138,7 +149,8 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                       </span>
                       {inv.dueDate && (
                         <span className="text-label-small text-m-on-surface-variant">
-                          Due {new Date(inv.dueDate).toLocaleDateString("en-ZA", {
+                          Due{" "}
+                          {new Date(inv.dueDate).toLocaleDateString("en-ZA", {
                             day: "numeric",
                             month: "short",
                           })}
@@ -147,7 +159,8 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                     </div>
                     {inv.paidAt && (
                       <div className="mt-0.5 text-label-small text-green-700">
-                        Paid {new Date(inv.paidAt).toLocaleDateString("en-ZA", {
+                        Paid{" "}
+                        {new Date(inv.paidAt).toLocaleDateString("en-ZA", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
@@ -167,24 +180,40 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
             </h3>
             <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-3">
               <div className="flex items-center justify-between">
-                <span className="text-body-small text-m-on-surface-variant">Hours delivered</span>
-                <span className="text-label-medium text-m-on-surface">{row.deliveredHours}h</span>
+                <span className="text-body-small text-m-on-surface-variant">
+                  Hours delivered
+                </span>
+                <span className="text-label-medium text-m-on-surface">
+                  {row.deliveredHours}h
+                </span>
               </div>
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-body-small text-m-on-surface-variant">Cost</span>
-                <span className="text-label-medium text-m-on-surface">{formatZAR(row.costCents)}</span>
+                <span className="text-body-small text-m-on-surface-variant">
+                  Cost
+                </span>
+                <span className="text-label-medium text-m-on-surface">
+                  {formatZAR(row.costCents)}
+                </span>
               </div>
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-body-small text-m-on-surface-variant">Invoiced</span>
-                <span className="text-label-medium text-m-on-surface">{formatZAR(row.invoicedCents)}</span>
+                <span className="text-body-small text-m-on-surface-variant">
+                  Invoiced
+                </span>
+                <span className="text-label-medium text-m-on-surface">
+                  {formatZAR(row.invoicedCents)}
+                </span>
               </div>
               {row.invoicedCents > 0 && row.costCents > 0 && (
                 <div className="mt-1 flex items-center justify-between border-t border-m-outline-variant pt-1">
-                  <span className="text-body-small text-m-on-surface-variant">Variance</span>
+                  <span className="text-body-small text-m-on-surface-variant">
+                    Variance
+                  </span>
                   <span
                     className={cn(
                       "text-label-medium",
-                      row.invoicedCents >= row.costCents ? "text-green-700" : "text-red-700"
+                      row.invoicedCents >= row.costCents
+                        ? "text-green-700"
+                        : "text-red-700",
                     )}
                   >
                     {formatZAR(row.invoicedCents - row.costCents)}
@@ -199,14 +228,28 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
   );
 }
 
-function exportCSV(rows: ReconciliationRow[], year: number, month: number): void {
-  const header = ["Client", "Hours Delivered", "Cost (ZAR)", "Invoiced (ZAR)", "Margin %", "Invoice Status", "Flags"];
+function exportCSV(
+  rows: ReconciliationRow[],
+  year: number,
+  month: number,
+): void {
+  const header = [
+    "Client",
+    "Hours Delivered",
+    "Cost (ZAR)",
+    "Invoiced (ZAR)",
+    "Margin %",
+    "Invoice Status",
+    "Flags",
+  ];
   const lines = [
     header.join(","),
     ...rows.map((r) => {
       const marginPct =
         r.invoicedCents > 0 && r.costCents > 0
-          ? Math.round(((r.invoicedCents - r.costCents) / r.invoicedCents) * 100)
+          ? Math.round(
+              ((r.invoicedCents - r.costCents) / r.invoicedCents) * 100,
+            )
           : "";
       return [
         `"${r.clientName.replace(/"/g, '""')}"`,
@@ -234,7 +277,9 @@ export function ReconciliationView() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()); // 0-indexed
-  const [selectedRow, setSelectedRow] = useState<ReconciliationRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<ReconciliationRow | null>(
+    null,
+  );
 
   const { data: rows = [], isLoading } = useReconciliation(year, month);
 
@@ -246,7 +291,7 @@ export function ReconciliationView() {
   const rowSummary = rows
     .map(
       (r) =>
-        `- ${r.clientName}: ${r.deliveredHours}h delivered, invoiced R${(r.invoicedCents / 100).toFixed(2)}, cost R${(r.costCents / 100).toFixed(2)}${r.flags.length ? `, flags: ${r.flags.join(", ")}` : ""}`
+        `- ${r.clientName}: ${r.deliveredHours}h delivered, invoiced R${(r.invoicedCents / 100).toFixed(2)}, cost R${(r.costCents / 100).toFixed(2)}${r.flags.length ? `, flags: ${r.flags.join(", ")}` : ""}`,
     )
     .join("\n");
 
@@ -310,162 +355,186 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
   return (
     <div className="flex h-full">
       <div className="min-w-0 flex-1 overflow-auto">
-    <div className="flex h-full flex-col overflow-hidden bg-m-surface">
-      {/* Page header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-m-outline-variant bg-m-surface px-6 py-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-headline-small text-m-on-surface">Invoice Reconciliation</h1>
-          <div className="flex items-center gap-1 rounded-lg border border-m-outline-variant bg-m-surface-container px-1">
-            <button
-              onClick={prevMonth}
-              aria-label="Previous month"
-              className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="min-w-[140px] text-center text-label-medium text-m-on-surface">
-              {formatMonthLabel(year, month)}
-            </span>
-            <button
-              onClick={nextMonth}
-              aria-label="Next month"
-              className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => exportCSV(rows, year, month)}
-          disabled={rows.length === 0}
-          className="gap-1.5"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export snapshot
-        </Button>
-      </div>
-
-      {/* Table area */}
-      <div className="flex-1 overflow-auto">
-        {isLoading ? (
-          <div className="flex flex-col gap-3 p-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-m-surface-container" />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-            <p className="text-body-medium text-m-on-surface-variant">No data for this period</p>
-            <p className="mt-1 text-label-small text-m-on-surface-variant">
-              Connect Xero and sync invoices to see reconciliation, or log actuals against projects.
-            </p>
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-m-outline-variant bg-m-surface-container">
-                <th className="px-6 py-3 text-label-small font-semibold text-m-on-surface-variant">Client</th>
-                <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
-                  Hours Delivered
-                </th>
-                <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
-                  Cost (ZAR)
-                </th>
-                <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
-                  Invoiced (ZAR)
-                </th>
-                <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant">
-                  Invoice Status
-                </th>
-                <th className="px-6 py-3 text-label-small font-semibold text-m-on-surface-variant">Flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.clientId}
-                  onClick={() => setSelectedRow(row)}
-                  className="cursor-pointer border-b border-m-outline-variant transition-colors hover:bg-m-surface-container"
+        <div className="flex h-full flex-col overflow-hidden bg-m-surface">
+          {/* Page header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-m-outline-variant bg-m-surface px-6 py-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-headline-small text-m-on-surface">
+                Invoice Reconciliation
+              </h1>
+              <div className="flex items-center gap-1 rounded-lg border border-m-outline-variant bg-m-surface-container px-1">
+                <button
+                  onClick={prevMonth}
+                  aria-label="Previous month"
+                  className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
                 >
-                  <td className="px-6 py-3 text-body-medium text-m-on-surface font-medium">
-                    {row.clientName}
-                  </td>
-                  <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
-                    {row.deliveredHours > 0 ? `${row.deliveredHours}h` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
-                    {row.costCents > 0 ? formatZAR(row.costCents) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
-                    {row.invoicedCents > 0 ? formatZAR(row.invoicedCents) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.invoiceStatus ? (
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="min-w-[140px] text-center text-label-medium text-m-on-surface">
+                  {formatMonthLabel(year, month)}
+                </span>
+                <button
+                  onClick={nextMonth}
+                  aria-label="Next month"
+                  className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportCSV(rows, year, month)}
+              disabled={rows.length === 0}
+              className="gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export snapshot
+            </Button>
+          </div>
+
+          {/* Table area */}
+          <div className="flex-1 overflow-auto">
+            {isLoading ? (
+              <div className="flex flex-col gap-3 p-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-12 animate-pulse rounded-lg bg-m-surface-container"
+                  />
+                ))}
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                <p className="text-body-medium text-m-on-surface-variant">
+                  No data for this period
+                </p>
+                <p className="mt-1 text-label-small text-m-on-surface-variant">
+                  Connect Xero and sync invoices to see reconciliation, or log
+                  actuals against projects.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-m-outline-variant bg-m-surface-container">
+                    <th className="px-6 py-3 text-label-small font-semibold text-m-on-surface-variant">
+                      Client
+                    </th>
+                    <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
+                      Hours Delivered
+                    </th>
+                    <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
+                      Cost (ZAR)
+                    </th>
+                    <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant text-right">
+                      Invoiced (ZAR)
+                    </th>
+                    <th className="px-4 py-3 text-label-small font-semibold text-m-on-surface-variant">
+                      Invoice Status
+                    </th>
+                    <th className="px-6 py-3 text-label-small font-semibold text-m-on-surface-variant">
+                      Flags
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.clientId}
+                      onClick={() => setSelectedRow(row)}
+                      className="cursor-pointer border-b border-m-outline-variant transition-colors hover:bg-m-surface-container"
+                    >
+                      <td className="px-6 py-3 text-body-medium text-m-on-surface font-medium">
+                        {row.clientName}
+                      </td>
+                      <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
+                        {row.deliveredHours > 0
+                          ? `${row.deliveredHours}h`
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
+                        {row.costCents > 0 ? formatZAR(row.costCents) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
+                        {row.invoicedCents > 0
+                          ? formatZAR(row.invoicedCents)
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.invoiceStatus ? (
+                          <span
+                            className={cn(
+                              "rounded px-2 py-0.5 text-label-small",
+                              statusColor[row.invoiceStatus] ??
+                                "bg-m-surface-container text-m-on-surface-variant",
+                            )}
+                          >
+                            {row.invoiceStatus}
+                          </span>
+                        ) : (
+                          <span className="text-label-small text-m-on-surface-variant">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {row.flags.map((f) => (
+                            <FlagChip key={f} flag={f} />
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {/* Totals footer */}
+                <tfoot>
+                  <tr className="border-t-2 border-m-outline-variant bg-m-surface-container">
+                    <td className="px-6 py-3 text-label-medium font-bold text-m-on-surface">
+                      Totals
+                    </td>
+                    <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
+                      {Math.round(totalHours * 10) / 10}h
+                    </td>
+                    <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
+                      {formatZAR(totalCost)}
+                    </td>
+                    <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
+                      {formatZAR(totalInvoiced)}
+                    </td>
+                    <td className="px-4 py-3">
                       <span
                         className={cn(
-                          "rounded px-2 py-0.5 text-label-small",
-                          statusColor[row.invoiceStatus] ?? "bg-m-surface-container text-m-on-surface-variant"
+                          "rounded px-2 py-0.5 text-label-small font-medium",
+                          totalInvoiced >= totalCost && totalCost > 0
+                            ? "bg-green-100 text-green-800"
+                            : totalCost > 0
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-m-surface-container text-m-on-surface-variant",
                         )}
                       >
-                        {row.invoiceStatus}
+                        {totalCost > 0
+                          ? `${totalInvoiced >= totalCost ? "+" : ""}${formatZAR(totalInvoiced - totalCost)} variance`
+                          : "—"}
                       </span>
-                    ) : (
-                      <span className="text-label-small text-m-on-surface-variant">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {row.flags.map((f) => (
-                        <FlagChip key={f} flag={f} />
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {/* Totals footer */}
-            <tfoot>
-              <tr className="border-t-2 border-m-outline-variant bg-m-surface-container">
-                <td className="px-6 py-3 text-label-medium font-bold text-m-on-surface">Totals</td>
-                <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
-                  {Math.round(totalHours * 10) / 10}h
-                </td>
-                <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
-                  {formatZAR(totalCost)}
-                </td>
-                <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
-                  {formatZAR(totalInvoiced)}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={cn(
-                      "rounded px-2 py-0.5 text-label-small font-medium",
-                      totalInvoiced >= totalCost && totalCost > 0
-                        ? "bg-green-100 text-green-800"
-                        : totalCost > 0
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-m-surface-container text-m-on-surface-variant"
-                    )}
-                  >
-                    {totalCost > 0
-                      ? `${totalInvoiced >= totalCost ? "+" : ""}${formatZAR(totalInvoiced - totalCost)} variance`
-                      : "—"}
-                  </span>
-                </td>
-                <td className="px-6 py-3" />
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </div>
+                    </td>
+                    <td className="px-6 py-3" />
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
 
-      {/* Detail drawer */}
-      {selectedRow && (
-        <DetailDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />
-      )}
-    </div>
+          {/* Detail drawer */}
+          {selectedRow && (
+            <DetailDrawer
+              row={selectedRow}
+              onClose={() => setSelectedRow(null)}
+            />
+          )}
+        </div>
       </div>
       <aside className="w-[200px] shrink-0 border-l border-m-outline-variant bg-m-surface">
         <ClaudePromptPanel prompts={reconPrompts} />
