@@ -11,14 +11,73 @@ import { ScopeSidebar } from "@/components/quote-builder/ScopeSidebar";
 import { EmptyLines } from "@/components/quote-builder/EmptyLines";
 import { SOWPanel } from "@/components/quote-builder/SOWPanel";
 import { RecurrencePanel } from "@/components/quote-builder/RecurrencePanel";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { useQuoteBuilder } from "@/hooks/useQuoteBuilder";
 import { formatZar } from "@/lib/utils";
+import type { ClaudePrompt } from "@/types/claude";
 
 export function ProjectBuilder() {
   const { id: briefId } = useParams<{ id: string }>();
   const qb = useQuoteBuilder(briefId);
 
   if (!qb.ready || !qb.brief || !qb.scope) return <div className="p-6">Loading…</div>;
+
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+
+  const focusedService = qb.lines.length > 0
+    ? qb.services?.find((s) => s.id === qb.lines[qb.lines.length - 1].service_id)
+    : null;
+
+  const scopeText = [
+    qb.scope.enhanced_prose ? `Scope: ${qb.scope.enhanced_prose}` : "",
+    qb.scope.in_scope_md ? `In scope:\n${qb.scope.in_scope_md}` : "",
+    qb.scope.out_of_scope_md ? `Out of scope:\n${qb.scope.out_of_scope_md}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const builderPrompts: ClaudePrompt[] = [
+    ...(focusedService
+      ? [
+          {
+            id: "process-steps",
+            label: "Process steps",
+            build: () => `${ROLE}
+
+Context:
+Service name: ${focusedService.name}
+Pricing model: ${focusedService.pricing_model}
+Unit of sale: ${focusedService.unit_of_sale ?? "(not set)"}
+Scope definition: ${focusedService.scope_definition ?? "(not set)"}
+
+${MCP_NOTE}
+
+Action: Generate a numbered process step list (5–10 steps) for delivering this service. Each step should include: step number, action title, responsible role, estimated time, and done-when criteria.
+
+Output: A numbered markdown list of process steps.`,
+          } as ClaudePrompt,
+        ]
+      : []),
+    {
+      id: "quote-from-brief",
+      label: "Quote from brief",
+      build: () => `${ROLE}
+
+Context:
+Client: ${qb.clientName ?? "(unknown)"}
+Brief subject: ${qb.brief?.raw_subject ?? "(untitled)"}
+Brief notes: ${qb.brief?.am_notes ?? "(none)"}
+${scopeText}
+Current lines: ${qb.lines.length} services added
+
+${MCP_NOTE}
+
+Action: Review the brief and scope above and suggest a service line-up and allocation split to complete this quote. Use get-brief to retrieve full brief details if needed. For each suggested service, provide: service name, rationale, estimated hours, and recommended team allocation percentages.
+
+Output: A structured list of suggested services with hours and allocation, ready to copy into the quote builder.`,
+    },
+  ];
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -53,6 +112,9 @@ export function ProjectBuilder() {
               drafting={qb.drafting}
               canDraft={qb.lines.length > 0}
             />
+          </div>
+          <div className="border-t border-m-outline-variant pt-6">
+            <ClaudePromptPanel prompts={builderPrompts} />
           </div>
         </aside>
 

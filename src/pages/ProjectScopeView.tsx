@@ -11,6 +11,7 @@ import { StatusStrip } from "@/components/scope/StatusStrip";
 import { BriefConversation } from "@/components/BriefConversation";
 import type { Database } from "@/types/db";
 import { WorkflowTimeline } from "@/components/workflow/WorkflowTimeline";
+import type { ClaudePrompt } from "@/types/claude";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
 
@@ -46,6 +47,116 @@ export function ProjectScopeView() {
   const scopeStatus = project?.scope_status ?? projectMeta?.scope_status ?? "on_track";
   const projectName = project?.name ?? projectMeta?.name ?? "Project";
   const clientName = client?.name ?? "Client";
+
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+
+  const totalUsed = actuals.reduce((s, a) => s + (a.actual_hours ?? 0), 0);
+  const totalPlanned = actuals.reduce((s, a) => s + (a.planned_hours ?? 0), 0);
+
+  const latestBrief = briefEvents[briefEvents.length - 1];
+  const latestBriefSummary = latestBrief?.type === "brief"
+    ? `Subject: ${latestBrief.brief.raw_subject ?? "(no subject)"}\nFrom: ${latestBrief.brief.sender_email ?? ""}\nNotes: ${latestBrief.brief.am_notes ?? "(none)"}`
+    : "(none)";
+
+  const quoteServices = activeQuote
+    ? `Quote total: R${((activeQuote.total_cents ?? 0) / 100).toFixed(2)}\nQuote status: ${activeQuote.status}`
+    : "No quote linked";
+
+  const recentActivity = events
+    .slice(-3)
+    .map((e) => {
+      if (e.type === "brief") return `Brief: ${e.brief.raw_subject ?? "(no subject)"}`;
+      if (e.type === "quote") return `Quote: ${e.quote.status}`;
+      return e.type;
+    })
+    .join("\n");
+
+  const scopePrompts: ClaudePrompt[] = [
+    {
+      id: "draft-sow",
+      label: "Draft SoW",
+      build: () => `${ROLE}
+
+Context:
+Client: ${clientName}
+Project: ${projectName}
+Engagement type: ${engagementType}
+${quoteServices}
+Linked briefs: ${linkedBriefCount}
+Latest brief:
+${latestBriefSummary}
+
+${MCP_NOTE}
+
+Action: Run /sow new-project to generate a scope of work for this project. Use the client name and project name to look up relevant briefs via list-briefs and get-brief. Use the engagement type and quote context to inform scope tier and deliverables.
+
+Output: A complete scope of work document ready for client review, formatted as markdown.`,
+    },
+    {
+      id: "client-update",
+      label: "Client update",
+      build: () => `${ROLE}
+
+Context:
+Client: ${clientName}
+Project: ${projectName}
+Engagement type: ${engagementType}
+Scope status: ${scopeStatus.replace(/_/g, " ")}
+Hours used: ${totalUsed}h of ${totalPlanned}h planned
+Linked briefs: ${linkedBriefCount}
+Recent activity:
+${recentActivity || "(none)"}
+
+${MCP_NOTE}
+
+Action: Draft a concise, professional client-facing status update email for this project. Use the scope status, hours burned, and recent activity as the basis. Tone should be confident and transparent.
+
+Output: A ready-to-send email with subject line and body. No placeholders.`,
+    },
+    {
+      id: "brief-tasks",
+      label: "Brief tasks",
+      build: () => `${ROLE}
+
+Context:
+Client: ${clientName}
+Project: ${projectName}
+Engagement type: ${engagementType}
+${quoteServices}
+Latest brief:
+${latestBriefSummary}
+
+${MCP_NOTE}
+
+Action: Run /brief to issue ClickUp tasks for the deliverables in the latest brief. Look up the client via find-client to get the client ID. Use the brief subject and notes to infer task names, descriptions, and assignees. Engagement type is "${engagementType}".
+
+Output: Confirmation of tasks created in ClickUp with task IDs.`,
+    },
+    ...(linkedBriefCount > 0
+      ? [
+          {
+            id: "scope-amendment",
+            label: "Scope amendment",
+            build: () => `${ROLE}
+
+Context:
+Client: ${clientName}
+Project: ${projectName}
+Engagement type: ${engagementType}
+${quoteServices}
+Latest brief (change request):
+${latestBriefSummary}
+
+${MCP_NOTE}
+
+Action: Run /sow edit to produce an amended scope of work incorporating the change request in the latest brief. Include a change log section listing what was added, removed, or modified. Preserve the original scope structure.
+
+Output: An updated scope of work document with a "Change log" section appended.`,
+          } as ClaudePrompt,
+        ]
+      : []),
+  ];
 
   if (projectLoading) {
     return (
@@ -232,6 +343,7 @@ export function ProjectScopeView() {
         actuals={actuals}
         quote={activeQuote}
         briefCount={linkedBriefCount}
+        prompts={scopePrompts}
       />
     </div>
   );

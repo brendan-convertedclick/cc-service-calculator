@@ -4,6 +4,8 @@ import type { DeliveryRate } from "@/hooks/useDeliveryRate";
 import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useClientMargin } from "@/hooks/useClientMargin";
 import type { ScopeFilter } from "./ProjectTree";
+import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
+import type { ClaudePrompt } from "@/types/claude";
 
 const scopeStatusColor: Record<string, string> = {
   on_track: "bg-m-tertiary-container text-m-on-tertiary-container",
@@ -187,6 +189,39 @@ export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dft
     day: "numeric",
   });
 
+  const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
+  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+
+  const projectSummary = opsData.projects
+    .map(
+      (p) =>
+        `- ${p.clientName} / ${p.name} [${p.engagementType}]: ${p.scopeStatus.replace(/_/g, " ")}${p.reasonText ? ` — ${p.reasonText}` : ""}`
+    )
+    .join("\n");
+
+  const opsPrompts: ClaudePrompt[] = [
+    {
+      id: "health-narrative",
+      label: "Health narrative",
+      build: () => `${ROLE}
+
+Context:
+Date: ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+Monthly hours burned: ${monthlyHours ?? "(loading)"}h
+Delivery rate: ${deliveryRate ? `${deliveryRate.rate}%` : "(loading)"}
+Avg DFT cycle time: ${dftCycleTime ? `${dftCycleTime.avgDays} days` : "(loading)"}
+
+Projects:
+${projectSummary || "(none)"}
+
+${MCP_NOTE}
+
+Action: Write a plain-English weekly ops summary suitable for a team standup or internal report. Cover: overall capacity health, projects needing attention, delivery performance, and 1–2 recommended actions. Keep it under 300 words.
+
+Output: A formatted weekly ops summary in markdown, with sections: Overview, Projects Needing Attention, Performance Metrics, Recommended Actions.`,
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6 overflow-auto p-6">
       {/* Header */}
@@ -355,6 +390,8 @@ export function OpsOverview({ opsData, onSelect, monthlyHours, deliveryRate, dft
         </h2>
         <MarginSection />
       </section>
+
+      <ClaudePromptPanel prompts={opsPrompts} />
     </div>
   );
 }
