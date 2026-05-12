@@ -21,12 +21,14 @@ const BREAKDOWN_LABEL: Record<MultiplierPeriod, string> = {
 interface Props {
   data: DirectData;
   period: MultiplierPeriod;
+  isTeam?: boolean;
 }
 
-export function DirectView({ data, period }: Props) {
+export function DirectView({ data, period, isTeam = false }: Props) {
   const { members, totals, periodLabel, breakdown } = data;
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(true);
   const hasBreakdown = (breakdown?.length ?? 0) > 0;
+  const breakdownIsMulti = hasBreakdown && isTeam;
 
   return (
     <div className="space-y-5">
@@ -63,8 +65,9 @@ export function DirectView({ data, period }: Props) {
               Output Expansion — by person
             </p>
             <p className="text-body-small text-m-on-surface-variant/60 mt-1">
-              Inner circle = human hours · Middle ring = AI session hours · Outer ring = effective
-              output (human × multiplier)
+              {showBreakdown && hasBreakdown && breakdownIsMulti
+                ? "Solid bar = human hours invested · Full bar = effective output (human × multiplier)"
+                : "Inner circle = human hours · Middle ring = AI session hours · Outer ring = effective output (human × multiplier)"}
             </p>
           </div>
           {hasBreakdown && (
@@ -100,16 +103,29 @@ export function DirectView({ data, period }: Props) {
             No sessions logged for this period. Use /log to record your first session.
           </p>
         ) : showBreakdown && hasBreakdown ? (
-          <BreakdownChart breakdown={breakdown!} />
+          breakdownIsMulti ? (
+            <BreakdownBarChart breakdown={breakdown!} />
+          ) : (
+            <BreakdownChart breakdown={breakdown!} />
+          )
         ) : (
           <SummaryChart members={members} />
         )}
 
         {/* Legend */}
         <div className="flex gap-5 mt-5 pt-4 border-t border-m-outline-variant">
-          <LegendItem color="#7C3AED" opacity="solid" label="Human hours" />
-          <LegendItem color="#7C3AED" opacity="medium" label="AI session hours" />
-          <LegendItem color="#7C3AED" opacity="faint" label="Effective output" dashed />
+          {showBreakdown && hasBreakdown && breakdownIsMulti ? (
+            <>
+              <BarLegendItem label="Human hours (time invested)" solid />
+              <BarLegendItem label="Effective output (human × multiplier)" />
+            </>
+          ) : (
+            <>
+              <LegendItem color="#7C3AED" opacity="solid" label="Human hours" />
+              <LegendItem color="#7C3AED" opacity="medium" label="AI session hours" />
+              <LegendItem color="#7C3AED" opacity="faint" label="Effective output" dashed />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -234,6 +250,84 @@ function BreakdownChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
   );
 }
 
+// ─── Stacked bar chart (multi-member breakdown) ──────────────────────────────
+
+function BreakdownBarChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
+  const allEmails = [...new Set(breakdown.flatMap((s) => s.members.map((m) => m.email)))];
+  const colorByEmail = new Map(
+    allEmails.map((email, i) => [email, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
+  );
+  const nameByEmail = new Map<string, string>();
+  breakdown.forEach((s) => s.members.forEach((m) => nameByEmail.set(m.email, m.display_name)));
+
+  const maxOutput = Math.max(
+    ...breakdown.flatMap((s) => s.members.map((m) => m.human_hours * m.multiplier)),
+    1,
+  );
+
+  const CHART_H = 180;
+  const BAR_W = 20;
+
+  return (
+    <div className="overflow-x-auto -mx-1 px-1 pt-2 pb-1">
+      <div className="flex gap-5 items-end" style={{ minWidth: "max-content" }}>
+        {breakdown.map((slice) => (
+          <div key={slice.sub_key} className="flex flex-col items-center gap-2">
+            <div className="flex gap-1.5 items-end" style={{ height: CHART_H }}>
+              {slice.members.map((member) => {
+                const color = colorByEmail.get(member.email) ?? MEMBER_COLORS[0];
+                const effectiveH = member.human_hours * member.multiplier;
+                const barPx = effectiveH > 0 ? Math.max((effectiveH / maxOutput) * CHART_H, 4) : 0;
+                const humanRatio = effectiveH > 0 ? Math.min(member.human_hours / effectiveH, 1) : 0;
+
+                return (
+                  <div
+                    key={member.email}
+                    className="relative flex-shrink-0 rounded-t"
+                    style={{ width: BAR_W, height: barPx || 2, opacity: barPx === 0 ? 0.2 : 1 }}
+                    title={`${member.display_name}: ${member.human_hours.toFixed(1)}h × ${member.multiplier.toFixed(1)}× = ${effectiveH.toFixed(1)}h effective`}
+                  >
+                    {/* Amplified output (full bar, light) */}
+                    <div
+                      className="absolute inset-0 rounded-t"
+                      style={{ backgroundColor: `${color}25` }}
+                    />
+                    {/* Human hours (bottom portion, solid) */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0"
+                      style={{
+                        height: `${humanRatio * 100}%`,
+                        backgroundColor: `${color}b3`,
+                        borderRadius: humanRatio >= 0.99 ? "0.125rem 0.125rem 0 0" : "0",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest">
+              {slice.sub_label}
+            </p>
+          </div>
+        ))}
+      </div>
+      {/* Per-member colour legend */}
+      <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-m-outline-variant">
+        {allEmails.map((email) => {
+          const color = colorByEmail.get(email) ?? MEMBER_COLORS[0];
+          const name = nameByEmail.get(email) ?? email.split("@")[0];
+          return (
+            <div key={email} className="flex items-center gap-1.5 text-body-small text-m-on-surface-variant">
+              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: `${color}b3` }} />
+              {name}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Shared subcomponents ─────────────────────────────────────────────────────
 
 function Chip({ label, value, sub }: { label: string; value: string; sub: string }) {
@@ -244,6 +338,19 @@ function Chip({ label, value, sub }: { label: string; value: string; sub: string
       </p>
       <p className="text-headline-small text-m-on-surface font-bold">{value}</p>
       <p className="text-body-small text-m-on-surface-variant/60 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+function BarLegendItem({ label, solid }: { label: string; solid?: boolean }) {
+  const color = "#7C3AED";
+  return (
+    <div className="flex items-center gap-2 text-body-small text-m-on-surface-variant">
+      <div
+        className="w-3 h-3 rounded-sm"
+        style={{ backgroundColor: solid ? `${color}b3` : `${color}25` }}
+      />
+      {label}
     </div>
   );
 }

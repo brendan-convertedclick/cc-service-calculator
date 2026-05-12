@@ -334,6 +334,7 @@ async function parallelView(
     .gte("session_date", pr.startDate)
     .lt("session_date", pr.endDate)
     .eq("engagement_type", "task")
+    .gt("ai_duration_minutes", 0)  // exclude zero/negative durations (bad data)
     .order("session_date");
 
   if (logged_by) query = query.eq("logged_by", logged_by);
@@ -343,12 +344,12 @@ async function parallelView(
 
   const byDate = new Map<string, {
     sessions: Array<{ slot: number; project_slug: string; duration_minutes: number }>;
-    concurrent_count: number;
+    max_stored_concurrent: number;
   }>();
 
   for (const row of data ?? []) {
     const key = row.session_date as string;
-    if (!byDate.has(key)) byDate.set(key, { sessions: [], concurrent_count: 0 });
+    if (!byDate.has(key)) byDate.set(key, { sessions: [], max_stored_concurrent: 1 });
     const entry = byDate.get(key)!;
     const slot = entry.sessions.length + 1;
     entry.sessions.push({
@@ -356,22 +357,26 @@ async function parallelView(
       project_slug: (row.project_slug as string) ?? "unknown",
       duration_minutes: Number(row.ai_duration_minutes),
     });
-    entry.concurrent_count = Math.max(
-      entry.concurrent_count,
+    // Track the highest stored concurrent_sessions value (used when > sessions.length,
+    // e.g. if the hook detected more concurrency than the number of session rows)
+    entry.max_stored_concurrent = Math.max(
+      entry.max_stored_concurrent,
       row.concurrent_sessions as number,
     );
   }
 
   const days = Array.from(byDate.entries()).map(([date, val]) => {
-    const wallClock = val.sessions.reduce((s, r) => s + r.duration_minutes, 0) /
-      Math.max(val.concurrent_count, 1);
+    // Use the greater of: actual session count (self-consistent with the grid) or the
+    // stored concurrent_sessions field (correctly populated by the fixed hook).
+    // Historical data had concurrent_sessions=1 hardcoded; sessions.length is the better proxy.
+    const concurrent_count = Math.max(val.sessions.length, val.max_stored_concurrent);
+    const totalMinutes = val.sessions.reduce((s, r) => s + r.duration_minutes, 0);
+    const wallClock = totalMinutes / Math.max(concurrent_count, 1);
     return {
       date,
       sessions: val.sessions,
-      concurrent_count: val.concurrent_count,
-      parallel_multiplier:
-        Math.round((val.sessions.reduce((s, r) => s + r.duration_minutes, 0) /
-          Math.max(wallClock, 1)) * 10) / 10,
+      concurrent_count,
+      parallel_multiplier: Math.round((totalMinutes / Math.max(wallClock, 1)) * 10) / 10,
     };
   });
 

@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   const sb = createServiceRoleClient();
   const pat = Deno.env.get("CLICKUP_PAT");
 
-  // ── Duplicate check FIRST — before any ClickUp writes ──────────────────
+  // ── Existing session for this JSONL? Update telemetry, skip ClickUp create ──
   if (body.jsonl_id) {
     const { data: existing } = await sb
       .from("ai_sessions")
@@ -59,11 +59,32 @@ Deno.serve(async (req) => {
       .eq("jsonl_id", body.jsonl_id)
       .maybeSingle();
     if (existing) {
-      return json({ id: existing.id, duplicate: true, clickup_task_id: existing.clickup_task_id });
+      await sb
+        .from("ai_sessions")
+        .update({
+          ai_input_tokens: body.ai_input_tokens,
+          ai_output_tokens: body.ai_output_tokens,
+          ai_duration_minutes: body.ai_duration_minutes,
+          ai_cost_zar: body.ai_cost_zar,
+        })
+        .eq("id", existing.id);
+
+      // Keep the ClickUp task's AI fields in sync
+      const cuId = existing.clickup_task_id ?? body.clickup_task_id ?? null;
+      if (cuId && pat) {
+        await patchClickUpAiFields(pat, cuId, {
+          ai_input_tokens: body.ai_input_tokens,
+          ai_output_tokens: body.ai_output_tokens,
+          ai_cost_zar: body.ai_cost_zar,
+          ai_duration_minutes: body.ai_duration_minutes,
+        });
+      }
+
+      return json({ id: existing.id, updated: true, clickup_task_id: cuId });
     }
   }
 
-  // ── Create ClickUp task (only if not a duplicate) ──────────────────────
+  // ── New session — create ClickUp task then insert ──────────────────────
   let clickupTaskId = body.clickup_task_id ?? null;
   if (body.create_clickup_task && body.clickup_task_name && pat) {
     clickupTaskId = await createClickUpTask(

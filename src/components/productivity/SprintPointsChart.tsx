@@ -2,6 +2,7 @@
 import {
   BarChart,
   Bar,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -36,7 +37,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
       <p className="mt-0.5 text-title-medium font-semibold text-m-on-surface">Sprint Points</p>
       <div className="mt-4 h-52">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <BarChart data={data} margin={{ top: 22, right: 56, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis
               dataKey="bucket"
@@ -77,7 +78,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                   key={`${member.id}_business`}
                   dataKey={`${uid}_business`}
                   name={member.full_name ?? undefined}
-                  stackId="a"
+                  stackId={uid}
                   fill={color}
                   radius={[0, 0, 0, 0]}
                 />,
@@ -85,12 +86,19 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                   key={`${member.id}_self`}
                   dataKey={`${uid}_self`}
                   name={`${member.full_name} (self-created)`}
-                  stackId="a"
+                  stackId={uid}
                   fill={color}
                   fillOpacity={0.45}
                   radius={[4, 4, 0, 0]}
                   legendType="none"
-                />,
+                >
+                  <LabelList
+                    dataKey={`${uid}_total`}
+                    position="top"
+                    style={{ fontSize: 10, fill: color, fontWeight: 600 }}
+                    formatter={(v: number) => (v > 0 ? v : "")}
+                  />
+                </Bar>,
               ];
             })}
             {displayMembers.length > 1 && (

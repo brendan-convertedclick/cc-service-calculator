@@ -19,7 +19,7 @@ export function ProductivityPage() {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
   });
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [pageTab, setPageTab] = useState<"sprint" | "multiplier">("sprint");
+  const [pageTab, setPageTab] = useState<"sprint" | "multiplier">("multiplier");
 
   const { data: members = [] } = useTeam();
   const { data: settings } = useSettings();
@@ -31,8 +31,8 @@ export function ProductivityPage() {
     selectedUserId ?? undefined,
   );
 
-  const sprintChartData = data ? buildChartData(data.sprintPoints) : [];
-  const hoursChartData = data ? buildHoursData(data.timeEntries) : [];
+  const sprintChartData = data ? buildChartData(data.sprintPoints, view) : [];
+  const hoursChartData = data ? buildHoursData(data.timeEntries, view) : [];
 
   // Build per-member point totals for sidebar chips
   const pointsByMember: Record<number, number> = {};
@@ -65,7 +65,7 @@ export function ProductivityPage() {
       <main className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
         {/* Page tab switcher */}
         <div className="flex gap-0 border-b border-m-outline-variant mb-6 -mx-6 px-6">
-          {(["sprint", "multiplier"] as const).map((tab) => (
+          {(["multiplier", "sprint"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setPageTab(tab)}
@@ -110,7 +110,7 @@ export function ProductivityPage() {
                   goalPoints={goalPoints}
                   selectedUserId={selectedUserId}
                 />
-                <HoursTrackedChart data={hoursChartData} />
+                <HoursTrackedChart data={hoursChartData} members={members} selectedUserId={selectedUserId} />
                 {view !== "year" && (
                   <PointModificationsTable
                     modifications={data?.pointModifications ?? []}

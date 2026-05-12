@@ -66,6 +66,7 @@ function sortBucket(a: string, b: string): number {
  *  [{ bucket, [userId]_business: businessCreatedPoints, [userId]_self: selfCreatedPoints, ... }, ...] */
 export function buildChartData(
   sprintPoints: SprintPoint[],
+  view?: View,
 ): Record<string, number | string>[] {
   const byBucket = new Map<string, Record<string, number | string>>();
   for (const sp of sprintPoints) {
@@ -74,7 +75,11 @@ export function buildChartData(
     const selfKey = `${sp.userId}_self`;
     row[businessKey] = ((row[businessKey] as number) ?? 0) + sp.businessCreatedPoints;
     row[selfKey] = ((row[selfKey] as number) ?? 0) + sp.selfCreatedPoints;
+    row[`${sp.userId}_total`] = (row[businessKey] as number) + (row[selfKey] as number);
     byBucket.set(sp.bucket, row);
+  }
+  if (view === "week") {
+    return DAY_ORDER.map((day) => byBucket.get(day) ?? { bucket: day });
   }
   return Array.from(byBucket.values()).sort((a, b) =>
     sortBucket(String(a.bucket), String(b.bucket)),
@@ -82,17 +87,24 @@ export function buildChartData(
 }
 
 /** Transforms flat timeEntries rows into recharts-friendly shape:
- *  [{ bucket, hours }, ...] */
+ *  [{ bucket, [userId]_hours: hours, ... }, ...] */
 export function buildHoursData(
   timeEntries: TimeEntry[],
-): { bucket: string; hours: number }[] {
-  const byBucket = new Map<string, number>();
+  view?: View,
+): Record<string, number | string>[] {
+  const byBucket = new Map<string, Record<string, number | string>>();
   for (const te of timeEntries) {
-    byBucket.set(te.bucket, (byBucket.get(te.bucket) ?? 0) + te.hours);
+    const row = byBucket.get(te.bucket) ?? { bucket: te.bucket };
+    const key = `${te.userId}_hours`;
+    row[key] = Math.round(((row[key] as number ?? 0) + te.hours) * 10) / 10;
+    byBucket.set(te.bucket, row);
   }
-  return Array.from(byBucket.entries())
-    .map(([bucket, hours]) => ({ bucket, hours: Math.round(hours * 10) / 10 }))
-    .sort((a, b) => sortBucket(a.bucket, b.bucket));
+  if (view === "week") {
+    return DAY_ORDER.map((day) => byBucket.get(day) ?? { bucket: day });
+  }
+  return Array.from(byBucket.values()).sort((a, b) =>
+    sortBucket(String(a.bucket), String(b.bucket)),
+  );
 }
 
 export function useProductivity(

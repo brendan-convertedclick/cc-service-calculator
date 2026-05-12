@@ -10,11 +10,22 @@ const PROJECT_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = "bg-slate-800/60 border-slate-600/40 text-slate-300";
 
-function sessionColor(slug: string): string {
-  return PROJECT_COLORS[slug] ?? DEFAULT_COLOR;
+function normalizeSlug(slug: string): string {
+  // Stored slugs may be full paths like "-Users-brendangunn-Github-cc-service-calculator"
+  // Normalize to the last hyphen-separated segment that matches a known project.
+  if (PROJECT_COLORS[slug]) return slug;
+  const parts = slug.replace(/^-/, "").split("-");
+  // Walk from longest suffix to shortest, return first match
+  for (let i = 0; i < parts.length; i++) {
+    const candidate = parts.slice(i).join("-");
+    if (PROJECT_COLORS[candidate]) return candidate;
+  }
+  return slug;
 }
 
-const MAX_SLOTS = 6;
+function sessionColor(slug: string): string {
+  return PROJECT_COLORS[normalizeSlug(slug)] ?? DEFAULT_COLOR;
+}
 
 interface Props {
   data: ParallelData;
@@ -23,29 +34,26 @@ interface Props {
 export function ParallelView({ data }: Props) {
   const { days, summary, periodLabel } = data;
 
-  const maxSlots = Math.min(
-    Math.max(...days.map((d) => d.sessions.length), 1),
-    MAX_SLOTS,
-  );
+  const maxSlots = Math.max(...days.map((d) => d.sessions.length), 1);
 
   return (
     <div className="space-y-5">
       {/* Summary chips */}
       <div className="grid grid-cols-3 gap-3">
         <Chip
-          label="Avg Concurrent Sessions"
+          label="Avg Sessions / Day"
           value={`${summary.avg_concurrent}×`}
           sub={periodLabel}
         />
         <Chip
           label="Peak Sessions"
           value={String(summary.peak_concurrent)}
-          sub="in one wall-clock period"
+          sub="highest count in one day"
         />
         <Chip
-          label="Parallel Output Hours"
+          label="Total AI Output Hours"
           value={`${summary.parallel_output_hours}h`}
-          sub={`from ${summary.wall_clock_hours}h wall-clock`}
+          sub={`across all sessions — wall-clock ≈ ${summary.wall_clock_hours}h`}
         />
       </div>
 
@@ -55,8 +63,8 @@ export function ParallelView({ data }: Props) {
           Session concurrency — {periodLabel}
         </p>
         <p className="text-body-small text-m-on-surface-variant/60 mb-5">
-          Each column = one day. Rows = simultaneous Claude sessions. More filled rows = higher
-          parallel multiplier.
+          Each column = one day. Each row = one Claude session logged that day (colour = project).
+          More rows = more sessions ran in parallel that day.
         </p>
 
         {days.length === 0 ? (
@@ -126,8 +134,7 @@ export function ParallelView({ data }: Props) {
 
         {days.length > 0 && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-m-primary/30 bg-m-primary/10 px-3 py-1.5 text-body-small text-m-primary font-semibold">
-            ⚡ Period avg: {summary.avg_concurrent}× parallel — equivalent to{" "}
-            {summary.avg_concurrent}× people working simultaneously
+            ⚡ Period avg: {summary.avg_concurrent}× parallel sessions per day
           </div>
         )}
       </div>

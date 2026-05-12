@@ -112,7 +112,7 @@ def get_jsonl_data(hook_data=None):
             active_secs = sum(
                 (parsed[i] - parsed[i - 1]).total_seconds()
                 for i in range(1, len(parsed))
-                if (parsed[i] - parsed[i - 1]).total_seconds() <= IDLE_THRESHOLD_SECS
+                if 0 < (parsed[i] - parsed[i - 1]).total_seconds() <= IDLE_THRESHOLD_SECS
             )
             duration_minutes = round(active_secs / 60, 1)
         except Exception:
@@ -175,6 +175,15 @@ def post_to_edge(payload):
     except Exception as e:
         return 0, {"error": str(e)}
 
+# ── Concurrency detection ─────────────────────────────────────────────────
+
+def count_concurrent_sessions():
+    """Count JSONL files modified in the last 5 minutes as a proxy for active Claude sessions."""
+    import time
+    cutoff = time.time() - 300  # 5-minute window
+    jsonl_files = glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl"))
+    return max(sum(1 for f in jsonl_files if os.path.getmtime(f) > cutoff), 1)
+
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
@@ -217,7 +226,7 @@ def main():
         "ai_duration_minutes":      duration_minutes,
         "ai_cost_zar":              ai_cost_zar,
         "human_minutes":            0,
-        "concurrent_sessions":      1,
+        "concurrent_sessions":      count_concurrent_sessions(),
         "engagement_type":          "task",
         "create_clickup_task":      True,
         "clickup_task_name":        task_name,
