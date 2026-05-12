@@ -19,8 +19,8 @@ export function PointModificationsTable({ modifications, members }: Props) {
   );
 
   function getMemberName(userId: number): string {
-    const member = members.find((m) => m.clickup_user_id === userId);
-    return member?.name ?? String(userId);
+    const member = members.find((m) => m.clickup_user_id != null && m.clickup_user_id === userId);
+    return member?.full_name ?? String(userId);
   }
 
   function formatDate(changedAt: string): string {
