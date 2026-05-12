@@ -34,27 +34,21 @@ export interface DirectData {
   breakdown?: BreakdownSlice[];
 }
 
-export interface ParallelSession {
-  slot: number;
-  project_slug: string;
-  duration_minutes: number;
-}
-
-export interface ParallelDay {
-  date: string;
-  sessions: ParallelSession[];
-  concurrent_count: number;
-  parallel_multiplier: number;
+export interface HeatmapCell {
+  ai_sessions: number;   // concurrent sessions active in this hour slot
+  human_minutes: number; // ClickUp time logged in this hour slot
 }
 
 export interface ParallelData {
   periodLabel: string;
-  days: ParallelDay[];
+  // date (YYYY-MM-DD) -> hour (0-23) -> cell
+  heatmap: Record<string, Record<number, HeatmapCell>>;
   summary: {
-    avg_concurrent: number;
-    peak_concurrent: number;
-    parallel_output_hours: number;
-    wall_clock_hours: number;
+    peak_concurrent: number;  // max sessions in any single hour slot
+    peak_hour: number;        // 0-23 local time (SAST)
+    total_ai_hours: number;   // sum of all session durations / 60
+    wall_clock_hours: number; // distinct hour slots with ai_sessions > 0
+    active_hours: number;     // same as wall_clock_hours (for chip display)
   };
 }
 
