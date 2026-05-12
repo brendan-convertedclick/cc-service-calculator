@@ -93,8 +93,10 @@ export function computeBubbleRadii(
   const BASE = 20;
   const MAX = 90;
   const innerR = BASE + Math.sqrt(Math.max(humanHours, 0)) * 8;
-  const middleR = innerR + Math.sqrt(Math.max(aiHours, 0)) * 6;
-  const outerR = Math.min(innerR * multiplier, MAX);
+  const rawMiddleR = innerR + Math.sqrt(Math.max(aiHours, 0)) * 6;
+  const rawOuterR = Math.min(innerR * multiplier, MAX);
+  const outerR = Math.max(rawOuterR, rawMiddleR + 2);
+  const middleR = rawMiddleR;
   return { innerR, middleR, outerR };
 }
 
