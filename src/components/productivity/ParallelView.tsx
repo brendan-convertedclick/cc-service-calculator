@@ -111,7 +111,7 @@ export function ParallelView({ data }: Props) {
                   <div
                     key={`${date}-${hour}`}
                     className={[
-                      "h-8 rounded-sm border transition-colors relative",
+                      "h-8 rounded-sm border transition-colors relative flex items-center justify-center",
                       cellColorClass(cell.ai_sessions, summary.peak_concurrent),
                     ].join(" ")}
                     title={[
@@ -122,6 +122,11 @@ export function ParallelView({ data }: Props) {
                       .filter(Boolean)
                       .join(" · ")}
                   >
+                    {cell.ai_sessions > 0 && (
+                      <span className="text-[10px] font-semibold leading-none text-white/90 select-none">
+                        {cell.ai_sessions}
+                      </span>
+                    )}
                     {hasHuman && (
                       <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
                     )}

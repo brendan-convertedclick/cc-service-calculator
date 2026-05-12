@@ -104,7 +104,7 @@ export function DirectView({ data, period, isTeam = false }: Props) {
           </p>
         ) : showBreakdown && hasBreakdown ? (
           breakdownIsMulti ? (
-            <BreakdownBarChart breakdown={breakdown!} />
+            <BreakdownBarChart breakdown={breakdown!} period={period} />
           ) : (
             <BreakdownChart breakdown={breakdown!} />
           )
@@ -252,7 +252,27 @@ function BreakdownChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
 
 // ─── Stacked bar chart (multi-member breakdown) ──────────────────────────────
 
-function BreakdownBarChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
+function getFullWeek(breakdown: BreakdownSlice[]): BreakdownSlice[] {
+  if (breakdown.length === 0) return breakdown;
+  const [y, mo, da] = breakdown[0].sub_key.split("-").map(Number);
+  const d = new Date(y, mo - 1, da);
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const byKey = new Map(breakdown.map((s) => [s.sub_key, s]));
+  const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    const key = [
+      day.getFullYear(),
+      String(day.getMonth() + 1).padStart(2, "0"),
+      String(day.getDate()).padStart(2, "0"),
+    ].join("-");
+    return byKey.get(key) ?? { sub_key: key, sub_label: DAY_LABELS[day.getDay()], members: [] };
+  });
+}
+
+function BreakdownBarChart({ breakdown, period }: { breakdown: BreakdownSlice[]; period: MultiplierPeriod }) {
   const allEmails = [...new Set(breakdown.flatMap((s) => s.members.map((m) => m.email)))];
   const colorByEmail = new Map(
     allEmails.map((email, i) => [email, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
@@ -260,33 +280,54 @@ function BreakdownBarChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
   const nameByEmail = new Map<string, string>();
   breakdown.forEach((s) => s.members.forEach((m) => nameByEmail.set(m.email, m.display_name)));
 
+  const displayBreakdown = period === "week" ? getFullWeek(breakdown) : breakdown;
+
   const maxOutput = Math.max(
     ...breakdown.flatMap((s) => s.members.map((m) => m.human_hours * m.multiplier)),
     1,
   );
 
   const CHART_H = 180;
-  const BAR_W = 20;
+  const BAR_W = 40;
 
   return (
     <div className="overflow-x-auto -mx-1 px-1 pt-2 pb-1">
       <div className="flex gap-5 items-end" style={{ minWidth: "max-content" }}>
-        {breakdown.map((slice) => (
+        {displayBreakdown.map((slice) => (
           <div key={slice.sub_key} className="flex flex-col items-center gap-2">
             <div className="flex gap-1.5 items-end" style={{ height: CHART_H }}>
-              {slice.members.map((member) => {
+              {slice.members.length > 0 ? slice.members.map((member) => {
                 const color = colorByEmail.get(member.email) ?? MEMBER_COLORS[0];
                 const effectiveH = member.human_hours * member.multiplier;
-                const barPx = effectiveH > 0 ? Math.max((effectiveH / maxOutput) * CHART_H, 4) : 0;
+                const barPx = effectiveH > 0 ? Math.max((effectiveH / maxOutput) * CHART_H, 6) : 0;
                 const humanRatio = effectiveH > 0 ? Math.min(member.human_hours / effectiveH, 1) : 0;
+                const humanBarPx = humanRatio * barPx;
 
                 return (
                   <div
                     key={member.email}
                     className="relative flex-shrink-0 rounded-t"
                     style={{ width: BAR_W, height: barPx || 2, opacity: barPx === 0 ? 0.2 : 1 }}
-                    title={`${member.display_name}: ${member.human_hours.toFixed(1)}h × ${member.multiplier.toFixed(1)}× = ${effectiveH.toFixed(1)}h effective`}
+                    title={`${member.display_name}: ${member.human_hours.toFixed(1)}h invested · ${effectiveH.toFixed(1)}h effective output (${member.multiplier.toFixed(1)}×)`}
                   >
+                    {/* Effective output value above bar */}
+                    {effectiveH > 0 && (
+                      <span style={{
+                        position: "absolute",
+                        bottom: "100%",
+                        left: 0,
+                        right: 0,
+                        textAlign: "center",
+                        paddingBottom: 3,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color,
+                        whiteSpace: "nowrap",
+                        lineHeight: 1,
+                      }}>
+                        {effectiveH.toFixed(1)}h
+                      </span>
+                    )}
                     {/* Amplified output (full bar, light) */}
                     <div
                       className="absolute inset-0 rounded-t"
@@ -294,16 +335,26 @@ function BreakdownBarChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
                     />
                     {/* Human hours (bottom portion, solid) */}
                     <div
-                      className="absolute bottom-0 left-0 right-0"
+                      className="absolute bottom-0 left-0 right-0 flex items-center justify-center"
                       style={{
                         height: `${humanRatio * 100}%`,
                         backgroundColor: `${color}b3`,
                         borderRadius: humanRatio >= 0.99 ? "0.125rem 0.125rem 0 0" : "0",
                       }}
-                    />
+                    >
+                      {humanBarPx >= 18 && (
+                        <span style={{ fontSize: 9, color: "white", fontWeight: 600, lineHeight: 1 }}>
+                          {member.human_hours.toFixed(1)}h
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
-              })}
+              }) : (
+                <div
+                  style={{ width: BAR_W, height: 2, borderRadius: 2, backgroundColor: `${MEMBER_COLORS[0]}15` }}
+                />
+              )}
             </div>
             <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest">
               {slice.sub_label}
