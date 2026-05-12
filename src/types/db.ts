@@ -282,29 +282,115 @@ export type Database = {
           },
         ]
       }
-      client_touchpoints: {
+      clause_schema: {
         Row: {
-          id: string
-          client_id: string
-          type: 'meeting' | 'call' | 'email'
-          notes: string | null
-          occurred_at: string
-          created_at: string
+          key: string
+          label: string
+          merge_strategy: string
+          section: string
+          sort_order: number
+          value_type: string
         }
         Insert: {
-          id?: string
-          client_id: string
-          type: 'meeting' | 'call' | 'email'
-          notes?: string | null
-          occurred_at?: string
-          created_at?: string
+          key: string
+          label: string
+          merge_strategy?: string
+          section: string
+          sort_order?: number
+          value_type: string
         }
-        Update: Partial<{
-          type: 'meeting' | 'call' | 'email'
+        Update: {
+          key?: string
+          label?: string
+          merge_strategy?: string
+          section?: string
+          sort_order?: number
+          value_type?: string
+        }
+        Relationships: []
+      }
+      clause_values: {
+        Row: {
+          clause_key: string
+          id: string
+          level_id: string
+          scope_id: string | null
+          updated_at: string
+          value_bool: boolean | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          clause_key: string
+          id?: string
+          level_id: string
+          scope_id?: string | null
+          updated_at?: string
+          value_bool?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          clause_key?: string
+          id?: string
+          level_id?: string
+          scope_id?: string | null
+          updated_at?: string
+          value_bool?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clause_values_clause_key_fkey"
+            columns: ["clause_key"]
+            isOneToOne: false
+            referencedRelation: "clause_schema"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "clause_values_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "sow_levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_touchpoints: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
           notes: string | null
           occurred_at: string
-        }>
-        Relationships: []
+          type: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          type: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_touchpoints_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clients: {
         Row: {
@@ -510,6 +596,121 @@ export type Database = {
         }
         Relationships: []
       }
+      process_step_instances: {
+        Row: {
+          actual_hours: number
+          assignee_id: string | null
+          blocked_reason: string | null
+          clickup_task_id: string | null
+          completed_at: string | null
+          created_at: string
+          department_id: string | null
+          description: string | null
+          due_at: string | null
+          estimated_hours: number | null
+          id: string
+          last_synced_at: string | null
+          manual_override: boolean
+          ordinal: number
+          project_id: string
+          service_id: string | null
+          started_at: string | null
+          status: string
+          template_step_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_hours?: number
+          assignee_id?: string | null
+          blocked_reason?: string | null
+          clickup_task_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          department_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          last_synced_at?: string | null
+          manual_override?: boolean
+          ordinal: number
+          project_id: string
+          service_id?: string | null
+          started_at?: string | null
+          status?: string
+          template_step_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_hours?: number
+          assignee_id?: string | null
+          blocked_reason?: string | null
+          clickup_task_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          department_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          estimated_hours?: number | null
+          id?: string
+          last_synced_at?: string | null
+          manual_override?: boolean
+          ordinal?: number
+          project_id?: string
+          service_id?: string | null
+          started_at?: string | null
+          status?: string
+          template_step_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_instances_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_instances_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_instances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_instances_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "process_step_instances_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_instances_template_step_id_fkey"
+            columns: ["template_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_steps: {
         Row: {
           ai_generated: boolean
@@ -575,6 +776,7 @@ export type Database = {
         Row: {
           actual_hours: number
           clickup_task_id: string
+          cost_cents: number | null
           dept_id: string | null
           id: string
           planned_hours: number
@@ -587,6 +789,7 @@ export type Database = {
         Insert: {
           actual_hours?: number
           clickup_task_id: string
+          cost_cents?: number | null
           dept_id?: string | null
           id?: string
           planned_hours: number
@@ -599,6 +802,7 @@ export type Database = {
         Update: {
           actual_hours?: number
           clickup_task_id?: string
+          cost_cents?: number | null
           dept_id?: string | null
           id?: string
           planned_hours?: number
@@ -1381,6 +1585,7 @@ export type Database = {
           clickup_workspace_id: string | null
           id: number
           inbound_email_secret: string | null
+          productivity_goal_points: number
           unallocated_ai_clickup_task_id: string | null
           updated_at: string
           xero_enabled: boolean
@@ -1394,6 +1599,7 @@ export type Database = {
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
+          productivity_goal_points?: number
           unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
           xero_enabled?: boolean
@@ -1407,10 +1613,38 @@ export type Database = {
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
+          productivity_goal_points?: number
           unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
+        }
+        Relationships: []
+      }
+      sow_levels: {
+        Row: {
+          created_at: string
+          id: string
+          level_type: string
+          name: string
+          priority: number
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level_type: string
+          name: string
+          priority: number
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level_type?: string
+          name?: string
+          priority?: number
+          slug?: string
         }
         Relationships: []
       }
@@ -1440,99 +1674,6 @@ export type Database = {
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      xero_connection: {
-        Row: {
-          access_token: string
-          expires_at: string
-          id: string
-          refresh_token: string
-          tenant_id: string
-          tenant_name: string | null
-          updated_at: string
-        }
-        Insert: {
-          access_token: string
-          expires_at: string
-          id?: string
-          refresh_token: string
-          tenant_id: string
-          tenant_name?: string | null
-          updated_at?: string
-        }
-        Update: {
-          access_token?: string
-          expires_at?: string
-          id?: string
-          refresh_token?: string
-          tenant_id?: string
-          tenant_name?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      xero_invoices: {
-        Row: {
-          amount_cents: number
-          client_id: string | null
-          created_at: string
-          due_date: string | null
-          id: string
-          invoice_number: string | null
-          paid_at: string | null
-          project_id: string | null
-          status: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
-          synced_at: string
-          xero_contact_id: string | null
-          xero_contact_name: string | null
-          xero_invoice_id: string
-        }
-        Insert: {
-          amount_cents?: number
-          client_id?: string | null
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          invoice_number?: string | null
-          paid_at?: string | null
-          project_id?: string | null
-          status: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
-          synced_at?: string
-          xero_contact_id?: string | null
-          xero_contact_name?: string | null
-          xero_invoice_id: string
-        }
-        Update: {
-          amount_cents?: number
-          client_id?: string | null
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          invoice_number?: string | null
-          paid_at?: string | null
-          project_id?: string | null
-          status?: "DRAFT" | "SUBMITTED" | "AUTHORISED" | "PAID" | "VOIDED"
-          synced_at?: string
-          xero_contact_id?: string | null
-          xero_contact_name?: string | null
-          xero_invoice_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "xero_invoices_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "xero_invoices_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1584,8 +1725,123 @@ export type Database = {
           },
         ]
       }
+      xero_connection: {
+        Row: {
+          access_token: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          tenant_id: string
+          tenant_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          tenant_id: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          tenant_id?: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      xero_invoices: {
+        Row: {
+          amount_cents: number
+          client_id: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          invoice_number: string | null
+          paid_at: string | null
+          project_id: string | null
+          status: string
+          synced_at: string
+          xero_contact_id: string | null
+          xero_contact_name: string | null
+          xero_invoice_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          client_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          paid_at?: string | null
+          project_id?: string | null
+          status: string
+          synced_at?: string
+          xero_contact_id?: string | null
+          xero_contact_name?: string | null
+          xero_invoice_id: string
+        }
+        Update: {
+          amount_cents?: number
+          client_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          paid_at?: string | null
+          project_id?: string | null
+          status?: string
+          synced_at?: string
+          xero_contact_id?: string | null
+          xero_contact_name?: string | null
+          xero_invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xero_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xero_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      process_step_handoffs: {
+        Row: {
+          from_completed_at: string | null
+          from_ordinal: number | null
+          from_step_id: string | null
+          from_title: string | null
+          handoff_hours: number | null
+          project_id: string | null
+          to_started_at: string | null
+          to_step_id: string | null
+          to_title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_instances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_actuals_current: {
         Row: {
           actual_hours: number | null
@@ -1647,6 +1903,15 @@ export type Database = {
           project_code: string
           project_name: string
         }[]
+      }
+      resolve_sow_clause: {
+        Args: {
+          p_clause_key: string
+          p_client_id?: string
+          p_project_id?: string
+          p_service_id?: string
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -1811,78 +2076,3 @@ export const Constants = {
     },
   },
 } as const
-
-// Manually maintained types for tables not yet in the auto-generated schema
-export interface ProcessStepInstance {
-  id: string
-  project_id: string
-  template_step_id: string | null
-  service_id: string | null
-  ordinal: number
-  title: string
-  description: string | null
-  department_id: string | null
-  assignee_id: string | null
-  estimated_hours: number | null
-  actual_hours: number
-  status: 'pending' | 'in_progress' | 'blocked' | 'done' | 'skipped'
-  blocked_reason: string | null
-  manual_override: boolean
-  clickup_task_id: string | null
-  due_at: string | null
-  started_at: string | null
-  completed_at: string | null
-  last_synced_at: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface ProcessStepHandoff {
-  project_id: string
-  from_step_id: string
-  to_step_id: string
-  from_ordinal: number
-  from_title: string
-  to_title: string
-  from_completed_at: string
-  to_started_at: string
-  handoff_hours: number
-}
-
-// SOW inheritance system types
-export interface SOWLevel {
-  id: string
-  name: string
-  slug: string
-  level_type: 'agency' | 'service' | 'client' | 'project'
-  priority: number
-  created_at: string
-}
-
-export interface ClauseSchema {
-  key: string
-  label: string
-  value_type: 'string' | 'number' | 'string[]' | 'boolean'
-  merge_strategy: 'replace' | 'append'
-  section: 'commercial' | 'delivery' | 'legal' | 'scope'
-  sort_order: number
-}
-
-export interface ClauseValue {
-  id: string
-  clause_key: string
-  level_id: string
-  scope_id: string | null
-  value_text: string | null
-  value_number: number | null
-  value_bool: boolean | null
-  updated_at: string
-}
-
-export interface ResolvedClause {
-  value: string | number | boolean | string[] | null
-  value_type: ClauseSchema['value_type']
-  merge_strategy: ClauseSchema['merge_strategy']
-  source_level_id: string | null
-  source_level_name: string
-}
