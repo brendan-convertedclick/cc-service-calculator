@@ -34,6 +34,9 @@ coverage/
 .supabase/
 supabase/.temp/
 
+# Screenshots and generated images
+*.png
+
 # Playwright MCP scratch
 .playwright-mcp/
 .superpowers/
