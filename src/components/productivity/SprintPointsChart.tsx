@@ -70,16 +70,27 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                 (m) => m.id === member.id,
               );
               const color = MEMBER_COLORS[originalIdx % MEMBER_COLORS.length];
-              return (
+              const isLast = idx === displayMembers.length - 1;
+              return [
                 <Bar
-                  key={member.id}
-                  dataKey={String(member.clickup_user_id)}
-                  name={member.full_name}
+                  key={`${member.id}_business`}
+                  dataKey={`${member.clickup_user_id}_business`}
+                  name={member.full_name ?? undefined}
                   stackId="a"
                   fill={color}
-                  radius={idx === displayMembers.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
-                />
-              );
+                  radius={[0, 0, 0, 0]}
+                />,
+                <Bar
+                  key={`${member.id}_self`}
+                  dataKey={`${member.clickup_user_id}_self`}
+                  name={`${member.full_name} (self-created)`}
+                  stackId="a"
+                  fill={color}
+                  fillOpacity={0.45}
+                  radius={isLast ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                  legendType="none"
+                />,
+              ];
             })}
             {displayMembers.length > 1 && (
               <Legend
