@@ -148,6 +148,9 @@ Deno.serve(async (req: Request) => {
       date_done_lt: String(endMs),
       page: "0",
     });
+    // Filter to the Clients space; /space/{id}/task is not a valid ClickUp v2 endpoint —
+    // use /team/{id}/task with space_ids[] instead
+    taskParams.append("space_ids[]", String(settings.clickup_clients_space_id));
     if (clickup_user_id) taskParams.append("assignees[]", String(clickup_user_id));
 
     // Build time entries query params
@@ -160,7 +163,7 @@ Deno.serve(async (req: Request) => {
     // Parallel fetch
     const [tasksRes, timeRes] = await Promise.all([
       fetch(
-        `https://api.clickup.com/api/v2/space/${settings.clickup_clients_space_id}/task?${taskParams}`,
+        `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/task?${taskParams}`,
         { headers: CU_HEADERS },
       ),
       fetch(
