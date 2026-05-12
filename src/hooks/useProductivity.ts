@@ -8,6 +8,18 @@ export interface SprintPoint {
   bucket: string;
   userId: number;
   points: number;
+  selfCreatedPoints: number;
+  businessCreatedPoints: number;
+}
+
+export interface PointModification {
+  bucket: string;
+  taskId: string;
+  taskName: string;
+  userId: number;
+  oldPoints: number;
+  newPoints: number;
+  changedAt: string; // unix ms as string
 }
 
 export interface TimeEntry {
@@ -28,6 +40,7 @@ export interface ProductivityData {
   sprintPoints: SprintPoint[];
   timeEntries: TimeEntry[];
   meta: ProductivityMeta;
+  pointModifications: PointModification[];
 }
 
 export const MEMBER_COLORS = [
@@ -50,14 +63,17 @@ function sortBucket(a: string, b: string): number {
 }
 
 /** Transforms flat sprintPoints rows into recharts-friendly shape:
- *  [{ bucket, [userId]: points, ... }, ...] */
+ *  [{ bucket, [userId]_business: businessCreatedPoints, [userId]_self: selfCreatedPoints, ... }, ...] */
 export function buildChartData(
   sprintPoints: SprintPoint[],
 ): Record<string, number | string>[] {
   const byBucket = new Map<string, Record<string, number | string>>();
   for (const sp of sprintPoints) {
     const row = byBucket.get(sp.bucket) ?? { bucket: sp.bucket };
-    row[String(sp.userId)] = ((row[String(sp.userId)] as number) ?? 0) + sp.points;
+    const businessKey = `${sp.userId}_business`;
+    const selfKey = `${sp.userId}_self`;
+    row[businessKey] = ((row[businessKey] as number) ?? 0) + sp.businessCreatedPoints;
+    row[selfKey] = ((row[selfKey] as number) ?? 0) + sp.selfCreatedPoints;
     byBucket.set(sp.bucket, row);
   }
   return Array.from(byBucket.values()).sort((a, b) =>
