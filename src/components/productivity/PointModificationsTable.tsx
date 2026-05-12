@@ -1,5 +1,5 @@
 // src/components/productivity/PointModificationsTable.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { PointModification } from "@/hooks/useProductivity";
 import type { Database } from "@/types/db";
@@ -12,7 +12,10 @@ interface Props {
 }
 
 export function PointModificationsTable({ modifications, members }: Props) {
-  const [open, setOpen] = useState(modifications.length > 0);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(modifications.length > 0);
+  }, [modifications.length]);
 
   const sorted = [...modifications].sort(
     (a, b) => Number(a.changedAt) - Number(b.changedAt),
