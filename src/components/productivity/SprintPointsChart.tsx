@@ -70,11 +70,12 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                 (m) => m.id === member.id,
               );
               const color = MEMBER_COLORS[originalIdx % MEMBER_COLORS.length];
-              const isLast = idx === displayMembers.length - 1;
+              // userId in SprintPoint = the ClickUp numeric ID, which matches team_members.clickup_user_id
+              const uid = String(member.clickup_user_id);
               return [
                 <Bar
                   key={`${member.id}_business`}
-                  dataKey={`${member.clickup_user_id}_business`}
+                  dataKey={`${uid}_business`}
                   name={member.full_name ?? undefined}
                   stackId="a"
                   fill={color}
@@ -82,12 +83,12 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                 />,
                 <Bar
                   key={`${member.id}_self`}
-                  dataKey={`${member.clickup_user_id}_self`}
+                  dataKey={`${uid}_self`}
                   name={`${member.full_name} (self-created)`}
                   stackId="a"
                   fill={color}
                   fillOpacity={0.45}
-                  radius={isLast ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                  radius={[0, 0, 0, 0]}
                   legendType="none"
                 />,
               ];
