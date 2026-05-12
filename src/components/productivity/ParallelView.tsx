@@ -1,135 +1,158 @@
 // src/components/productivity/ParallelView.tsx
-import { ParallelData, ParallelSession } from "@/hooks/useOutputMultiplier";
+import { HeatmapCell, ParallelData } from "@/hooks/useOutputMultiplier";
 
-const PROJECT_COLORS: Record<string, string> = {
-  "cc-service-calculator": "bg-violet-900/40 border-violet-600/40 text-violet-300",
-  granite: "bg-cyan-900/40 border-cyan-600/40 text-cyan-300",
-  pebble: "bg-emerald-900/40 border-emerald-600/40 text-emerald-300",
-  intake: "bg-amber-900/40 border-amber-600/40 text-amber-300",
-};
+const MIN_HOUR = 5;
+const MAX_HOUR = 23;
 
-const DEFAULT_COLOR = "bg-slate-800/60 border-slate-600/40 text-slate-300";
-
-function sessionColor(slug: string): string {
-  return PROJECT_COLORS[slug] ?? DEFAULT_COLOR;
+function formatHour(h: number): string {
+  if (h === 0) return "12am";
+  if (h < 12) return `${h}am`;
+  if (h === 12) return "12pm";
+  return `${h - 12}pm`;
 }
 
-const MAX_SLOTS = 6;
+function formatDayHeader(dateStr: string): string {
+  const [y, mo, da] = dateStr.split("-").map(Number);
+  const d = new Date(y, mo - 1, da);
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+  return `${day} ${da}`;
+}
+
+function cellColorClass(sessions: number, peak: number): string {
+  if (sessions === 0) return "bg-m-surface-container-high/60 border-m-outline-variant/20";
+  if (peak <= 0) return "bg-violet-400/50 border-violet-400/30";
+  const ratio = sessions / peak;
+  if (ratio <= 0.33) return "bg-violet-300/60 border-violet-400/30";
+  if (ratio <= 0.66) return "bg-violet-500/70 border-violet-500/40";
+  return "bg-violet-700/85 border-violet-600/50";
+}
 
 interface Props {
   data: ParallelData;
 }
 
 export function ParallelView({ data }: Props) {
-  const { days, summary, periodLabel } = data;
+  const { heatmap, summary, periodLabel } = data;
 
-  const maxSlots = Math.min(
-    Math.max(...days.map((d) => d.sessions.length), 1),
-    MAX_SLOTS,
-  );
+  const dates = Object.keys(heatmap).sort();
+  const hours = Array.from({ length: MAX_HOUR - MIN_HOUR + 1 }, (_, i) => i + MIN_HOUR);
+
+  if (dates.length === 0) {
+    return (
+      <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-12 text-center text-body-medium text-m-on-surface-variant/40">
+        No sessions logged for this period.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Summary chips */}
       <div className="grid grid-cols-3 gap-3">
         <Chip
-          label="Avg Concurrent Sessions"
-          value={`${summary.avg_concurrent}×`}
-          sub={periodLabel}
+          label="Peak concurrent"
+          value={`${summary.peak_concurrent}×`}
+          sub={`at ${formatHour(summary.peak_hour)} local`}
         />
         <Chip
-          label="Peak Sessions"
-          value={String(summary.peak_concurrent)}
-          sub="in one wall-clock period"
+          label="Total AI output"
+          value={`${summary.total_ai_hours}h`}
+          sub={`wall-clock ≈ ${summary.wall_clock_hours}h`}
         />
         <Chip
-          label="Parallel Output Hours"
-          value={`${summary.parallel_output_hours}h`}
-          sub={`from ${summary.wall_clock_hours}h wall-clock`}
+          label="Active hour slots"
+          value={String(summary.active_hours)}
+          sub="hours with AI sessions running"
         />
       </div>
 
-      {/* Concurrency grid */}
-      <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-6">
+      {/* Heatmap */}
+      <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-6 overflow-x-auto">
         <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest mb-1">
-          Session concurrency — {periodLabel}
+          AI activity by hour — {periodLabel}
         </p>
         <p className="text-body-small text-m-on-surface-variant/60 mb-5">
-          Each column = one day. Rows = simultaneous Claude sessions. More filled rows = higher
-          parallel multiplier.
+          Rows = hour of day (local time). Columns = days. Darker = more concurrent sessions running.
         </p>
 
-        {days.length === 0 ? (
-          <p className="text-body-medium text-m-on-surface-variant/40 text-center py-12">
-            No sessions logged for this period.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
+        <div
+          className="grid gap-px"
+          style={{
+            gridTemplateColumns: `52px repeat(${dates.length}, minmax(56px, 1fr))`,
+          }}
+        >
+          {/* Column headers */}
+          <div />
+          {dates.map((d) => (
             <div
-              className="grid gap-1.5"
-              style={{
-                gridTemplateColumns: `80px repeat(${days.length}, minmax(80px, 1fr))`,
-                gridTemplateRows: `auto ${Array.from({ length: maxSlots }, () => "36px").join(" ")}`,
-              }}
+              key={d}
+              className="text-label-small text-m-on-surface-variant text-center pb-2"
             >
-              {/* Column headers */}
-              <div />
-              {days.map((day) => (
-                <div
-                  key={day.date}
-                  className="text-label-small text-m-on-surface-variant text-center pb-1.5"
-                >
-                  {new Date(day.date).toLocaleDateString("en-ZA", {
-                    weekday: "short",
-                    day: "numeric",
-                  })}
-                </div>
-              ))}
-
-              {/* Session rows */}
-              {Array.from({ length: maxSlots }, (_, slotIdx) => (
-                <>
-                  <div
-                    key={`label-${slotIdx}`}
-                    className="text-body-small text-m-on-surface-variant/60 flex items-center"
-                  >
-                    Session {slotIdx + 1}
-                  </div>
-                  {days.map((day) => {
-                    const session: ParallelSession | undefined = day.sessions[slotIdx];
-                    return (
-                      <div
-                        key={`${day.date}-${slotIdx}`}
-                        className={[
-                          "rounded-md border flex items-center justify-center text-[10px] font-semibold h-9",
-                          session
-                            ? sessionColor(session.project_slug)
-                            : "bg-m-surface-container-high border-m-outline-variant/30",
-                        ].join(" ")}
-                        title={
-                          session
-                            ? `${session.project_slug} — ${Math.round(session.duration_minutes)}min`
-                            : undefined
-                        }
-                      >
-                        {session
-                          ? session.project_slug.split("-")[0].slice(0, 6)
-                          : ""}
-                      </div>
-                    );
-                  })}
-                </>
-              ))}
+              {formatDayHeader(d)}
             </div>
-          </div>
-        )}
+          ))}
 
-        {days.length > 0 && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-m-primary/30 bg-m-primary/10 px-3 py-1.5 text-body-small text-m-primary font-semibold">
-            ⚡ Period avg: {summary.avg_concurrent}× parallel — equivalent to{" "}
-            {summary.avg_concurrent}× people working simultaneously
+          {/* Hour rows */}
+          {hours.map((hour) => (
+            <>
+              <div
+                key={`label-${hour}`}
+                className="text-body-small text-m-on-surface-variant/50 text-right pr-2.5 flex items-center justify-end h-8"
+              >
+                {formatHour(hour)}
+              </div>
+              {dates.map((date) => {
+                const cell: HeatmapCell = heatmap[date]?.[hour] ?? {
+                  ai_sessions: 0,
+                  human_minutes: 0,
+                };
+                const hasHuman = cell.human_minutes > 0;
+                return (
+                  <div
+                    key={`${date}-${hour}`}
+                    className={[
+                      "h-8 rounded-sm border transition-colors relative",
+                      cellColorClass(cell.ai_sessions, summary.peak_concurrent),
+                    ].join(" ")}
+                    title={[
+                      `${formatDayHeader(date)} ${formatHour(hour)}`,
+                      `${cell.ai_sessions} concurrent session${cell.ai_sessions !== 1 ? "s" : ""}`,
+                      hasHuman ? `${Math.round(cell.human_minutes)}min human time` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  >
+                    {hasHuman && (
+                      <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="mt-5 flex items-center gap-5 flex-wrap">
+          <span className="text-body-small text-m-on-surface-variant/50">Intensity:</span>
+          {[
+            { label: "None", sessions: 0 },
+            { label: "1 session", sessions: 1 },
+            { label: "2 sessions", sessions: 2 },
+            { label: "3+", sessions: 3 },
+          ].map(({ label, sessions }) => (
+            <div key={label} className="flex items-center gap-1.5">
+              <div className={`w-5 h-5 rounded-sm border ${cellColorClass(sessions, 3)}`} />
+              <span className="text-body-small text-m-on-surface-variant/60">{label}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-5 rounded-sm border bg-violet-500/70 relative">
+              <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-white/60" />
+            </div>
+            <span className="text-body-small text-m-on-surface-variant/60">+ human time logged</span>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
