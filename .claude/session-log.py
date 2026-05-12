@@ -63,7 +63,7 @@ def get_jsonl_data():
         key=os.path.getmtime, reverse=True
     )
     if not files:
-        return 0, 0, 0.0, "cc-service-calculator"
+        return 0, 0, 0.0, "cc-service-calculator", None
 
     path = files[0]
     project_slug = os.path.basename(os.path.dirname(path))
@@ -87,11 +87,12 @@ def get_jsonl_data():
         for l in lines if l.get("type") == "assistant"
     )
 
-    # Active duration: sum only consecutive gaps under 5 minutes.
-    # Gaps > 5 min are idle time (user away, waiting) and shouldn't count.
-    IDLE_THRESHOLD_SECS = 1800  # 30 min — includes subagent runs, excludes lunch/breaks
+    # Active duration: sum only consecutive gaps ≤ 30 min.
+    # Gaps > 30 min are idle (lunch/breaks). Gaps ≤ 30 min include subagent runs.
+    IDLE_THRESHOLD_SECS = 1800
     timestamps = [l["timestamp"] for l in lines if "timestamp" in l]
     duration_minutes = 0.0
+    session_start_iso = timestamps[0] if timestamps else None
     if len(timestamps) >= 2:
         try:
             parsed = [datetime.fromisoformat(t.replace("Z", "+00:00")) for t in timestamps]
@@ -104,7 +105,7 @@ def get_jsonl_data():
         except Exception:
             pass
 
-    return input_tokens, output_tokens, duration_minutes, project_slug
+    return input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso
 
 # ── Formatting ────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ def main():
             save_checkpoint(current_sha)
         return
 
-    input_tokens, output_tokens, duration_minutes, project_slug = get_jsonl_data()
+    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso = get_jsonl_data()
     ai_cost_zar  = round((input_tokens * INPUT_COST_PER_M + output_tokens * OUTPUT_COST_PER_M) / 1_000_000 * ZAR_PER_USD, 2)
     session_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -176,9 +177,10 @@ def main():
         "human_minutes":           0,
         "concurrent_sessions":     1,
         "engagement_type":         "task",
-        "create_clickup_task":     True,
-        "clickup_task_name":       task_name,
+        "create_clickup_task":      True,
+        "clickup_task_name":        task_name,
         "clickup_task_description": description,
+        "ai_session_start_iso":     session_start_iso,
     }
 
     status, body = post_to_edge(payload)

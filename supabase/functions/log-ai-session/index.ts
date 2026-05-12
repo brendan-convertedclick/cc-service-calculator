@@ -38,6 +38,8 @@ interface RequestBody {
   create_clickup_task?: boolean;
   clickup_task_name?: string;
   clickup_task_description?: string;
+  // Passed through to the time entry on the created task
+  ai_session_start_iso?: string;  // ISO timestamp of first JSONL message
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
@@ -62,7 +64,14 @@ Deno.serve(async (req) => {
   // Create ClickUp task server-side if requested
   let clickupTaskId = body.clickup_task_id ?? null;
   if (body.create_clickup_task && body.clickup_task_name && pat) {
-    clickupTaskId = await createClickUpTask(pat, body.clickup_task_name, body.session_date, body.clickup_task_description);
+    clickupTaskId = await createClickUpTask(
+      pat,
+      body.clickup_task_name,
+      body.session_date,
+      body.clickup_task_description,
+      body.ai_duration_minutes,
+      body.ai_session_start_iso,
+    );
   }
 
   // Write to ai_sessions
@@ -108,8 +117,9 @@ async function createClickUpTask(
   name: string,
   sessionDate: string,
   description?: string,
+  durationMinutes?: number,
+  sessionStartIso?: string,
 ): Promise<string | null> {
-  // Convert session date to milliseconds for the date field
   const dateMs = new Date(sessionDate).getTime();
 
   const payload = {
@@ -117,6 +127,7 @@ async function createClickUpTask(
     markdown_description: description ?? "",
     assignees: [BRENDAN_CU_ID],
     status: "closed",
+    tags: ["AI"],
     custom_fields: [
       ...CUSTOM_FIELDS_STATIC,
       { id: DATE_FIELD_ID, value: String(dateMs) },
@@ -133,12 +144,31 @@ async function createClickUpTask(
   const data = await res.json();
   const taskId: string = data.id;
 
-  // Ensure closed (some lists ignore status on create)
+  // Ensure closed
   await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
     method: "PUT",
     headers: { Authorization: pat, "Content-Type": "application/json" },
     body: JSON.stringify({ status: "closed" }),
   }).catch(() => {});
+
+  // Add time entry (AI duration, non-billable)
+  if (durationMinutes && durationMinutes > 0) {
+    const startMs = sessionStartIso
+      ? new Date(sessionStartIso).getTime()
+      : new Date(`${sessionDate}T09:00:00Z`).getTime();
+    const durationMs = Math.round(durationMinutes * 60 * 1000);
+
+    await fetch(`https://api.clickup.com/api/v2/task/${taskId}/time`, {
+      method: "POST",
+      headers: { Authorization: pat, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: "AI session (auto-logged)",
+        start: startMs,
+        duration: durationMs,
+        billable: false,
+      }),
+    }).catch(() => {});
+  }
 
   return taskId;
 }
