@@ -3,28 +3,20 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
-// ── Hardcoded ClickUp config (The Converted Click > Ops) ──────────────────
+const CU_LIST_ID    = "901217934382";
+const BRENDAN_CU_ID = 4619351;
 
-const CU_LIST_ID     = "901217934382";
-const BRENDAN_CU_ID  = 4619351;
-
-// Pre-resolved custom field option IDs
 const CUSTOM_FIELDS_STATIC = [
-  // Client Name = The Converted Click
   { id: "cb85dec8-42eb-46d2-89da-f8deb943377a", value: "a34ba210-42a2-473e-8279-f45fabeb9b44" },
-  // Engagement Type = Task
   { id: "3bf088b1-392b-4e4f-8831-16d94bbc81d7", value: "793953f6-0c73-4a2c-9b90-7fd879732876" },
-  // Work Stream = Development
   { id: "f4b5fb8a-c237-4c7e-8fec-bf48c6d8d38b", value: "18a513e0-936a-4da0-8163-53d4904d3d6e" },
 ];
 const DATE_FIELD_ID = "c432caf3-3bb0-4423-bd5f-684639bef9aa";
 
-// ── Types ─────────────────────────────────────────────────────────────────
-
 interface RequestBody {
   logged_by: string;
-  session_date: string;             // ISO date e.g. "2026-05-12"
-  clickup_task_id?: string;         // if already created externally
+  session_date: string;
+  clickup_task_id?: string;
   project_slug?: string;
   ai_input_tokens: number;
   ai_output_tokens: number;
@@ -34,15 +26,12 @@ interface RequestBody {
   concurrent_sessions: number;
   engagement_type: "task" | "agent-run";
   agent_id?: string;
-  // Task creation (server-side, uses CLICKUP_PAT secret)
   create_clickup_task?: boolean;
   clickup_task_name?: string;
   clickup_task_description?: string;
-  // Passed through to the time entry on the created task
-  ai_session_start_iso?: string;  // ISO timestamp of first JSONL message
+  ai_session_start_iso?: string;
+  jsonl_id?: string;  // JSONL filename UUID — deduplication key
 }
-
-// ── Handler ───────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -59,9 +48,22 @@ Deno.serve(async (req) => {
     return json({ error: "logged_by and session_date are required" }, 400);
   }
 
+  const sb = createServiceRoleClient();
   const pat = Deno.env.get("CLICKUP_PAT");
 
-  // Create ClickUp task server-side if requested
+  // ── Duplicate check FIRST — before any ClickUp writes ──────────────────
+  if (body.jsonl_id) {
+    const { data: existing } = await sb
+      .from("ai_sessions")
+      .select("id, clickup_task_id")
+      .eq("jsonl_id", body.jsonl_id)
+      .maybeSingle();
+    if (existing) {
+      return json({ id: existing.id, duplicate: true, clickup_task_id: existing.clickup_task_id });
+    }
+  }
+
+  // ── Create ClickUp task (only if not a duplicate) ──────────────────────
   let clickupTaskId = body.clickup_task_id ?? null;
   if (body.create_clickup_task && body.clickup_task_name && pat) {
     clickupTaskId = await createClickUpTask(
@@ -74,8 +76,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Write to ai_sessions
-  const sb = createServiceRoleClient();
+  // ── Write to ai_sessions ───────────────────────────────────────────────
   const { data: session, error: insertErr } = await sb
     .from("ai_sessions")
     .insert({
@@ -91,13 +92,14 @@ Deno.serve(async (req) => {
       concurrent_sessions: body.concurrent_sessions,
       engagement_type: body.engagement_type,
       agent_id: body.agent_id ?? null,
+      jsonl_id: body.jsonl_id ?? null,
     })
     .select("id")
     .single();
 
   if (insertErr) return json({ error: insertErr.message }, 500);
 
-  // Patch AI fields onto an existing ClickUp task if provided
+  // Patch AI fields onto an existing ClickUp task if passed directly
   if (body.clickup_task_id && pat) {
     await patchClickUpAiFields(pat, body.clickup_task_id, {
       ai_input_tokens: body.ai_input_tokens,
@@ -122,22 +124,20 @@ async function createClickUpTask(
 ): Promise<string | null> {
   const dateMs = new Date(sessionDate).getTime();
 
-  const payload = {
-    name,
-    markdown_description: description ?? "",
-    assignees: [BRENDAN_CU_ID],
-    status: "closed",
-    tags: ["AI"],
-    custom_fields: [
-      ...CUSTOM_FIELDS_STATIC,
-      { id: DATE_FIELD_ID, value: String(dateMs) },
-    ],
-  };
-
   const res = await fetch(`https://api.clickup.com/api/v2/list/${CU_LIST_ID}/task`, {
     method: "POST",
     headers: { Authorization: pat, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      name,
+      markdown_description: description ?? "",
+      assignees: [BRENDAN_CU_ID],
+      status: "closed",
+      tags: ["AI"],
+      custom_fields: [
+        ...CUSTOM_FIELDS_STATIC,
+        { id: DATE_FIELD_ID, value: String(dateMs) },
+      ],
+    }),
   });
 
   if (!res.ok) return null;
@@ -151,12 +151,11 @@ async function createClickUpTask(
     body: JSON.stringify({ status: "closed" }),
   }).catch(() => {});
 
-  // Add time entry (AI duration, non-billable)
+  // Add non-billable time entry for the AI session duration
   if (durationMinutes && durationMinutes > 0) {
     const startMs = sessionStartIso
       ? new Date(sessionStartIso).getTime()
       : new Date(`${sessionDate}T09:00:00Z`).getTime();
-    const durationMs = Math.round(durationMinutes * 60 * 1000);
 
     await fetch(`https://api.clickup.com/api/v2/task/${taskId}/time`, {
       method: "POST",
@@ -164,7 +163,7 @@ async function createClickUpTask(
       body: JSON.stringify({
         description: "AI session (auto-logged)",
         start: startMs,
-        duration: durationMs,
+        duration: Math.round(durationMinutes * 60 * 1000),
         billable: false,
       }),
     }).catch(() => {});

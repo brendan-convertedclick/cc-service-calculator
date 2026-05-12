@@ -63,10 +63,11 @@ def get_jsonl_data():
         key=os.path.getmtime, reverse=True
     )
     if not files:
-        return 0, 0, 0.0, "cc-service-calculator", None
+        return 0, 0, 0.0, "cc-service-calculator", None, None
 
     path = files[0]
     project_slug = os.path.basename(os.path.dirname(path))
+    jsonl_id = os.path.splitext(os.path.basename(path))[0]  # UUID filename, no extension
 
     lines = []
     with open(path) as f:
@@ -105,7 +106,7 @@ def get_jsonl_data():
         except Exception:
             pass
 
-    return input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso
+    return input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id
 
 # ── Formatting ────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ def main():
             save_checkpoint(current_sha)
         return
 
-    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso = get_jsonl_data()
+    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data()
     ai_cost_zar  = round((input_tokens * INPUT_COST_PER_M + output_tokens * OUTPUT_COST_PER_M) / 1_000_000 * ZAR_PER_USD, 2)
     session_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -181,6 +182,7 @@ def main():
         "clickup_task_name":        task_name,
         "clickup_task_description": description,
         "ai_session_start_iso":     session_start_iso,
+        "jsonl_id":                 jsonl_id,
     }
 
     status, body = post_to_edge(payload)
@@ -189,15 +191,18 @@ def main():
     if current_sha:
         save_checkpoint(current_sha)
 
-    cu_id  = body.get("clickup_task_id")
-    cu_url = f"https://app.clickup.com/t/{cu_id}" if cu_id else "no ClickUp task"
-    print(
-        f"[session-log] {len(commits)} commit(s) · "
-        f"{input_tokens:,}in/{output_tokens:,}out · "
-        f"{duration_minutes:.0f}min · R{ai_cost_zar:.2f} · "
-        f"{'✓' if ok else '⚠'} {cu_url}",
-        file=sys.stderr
-    )
+    if body.get("duplicate"):
+        print(f"[session-log] duplicate — already logged this session (jsonl_id={jsonl_id})", file=sys.stderr)
+    else:
+        cu_id  = body.get("clickup_task_id")
+        cu_url = f"https://app.clickup.com/t/{cu_id}" if cu_id else "no ClickUp task"
+        print(
+            f"[session-log] {len(commits)} commit(s) · "
+            f"{input_tokens:,}in/{output_tokens:,}out · "
+            f"{duration_minutes:.0f}min · R{ai_cost_zar:.2f} · "
+            f"{'✓' if ok else '⚠'} {cu_url}",
+            file=sys.stderr
+        )
 
 def save_checkpoint(sha):
     os.makedirs(os.path.dirname(CHECKPOINT_FILE), exist_ok=True)
