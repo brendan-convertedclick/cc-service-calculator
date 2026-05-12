@@ -1,6 +1,9 @@
 # deps
 node_modules/
 
+# session log checkpoint (per-machine, not committed)
+.claude/last-logged-sha
+
 # build
 dist/
 dist-ssr/
