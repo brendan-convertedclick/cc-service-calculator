@@ -69,6 +69,9 @@ const PulseView = lazy(() =>
   import("@/pages/PulseView").then((m) => ({ default: m.PulseView })),
 );
 const SOWFamilyPage = lazy(() => import("@/pages/SOWFamilyPage"));
+const ProductivityPage = lazy(() =>
+  import("@/pages/ProductivityPage").then((m) => ({ default: m.ProductivityPage })),
+);
 
 function RouteFallback() {
   return (
@@ -112,6 +115,7 @@ export default function App() {
               <Route path="team" element={<Team />} />
               <Route path="pulse" element={<PulseView />} />
               <Route path="reconciliation" element={<ReconciliationView />} />
+              <Route path="productivity" element={<ProductivityPage />} />
               <Route path="guides" element={<Guides />} />
             </Route>
           </Route>

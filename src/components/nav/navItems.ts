@@ -8,6 +8,7 @@ import {
   PackageSearch,
   Settings as SettingsIcon,
   SlidersHorizontal,
+  TrendingUp,
   Users,
   Workflow,
   Zap,
@@ -19,6 +20,8 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   end: boolean
+  gradient?: string
+  color?: string
 }
 
 export const navItems: NavItem[] = [
@@ -28,6 +31,7 @@ export const navItems: NavItem[] = [
   { to: "/clients", label: "Clients", icon: Building2, end: false },
   { to: "/projects", label: "Projects", icon: FolderKanban, end: false },
   { to: "/pulse", label: "Pulse", icon: Zap, end: false },
+  { to: "/productivity", label: "Productivity", icon: TrendingUp, end: false, gradient: "linear-gradient(135deg, #059669, #0891B2)", color: "#059669" },
   { to: "/reconciliation", label: "Reconciliation", icon: FileBarChart2, end: false },
   { to: "/rules", label: "Rules", icon: SlidersHorizontal, end: false },
   { to: "/departments", label: "Departments", icon: Workflow, end: false },
