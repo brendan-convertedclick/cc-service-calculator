@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SOWLevelsManager } from "@/components/sow/SOWLevelsManager";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -16,14 +16,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity";
 
 const NAV: { key: SectionKey; label: string }[] = [
-  { key: "clickup",   label: "ClickUp" },
-  { key: "anthropic", label: "Anthropic" },
-  { key: "xero",      label: "Xero" },
-  { key: "gmail",     label: "Gmail" },
-  { key: "sow",       label: "SOW Clauses" },
+  { key: "clickup",      label: "ClickUp" },
+  { key: "anthropic",    label: "Anthropic" },
+  { key: "xero",         label: "Xero" },
+  { key: "gmail",        label: "Gmail" },
+  { key: "sow",          label: "SOW Clauses" },
+  { key: "productivity", label: "Productivity" },
 ];
 
 export function Settings() {
@@ -35,6 +36,14 @@ export function Settings() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionKey>("clickup");
+  const [goalInput, setGoalInput] = useState(
+    String(s?.productivity_goal_points ?? 40)
+  );
+
+  useEffect(() => {
+    if (s) setGoalInput(String(s.productivity_goal_points ?? 40));
+  }, [s?.productivity_goal_points]);
+
   const xeroStatus = useXeroConnectionStatus();
 
   const xeroParam = searchParams.get("xero");
@@ -366,6 +375,49 @@ export function Settings() {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "productivity" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Productivity</CardTitle>
+                <CardDescription>
+                  Team-wide sprint point targets shown on the Productivity page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prod-goal">Daily sprint point goal (team total)</Label>
+                  <Input
+                    id="prod-goal"
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                  />
+                  <p className="text-label-small text-m-on-surface-variant">
+                    A dashed goal line appears on the sprint points chart at this value.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const parsed = parseInt(goalInput, 10);
+                    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 999) {
+                      toast.error("Goal must be between 1 and 999");
+                      return;
+                    }
+                    update.mutate(
+                      { productivity_goal_points: parsed },
+                      { onSuccess: () => toast.success("Saved") },
+                    );
+                  }}
+                >
+                  Save goal
+                </Button>
               </CardContent>
             </Card>
           )}
