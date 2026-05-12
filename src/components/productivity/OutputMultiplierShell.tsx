@@ -113,7 +113,7 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
       {data && !isLoading && (
         <>
           {view === "direct" && "members" in data && <DirectView data={data} period={period} />}
-          {view === "parallel" && "days" in data && <ParallelView data={data} />}
+          {view === "parallel" && "heatmap" in data && <ParallelView data={data} />}
           {view === "passive" && "agents" in data && <PassiveView data={data} />}
         </>
       )}
