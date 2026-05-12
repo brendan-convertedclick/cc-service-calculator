@@ -26,9 +26,11 @@ CHECKPOINT_FILE  = os.path.join(REPO_ROOT, ".claude", "last-logged-sha")
 EDGE_FN_URL      = "https://lpgwxacoqiqpcfpkklib.supabase.co/functions/v1/log-ai-session"
 LOGGED_BY        = "brendan@convertedclick.co.za"
 
-INPUT_COST_PER_M  = 3.0   # USD per million input tokens (Claude Sonnet 4.6)
-OUTPUT_COST_PER_M = 15.0  # USD per million output tokens
-ZAR_PER_USD       = 18.5
+INPUT_COST_PER_M        = 3.0    # USD/M — standard input tokens
+CACHE_WRITE_COST_PER_M  = 3.75   # USD/M — cache creation (25% premium)
+CACHE_READ_COST_PER_M   = 0.30   # USD/M — cache read (90% discount)
+OUTPUT_COST_PER_M       = 15.0   # USD/M — output tokens
+ZAR_PER_USD             = 18.5
 
 # ── Git helpers ───────────────────────────────────────────────────────────
 
@@ -62,38 +64,21 @@ def get_commits_since_checkpoint():
 # ── JSONL helpers ─────────────────────────────────────────────────────────
 
 def get_jsonl_data(hook_data=None):
-    # If hook payload contains a conversation/session ID, use it to find the exact JSONL
-    session_id = None
+    # Use transcript_path from hook payload if available — exact file, no guessing
+    path = None
     if hook_data:
-        session_id = (
-            hook_data.get("session_id") or
-            hook_data.get("conversation_id") or
-            hook_data.get("sessionId") or
-            hook_data.get("conversationId")
-        )
+        path = hook_data.get("transcript_path")
 
-    if session_id:
-        # Find JSONL matching this session ID directly
-        pattern = os.path.expanduser(f"~/.claude/projects/*/{session_id}.jsonl")
-        matches = glob.glob(pattern)
-        if matches:
-            path = matches[0]
-        else:
-            # Fall back to most recent
-            path = None
-    else:
-        path = None
-
-    if not path:
+    if not path or not os.path.exists(path):
         files = sorted(
             glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl")),
             key=os.path.getmtime, reverse=True
         )
         if not files:
-            return 0, 0, 0.0, "cc-service-calculator", None, None
+            return 0, 0, 0.0, "cc-service-calculator", None, None, None
         path = files[0]
 
-    print(f"[session-log] using JSONL: {os.path.basename(path)} (session_id={session_id})", file=sys.stderr)
+    print(f"[session-log] using JSONL: {os.path.basename(path)}", file=sys.stderr)
     project_slug = os.path.basename(os.path.dirname(path))
     jsonl_id = os.path.splitext(os.path.basename(path))[0]
 
@@ -107,14 +92,14 @@ def get_jsonl_data(hook_data=None):
                 except Exception:
                     pass
 
-    input_tokens = sum(
-        l.get("message", {}).get("usage", {}).get("input_tokens", 0)
-        for l in lines if l.get("type") == "assistant"
-    )
-    output_tokens = sum(
-        l.get("message", {}).get("usage", {}).get("output_tokens", 0)
-        for l in lines if l.get("type") == "assistant"
-    )
+    def usage(l):
+        return l.get("message", {}).get("usage", {})
+
+    input_tokens       = sum(usage(l).get("input_tokens", 0)                for l in lines if l.get("type") == "assistant")
+    cache_write_tokens = sum(usage(l).get("cache_creation_input_tokens", 0) for l in lines if l.get("type") == "assistant")
+    cache_read_tokens  = sum(usage(l).get("cache_read_input_tokens", 0)     for l in lines if l.get("type") == "assistant")
+    output_tokens      = sum(usage(l).get("output_tokens", 0)               for l in lines if l.get("type") == "assistant")
+    total_input_tokens = input_tokens + cache_write_tokens + cache_read_tokens
 
     # Active duration: sum gaps ≤ 30 min (excludes idle/lunch, includes subagent runs)
     IDLE_THRESHOLD_SECS = 1800
@@ -133,17 +118,28 @@ def get_jsonl_data(hook_data=None):
         except Exception:
             pass
 
-    return input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id
+    # Extract Claude's auto-generated session title
+    ai_title = None
+    for l in lines:
+        if l.get("type") == "ai-title" and l.get("aiTitle"):
+            ai_title = l["aiTitle"]
+            break
+
+    return total_input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id, ai_title
 
 # ── Formatting ────────────────────────────────────────────────────────────
 
-def build_task_name(commits, session_date):
-    if not commits:
-        return f"AI session — {session_date}"
-    subjects = [s for _, s in commits]
-    if len(subjects) == 1:
-        return subjects[0]
-    return f"{subjects[0]}  (+{len(subjects) - 1} more)"
+def build_task_name(commits, session_date, ai_title=None):
+    # Prefer Claude's auto-generated session title
+    if ai_title:
+        return ai_title
+    # Fall back to most recent commit subject
+    if commits:
+        subjects = [s for _, s in commits]
+        if len(subjects) == 1:
+            return subjects[0]
+        return f"{subjects[0]}  (+{len(subjects) - 1} more)"
+    return f"AI session — {session_date}"
 
 def build_description(commits, input_tokens, output_tokens, duration_minutes, ai_cost_zar):
     lines = []
@@ -193,18 +189,23 @@ def main():
         except Exception as e:
             print(f"[session-log] stdin parse error: {e}", file=sys.stderr)
 
-    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data(hook_data)
+    total_input, cache_write, cache_read, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id, ai_title = get_jsonl_data(hook_data)
 
     if not jsonl_id:
-        # No JSONL found — nothing to log
         return
 
     session_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    ai_cost_zar  = round((input_tokens * INPUT_COST_PER_M + output_tokens * OUTPUT_COST_PER_M) / 1_000_000 * ZAR_PER_USD, 2)
+    ai_cost_zar = round((
+        (total_input - cache_write - cache_read) * INPUT_COST_PER_M +
+        cache_write * CACHE_WRITE_COST_PER_M +
+        cache_read  * CACHE_READ_COST_PER_M +
+        output_tokens * OUTPUT_COST_PER_M
+    ) / 1_000_000 * ZAR_PER_USD, 2)
+    input_tokens = total_input  # use total for Supabase storage
 
     # Commits are metadata for the task description, not a gate
     commits      = get_commits_since_checkpoint()
-    task_name    = build_task_name(commits, session_date)
+    task_name    = build_task_name(commits, session_date, ai_title)
     description  = build_description(commits, input_tokens, output_tokens, duration_minutes, ai_cost_zar)
 
     payload = {
