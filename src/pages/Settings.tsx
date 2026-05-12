@@ -16,15 +16,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier";
 
 const NAV: { key: SectionKey; label: string }[] = [
-  { key: "clickup",      label: "ClickUp" },
-  { key: "anthropic",    label: "Anthropic" },
-  { key: "xero",         label: "Xero" },
-  { key: "gmail",        label: "Gmail" },
-  { key: "sow",          label: "SOW Clauses" },
-  { key: "productivity", label: "Productivity" },
+  { key: "clickup",          label: "ClickUp" },
+  { key: "anthropic",        label: "Anthropic" },
+  { key: "xero",             label: "Xero" },
+  { key: "gmail",            label: "Gmail" },
+  { key: "sow",              label: "SOW Clauses" },
+  { key: "productivity",     label: "Productivity" },
+  { key: "output-multiplier", label: "Output Multiplier" },
 ];
 
 export function Settings() {
@@ -337,6 +338,41 @@ export function Settings() {
                 <Button asChild>
                   <Link to="/settings/gmail">Connect Gmail →</Link>
                 </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "output-multiplier" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Output Multiplier</CardTitle>
+                <CardDescription>
+                  Configure the blended rate used to calculate the equivalent human cost of passive agent output.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="blended-rate">Blended hourly rate (ZAR)</Label>
+                  <Input
+                    id="blended-rate"
+                    type="number"
+                    min={1}
+                    max={9999}
+                    defaultValue={s.blended_hourly_rate_zar}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (v >= 1 && v <= 9999) {
+                        update.mutate(
+                          { blended_hourly_rate_zar: v },
+                          { onSuccess: () => toast.success("Saved") },
+                        );
+                      }
+                    }}
+                  />
+                  <p className="text-label-small text-m-on-surface-variant">
+                    Used to calculate the equivalent human cost of passive agent output.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}

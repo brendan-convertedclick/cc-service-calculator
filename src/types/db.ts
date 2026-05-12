@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      agents: {
+        Row: {
+          created_at: string
+          creator: string
+          description: string
+          estimated_human_hours_per_run: number
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at: string
+          creator: string
+          description: string
+          estimated_human_hours_per_run?: number
+          id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          creator?: string
+          description?: string
+          estimated_human_hours_per_run?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      ai_sessions: {
+        Row: {
+          agent_id: string | null
+          ai_cost_zar: number
+          ai_duration_minutes: number
+          ai_input_tokens: number
+          ai_output_tokens: number
+          clickup_task_id: string | null
+          concurrent_sessions: number
+          created_at: string
+          engagement_type: string
+          human_minutes: number
+          id: string
+          logged_by: string
+          project_slug: string | null
+          session_date: string
+        }
+        Insert: {
+          agent_id?: string | null
+          ai_cost_zar?: number
+          ai_duration_minutes?: number
+          ai_input_tokens?: number
+          ai_output_tokens?: number
+          clickup_task_id?: string | null
+          concurrent_sessions?: number
+          created_at?: string
+          engagement_type?: string
+          human_minutes?: number
+          id?: string
+          logged_by: string
+          project_slug?: string | null
+          session_date: string
+        }
+        Update: {
+          agent_id?: string | null
+          ai_cost_zar?: number
+          ai_duration_minutes?: number
+          ai_input_tokens?: number
+          ai_output_tokens?: number
+          clickup_task_id?: string | null
+          concurrent_sessions?: number
+          created_at?: string
+          engagement_type?: string
+          human_minutes?: number
+          id?: string
+          logged_by?: string
+          project_slug?: string | null
+          session_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_sessions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brief_intelligence: {
         Row: {
           am_notes: string | null
@@ -1580,6 +1666,7 @@ export type Database = {
         Row: {
           anthropic_enabled: boolean
           anthropic_model: string
+          blended_hourly_rate_zar: number
           clickup_clients_space_id: string | null
           clickup_enabled: boolean
           clickup_workspace_id: string | null
@@ -1594,6 +1681,7 @@ export type Database = {
         Insert: {
           anthropic_enabled?: boolean
           anthropic_model?: string
+          blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
           clickup_workspace_id?: string | null
@@ -1608,6 +1696,7 @@ export type Database = {
         Update: {
           anthropic_enabled?: boolean
           anthropic_model?: string
+          blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
           clickup_workspace_id?: string | null
@@ -1894,6 +1983,16 @@ export type Database = {
     }
     Functions: {
       generate_project_code: { Args: never; Returns: string }
+      get_direct_multiplier: {
+        Args: { p_end: string; p_logged_by?: string; p_start: string }
+        Returns: {
+          ai_cost_zar: number
+          ai_session_hours: number
+          display_name: string
+          human_hours: number
+          logged_by: string
+        }[]
+      }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
       resolve_project_for_repo: {
         Args: { remote: string }

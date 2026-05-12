@@ -10,6 +10,7 @@ import { MetricCards } from "@/components/productivity/MetricCards";
 import { SprintPointsChart } from "@/components/productivity/SprintPointsChart";
 import { HoursTrackedChart } from "@/components/productivity/HoursTrackedChart";
 import { PointModificationsTable } from "@/components/productivity/PointModificationsTable";
+import { OutputMultiplierShell } from "@/components/productivity/OutputMultiplierShell";
 
 export function ProductivityPage() {
   const [view, setView] = useState<View>("month");
@@ -18,6 +19,7 @@ export function ProductivityPage() {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
   });
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [pageTab, setPageTab] = useState<"sprint" | "multiplier">("sprint");
 
   const { data: members = [] } = useTeam();
   const { data: settings } = useSettings();
@@ -46,6 +48,11 @@ export function ProductivityPage() {
     activeContributors: 0,
   };
 
+  // Resolve selected member's email for the Output Multiplier
+  const selectedMemberEmail = selectedUserId
+    ? members.find((m) => m.clickup_user_id === selectedUserId)?.email ?? undefined
+    : undefined;
+
   return (
     <div className="flex h-full">
       <TeamSidebar
@@ -56,41 +63,67 @@ export function ProductivityPage() {
       />
 
       <main className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
-        <ProductivityControls
-          view={view}
-          date={date}
-          periodLabel={data?.meta.periodLabel ?? ""}
-          onViewChange={setView}
-          onDateChange={setDate}
-        />
+        {/* Page tab switcher */}
+        <div className="flex gap-0 border-b border-m-outline-variant mb-6 -mx-6 px-6">
+          {(["sprint", "multiplier"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setPageTab(tab)}
+              className={[
+                "px-5 py-3.5 text-label-medium border-b-2 -mb-px transition-colors",
+                pageTab === tab
+                  ? "text-m-primary border-m-primary"
+                  : "text-m-on-surface-variant border-transparent hover:text-m-on-surface",
+              ].join(" ")}
+            >
+              {tab === "sprint" ? "Sprint Output" : "Output Multiplier"}
+            </button>
+          ))}
+        </div>
 
-        {isError && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-body-medium text-destructive">
-            Failed to load productivity data. Check that ClickUp is enabled in Settings.
-          </p>
-        )}
-
-        {isLoading ? (
-          <div className="flex h-64 items-center justify-center text-body-medium text-m-on-surface-variant">
-            Loading…
-          </div>
-        ) : (
+        {pageTab === "sprint" && (
           <>
-            <MetricCards meta={data?.meta ?? defaultMeta} goalPoints={goalPoints} />
-            <SprintPointsChart
-              data={sprintChartData}
-              members={members}
-              goalPoints={goalPoints}
-              selectedUserId={selectedUserId}
+            <ProductivityControls
+              view={view}
+              date={date}
+              periodLabel={data?.meta.periodLabel ?? ""}
+              onViewChange={setView}
+              onDateChange={setDate}
             />
-            <HoursTrackedChart data={hoursChartData} />
-            {view !== "year" && (
-              <PointModificationsTable
-                modifications={data?.pointModifications ?? []}
-                members={members}
-              />
+
+            {isError && (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-body-medium text-destructive">
+                Failed to load productivity data. Check that ClickUp is enabled in Settings.
+              </p>
+            )}
+
+            {isLoading ? (
+              <div className="flex h-64 items-center justify-center text-body-medium text-m-on-surface-variant">
+                Loading…
+              </div>
+            ) : (
+              <>
+                <MetricCards meta={data?.meta ?? defaultMeta} goalPoints={goalPoints} />
+                <SprintPointsChart
+                  data={sprintChartData}
+                  members={members}
+                  goalPoints={goalPoints}
+                  selectedUserId={selectedUserId}
+                />
+                <HoursTrackedChart data={hoursChartData} />
+                {view !== "year" && (
+                  <PointModificationsTable
+                    modifications={data?.pointModifications ?? []}
+                    members={members}
+                  />
+                )}
+              </>
             )}
           </>
+        )}
+
+        {pageTab === "multiplier" && (
+          <OutputMultiplierShell loggedBy={selectedMemberEmail} />
         )}
       </main>
     </div>
