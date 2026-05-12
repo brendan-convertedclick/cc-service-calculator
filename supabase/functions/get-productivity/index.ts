@@ -15,6 +15,8 @@ interface SprintPoint {
   bucket: string;
   userId: number;
   points: number;
+  selfCreatedPoints: number;
+  businessCreatedPoints: number;
 }
 
 interface TimeEntry {
@@ -23,9 +25,20 @@ interface TimeEntry {
   hours: number;
 }
 
+interface PointModification {
+  bucket: string;
+  taskId: string;
+  taskName: string;
+  userId: number;
+  oldPoints: number;
+  newPoints: number;
+  changedAt: string;
+}
+
 interface ResponseBody {
   sprintPoints: SprintPoint[];
   timeEntries: TimeEntry[];
+  pointModifications: PointModification[];
   meta: {
     periodLabel: string;
     totalPoints: number;
@@ -161,9 +174,12 @@ Deno.serve(async (req: Request) => {
 
     const tasksBody = await tasksRes.json() as {
       tasks: Array<{
+        id: string;
+        name: string;
         points: number | null;
         date_done: string; // unix ms as string
         assignees: Array<{ id: number }>;
+        creator: { id: number } | null;
       }>;
     };
     const timeBody = await timeRes.json() as {
@@ -180,13 +196,27 @@ Deno.serve(async (req: Request) => {
       const pts = task.points ?? 0;
       if (pts === 0) continue;
       const bucket = toBucket(view, Number(task.date_done));
+      const assigneeIds = new Set((task.assignees ?? []).map((a) => a.id));
+      const isSelfCreated = task.creator != null && assigneeIds.has(task.creator.id);
+
       for (const assignee of task.assignees ?? []) {
         const key = `${bucket}::${assignee.id}`;
         const existing = sprintMap.get(key);
         if (existing) {
           existing.points += pts;
+          if (isSelfCreated) {
+            existing.selfCreatedPoints += pts;
+          } else {
+            existing.businessCreatedPoints += pts;
+          }
         } else {
-          sprintMap.set(key, { bucket, userId: assignee.id, points: pts });
+          sprintMap.set(key, {
+            bucket,
+            userId: assignee.id,
+            points: pts,
+            selfCreatedPoints: isSelfCreated ? pts : 0,
+            businessCreatedPoints: isSelfCreated ? 0 : pts,
+          });
         }
       }
     }
@@ -205,6 +235,57 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Fetch point modification history for month/week views (skip for year)
+    let pointModifications: PointModification[] = [];
+    if (view !== "year") {
+      const tasksWithPoints = (tasksBody.tasks ?? []).filter((t) => (t.points ?? 0) > 0);
+      const historyResults = await Promise.allSettled(
+        tasksWithPoints.map(async (task) => {
+          const assigneeIds = new Set((task.assignees ?? []).map((a) => a.id));
+          const histRes = await fetch(
+            `https://api.clickup.com/api/v2/task/${task.id}/history?reverse=true&limit=50`,
+            { headers: CU_HEADERS },
+          );
+          if (!histRes.ok) {
+            throw new Error(`history ${task.id} ${histRes.status}`);
+          }
+          const histBody = await histRes.json() as {
+            history: Array<{
+              field: string;
+              user: { id: number };
+              date: string;
+              before: string | null;
+              after: string | null;
+            }>;
+          };
+          const modifications: PointModification[] = [];
+          for (const entry of histBody.history ?? []) {
+            if (entry.field !== "points") continue;
+            if (!assigneeIds.has(entry.user.id)) continue;
+            const entryMs = Number(entry.date);
+            if (entryMs < startMs || entryMs >= endMs) continue;
+            modifications.push({
+              bucket: toBucket(view, entryMs),
+              taskId: task.id,
+              taskName: task.name,
+              userId: entry.user.id,
+              oldPoints: Number(entry.before) || 0,
+              newPoints: Number(entry.after) || 0,
+              changedAt: entry.date,
+            });
+          }
+          return modifications;
+        }),
+      );
+
+      for (const result of historyResults) {
+        if (result.status === "fulfilled") {
+          pointModifications = pointModifications.concat(result.value);
+        }
+        // silently skip rejected (failed history fetches)
+      }
+    }
+
     const sprintPoints = Array.from(sprintMap.values());
     const timeEntries = Array.from(timeMap.values());
 
@@ -219,6 +300,7 @@ Deno.serve(async (req: Request) => {
     const result: ResponseBody = {
       sprintPoints,
       timeEntries,
+      pointModifications,
       meta: {
         periodLabel: periodLabel(view, date),
         totalPoints,
