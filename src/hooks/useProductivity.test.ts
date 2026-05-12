@@ -14,12 +14,8 @@ describe("buildChartData", () => {
       { bucket: "2026-05-01", userId: 2, points: 5 },
       { bucket: "2026-05-02", userId: 1, points: 8 },
     ];
-    const members = [
-      { clickup_user_id: 1, full_name: "Alice" },
-      { clickup_user_id: 2, full_name: "Bob" },
-    ] as any[];
 
-    const result = buildChartData(sprintPoints, members);
+    const result = buildChartData(sprintPoints);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ bucket: "2026-05-01", "1": 10, "2": 5 });
@@ -27,7 +23,17 @@ describe("buildChartData", () => {
   });
 
   it("returns empty array for empty input", () => {
-    expect(buildChartData([], [])).toEqual([]);
+    expect(buildChartData([])).toEqual([]);
+  });
+
+  it("sorts week buckets chronologically", () => {
+    const sprintPoints = [
+      { bucket: "Fri", userId: 1, points: 5 },
+      { bucket: "Mon", userId: 1, points: 10 },
+      { bucket: "Wed", userId: 1, points: 7 },
+    ];
+    const result = buildChartData(sprintPoints);
+    expect(result.map((r) => r.bucket)).toEqual(["Mon", "Wed", "Fri"]);
   });
 });
 

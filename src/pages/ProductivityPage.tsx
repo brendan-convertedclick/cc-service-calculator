@@ -28,7 +28,7 @@ export function ProductivityPage() {
     selectedUserId ?? undefined,
   );
 
-  const sprintChartData = data ? buildChartData(data.sprintPoints, members) : [];
+  const sprintChartData = data ? buildChartData(data.sprintPoints) : [];
   const hoursChartData = data ? buildHoursData(data.timeEntries) : [];
 
   // Build per-member point totals for sidebar chips

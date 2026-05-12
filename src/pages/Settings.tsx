@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SOWLevelsManager } from "@/components/sow/SOWLevelsManager";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -39,6 +39,11 @@ export function Settings() {
   const [goalInput, setGoalInput] = useState(
     String(s?.productivity_goal_points ?? 40)
   );
+
+  useEffect(() => {
+    if (s) setGoalInput(String(s.productivity_goal_points ?? 40));
+  }, [s?.productivity_goal_points]);
+
   const xeroStatus = useXeroConnectionStatus();
 
   const xeroParam = searchParams.get("xero");

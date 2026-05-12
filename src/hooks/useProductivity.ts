@@ -1,11 +1,8 @@
 // src/hooks/useProductivity.ts
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Database } from "@/types/db";
 
 export type View = "year" | "month" | "week";
-
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 
 export interface SprintPoint {
   bucket: string;
@@ -43,11 +40,19 @@ export const MEMBER_COLORS = [
   "#4F46E5",
 ];
 
+const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function sortBucket(a: string, b: string): number {
+  const ai = DAY_ORDER.indexOf(a);
+  const bi = DAY_ORDER.indexOf(b);
+  if (ai !== -1 && bi !== -1) return ai - bi;
+  return a.localeCompare(b);
+}
+
 /** Transforms flat sprintPoints rows into recharts-friendly shape:
  *  [{ bucket, [userId]: points, ... }, ...] */
 export function buildChartData(
   sprintPoints: SprintPoint[],
-  members: Pick<TeamMember, "clickup_user_id" | "full_name">[],
 ): Record<string, number | string>[] {
   const byBucket = new Map<string, Record<string, number | string>>();
   for (const sp of sprintPoints) {
@@ -56,7 +61,7 @@ export function buildChartData(
     byBucket.set(sp.bucket, row);
   }
   return Array.from(byBucket.values()).sort((a, b) =>
-    String(a.bucket).localeCompare(String(b.bucket)),
+    sortBucket(String(a.bucket), String(b.bucket)),
   );
 }
 
@@ -71,7 +76,7 @@ export function buildHoursData(
   }
   return Array.from(byBucket.entries())
     .map(([bucket, hours]) => ({ bucket, hours: Math.round(hours * 10) / 10 }))
-    .sort((a, b) => a.bucket.localeCompare(b.bucket));
+    .sort((a, b) => sortBucket(a.bucket, b.bucket));
 }
 
 export function useProductivity(
