@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/brendangunn/Github/cc-service-calculator/.claude/session-log.py"
+            "command": "python3 /Users/brendangunn/Github/cc-service-calculator/.claude/session-log.py 2>>/tmp/cc-session-log.txt"
           }
         ]
       }

@@ -61,15 +61,39 @@ def get_commits_since_checkpoint():
 
 # ── JSONL helpers ─────────────────────────────────────────────────────────
 
-def get_jsonl_data():
-    files = sorted(
-        glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl")),
-        key=os.path.getmtime, reverse=True
-    )
-    if not files:
-        return 0, 0, 0.0, "cc-service-calculator", None, None
+def get_jsonl_data(hook_data=None):
+    # If hook payload contains a conversation/session ID, use it to find the exact JSONL
+    session_id = None
+    if hook_data:
+        session_id = (
+            hook_data.get("session_id") or
+            hook_data.get("conversation_id") or
+            hook_data.get("sessionId") or
+            hook_data.get("conversationId")
+        )
 
-    path = files[0]
+    if session_id:
+        # Find JSONL matching this session ID directly
+        pattern = os.path.expanduser(f"~/.claude/projects/*/{session_id}.jsonl")
+        matches = glob.glob(pattern)
+        if matches:
+            path = matches[0]
+        else:
+            # Fall back to most recent
+            path = None
+    else:
+        path = None
+
+    if not path:
+        files = sorted(
+            glob.glob(os.path.expanduser("~/.claude/projects/*/*.jsonl")),
+            key=os.path.getmtime, reverse=True
+        )
+        if not files:
+            return 0, 0, 0.0, "cc-service-calculator", None, None
+        path = files[0]
+
+    print(f"[session-log] using JSONL: {os.path.basename(path)} (session_id={session_id})", file=sys.stderr)
     project_slug = os.path.basename(os.path.dirname(path))
     jsonl_id = os.path.splitext(os.path.basename(path))[0]
 
@@ -158,7 +182,18 @@ def post_to_edge(payload):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data()
+    # Read hook payload from stdin (Claude Code passes session context here)
+    hook_data = {}
+    if not sys.stdin.isatty():
+        try:
+            raw = sys.stdin.read()
+            if raw.strip():
+                hook_data = json.loads(raw)
+                print(f"[session-log] hook payload: {json.dumps(hook_data)}", file=sys.stderr)
+        except Exception as e:
+            print(f"[session-log] stdin parse error: {e}", file=sys.stderr)
+
+    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data(hook_data)
 
     if not jsonl_id:
         # No JSONL found — nothing to log
