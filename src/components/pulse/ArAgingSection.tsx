@@ -15,7 +15,8 @@ export function ArAgingSection({ bands }: { bands: ArAgingBand[] | null }) {
     return (
       <section>
         <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">AR Aging</h2>
-        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4 text-body-small text-m-on-surface-variant">
+        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4 text-body-small text-m-on-surface-variant">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
           <Link to="/settings?connect=xero" className="underline">Connect Xero</Link> to see AR aging.
         </div>
       </section>
@@ -31,7 +32,8 @@ export function ArAgingSection({ bands }: { bands: ArAgingBand[] | null }) {
         {bands.map(b => {
           const m = bandMeta[b.band]
           return (
-            <div key={b.band} className={`rounded-lg border p-3 text-center ${m.bg} ${m.border}`}>
+            <div key={b.band} className={`relative overflow-hidden rounded-lg border p-3 text-center ${m.bg} ${m.border}`}>
+              <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
               <div className={`text-title-large font-bold ${m.valueText}`}>{fmt(b.totalCents)}</div>
               <div className={`mt-1 text-label-small ${m.text}`}>{m.label}</div>
               <div className="mt-0.5 text-label-small text-m-on-surface-variant">{b.invoices.length} invoice{b.invoices.length !== 1 ? 's' : ''}</div>

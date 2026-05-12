@@ -9,7 +9,8 @@ export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }
     return (
       <section>
         <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">Revenue Trend</h2>
-        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4 text-body-small text-m-on-surface-variant">
+        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4 text-body-small text-m-on-surface-variant">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
           <Link to="/settings?connect=xero" className="underline">Connect Xero</Link> to see revenue trends.
         </div>
       </section>

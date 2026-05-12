@@ -1,22 +1,16 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { IconRail } from "@/components/nav/IconRail";
-import { NavOverlay } from "@/components/nav/NavOverlay";
 
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen grid grid-cols-[56px_1fr] bg-m-surface-container-low">
-      {/* Column 1: icon rail */}
+    <div className="min-h-screen flex bg-m-surface-container-low">
       <IconRail navOpen={navOpen} onToggle={() => setNavOpen((o) => !o)} />
-
-      {/* Column 2: main content */}
-      <main className="flex min-h-screen flex-col overflow-auto">
+      <main className="flex-1 min-h-screen flex flex-col overflow-auto">
         <Outlet />
       </main>
-
-      <NavOverlay open={navOpen} onClose={() => setNavOpen(false)} />
     </div>
   );
 }

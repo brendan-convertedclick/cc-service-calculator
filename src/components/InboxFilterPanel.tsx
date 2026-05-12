@@ -99,7 +99,7 @@ export function InboxFilterPanel({
                   <span
                     className={`flex-shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${
                       isClientActive
-                        ? "bg-m-primary text-white"
+                        ? "bg-gradient-brand text-white"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >

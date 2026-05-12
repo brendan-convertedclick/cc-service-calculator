@@ -18,6 +18,7 @@ export type OpsOverviewData = {
   onTrackCount: number;
   needsAttentionCount: number;
   overdueCount: number;
+  projects: OpsProject[];
   attentionProjects: OpsProject[];
   recentProjects: OpsProject[];
 };
@@ -66,6 +67,7 @@ export function useOpsOverview(clientsData: ClientWithProjects[]): OpsOverviewDa
       onTrackCount,
       needsAttentionCount,
       overdueCount,
+      projects: activeProjects,
       attentionProjects,
       recentProjects,
     };

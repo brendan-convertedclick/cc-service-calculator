@@ -7,7 +7,6 @@ import { useDeliveryRate } from "@/hooks/useDeliveryRate";
 import { useAvgDftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useLastBriefActivity } from "@/hooks/useLastBriefActivity";
 import { IconRail } from "@/components/nav/IconRail";
-import { NavOverlay } from "@/components/nav/NavOverlay";
 import { ProjectTree } from "./ProjectTree";
 import { OpsOverview } from "./OpsOverview";
 import { DashboardProjectView } from "./DashboardProjectView";
@@ -45,11 +44,10 @@ export function DashboardShell() {
   }
 
   return (
-    <div className="grid h-screen grid-cols-[56px_240px_1fr] bg-m-surface-container-low overflow-hidden">
-      {/* Column 1: icon rail */}
+    <div className="flex h-screen bg-m-surface-container-low overflow-hidden">
       <IconRail navOpen={navOpen} onToggle={() => setNavOpen((o) => !o)} />
 
-      {/* Column 2: project tree */}
+      {/* Project tree */}
       <ProjectTree
         clientsData={clientsData}
         opsData={opsData}
@@ -62,8 +60,7 @@ export function DashboardShell() {
         onHide={handleHide}
       />
 
-      {/* Column 3: detail or overview */}
-      <main className="flex min-h-0 flex-col overflow-hidden bg-m-surface">
+      <main className="flex-1 flex min-h-0 flex-col overflow-hidden bg-m-surface">
         {selectedProjectId ? (
           <DashboardProjectView
             key={selectedProjectId}
@@ -83,8 +80,6 @@ export function DashboardShell() {
           />
         )}
       </main>
-
-      <NavOverlay open={navOpen} onClose={() => setNavOpen(false)} />
     </div>
   );
 }

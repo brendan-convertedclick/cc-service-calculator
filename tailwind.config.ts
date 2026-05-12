@@ -100,6 +100,10 @@ const config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+      backgroundImage: {
+        "gradient-brand": "linear-gradient(135deg, #7C3AED, #EC4899)",
+        "gradient-brand-r": "linear-gradient(to right, #7C3AED, #EC4899)",
+      },
     },
   },
   plugins: [animate],

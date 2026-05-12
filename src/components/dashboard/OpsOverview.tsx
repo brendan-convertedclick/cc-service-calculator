@@ -88,7 +88,7 @@ function MarginSection() {
         </div>
         <a
           href="/settings?connect=xero"
-          className="shrink-0 rounded-full bg-m-primary px-4 py-1.5 text-label-medium font-semibold text-m-on-primary transition-colors hover:opacity-90"
+          className="shrink-0 rounded-full bg-gradient-brand px-4 py-1.5 text-label-medium font-semibold text-white transition-all hover:brightness-110"
         >
           Connect Xero
         </a>
@@ -238,41 +238,45 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "on_track" ? "all" : "on_track")}
           className={cn(
-            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-tertiary",
+            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-tertiary",
             scopeFilter === "on_track"
               ? "border-m-tertiary bg-m-tertiary-container ring-2 ring-m-tertiary"
               : "border-m-outline-variant bg-m-tertiary-container"
           )}
         >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
           <div className="text-display-small text-m-on-tertiary-container">{opsData.onTrackCount}</div>
           <div className="mt-1 text-label-small font-semibold text-m-on-tertiary-container">On track</div>
         </button>
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "needs_attention" ? "all" : "needs_attention")}
           className={cn(
-            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-amber-400",
+            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-amber-400",
             scopeFilter === "needs_attention"
               ? "border-amber-400 bg-amber-50 ring-2 ring-amber-400"
               : "border-amber-200 bg-amber-50"
           )}
         >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
           <div className="text-display-small text-amber-800">{opsData.needsAttentionCount}</div>
           <div className="mt-1 text-label-small font-semibold text-amber-700">Needs attention</div>
         </button>
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "overdue" ? "all" : "overdue")}
           className={cn(
-            "rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-error",
+            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-error",
             scopeFilter === "overdue"
               ? "border-m-error bg-m-error-container ring-2 ring-m-error"
               : "border-m-outline-variant bg-m-error-container"
           )}
         >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
           <div className="text-display-small text-m-on-error-container">{opsData.overdueCount}</div>
           <div className="mt-1 text-label-small font-semibold text-m-on-error-container">Overdue</div>
         </button>
-        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
-          <div className="text-display-small text-m-on-surface">
+        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
+          <div className="text-display-small bg-gradient-brand bg-clip-text text-transparent">
             {monthlyHours !== null ? `${monthlyHours}h` : "—"}
           </div>
           <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
@@ -307,10 +311,12 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
                 : rate.rate >= 70
                   ? "text-amber-700"
                   : "text-red-700";
+          const isNeutral = rate === null || rate.total === 0;
           return (
-            <div className={cn("rounded-lg border p-4", ragColor)}>
-              <div className={cn("text-display-small", textColor)}>
-                {rate === null || rate.total === 0 ? "—" : `${rate.rate}%`}
+            <div className={cn("relative overflow-hidden rounded-lg border p-4", ragColor)}>
+              <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
+              <div className={cn("text-display-small", isNeutral ? "bg-gradient-brand bg-clip-text text-transparent" : textColor)}>
+                {isNeutral ? "—" : `${rate.rate}%`}
               </div>
               <div className={cn("mt-1 text-label-small font-semibold", labelColor)}>
                 On-time delivery
@@ -325,8 +331,9 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
         })()}
 
         {/* Avg brief→DFT cycle time card */}
-        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container p-4">
-          <div className="text-display-small text-m-on-surface">
+        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4">
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
+          <div className="text-display-small bg-gradient-brand bg-clip-text text-transparent">
             {dftCycleTime === null || dftCycleTime.avgDays === null
               ? "—"
               : `${dftCycleTime.avgDays}d`}

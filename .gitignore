@@ -38,3 +38,6 @@ supabase/.temp/
 playwright-report/
 test-results/
 .worktrees
+
+# Claude Code task attribution sidecar
+.cc-task

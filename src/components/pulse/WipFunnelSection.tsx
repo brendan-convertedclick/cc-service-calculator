@@ -28,7 +28,8 @@ export function WipFunnelSection({ data }: { data: WipFunnelData }) {
           </div>
         ))}
       </div>
-      <div className="mt-3 rounded-lg bg-m-surface-container px-3 py-2 text-body-small text-m-on-surface-variant">
+      <div className="relative overflow-hidden mt-3 rounded-lg border border-m-outline-variant bg-white px-3 py-2 text-body-small text-m-on-surface-variant">
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
         Conversion:{' '}
         <strong className="text-m-on-surface">
           {data.conversionRate !== null ? `${data.conversionRate}%` : '—'}

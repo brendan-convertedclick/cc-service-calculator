@@ -14,6 +14,7 @@ import * as syncMessages from './tools/sync-messages.js'
 import * as setBriefIntent from './tools/set-brief-intent.js'
 import * as setBriefIntelligence from './tools/set-brief-intelligence.js'
 import * as getBriefIntelligence from './tools/get-brief-intelligence.js'
+import * as listClientDomains from './tools/list-client-domains.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -108,6 +109,13 @@ server.tool(
   'Get the brief_intelligence record for a brief by brief_id. Returns the full record or null if not yet generated.',
   rawShape(getBriefIntelligence.schema),
   h(getBriefIntelligence.handler),
+)
+
+server.tool(
+  'list-client-domains',
+  'Returns all unique email domains known to belong to clients — derived from inbound brief_messages history and clients.primary_domain. Used by intake to build Gmail scan filters.',
+  rawShape(listClientDomains.schema),
+  h(listClientDomains.handler),
 )
 
 const transport = new StdioServerTransport()
