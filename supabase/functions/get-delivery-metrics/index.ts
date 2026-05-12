@@ -59,13 +59,6 @@ function workingDays(startMs: number, endMs: number): number {
   return count;
 }
 
-interface ClickupCustomField {
-  id: string;
-  name: string;
-  value?: string | null;
-  type_config?: { options?: Array<{ id: string; name: string }> };
-}
-
 interface ClickupTask {
   id: string;
   name: string;
@@ -73,19 +66,14 @@ interface ClickupTask {
   date_done: string | null;
   date_created: string;
   assignees: Array<{ id: number }>;
-  custom_fields?: ClickupCustomField[];
+  tags?: Array<{ name: string }>;
   status: { status: string; type: string };
 }
 
 function getTaskType(task: ClickupTask): "external" | "internal" {
-  const field = (task.custom_fields ?? []).find(
-    (f) => f.name.trim().toLowerCase() === "task type",
-  );
-  if (!field || field.value == null) return "external";
-  const options = field.type_config?.options ?? [];
-  const selected = options.find((o) => o.id === field.value);
-  if (!selected) return "external";
-  return selected.name.trim().toLowerCase().includes("internal") ? "internal" : "external";
+  return (task.tags ?? []).some((t) => t.name.trim().toLowerCase() === "internal")
+    ? "internal"
+    : "external";
 }
 
 Deno.serve(async (req: Request) => {
