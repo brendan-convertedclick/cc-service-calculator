@@ -87,13 +87,20 @@ def get_jsonl_data():
         for l in lines if l.get("type") == "assistant"
     )
 
+    # Active duration: sum only consecutive gaps under 5 minutes.
+    # Gaps > 5 min are idle time (user away, waiting) and shouldn't count.
+    IDLE_THRESHOLD_SECS = 1800  # 30 min — includes subagent runs, excludes lunch/breaks
     timestamps = [l["timestamp"] for l in lines if "timestamp" in l]
     duration_minutes = 0.0
     if len(timestamps) >= 2:
         try:
-            first = datetime.fromisoformat(timestamps[0].replace("Z", "+00:00"))
-            last  = datetime.fromisoformat(timestamps[-1].replace("Z", "+00:00"))
-            duration_minutes = round((last - first).total_seconds() / 60, 1)
+            parsed = [datetime.fromisoformat(t.replace("Z", "+00:00")) for t in timestamps]
+            active_secs = sum(
+                (parsed[i] - parsed[i - 1]).total_seconds()
+                for i in range(1, len(parsed))
+                if (parsed[i] - parsed[i - 1]).total_seconds() <= IDLE_THRESHOLD_SECS
+            )
+            duration_minutes = round(active_secs / 60, 1)
         except Exception:
             pass
 
