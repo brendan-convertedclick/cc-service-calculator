@@ -197,9 +197,9 @@ Deno.serve(async (req: Request) => {
       if (pts === 0) continue;
       const bucket = toBucket(view, Number(task.date_done));
       const assigneeIds = new Set((task.assignees ?? []).map((a) => a.id));
-      const isSelfCreated = task.creator != null && assigneeIds.has(task.creator.id);
 
       for (const assignee of task.assignees ?? []) {
+        const isSelfCreated = task.creator != null && task.creator.id === assignee.id;
         const key = `${bucket}::${assignee.id}`;
         const existing = sprintMap.get(key);
         if (existing) {

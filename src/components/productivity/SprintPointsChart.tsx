@@ -88,7 +88,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                   stackId="a"
                   fill={color}
                   fillOpacity={0.45}
-                  radius={[0, 0, 0, 0]}
+                  radius={[4, 4, 0, 0]}
                   legendType="none"
                 />,
               ];

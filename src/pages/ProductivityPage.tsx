@@ -84,10 +84,12 @@ export function ProductivityPage() {
               selectedUserId={selectedUserId}
             />
             <HoursTrackedChart data={hoursChartData} />
-            <PointModificationsTable
-              modifications={data?.pointModifications ?? []}
-              members={members}
-            />
+            {view !== "year" && (
+              <PointModificationsTable
+                modifications={data?.pointModifications ?? []}
+                members={members}
+              />
+            )}
           </>
         )}
       </main>
