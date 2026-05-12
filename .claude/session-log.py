@@ -3,11 +3,14 @@
 cc-service-calculator AI session logger.
 
 Fires on every Claude Code Stop event for this repo.
+Logs every session regardless of whether commits were made.
+
 - Reads the most recent JSONL for token + duration data (AI time, not human time)
-- Gets commits made since the last logged session (checkpoint-based)
+- Gets commits since last session for the ClickUp task description (optional)
 - POSTs to the log-ai-session Supabase edge function, which:
     - Creates a ClickUp task in The Converted Click > Ops (server-side PAT)
     - Writes a row to ai_sessions
+- JSONL UUID deduplication prevents double-logging the same session
 
 human_minutes = 0 always — this is AI-only telemetry.
 Human time is logged separately via /log.
@@ -18,10 +21,10 @@ from datetime import datetime, timezone
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-REPO_ROOT       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHECKPOINT_FILE = os.path.join(REPO_ROOT, ".claude", "last-logged-sha")
-EDGE_FN_URL     = "https://lpgwxacoqiqpcfpkklib.supabase.co/functions/v1/log-ai-session"
-LOGGED_BY       = "brendan@convertedclick.co.za"
+REPO_ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHECKPOINT_FILE  = os.path.join(REPO_ROOT, ".claude", "last-logged-sha")
+EDGE_FN_URL      = "https://lpgwxacoqiqpcfpkklib.supabase.co/functions/v1/log-ai-session"
+LOGGED_BY        = "brendan@convertedclick.co.za"
 
 INPUT_COST_PER_M  = 3.0   # USD per million input tokens (Claude Sonnet 4.6)
 OUTPUT_COST_PER_M = 15.0  # USD per million output tokens
@@ -36,6 +39,7 @@ def get_current_sha():
     return run(["git", "-C", REPO_ROOT, "rev-parse", "HEAD"])
 
 def get_commits_since_checkpoint():
+    """Return commits since last logged session — used for task description only."""
     since = None
     if os.path.exists(CHECKPOINT_FILE):
         with open(CHECKPOINT_FILE) as f:
@@ -67,7 +71,7 @@ def get_jsonl_data():
 
     path = files[0]
     project_slug = os.path.basename(os.path.dirname(path))
-    jsonl_id = os.path.splitext(os.path.basename(path))[0]  # UUID filename, no extension
+    jsonl_id = os.path.splitext(os.path.basename(path))[0]
 
     lines = []
     with open(path) as f:
@@ -88,8 +92,7 @@ def get_jsonl_data():
         for l in lines if l.get("type") == "assistant"
     )
 
-    # Active duration: sum only consecutive gaps ≤ 30 min.
-    # Gaps > 30 min are idle (lunch/breaks). Gaps ≤ 30 min include subagent runs.
+    # Active duration: sum gaps ≤ 30 min (excludes idle/lunch, includes subagent runs)
     IDLE_THRESHOLD_SECS = 1800
     timestamps = [l["timestamp"] for l in lines if "timestamp" in l]
     duration_minutes = 0.0
@@ -110,20 +113,23 @@ def get_jsonl_data():
 
 # ── Formatting ────────────────────────────────────────────────────────────
 
-def build_task_name(commits):
+def build_task_name(commits, session_date):
     if not commits:
-        return "AI session (no commits)"
+        return f"AI session — {session_date}"
     subjects = [s for _, s in commits]
     if len(subjects) == 1:
         return subjects[0]
     return f"{subjects[0]}  (+{len(subjects) - 1} more)"
 
 def build_description(commits, input_tokens, output_tokens, duration_minutes, ai_cost_zar):
-    lines = ["## Commits this session\n"]
-    for sha, subject in commits:
-        lines.append(f"- `{sha}` {subject}")
+    lines = []
+    if commits:
+        lines.append("## Commits this session\n")
+        for sha, subject in commits:
+            lines.append(f"- `{sha}` {subject}")
+        lines.append("")
     lines += [
-        "\n## AI telemetry",
+        "## AI telemetry",
         f"- Input tokens: {input_tokens:,}",
         f"- Output tokens: {output_tokens:,}",
         f"- Session duration: {duration_minutes:.1f} min",
@@ -152,32 +158,31 @@ def post_to_edge(payload):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    commits    = get_commits_since_checkpoint()
-    current_sha = get_current_sha()
+    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data()
 
-    if not commits:
-        if current_sha:
-            save_checkpoint(current_sha)
+    if not jsonl_id:
+        # No JSONL found — nothing to log
         return
 
-    input_tokens, output_tokens, duration_minutes, project_slug, session_start_iso, jsonl_id = get_jsonl_data()
-    ai_cost_zar  = round((input_tokens * INPUT_COST_PER_M + output_tokens * OUTPUT_COST_PER_M) / 1_000_000 * ZAR_PER_USD, 2)
     session_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ai_cost_zar  = round((input_tokens * INPUT_COST_PER_M + output_tokens * OUTPUT_COST_PER_M) / 1_000_000 * ZAR_PER_USD, 2)
 
-    task_name   = build_task_name(commits)
-    description = build_description(commits, input_tokens, output_tokens, duration_minutes, ai_cost_zar)
+    # Commits are metadata for the task description, not a gate
+    commits      = get_commits_since_checkpoint()
+    task_name    = build_task_name(commits, session_date)
+    description  = build_description(commits, input_tokens, output_tokens, duration_minutes, ai_cost_zar)
 
     payload = {
-        "logged_by":               LOGGED_BY,
-        "session_date":            session_date,
-        "project_slug":            project_slug,
-        "ai_input_tokens":         input_tokens,
-        "ai_output_tokens":        output_tokens,
-        "ai_duration_minutes":     duration_minutes,
-        "ai_cost_zar":             ai_cost_zar,
-        "human_minutes":           0,
-        "concurrent_sessions":     1,
-        "engagement_type":         "task",
+        "logged_by":                LOGGED_BY,
+        "session_date":             session_date,
+        "project_slug":             project_slug,
+        "ai_input_tokens":          input_tokens,
+        "ai_output_tokens":         output_tokens,
+        "ai_duration_minutes":      duration_minutes,
+        "ai_cost_zar":              ai_cost_zar,
+        "human_minutes":            0,
+        "concurrent_sessions":      1,
+        "engagement_type":          "task",
         "create_clickup_task":      True,
         "clickup_task_name":        task_name,
         "clickup_task_description": description,
@@ -188,16 +193,19 @@ def main():
     status, body = post_to_edge(payload)
     ok = status in (200, 201)
 
+    # Update checkpoint regardless — commits are labelled correctly next session
+    current_sha = get_current_sha()
     if current_sha:
         save_checkpoint(current_sha)
 
     if body.get("duplicate"):
-        print(f"[session-log] duplicate — already logged this session (jsonl_id={jsonl_id})", file=sys.stderr)
+        print(f"[session-log] duplicate — already logged (jsonl_id={jsonl_id})", file=sys.stderr)
     else:
         cu_id  = body.get("clickup_task_id")
         cu_url = f"https://app.clickup.com/t/{cu_id}" if cu_id else "no ClickUp task"
+        commit_label = f"{len(commits)} commit(s)" if commits else "no commits"
         print(
-            f"[session-log] {len(commits)} commit(s) · "
+            f"[session-log] {commit_label} · "
             f"{input_tokens:,}in/{output_tokens:,}out · "
             f"{duration_minutes:.0f}min · R{ai_cost_zar:.2f} · "
             f"{'✓' if ok else '⚠'} {cu_url}",
