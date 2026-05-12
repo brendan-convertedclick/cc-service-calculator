@@ -9,6 +9,7 @@ import { ProductivityControls } from "@/components/productivity/ProductivityCont
 import { MetricCards } from "@/components/productivity/MetricCards";
 import { SprintPointsChart } from "@/components/productivity/SprintPointsChart";
 import { HoursTrackedChart } from "@/components/productivity/HoursTrackedChart";
+import { PointModificationsTable } from "@/components/productivity/PointModificationsTable";
 
 export function ProductivityPage() {
   const [view, setView] = useState<View>("month");
@@ -34,7 +35,7 @@ export function ProductivityPage() {
   // Build per-member point totals for sidebar chips
   const pointsByMember: Record<number, number> = {};
   for (const sp of data?.sprintPoints ?? []) {
-    pointsByMember[sp.userId] = (pointsByMember[sp.userId] ?? 0) + sp.points;
+    pointsByMember[sp.userId] = (pointsByMember[sp.userId] ?? 0) + sp.businessCreatedPoints + sp.selfCreatedPoints;
   }
 
   const defaultMeta = {
@@ -83,6 +84,12 @@ export function ProductivityPage() {
               selectedUserId={selectedUserId}
             />
             <HoursTrackedChart data={hoursChartData} />
+            {view !== "year" && (
+              <PointModificationsTable
+                modifications={data?.pointModifications ?? []}
+                members={members}
+              />
+            )}
           </>
         )}
       </main>
