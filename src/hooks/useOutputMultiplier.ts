@@ -16,6 +16,12 @@ export interface DirectMember {
   effective_output_hours: number;
 }
 
+export interface BreakdownSlice {
+  sub_key: string;
+  sub_label: string;
+  members: DirectMember[];
+}
+
 export interface DirectData {
   periodLabel: string;
   members: DirectMember[];
@@ -25,6 +31,7 @@ export interface DirectData {
     total_ai_hours: number;
     total_cost_zar: number;
   };
+  breakdown?: BreakdownSlice[];
 }
 
 export interface ParallelSession {
