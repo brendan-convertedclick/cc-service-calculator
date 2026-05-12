@@ -33,7 +33,7 @@ function anchorDate(period: MultiplierPeriod, offset: number): string {
 
 export function OutputMultiplierShell({ loggedBy }: Props) {
   const [view, setView] = useState<MultiplierView>("direct");
-  const [period, setPeriod] = useState<MultiplierPeriod>("week");
+  const [period, setPeriod] = useState<MultiplierPeriod>("month");
   const [periodOffset, setPeriodOffset] = useState(0);
 
   const date = anchorDate(period, periodOffset);
@@ -112,8 +112,8 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
       )}
       {data && !isLoading && (
         <>
-          {view === "direct" && "members" in data && <DirectView data={data} period={period} isTeam={!loggedBy} />}
-          {view === "parallel" && "days" in data && <ParallelView data={data} />}
+          {view === "direct" && "members" in data && <DirectView data={data} period={period} />}
+          {view === "parallel" && "heatmap" in data && <ParallelView data={data} />}
           {view === "passive" && "agents" in data && <PassiveView data={data} />}
         </>
       )}

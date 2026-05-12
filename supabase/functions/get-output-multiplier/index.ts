@@ -328,76 +328,127 @@ async function parallelView(
   pr: { startDate: string; endDate: string; label: string },
   logged_by?: string,
 ) {
+  const TZ_OFFSET_MS = 2 * 3600 * 1000; // SAST = UTC+2
+
+  // Fetch AI sessions with created_at for start-time derivation
   let query = sb
     .from("ai_sessions")
-    .select("session_date, concurrent_sessions, project_slug, ai_duration_minutes, logged_by")
+    .select("ai_duration_minutes, created_at, logged_by")
     .gte("session_date", pr.startDate)
     .lt("session_date", pr.endDate)
     .eq("engagement_type", "task")
-    .gt("ai_duration_minutes", 0)  // exclude zero/negative durations (bad data)
-    .order("session_date");
+    .gte("ai_duration_minutes", 1)
+    .order("created_at");
 
   if (logged_by) query = query.eq("logged_by", logged_by);
 
   const { data, error } = await query;
   if (error) return json({ error: error.message }, 500);
 
-  const byDate = new Map<string, {
-    sessions: Array<{ slot: number; project_slug: string; duration_minutes: number }>;
-    max_stored_concurrent: number;
-  }>();
+  // Fetch ClickUp config and team for human time bucketing
+  const [settingsResult, teamResult] = await Promise.all([
+    sb.from("settings").select("clickup_enabled, clickup_workspace_id").eq("id", 1).single(),
+    sb.from("team_members").select("email, clickup_user_id").not("clickup_user_id", "is", null),
+  ]);
 
-  for (const row of data ?? []) {
-    const key = row.session_date as string;
-    if (!byDate.has(key)) byDate.set(key, { sessions: [], max_stored_concurrent: 1 });
-    const entry = byDate.get(key)!;
-    const slot = entry.sessions.length + 1;
-    entry.sessions.push({
-      slot,
-      project_slug: (row.project_slug as string) ?? "unknown",
-      duration_minutes: Number(row.ai_duration_minutes),
-    });
-    // Track the highest stored concurrent_sessions value (used when > sessions.length,
-    // e.g. if the hook detected more concurrency than the number of session rows)
-    entry.max_stored_concurrent = Math.max(
-      entry.max_stored_concurrent,
-      row.concurrent_sessions as number,
-    );
+  const clickupIdToEmail = new Map<number, string>();
+  for (const tm of teamResult.data ?? []) {
+    if (tm.clickup_user_id) clickupIdToEmail.set(Number(tm.clickup_user_id), tm.email);
   }
 
-  const days = Array.from(byDate.entries()).map(([date, val]) => {
-    // Use the greater of: actual session count (self-consistent with the grid) or the
-    // stored concurrent_sessions field (correctly populated by the fixed hook).
-    // Historical data had concurrent_sessions=1 hardcoded; sessions.length is the better proxy.
-    const concurrent_count = Math.max(val.sessions.length, val.max_stored_concurrent);
-    const totalMinutes = val.sessions.reduce((s, r) => s + r.duration_minutes, 0);
-    const wallClock = totalMinutes / Math.max(concurrent_count, 1);
-    return {
-      date,
-      sessions: val.sessions,
-      concurrent_count,
-      parallel_multiplier: Math.round((totalMinutes / Math.max(wallClock, 1)) * 10) / 10,
-    };
-  });
+  type Cell = { ai_sessions: number; human_minutes: number };
+  const heatmap: Record<string, Record<number, Cell>> = {};
 
-  const totalParallelHours = days.reduce(
-    (s, d) => s + d.sessions.reduce((ss, r) => ss + r.duration_minutes, 0) / 60,
-    0,
-  );
-  const peakConcurrent = days.reduce((s, d) => Math.max(s, d.concurrent_count), 0);
-  const avgConcurrent =
-    days.length > 0
-      ? days.reduce((s, d) => s + d.concurrent_count, 0) / days.length
-      : 0;
+  function ensureCell(dateKey: string, hour: number): Cell {
+    if (!heatmap[dateKey]) heatmap[dateKey] = {};
+    if (!heatmap[dateKey][hour]) heatmap[dateKey][hour] = { ai_sessions: 0, human_minutes: 0 };
+    return heatmap[dateKey][hour];
+  }
+
+  function localDateHour(utcMs: number): { dateKey: string; hour: number } {
+    const localMs = utcMs + TZ_OFFSET_MS;
+    const d = new Date(localMs);
+    const y = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const da = String(d.getUTCDate()).padStart(2, "0");
+    return { dateKey: `${y}-${mo}-${da}`, hour: d.getUTCHours() };
+  }
+
+  // Bucket AI sessions by hour
+  let totalAiMinutes = 0;
+  for (const row of data ?? []) {
+    const durationMin = Number(row.ai_duration_minutes);
+    totalAiMinutes += durationMin;
+    const endMs = new Date(row.created_at as string).getTime();
+    const startMs = endMs - durationMin * 60_000;
+    let cursor = Math.floor(startMs / 3_600_000) * 3_600_000;
+    while (cursor < endMs) {
+      const { dateKey, hour } = localDateHour(cursor);
+      ensureCell(dateKey, hour).ai_sessions++;
+      cursor += 3_600_000;
+    }
+  }
+
+  // Bucket ClickUp human time by hour
+  const settings = settingsResult.data;
+  if (settings?.clickup_enabled && settings?.clickup_workspace_id) {
+    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    if (clickupPat) {
+      const timeParams = new URLSearchParams({
+        start_date: String(new Date(pr.startDate).getTime()),
+        end_date: String(new Date(pr.endDate).getTime()),
+      });
+      if (logged_by) {
+        for (const tm of teamResult.data ?? []) {
+          if (tm.email === logged_by && tm.clickup_user_id) {
+            timeParams.append("assignee", String(tm.clickup_user_id));
+          }
+        }
+      }
+      const timeRes = await fetch(
+        `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/time_entries?${timeParams}`,
+        { headers: { Authorization: clickupPat } },
+      );
+      if (timeRes.ok) {
+        const timeBody = await timeRes.json() as {
+          data: Array<{ duration: string; start: string; user: { id: number } }>;
+        };
+        for (const entry of timeBody.data ?? []) {
+          const email = clickupIdToEmail.get(Number(entry.user.id));
+          if (!email || (logged_by && email !== logged_by)) continue;
+          const { dateKey, hour } = localDateHour(Number(entry.start));
+          ensureCell(dateKey, hour).human_minutes += Number(entry.duration) / 60_000;
+        }
+      }
+    }
+  }
+
+  // Compute summary
+  let peakConcurrent = 0;
+  let peakHour = 9;
+  let activeHours = 0;
+
+  for (const dayData of Object.values(heatmap)) {
+    for (const [hourStr, cell] of Object.entries(dayData)) {
+      if (cell.ai_sessions > 0) {
+        activeHours++;
+        if (cell.ai_sessions > peakConcurrent) {
+          peakConcurrent = cell.ai_sessions;
+          peakHour = Number(hourStr);
+        }
+      }
+    }
+  }
 
   return json({
     periodLabel: pr.label,
-    days,
+    heatmap,
     summary: {
-      avg_concurrent: Math.round(avgConcurrent * 10) / 10,
       peak_concurrent: peakConcurrent,
-      parallel_output_hours: Math.round(totalParallelHours * 10) / 10,
-      wall_clock_hours: Math.round((totalParallelHours / Math.max(avgConcurrent, 1)) * 10) / 10,
+      peak_hour: peakHour,
+      total_ai_hours: Math.round(totalAiMinutes / 60 * 10) / 10,
+      wall_clock_hours: activeHours,
+      active_hours: activeHours,
     },
   });
 }
