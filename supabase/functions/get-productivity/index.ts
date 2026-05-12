@@ -236,53 +236,57 @@ Deno.serve(async (req: Request) => {
     }
 
     // Fetch point modification history for month/week views (skip for year)
-    let pointModifications: PointModification[] = [];
+    const pointModifications: PointModification[] = [];
     if (view !== "year") {
       const tasksWithPoints = (tasksBody.tasks ?? []).filter((t) => (t.points ?? 0) > 0);
-      const historyResults = await Promise.allSettled(
-        tasksWithPoints.map(async (task) => {
-          const assigneeIds = new Set((task.assignees ?? []).map((a) => a.id));
-          const histRes = await fetch(
-            `https://api.clickup.com/api/v2/task/${task.id}/history?reverse=true&limit=50`,
-            { headers: CU_HEADERS },
-          );
-          if (!histRes.ok) {
-            throw new Error(`history ${task.id} ${histRes.status}`);
-          }
-          const histBody = await histRes.json() as {
-            history: Array<{
-              field: string;
-              user: { id: number };
-              date: string;
-              before: string | null;
-              after: string | null;
-            }>;
-          };
-          const modifications: PointModification[] = [];
-          for (const entry of histBody.history ?? []) {
-            if (entry.field !== "points") continue;
-            if (!assigneeIds.has(entry.user.id)) continue;
-            const entryMs = Number(entry.date);
-            if (entryMs < startMs || entryMs >= endMs) continue;
-            modifications.push({
-              bucket: toBucket(view, entryMs),
-              taskId: task.id,
-              taskName: task.name,
-              userId: entry.user.id,
-              oldPoints: Number(entry.before) || 0,
-              newPoints: Number(entry.after) || 0,
-              changedAt: entry.date,
-            });
-          }
-          return modifications;
-        }),
-      );
+      const HISTORY_CHUNK = 10;
 
-      for (const result of historyResults) {
-        if (result.status === "fulfilled") {
-          pointModifications = pointModifications.concat(result.value);
+      for (let i = 0; i < tasksWithPoints.length; i += HISTORY_CHUNK) {
+        const chunk = tasksWithPoints.slice(i, i + HISTORY_CHUNK);
+        const results = await Promise.allSettled(
+          chunk.map(async (task) => {
+            const assigneeIds = new Set((task.assignees ?? []).map((a) => a.id));
+            const histRes = await fetch(
+              `https://api.clickup.com/api/v2/task/${task.id}/history?reverse=true&limit=50`,
+              { headers: CU_HEADERS },
+            );
+            if (!histRes.ok) {
+              throw new Error(`history ${task.id} ${histRes.status}`);
+            }
+            const histBody = await histRes.json() as {
+              history: Array<{
+                field: string;
+                user: { id: number };
+                date: string;
+                before: string | null;
+                after: string | null;
+              }>;
+            };
+            const modifications: PointModification[] = [];
+            for (const entry of histBody.history ?? []) {
+              if (entry.field !== "points") continue;
+              if (!assigneeIds.has(entry.user.id)) continue;
+              const entryMs = Number(entry.date);
+              if (entryMs < startMs || entryMs >= endMs) continue;
+              modifications.push({
+                bucket: toBucket(view, entryMs),
+                taskId: task.id,
+                taskName: task.name,
+                userId: entry.user.id,
+                oldPoints: entry.before != null ? Number(entry.before) : 0,
+                newPoints: entry.after != null ? Number(entry.after) : 0,
+                changedAt: entry.date,
+              });
+            }
+            return modifications;
+          }),
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled") {
+            pointModifications.push(...r.value);
+          }
+          // silently skip rejected (failed history fetches)
         }
-        // silently skip rejected (failed history fetches)
       }
     }
 
