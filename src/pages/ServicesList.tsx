@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, RotateCcw } from "lucide-react";
+import { Plus, Search, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, type ServiceWithTotals } from "@/hooks/useServices";
 import { useSetServiceChecklist } from "@/hooks/useProcessSteps";
@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn, formatHours, formatZar } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
@@ -30,9 +37,52 @@ export function ServicesList() {
   const { data: depts = [] } = useDepartments();
   const { data: matrix } = useAllocationMatrix();
   const ruleMap = useMemo(() => new Map(rules.map((r) => [r.id, r])), [rules]);
+  const deptMap = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
   const [q, setQ] = useState("");
   const [ruleFilter, setRuleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [groupFilter, setGroupFilter] = useState<Set<string>>(new Set());
+
+  // Each service's "group" is the department carrying its largest allocation.
+  // Derived rather than stored so it stays in sync if allocations change.
+  const primaryDeptByService = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const s of services) {
+      const alloc = matrix?.resolved[s.id];
+      let bestId: string | null = null;
+      let bestH = 0;
+      if (alloc) {
+        for (const [deptId, v] of Object.entries(alloc)) {
+          if (v.hours > bestH) {
+            bestH = v.hours;
+            bestId = deptId;
+          }
+        }
+      }
+      map[s.id] = bestId;
+    }
+    return map;
+  }, [services, matrix]);
+
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let uncategorized = 0;
+    for (const s of services) {
+      const g = primaryDeptByService[s.id];
+      if (g) counts[g] = (counts[g] ?? 0) + 1;
+      else uncategorized += 1;
+    }
+    return { counts, uncategorized };
+  }, [services, primaryDeptByService]);
+
+  function toggleGroup(id: string) {
+    setGroupFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Lifted: a single mutation handle drives every row's save/revert. mutate() is
   // a stable reference across renders, so the per-row React.memo stays effective.
@@ -44,21 +94,57 @@ export function ServicesList() {
     return services.filter((s) => {
       if (ruleFilter && s.rule_id !== ruleFilter) return false;
       if (statusFilter && s.status !== statusFilter) return false;
+      if (groupFilter.size > 0) {
+        const g = primaryDeptByService[s.id];
+        const key = g ?? "__none__";
+        if (!groupFilter.has(key)) return false;
+      }
       if (q) {
         const hay = `${s.code ?? ""} ${s.name}`.toLowerCase();
         if (!hay.includes(q.toLowerCase())) return false;
       }
       return true;
     });
-  }, [services, q, ruleFilter, statusFilter]);
+  }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService]);
+
+  const groupChips = useMemo(() => {
+    const chips = depts
+      .map((d) => ({ id: d.id, name: d.name, count: groupCounts.counts[d.id] ?? 0 }))
+      .filter((c) => c.count > 0)
+      .sort((a, b) => b.count - a.count);
+    if (groupCounts.uncategorized > 0) {
+      chips.push({ id: "__none__", name: "Uncategorized", count: groupCounts.uncategorized });
+    }
+    return chips;
+  }, [depts, groupCounts]);
+
+  const activeFilterCount =
+    (ruleFilter ? 1 : 0) +
+    (statusFilter && statusFilter !== "active" ? 1 : 0) +
+    (groupFilter.size > 0 ? 1 : 0) +
+    (q ? 1 : 0);
+
+  function clearAll() {
+    setQ("");
+    setRuleFilter("");
+    setStatusFilter("active");
+    setGroupFilter(new Set());
+  }
 
   return (
     <div className="container mx-auto max-w-[1600px] p-6">
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Services</h1>
-          <p className="text-sm text-muted-foreground">
-            {services.length} services loaded. {filtered.length !== services.length && <>Showing {filtered.length}.</>} Edit hours per department inline — changes save as an override for that service.
+          <h1 className="text-headline-medium">Services</h1>
+          <p className="text-body-small text-m-on-surface-variant">
+            {filtered.length === services.length ? (
+              <>{services.length} services</>
+            ) : (
+              <>
+                <span className="font-medium text-m-on-surface">{filtered.length}</span> of {services.length} services
+              </>
+            )}
+            {" · "}Edit hours per department inline — changes save as an override.
           </p>
         </div>
         <Button asChild>
@@ -68,24 +154,95 @@ export function ServicesList() {
         </Button>
       </div>
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-wrap gap-3 p-4">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code…" className="pl-9" />
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[280px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by name or code…"
+              className="h-10 pl-9 pr-9"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-          <select value={ruleFilter} onChange={(e) => setRuleFilter(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-            <option value="">All rules</option>
-            {rules.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="archived">Archived</option>
-          </select>
-        </CardContent>
-      </Card>
+
+          <Select value={ruleFilter || "__all__"} onValueChange={(v) => setRuleFilter(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="h-10 w-[200px]">
+              <SelectValue placeholder="All rules" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All rules</SelectItem>
+              {rules.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter || "__all__"} onValueChange={(v) => setStatusFilter(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="h-10 w-[140px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearAll} className="h-10 text-m-on-surface-variant">
+              <X className="h-3.5 w-3.5" /> Clear filters
+            </Button>
+          )}
+        </div>
+
+        {groupChips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-label-small uppercase tracking-wide text-m-on-surface-variant">
+              Group
+            </span>
+            {groupChips.map((c) => {
+              const active = groupFilter.has(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleGroup(c.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-label-small transition-colors",
+                    active
+                      ? "border-m-primary bg-m-primary text-m-on-primary"
+                      : "border-m-outline-variant bg-m-surface text-m-on-surface hover:bg-m-surface-container"
+                  )}
+                >
+                  <span>{c.name}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0 text-[10px] font-medium tabular-nums",
+                      active ? "bg-m-on-primary/20 text-m-on-primary" : "bg-m-surface-container text-m-on-surface-variant"
+                    )}
+                  >
+                    {c.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <Card>
         <CardContent className="p-0">
@@ -96,8 +253,9 @@ export function ServicesList() {
               <table className="w-full border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase text-muted-foreground">
-                    <th className="sticky left-0 z-20 bg-card px-4 py-2 w-24 border-b">Code</th>
-                    <th className="sticky left-24 z-20 bg-card px-4 py-2 min-w-[220px] border-b">Name</th>
+                    <th className="sticky left-0 z-20 bg-card px-3 py-2 w-32 border-b">Group</th>
+                    <th className="sticky left-32 z-20 bg-card px-4 py-2 w-24 border-b">Code</th>
+                    <th className="sticky left-56 z-20 bg-card px-4 py-2 min-w-[220px] border-b">Name</th>
                     <th className="px-3 py-2 w-[160px] border-b">Rule</th>
                     <th className="px-3 py-2 text-right w-24 border-b">Price</th>
                     {depts.map((d) => (
@@ -110,17 +268,21 @@ export function ServicesList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((s) => (
-                    <ServiceRow
-                      key={s.id}
-                      service={s}
-                      departments={depts}
-                      ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
-                      matrix={matrix}
-                      setChecklistMutate={setChecklistMutate}
-                      setChecklistPending={setChecklistPending}
-                    />
-                  ))}
+                  {filtered.map((s) => {
+                    const groupId = primaryDeptByService[s.id];
+                    return (
+                      <ServiceRow
+                        key={s.id}
+                        service={s}
+                        departments={depts}
+                        ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
+                        groupName={groupId ? deptMap.get(groupId)?.name ?? null : null}
+                        matrix={matrix}
+                        setChecklistMutate={setChecklistMutate}
+                        setChecklistPending={setChecklistPending}
+                      />
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -135,6 +297,7 @@ type ServiceRowProps = {
   service: ServiceWithTotals;
   departments: Department[];
   ruleName: string | null;
+  groupName: string | null;
   matrix: AllocationMatrix | undefined;
   setChecklistMutate: ChecklistMutate;
   setChecklistPending: boolean;
@@ -144,6 +307,7 @@ const ServiceRow = memo(function ServiceRow({
   service,
   departments,
   ruleName,
+  groupName,
   matrix,
   setChecklistMutate,
   setChecklistPending,
@@ -246,8 +410,15 @@ const ServiceRow = memo(function ServiceRow({
   const cellBorder = "border-b";
   return (
     <tr className={cn(dirty && "bg-amber-50/40")}>
-      <td className={cn("sticky left-0 z-10 px-4 py-2 font-mono text-xs text-muted-foreground", cellBorder, stickyBg)}>{service.code ?? "—"}</td>
-      <td className={cn("sticky left-24 z-10 px-4 py-2", cellBorder, stickyBg)}>
+      <td className={cn("sticky left-0 z-10 px-3 py-2", cellBorder, stickyBg)}>
+        {groupName ? (
+          <Badge variant="secondary" className="text-[10px] font-normal">{groupName}</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className={cn("sticky left-32 z-10 px-4 py-2 font-mono text-xs text-muted-foreground", cellBorder, stickyBg)}>{service.code ?? "—"}</td>
+      <td className={cn("sticky left-56 z-10 px-4 py-2", cellBorder, stickyBg)}>
         <Link to={`/services/${service.id}`} className="font-medium hover:underline">
           {service.name}
         </Link>

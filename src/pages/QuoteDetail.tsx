@@ -128,16 +128,28 @@ export function QuoteDetail() {
           <div>
             Total: <strong>{formatZar(Number(q.total_cents))}</strong>
           </div>
-          {q.sow_pdf_url && (
-            <a
-              className="text-primary underline"
-              href={q.sow_pdf_url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Download PDF
-            </a>
-          )}
+          <div className="flex flex-wrap gap-4">
+            {q.cost_estimate_pdf_url && (
+              <a
+                className="text-primary underline"
+                href={q.cost_estimate_pdf_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Download cost estimate
+              </a>
+            )}
+            {q.sow_pdf_url && (
+              <a
+                className="text-primary underline"
+                href={q.sow_pdf_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Download SOW
+              </a>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -150,7 +162,19 @@ export function QuoteDetail() {
           </>
         )}
         {q.status === "draft" && (
-          <Button onClick={() => navigate(`/quotes/${q.id}/send`)}>Go to send</Button>
+          <>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const { data: scope } = await supabase
+                  .from("scopes").select("brief_id").eq("id", q.scope_id).single();
+                if (scope) navigate(`/briefs/${scope.brief_id}/builder`);
+              }}
+            >
+              Edit quote
+            </Button>
+            <Button onClick={() => navigate(`/quotes/${q.id}/send`)}>Go to send</Button>
+          </>
         )}
         {q.status === "accepted" && settings?.clickup_enabled && !existingProject && (
           <Button variant="secondary" onClick={retryPush}>Retry ClickUp push</Button>

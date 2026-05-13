@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Copy } from "lucide-react";
+import { Copy, Settings, Trash2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { AssigneePicker } from "@/components/AssigneePicker";
 import { MessageItem } from "@/components/MessageItem";
 import { useBriefMessages } from "@/hooks/useBriefMessages";
-import { useAddInternalNote, useBriefDownstream } from "@/hooks/useBriefActions";
+import {
+  useAddInternalNote,
+  useBriefDownstream,
+  useRollbackBriefStage,
+} from "@/hooks/useBriefActions";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import type { Database } from "@/types/db";
@@ -39,6 +44,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const { data: messages = [], isLoading } = useBriefMessages(brief.id);
   const addNote = useAddInternalNote(brief.id);
   const { data: downstream } = useBriefDownstream(brief.id);
+  const rollback = useRollbackBriefStage();
   const [noteText, setNoteText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +86,28 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
       setNoteText("");
     } catch {
       toast.error("Failed to save note");
+    }
+  };
+
+  const rollbackStage =
+    downstream?.kind === "quote" || downstream?.kind === "scope"
+      ? downstream.kind
+      : null;
+
+  const handleRollback = async () => {
+    if (!rollbackStage) return;
+    const msg =
+      rollbackStage === "quote"
+        ? "Delete the quote and revert this brief to the Scope stage?"
+        : "Delete the scope and revert this brief to New?";
+    if (!window.confirm(msg)) return;
+    try {
+      await rollback.mutateAsync({ briefId: brief.id, from: rollbackStage });
+      toast.success(
+        rollbackStage === "quote" ? "Quote deleted" : "Scope deleted",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to roll back");
     }
   };
 
@@ -172,13 +200,47 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             rows={2}
             className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-body-medium ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
-          <Button
-            size="sm"
-            disabled={!noteText.trim() || addNote.isPending}
-            onClick={submitNote}
-          >
-            Add note
-          </Button>
+          <div className="flex items-center justify-between">
+            <Button
+              size="sm"
+              disabled={!noteText.trim() || addNote.isPending}
+              onClick={submitNote}
+            >
+              Add note
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground"
+                  aria-label="Brief settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" className="w-56 p-1">
+                {rollbackStage ? (
+                  <button
+                    type="button"
+                    disabled={rollback.isPending}
+                    onClick={handleRollback}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-small text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {rollbackStage === "quote" ? "Delete quote" : "Delete scope"}
+                  </button>
+                ) : (
+                  <div className="px-2 py-1.5 text-body-small text-muted-foreground">
+                    {downstream?.kind === "project"
+                      ? "Project exists — cannot delete."
+                      : "No actions available."}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

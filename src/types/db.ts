@@ -1235,6 +1235,7 @@ export type Database = {
           sent_at: string | null
           sow_html: string | null
           sow_pdf_url: string | null
+          cost_estimate_pdf_url: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_cents: number
           total_cents: number
@@ -1261,6 +1262,7 @@ export type Database = {
           sent_at?: string | null
           sow_html?: string | null
           sow_pdf_url?: string | null
+          cost_estimate_pdf_url?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_cents?: number
           total_cents?: number
@@ -1287,6 +1289,7 @@ export type Database = {
           sent_at?: string | null
           sow_html?: string | null
           sow_pdf_url?: string | null
+          cost_estimate_pdf_url?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_cents?: number
           total_cents?: number

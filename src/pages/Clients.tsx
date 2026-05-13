@@ -51,7 +51,7 @@ export function Clients() {
     : clients;
 
   return (
-    <div className="container mx-auto max-w-5xl p-6">
+    <div className="w-full p-6">
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
@@ -103,7 +103,18 @@ export function Clients() {
                 : "No clients yet. Clients are created automatically when you log a new brief, or add one above."}
             </p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="text-sm table-fixed" style={{ width: "1396px" }}>
+              <colgroup>
+                <col style={{ width: "240px" }} />
+                <col style={{ width: "160px" }} />
+                <col style={{ width: "240px" }} />
+                <col style={{ width: "260px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "180px" }} />
+                <col style={{ width: "160px" }} />
+                <col style={{ width: "56px" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2">Name</th>
@@ -132,6 +143,7 @@ export function Clients() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -160,7 +172,7 @@ function ClientRow({
 }) {
   return (
     <tr className="border-b">
-      <td className="py-3 pr-2 w-48">
+      <td className="py-3 pr-2">
         <Input
           defaultValue={c.name}
           onBlur={(e) => {
@@ -169,7 +181,7 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2 w-40">
+      <td className="py-3 pl-2 pr-2">
         <Input
           defaultValue={c.primary_domain ?? ""}
           placeholder="example.co.za"
@@ -180,7 +192,7 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2 w-56">
+      <td className="py-3 pl-2 pr-2">
         {foldersError ? (
           <span className="text-xs text-destructive">
             Couldn't load folders — check Settings
@@ -207,7 +219,7 @@ function ClientRow({
           />
         )}
       </td>
-      <td className="py-3 pl-2 pr-2 w-48">
+      <td className="py-3 pl-2 pr-2">
         <Input
           defaultValue={c.wiki_path ?? `wiki/clients/${c.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`}
           placeholder="wiki/clients/..."
@@ -218,7 +230,7 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2 w-28">
+      <td className="py-3 pl-2 pr-2">
         <Input
           type="number"
           min="0"
@@ -235,7 +247,7 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2 w-48">
+      <td className="py-3 pl-2 pr-2">
         <Input
           defaultValue={c.xero_contact_id ?? ""}
           placeholder="Xero UUID"

@@ -387,6 +387,15 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
         if (pdfErr) throw pdfErr;
         await updateQuote.mutateAsync({ id: liveQuote.id, patch: { sow_pdf_url: pdfRes.url } });
       }
+      const { data: costRes, error: costErr } = await supabase.functions.invoke(
+        "render-cost-estimate-pdf",
+        { body: { quote_id: liveQuote.id } },
+      );
+      if (costErr) throw costErr;
+      await updateQuote.mutateAsync({
+        id: liveQuote.id,
+        patch: { cost_estimate_pdf_url: costRes.url },
+      });
       await updateBrief.mutateAsync({ id: briefId, patch: { status: "quoted" } });
       navigate(`/quotes/${liveQuote.id}/send`);
     } catch (e) {

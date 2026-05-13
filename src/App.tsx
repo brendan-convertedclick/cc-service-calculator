@@ -1,6 +1,6 @@
 // src/App.tsx
 import { Suspense, lazy } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -28,6 +28,9 @@ const Inbox = lazy(() =>
 );
 const NewBrief = lazy(() =>
   import("@/pages/NewBrief").then((m) => ({ default: m.NewBrief })),
+);
+const BriefResume = lazy(() =>
+  import("@/pages/BriefResume").then((m) => ({ default: m.BriefResume })),
 );
 const Scope = lazy(() =>
   import("@/pages/Scope").then((m) => ({ default: m.Scope })),
@@ -95,17 +98,23 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
+              <Route path="briefs" element={<Navigate to="/inbox" replace />} />
               <Route path="briefs/new" element={<NewBrief />} />
+              <Route path="briefs/:id" element={<BriefResume />} />
               <Route path="briefs/:id/scope" element={<Scope />} />
               <Route path="briefs/:id/builder" element={<ProjectBuilder />} />
+              <Route path="quotes" element={<Navigate to="/inbox" replace />} />
               <Route path="quotes/:id" element={<QuoteDetail />} />
               <Route path="quotes/:id/send" element={<QuoteSend />} />
               <Route path="clients" element={<Clients />} />
+              <Route path="clients/:clientId" element={<Navigate to="/clients" replace />} />
+              <Route path="clients/:clientId/projects" element={<Navigate to="/clients" replace />} />
               <Route path="clients/:clientId/projects/:projectId" element={<ProjectScopeView />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
+              <Route path="sow" element={<Navigate to="/services" replace />} />
               <Route path="sow/:familySlug" element={<SOWFamilyPage />} />
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />

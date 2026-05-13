@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,81 +12,255 @@ const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
 export function Projects() {
   const { data: projects = [] } = useProjects();
   const { data: allBriefs = [] } = useBriefs("all");
-  const inFlight = useMemo(
-    () => allBriefs.filter((b) => IN_PROGRESS.includes(b.status as BriefStatus)),
-    [allBriefs],
-  );
   const { data: clients = [] } = useClients();
+
   const clientById = useMemo(
     () => new Map(clients.map((c) => [c.id, c.name])),
     [clients],
   );
 
-  const empty = projects.length === 0 && inFlight.length === 0;
+  const inFlightAll = useMemo(
+    () => allBriefs.filter((b) => IN_PROGRESS.includes(b.status as BriefStatus)),
+    [allBriefs],
+  );
+
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<BriefStatus>>(new Set());
+
+  const clientOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const b of inFlightAll) if (b.client_id) ids.add(b.client_id);
+    for (const p of projects) {
+      const cid = (p as { client_id?: string }).client_id;
+      if (cid) ids.add(cid);
+    }
+    return Array.from(ids)
+      .map((id) => ({ id, name: clientById.get(id) ?? "Unknown" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [inFlightAll, projects, clientById]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set<BriefStatus>();
+    for (const b of inFlightAll) set.add(b.status as BriefStatus);
+    return Array.from(set).sort();
+  }, [inFlightAll]);
+
+  const inFlight = useMemo(
+    () =>
+      inFlightAll.filter((b) => {
+        if (selectedClients.size > 0 && (!b.client_id || !selectedClients.has(b.client_id))) {
+          return false;
+        }
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(b.status as BriefStatus)) {
+          return false;
+        }
+        return true;
+      }),
+    [inFlightAll, selectedClients, selectedStatuses],
+  );
+
+  const filteredProjects = useMemo(
+    () =>
+      projects.filter((p) => {
+        if (selectedClients.size > 0) {
+          const cid = (p as { client_id?: string }).client_id;
+          if (!cid || !selectedClients.has(cid)) return false;
+        }
+        return true;
+      }),
+    [projects, selectedClients],
+  );
+
+  const empty = projects.length === 0 && inFlightAll.length === 0;
+  const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
+
+  const toggleClient = (id: string) => {
+    setSelectedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleStatus = (s: BriefStatus) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  };
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-8 p-6">
-      <h1 className="text-headline-medium">Projects</h1>
+    <div className="container mx-auto max-w-6xl p-6">
+      <h1 className="mb-6 text-headline-medium">Projects</h1>
 
-      {empty && (
+      {empty ? (
         <div className="text-body-medium text-m-on-surface-variant">
           No projects or open briefs yet. Accept a brief from the Inbox to start one.
         </div>
-      )}
+      ) : (
+        <div className="flex gap-8">
+          <aside className="w-56 shrink-0 space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-label-large text-m-on-surface">Filters</h3>
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClients(new Set());
+                      setSelectedStatuses(new Set());
+                    }}
+                    className="text-label-small text-m-primary hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
 
-      {inFlight.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-title-medium">In progress ({inFlight.length})</h2>
-          <div className="space-y-2">
-            {inFlight.map((b) => {
-              const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
-              return (
-                <Link to={resumeHref(b)} key={b.id} className="block">
-                  <Card className="transition-colors hover:bg-m-surface-container">
-                    <CardContent className="flex items-center justify-between gap-4 p-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-title-small">
-                          {b.raw_subject ?? "(no subject)"}
-                        </div>
-                        <div className="text-label-small text-m-on-surface-variant">
-                          {clientName ?? b.sender_email ?? "manual"} ·{" "}
-                          {new Date(b.received_at).toLocaleDateString("en-ZA")}
-                        </div>
-                      </div>
-                      <Badge>{STATUS_LABEL[b.status]}</Badge>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
+            {clientOptions.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
+                <div className="space-y-2">
+                  {clientOptions.map((c) => {
+                    const active = selectedClients.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleClient(c.id)}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
+                          active
+                            ? "bg-m-secondary-container text-m-on-secondary-container"
+                            : "text-m-on-surface hover:bg-m-surface-container"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            active
+                              ? "border-m-primary bg-m-primary text-m-on-primary"
+                              : "border-m-outline"
+                          }`}
+                        >
+                          {active && (
+                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="truncate">{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-      {projects.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-title-medium">Active ({projects.length})</h2>
-          <div className="space-y-2">
-            {projects.map((p) => (
-              <Link to={`/projects/${p.id}`} key={p.id} className="block">
-                <Card className="transition-colors hover:bg-m-surface-container">
-                  <CardContent className="flex items-center justify-between gap-4 p-4">
-                    <div>
-                      {/* Cast until `npm run supabase:gen-types` regenerates src/types/db.ts post-0015. */}
-                      <div className="text-title-small">
-                        {(p as { name?: string }).name ?? "Untitled project"}
-                      </div>
-                      <div className="text-label-small text-m-on-surface-variant">
-                        Started {new Date(p.started_at).toLocaleDateString("en-ZA")}
-                      </div>
-                    </div>
-                    <Badge>{p.status}</Badge>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {statusOptions.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
+                <div className="space-y-2">
+                  {statusOptions.map((s) => {
+                    const active = selectedStatuses.has(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleStatus(s)}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
+                          active
+                            ? "bg-m-secondary-container text-m-on-secondary-container"
+                            : "text-m-on-surface hover:bg-m-surface-container"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            active
+                              ? "border-m-primary bg-m-primary text-m-on-primary"
+                              : "border-m-outline"
+                          }`}
+                        >
+                          {active && (
+                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="truncate">{STATUS_LABEL[s]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </aside>
+
+          <div className="min-w-0 flex-1 space-y-8">
+            {inFlight.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-title-medium">In progress ({inFlight.length})</h2>
+                <div className="space-y-2">
+                  {inFlight.map((b) => {
+                    const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
+                    return (
+                      <Link to={resumeHref(b)} key={b.id} className="block">
+                        <Card className="transition-colors hover:bg-m-surface-container">
+                          <CardContent className="flex items-center justify-between gap-4 p-4">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-title-small">
+                                {b.raw_subject ?? "(no subject)"}
+                              </div>
+                              <div className="text-label-small text-m-on-surface-variant">
+                                {clientName ?? b.sender_email ?? "manual"} ·{" "}
+                                {new Date(b.received_at).toLocaleDateString("en-ZA")}
+                              </div>
+                            </div>
+                            <Badge>{STATUS_LABEL[b.status]}</Badge>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {filteredProjects.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-title-medium">Active ({filteredProjects.length})</h2>
+                <div className="space-y-2">
+                  {filteredProjects.map((p) => (
+                    <Link to={`/projects/${p.id}`} key={p.id} className="block">
+                      <Card className="transition-colors hover:bg-m-surface-container">
+                        <CardContent className="flex items-center justify-between gap-4 p-4">
+                          <div>
+                            {/* Cast until `npm run supabase:gen-types` regenerates src/types/db.ts post-0015. */}
+                            <div className="text-title-small">
+                              {(p as { name?: string }).name ?? "Untitled project"}
+                            </div>
+                            <div className="text-label-small text-m-on-surface-variant">
+                              Started {new Date(p.started_at).toLocaleDateString("en-ZA")}
+                            </div>
+                          </div>
+                          <Badge>{p.status}</Badge>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {hasFilters && inFlight.length === 0 && filteredProjects.length === 0 && (
+              <div className="text-body-medium text-m-on-surface-variant">
+                No projects match the current filters.
+              </div>
+            )}
           </div>
-        </section>
+        </div>
       )}
     </div>
   );

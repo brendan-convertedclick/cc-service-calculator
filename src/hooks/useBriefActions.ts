@@ -51,6 +51,68 @@ export type DownstreamLink =
   | { kind: "project"; id: string; label: string }
   | { kind: "none" };
 
+// Roll back the brief one stage. `from: "quote"` deletes the live + superseded
+// quote(s) for the brief's scope and sets status='scoped'. `from: "scope"` does
+// the same and also deletes the scope, setting status='new'. Refuses if any
+// quote on the scope has already been turned into a project (ClickUp push).
+export function useRollbackBriefStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ briefId, from }: { briefId: string; from: "quote" | "scope" }) => {
+      const { data: scope } = await supabase
+        .from("scopes")
+        .select("id")
+        .eq("brief_id", briefId)
+        .maybeSingle();
+
+      if (scope) {
+        const { data: quotes } = await supabase
+          .from("quotes")
+          .select("id")
+          .eq("scope_id", scope.id);
+        const quoteIds = (quotes ?? []).map((q) => q.id);
+
+        if (quoteIds.length > 0) {
+          const { data: project } = await supabase
+            .from("projects")
+            .select("id")
+            .in("quote_id", quoteIds)
+            .maybeSingle();
+          if (project) {
+            throw new Error(
+              "Cannot delete: a project has already been created from this quote.",
+            );
+          }
+          const { error: dqErr } = await supabase
+            .from("quotes")
+            .delete()
+            .in("id", quoteIds);
+          if (dqErr) throw dqErr;
+        }
+
+        if (from === "scope") {
+          const { error: dsErr } = await supabase
+            .from("scopes")
+            .delete()
+            .eq("id", scope.id);
+          if (dsErr) throw dsErr;
+        }
+      }
+
+      const nextStatus = from === "quote" ? "scoped" : "new";
+      const { error } = await supabase
+        .from("briefs")
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq("id", briefId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["brief_downstream", vars.briefId] });
+      qc.invalidateQueries({ queryKey: ["briefs"] });
+    },
+  });
+}
+
 export function useBriefDownstream(briefId: string | undefined) {
   return useQuery({
     enabled: !!briefId,

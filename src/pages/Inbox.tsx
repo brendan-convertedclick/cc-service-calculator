@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefList } from "@/components/BriefList";
@@ -10,13 +10,13 @@ import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { useBrief } from "@/hooks/useBriefs";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
-import type { BriefScope, BriefFilterOptions } from "@/hooks/useBriefs";
+import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks/useBriefs";
 import type { ClaudePrompt } from "@/types/claude";
 
 const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
 const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
-const SCOPES: BriefScope[] = ["new", "mine", "unassigned", "waiting", "all"];
+const SCOPES: BriefScope[] = ["new", "mine", "unassigned", "waiting", "all", "archived"];
 
 const TAB_LABEL: Record<BriefScope, string> = {
   new: "New",
@@ -24,6 +24,7 @@ const TAB_LABEL: Record<BriefScope, string> = {
   unassigned: "Unassigned",
   waiting: "Waiting",
   all: "All",
+  archived: "Archived",
 };
 
 export function Inbox() {
@@ -38,6 +39,7 @@ export function Inbox() {
   // undefined = no filter; null = unassigned; string = specific client
   const [activeClientId, setActiveClientId] = useState<string | null | undefined>(undefined);
   const [activeContactEmail, setActiveContactEmail] = useState<string | undefined>(undefined);
+  const [sortDirection, setSortDirection] = useState<BriefSortDirection>("desc");
 
   function handleSelectAll() {
     setActiveClientId(undefined);
@@ -127,13 +129,32 @@ Output: Confirmation of brief created or updated, with intent classification and
         </div>
 
         <Tabs defaultValue={defaultTab}>
-          <TabsList className="mb-4">
-            {SCOPES.map((scope) => (
-              <TabsTrigger key={scope} value={scope}>
-                {TAB_LABEL[scope]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <TabsList>
+              {SCOPES.map((scope) => (
+                <TabsTrigger key={scope} value={scope}>
+                  {TAB_LABEL[scope]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSortDirection((d) => (d === "desc" ? "asc" : "desc"))}
+              title={
+                sortDirection === "desc"
+                  ? "Newest first (last message). Click to reverse."
+                  : "Oldest first (last message). Click to reverse."
+              }
+              aria-label="Toggle sort order"
+            >
+              {sortDirection === "desc" ? (
+                <ArrowDownWideNarrow className="h-4 w-4" />
+              ) : (
+                <ArrowUpWideNarrow className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
 
           {SCOPES.map((scope) => (
             <TabsContent key={scope} value={scope}>
@@ -142,6 +163,7 @@ Output: Confirmation of brief created or updated, with intent classification and
                 currentUserId={currentUserId}
                 selectedBriefId={briefId}
                 filterOptions={filterOptions}
+                sortDirection={sortDirection}
               />
             </TabsContent>
           ))}
