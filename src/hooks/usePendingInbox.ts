@@ -92,6 +92,7 @@ export function useApprovePendingClient() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pending-clients"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
+      qc.invalidateQueries({ queryKey: ["pending-senders", "all"] });
     },
   });
 }

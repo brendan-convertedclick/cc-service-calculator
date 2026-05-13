@@ -13,25 +13,21 @@ export async function handler(input: Input) {
     const domain = input.domain.trim().toLowerCase()
     if (!domain) throw new Error('domain is required')
 
-    const now = new Date().toISOString()
-    const { data, error } = await supabase
-      .from('pending_clients')
-      .upsert(
-        {
-          domain,
-          sample_sender: input.sender,
-          sample_subject: input.subject ?? null,
-          last_seen_at: now,
-          dismissed_at: null,
-        },
-        { onConflict: 'domain', ignoreDuplicates: false },
-      )
-      .select('id, seen_count')
+    const { data, error } = await supabase.rpc('queue_pending_client', {
+      p_domain: domain,
+      p_sender: input.sender,
+      p_subject: input.subject ?? null,
+    })
 
     if (error) throw new Error(error.message)
-    const row = (data ?? [])[0] ?? { id: null, seen_count: 1 }
+    const row = Array.isArray(data) ? data[0] : data
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ id: row.id, seen_count: row.seen_count }) }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ id: row?.id ?? null, seen_count: row?.seen_count ?? 1 }),
+        },
+      ],
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
