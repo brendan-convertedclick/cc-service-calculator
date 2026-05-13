@@ -61,15 +61,17 @@ describe("InboxAssignModal", () => {
     expect(screen.getByText("Project thread")).toBeInTheDocument();
   });
 
-  it("lists available projects", () => {
+  it("lists available projects after selecting a client", () => {
     render(<InboxAssignModal brief={brief} open onClose={() => {}} />, { wrapper: Wrapper });
-    expect(screen.getByText(/ACME — Website Rebuild/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("ACME"));
+    expect(screen.getByText("Website Rebuild")).toBeInTheDocument();
   });
 
   it("calls mutateAsync with selected project on assign", async () => {
     const onClose = vi.fn();
     render(<InboxAssignModal brief={brief} open onClose={onClose} />, { wrapper: Wrapper });
-    fireEvent.click(screen.getByText(/ACME — Website Rebuild/));
+    fireEvent.click(screen.getByText("ACME"));
+    fireEvent.click(screen.getByText("Website Rebuild"));
     fireEvent.click(screen.getByRole("button", { name: /Assign to project/i }));
     await waitFor(() =>
       expect(mockMutateAsync).toHaveBeenCalledWith({

@@ -36,6 +36,7 @@ vi.mock("@/hooks/useBriefActions", () => ({
   }),
   useBriefDownstream: () => ({ data: { kind: "none" } }),
   useUpdateBriefAssignee: () => ({ mutateAsync: vi.fn() }),
+  useRollbackBriefStage: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/hooks/useTeam", () => ({
