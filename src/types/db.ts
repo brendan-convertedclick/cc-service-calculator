@@ -726,6 +726,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_clients: {
+        Row: {
+          dismissed_at: string | null
+          domain: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          sample_sender: string | null
+          sample_subject: string | null
+          seen_count: number
+        }
+        Insert: {
+          dismissed_at?: string | null
+          domain: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          sample_sender?: string | null
+          sample_subject?: string | null
+          seen_count?: number
+        }
+        Update: {
+          dismissed_at?: string | null
+          domain?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          sample_sender?: string | null
+          sample_subject?: string | null
+          seen_count?: number
+        }
+        Relationships: []
+      }
       pending_senders: {
         Row: {
           client_id: string
@@ -1328,7 +1361,6 @@ export type Database = {
           sent_at: string | null
           sow_html: string | null
           sow_pdf_url: string | null
-          cost_estimate_pdf_url: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_cents: number
           total_cents: number
@@ -1356,7 +1388,6 @@ export type Database = {
           sent_at?: string | null
           sow_html?: string | null
           sow_pdf_url?: string | null
-          cost_estimate_pdf_url?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_cents?: number
           total_cents?: number
@@ -1384,7 +1415,6 @@ export type Database = {
           sent_at?: string | null
           sow_html?: string | null
           sow_pdf_url?: string | null
-          cost_estimate_pdf_url?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_cents?: number
           total_cents?: number
@@ -2098,6 +2128,15 @@ export type Database = {
         }[]
       }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
+      queue_pending_sender: {
+        Args: {
+          p_client_id: string
+          p_email: string
+          p_sample_brief_id: string
+          p_sample_subject: string
+        }
+        Returns: undefined
+      }
       resolve_project_for_repo: {
         Args: { remote: string }
         Returns: {
@@ -2282,4 +2321,3 @@ export const Constants = {
     },
   },
 } as const
-
