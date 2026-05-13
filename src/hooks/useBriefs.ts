@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { evaluatePattern } from "@/lib/senderRules";
 import type { Database } from "@/types/db";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
@@ -67,7 +68,38 @@ export function useBriefs(
 
       const { data, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      const briefs = data ?? [];
+
+      // Safety-net filter: hide briefs whose sender is now covered by an active
+      // block rule for the brief's client, even if they predate the rule and
+      // weren't archived/deleted retroactively. MCP-side enforcement only
+      // covers new intake.
+      const clientIds = Array.from(
+        new Set(briefs.map((b) => b.client_id).filter((id): id is string => !!id)),
+      );
+      if (clientIds.length === 0) return briefs;
+
+      const { data: blockRules, error: rErr } = await supabase
+        .from("client_sender_rules")
+        .select("client_id, pattern")
+        .eq("mode", "block")
+        .in("client_id", clientIds);
+      if (rErr) throw rErr;
+      if (!blockRules || blockRules.length === 0) return briefs;
+
+      const byClient = new Map<string, string[]>();
+      for (const r of blockRules) {
+        const arr = byClient.get(r.client_id) ?? [];
+        arr.push(r.pattern);
+        byClient.set(r.client_id, arr);
+      }
+
+      return briefs.filter((b) => {
+        if (!b.client_id || !b.sender_email) return true;
+        const patterns = byClient.get(b.client_id);
+        if (!patterns) return true;
+        return !patterns.some((p) => evaluatePattern(p, b.sender_email!));
+      });
     },
   });
 }

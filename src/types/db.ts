@@ -54,6 +54,7 @@ export type Database = {
           engagement_type: string
           human_minutes: number
           id: string
+          jsonl_id: string | null
           logged_by: string
           project_slug: string | null
           session_date: string
@@ -70,6 +71,7 @@ export type Database = {
           engagement_type?: string
           human_minutes?: number
           id?: string
+          jsonl_id?: string | null
           logged_by: string
           project_slug?: string | null
           session_date: string
@@ -86,6 +88,7 @@ export type Database = {
           engagement_type?: string
           human_minutes?: number
           id?: string
+          jsonl_id?: string | null
           logged_by?: string
           project_slug?: string | null
           session_date?: string
@@ -446,6 +449,44 @@ export type Database = {
           },
         ]
       }
+      client_sender_rules: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          mode: Database["public"]["Enums"]["sender_rule_mode"]
+          note: string | null
+          pattern: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          mode: Database["public"]["Enums"]["sender_rule_mode"]
+          note?: string | null
+          pattern: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          mode?: Database["public"]["Enums"]["sender_rule_mode"]
+          note?: string | null
+          pattern?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_sender_rules_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_touchpoints: {
         Row: {
           client_id: string
@@ -685,6 +726,54 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_senders: {
+        Row: {
+          client_id: string
+          email: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          sample_brief_id: string | null
+          sample_subject: string | null
+          seen_count: number
+        }
+        Insert: {
+          client_id: string
+          email: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          sample_brief_id?: string | null
+          sample_subject?: string | null
+          seen_count?: number
+        }
+        Update: {
+          client_id?: string
+          email?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          sample_brief_id?: string | null
+          sample_subject?: string | null
+          seen_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_senders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_senders_sample_brief_id_fkey"
+            columns: ["sample_brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_step_instances: {
         Row: {
           actual_hours: number
@@ -920,6 +1009,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          clickup_list_id: string | null
           clickup_parent_task_id: string
           client_id: string | null
           completed_at: string | null
@@ -933,7 +1023,7 @@ export type Database = {
           last_recurring_cycle_at: string | null
           name: string
           project_code: string
-          quote_id: string
+          quote_id: string | null
           recurrence_end: string | null
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -949,6 +1039,7 @@ export type Database = {
           xero_invoice_id: string | null
         }
         Insert: {
+          clickup_list_id?: string | null
           clickup_parent_task_id: string
           client_id?: string | null
           completed_at?: string | null
@@ -962,7 +1053,7 @@ export type Database = {
           last_recurring_cycle_at?: string | null
           name: string
           project_code: string
-          quote_id: string
+          quote_id?: string | null
           recurrence_end?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -978,6 +1069,7 @@ export type Database = {
           xero_invoice_id?: string | null
         }
         Update: {
+          clickup_list_id?: string | null
           clickup_parent_task_id?: string
           client_id?: string | null
           completed_at?: string | null
@@ -991,7 +1083,7 @@ export type Database = {
           last_recurring_cycle_at?: string | null
           name?: string
           project_code?: string
-          quote_id?: string
+          quote_id?: string | null
           recurrence_end?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -1219,6 +1311,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
+          cost_estimate_pdf_url: string | null
           created_at: string
           discount_room_pct: number
           id: string
@@ -1246,6 +1339,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
+          cost_estimate_pdf_url?: string | null
           created_at?: string
           discount_room_pct?: number
           id?: string
@@ -1273,6 +1367,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
+          cost_estimate_pdf_url?: string | null
           created_at?: string
           discount_room_pct?: number
           id?: string
@@ -1683,6 +1778,7 @@ export type Database = {
           updated_at: string
           xero_enabled: boolean
           xero_oauth_tokens: Json | null
+          zar_per_point: number
         }
         Insert: {
           anthropic_enabled?: boolean
@@ -1698,6 +1794,7 @@ export type Database = {
           updated_at?: string
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
+          zar_per_point?: number
         }
         Update: {
           anthropic_enabled?: boolean
@@ -1713,6 +1810,7 @@ export type Database = {
           updated_at?: string
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
+          zar_per_point?: number
         }
         Relationships: []
       }
@@ -2004,6 +2102,7 @@ export type Database = {
         Args: { remote: string }
         Returns: {
           calculator_project_id: string
+          clickup_list_id: string
           clickup_parent_task_id: string
           project_code: string
           project_name: string
@@ -2035,6 +2134,7 @@ export type Database = {
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
       recurrence_mode: "none" | "project" | "per_service"
+      sender_rule_mode: "allow" | "block"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2178,6 +2278,8 @@ export const Constants = {
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
       recurrence_interval: ["weekly", "biweekly", "monthly", "quarterly"],
       recurrence_mode: ["none", "project", "per_service"],
+      sender_rule_mode: ["allow", "block"],
     },
   },
 } as const
+

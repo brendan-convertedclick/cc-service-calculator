@@ -34,6 +34,22 @@ The server runs via `npm run dev` (tsx, no build step needed). It is registered 
 
 To call tools in agent sessions: use `mcp__cc-calculator__<tool-name>`.
 
+### Sender rule enforcement in intake
+
+The intake flow must call `mcp__cc-calculator__evaluate-sender` before
+`create-brief` for every inbound thread on a known client domain. Decision values:
+
+- `allow` — proceed and create the brief normally.
+- `block` — skip the thread; tag it `CC/Intake/Blocked` so it isn't reconsidered.
+- `pending` — sender is on a known client domain but has no rule. Proceed,
+  but a `pending_senders` row is queued automatically by `create-brief` and
+  must be resolved by the operator in **Clients → [client] → Senders**.
+- `unknown` — sender's domain is not a client domain (current ignore behavior).
+
+`create-brief` also performs a defensive block check, so an outdated intake
+flow can never insert a blocked sender. `sync-messages` drops inbound messages
+from blocked senders before upserting.
+
 ## Supabase — use the project-scoped MCP server ONLY
 
 This repo ships a dedicated MCP server in `.mcp.json` named **`cc-supabase`**, pinned with `--project-ref=lpgwxacoqiqpcfpkklib`.

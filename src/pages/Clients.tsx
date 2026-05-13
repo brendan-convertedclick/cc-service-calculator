@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useClients,
@@ -264,20 +264,28 @@ function ClientRow({
           : "Unlinked"}
       </td>
       <td className="py-3 pl-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (confirm(`Archive "${c.name}"?`)) {
-              archive.mutate(c.id, {
-                onSuccess: () => toast.success(`Archived ${c.name}`),
-                onError: (e) => toast.error(e.message),
-              });
-            }
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="icon" title="Sender rules">
+            <Link to={`/clients/${c.id}`}>
+              <Shield className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Archive"
+            onClick={() => {
+              if (confirm(`Archive "${c.name}"?`)) {
+                archive.mutate(c.id, {
+                  onSuccess: () => toast.success(`Archived ${c.name}`),
+                  onError: (e) => toast.error(e.message),
+                });
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </td>
     </tr>
   );
