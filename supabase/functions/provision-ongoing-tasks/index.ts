@@ -67,6 +67,12 @@ Deno.serve(async (req: Request) => {
     let provisioned = 0;
     let skipped = 0;
     const created: Array<{ category: string; clickup_task_id: string }> = [];
+    const toInsert: Array<{
+      team_member_id: string;
+      time_category_id: string;
+      clickup_task_id: string;
+      task_name: string;
+    }> = [];
 
     for (const cat of (categories ?? [])) {
       if (existingByCat.has(cat.id)) { skipped++; continue; }
@@ -89,17 +95,26 @@ Deno.serve(async (req: Request) => {
         return json({ error: `CU task create failed: ${await cuRes.text()}` }, 502);
       }
       const cuTask = await cuRes.json();
+      if (!cuTask?.id) {
+        return json(
+          { error: `CU task create returned no id: ${JSON.stringify(cuTask)}` },
+          502,
+        );
+      }
 
-      const { error: insErr } = await supabase.from("ongoing_tasks").insert({
+      toInsert.push({
         team_member_id: member.id,
         time_category_id: cat.id,
         clickup_task_id: cuTask.id,
         task_name: name,
       });
-      if (insErr) return json({ error: insErr.message }, 500);
-
       provisioned++;
       created.push({ category: cat.label, clickup_task_id: cuTask.id });
+    }
+
+    if (toInsert.length > 0) {
+      const { error: insErr } = await supabase.from("ongoing_tasks").insert(toInsert);
+      if (insErr) return json({ error: insErr.message }, 500);
     }
 
     return json({ provisioned, skipped, created });
