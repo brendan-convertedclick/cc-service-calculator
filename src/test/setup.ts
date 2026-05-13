@@ -1,1 +1,7 @@
 import "@testing-library/jest-dom/vitest";
+
+// Stub Supabase env vars so any transitive import of `@/lib/supabase`
+// from a component under test does not throw. Tests that exercise
+// supabase calls must still mock the client itself.
+import.meta.env.VITE_SUPABASE_URL ??= "http://test.local";
+import.meta.env.VITE_SUPABASE_ANON_KEY ??= "test-anon-key";
