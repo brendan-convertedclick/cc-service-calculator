@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { decide, type Rule } from '../sender-rules.js'
 
 const messageSchema = z.object({
   gmail_message_id: z.string().describe('Unique Gmail message ID — dedup key'),
@@ -22,7 +23,39 @@ type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
   try {
-    const rows = input.messages.map(m => ({
+    const { data: brief, error: bErr } = await supabase
+      .from('briefs')
+      .select('client_id')
+      .eq('id', input.brief_id)
+      .maybeSingle()
+    if (bErr) throw new Error(bErr.message)
+
+    let rules: Rule[] = []
+    if (brief?.client_id) {
+      const { data: r, error: rErr } = await supabase
+        .from('client_sender_rules')
+        .select('id, pattern, mode')
+        .eq('client_id', brief.client_id)
+      if (rErr) throw new Error(rErr.message)
+      rules = (r ?? []) as Rule[]
+    }
+
+    let dropped = 0
+    const accepted = input.messages.filter((m) => {
+      if (m.direction !== 'inbound' || rules.length === 0) return true
+      const d = decide(m.from_email, rules)
+      if (d.decision === 'block') {
+        dropped++
+        return false
+      }
+      return true
+    })
+
+    if (accepted.length === 0) {
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ inserted: 0, skipped: 0, dropped }) }] }
+    }
+
+    const rows = accepted.map((m) => ({
       brief_id: input.brief_id,
       gmail_message_id: m.gmail_message_id,
       direction: m.direction,
@@ -42,12 +75,11 @@ export async function handler(input: Input) {
 
     if (error) throw new Error(error.message)
 
-    // PostgREST returns only inserted rows when ignoreDuplicates:true; null means 0 inserted
     const inserted = data?.length ?? 0
-    const skipped = input.messages.length - inserted
+    const skipped = accepted.length - inserted
 
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ inserted, skipped }) }],
+      content: [{ type: 'text' as const, text: JSON.stringify({ inserted, skipped, dropped }) }],
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

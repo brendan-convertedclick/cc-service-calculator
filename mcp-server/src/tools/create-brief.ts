@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { fireAutoScope } from '../auto-scope.js'
+import { decide, type Rule } from '../sender-rules.js'
 
 export const schema = z.object({
   gmail_thread_id: z.string().describe('Gmail thread ID — used as dedup key'),
@@ -15,7 +16,6 @@ type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
   try {
-    // Idempotency check
     const { data: existing } = await supabase
       .from('briefs')
       .select('id')
@@ -26,7 +26,22 @@ export async function handler(input: Input) {
       return { content: [{ type: 'text' as const, text: JSON.stringify({ brief_id: existing.id, created: false }) }] }
     }
 
-    // Insert new brief
+    // Per-client sender rule check (block wins). Only meaningful when client_id is set.
+    let ruleDecision: ReturnType<typeof decide> | null = null
+    if (input.client_id) {
+      const { data: rules, error: rErr } = await supabase
+        .from('client_sender_rules')
+        .select('id, pattern, mode')
+        .eq('client_id', input.client_id)
+      if (rErr) throw new Error(rErr.message)
+      ruleDecision = decide(input.sender_email, (rules ?? []) as Rule[])
+      if (ruleDecision.decision === 'block') {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ blocked: true, reason: 'sender_blocked', rule_id: ruleDecision.rule_id }) }],
+        }
+      }
+    }
+
     const { data: created, error } = await supabase
       .from('briefs')
       .insert({
@@ -43,7 +58,22 @@ export async function handler(input: Input) {
 
     if (error || !created) throw new Error(error?.message ?? 'Insert failed')
 
-    // Fire auto-scope in background — never blocks return
+    // Queue unknown-on-known-domain senders for explicit approval.
+    if (input.client_id && ruleDecision?.decision === 'pending') {
+      await supabase
+        .from('pending_senders')
+        .upsert(
+          {
+            client_id: input.client_id,
+            email: input.sender_email.toLowerCase(),
+            sample_subject: input.subject,
+            sample_brief_id: created.id,
+            last_seen_at: new Date().toISOString(),
+          },
+          { onConflict: 'client_id,email' },
+        )
+    }
+
     fireAutoScope(created.id)
 
     return { content: [{ type: 'text' as const, text: JSON.stringify({ brief_id: created.id, created: true }) }] }
