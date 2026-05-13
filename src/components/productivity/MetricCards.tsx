@@ -43,6 +43,9 @@ export function MetricCards({ meta, goalPoints }: Props) {
           {meta.totalHours}
           <span className="ml-1 text-sm font-normal text-m-on-surface-variant">hrs</span>
         </p>
+        <p className="mt-1 text-label-small text-m-on-surface-variant">
+          <span className="font-medium text-m-on-surface">{meta.totalOverheadHours}</span> Overhead hrs
+        </p>
       </div>
 
       <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-4">
