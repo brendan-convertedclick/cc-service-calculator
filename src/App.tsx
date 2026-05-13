@@ -50,6 +50,9 @@ const ProjectDetail = lazy(() =>
 const Clients = lazy(() =>
   import("@/pages/Clients").then((m) => ({ default: m.Clients })),
 );
+const ClientDetail = lazy(() =>
+  import("@/pages/ClientDetail").then((m) => ({ default: m.ClientDetail })),
+);
 const Settings = lazy(() =>
   import("@/pages/Settings").then((m) => ({ default: m.Settings })),
 );
@@ -101,6 +104,7 @@ export default function App() {
               <Route path="quotes/:id" element={<QuoteDetail />} />
               <Route path="quotes/:id/send" element={<QuoteSend />} />
               <Route path="clients" element={<Clients />} />
+              <Route path="clients/:id" element={<ClientDetail />} />
               <Route path="clients/:clientId/projects/:projectId" element={<ProjectScopeView />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
