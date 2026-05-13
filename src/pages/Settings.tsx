@@ -15,8 +15,14 @@ import { Combobox } from "@/components/ui/combobox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Trash2 } from "lucide-react";
+import {
+  useTimeCategories,
+  useUpsertTimeCategory,
+  useArchiveTimeCategory,
+} from "@/hooks/useOngoingTasks";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier" | "ongoing-tasks";
 
 const NAV: { key: SectionKey; label: string }[] = [
   { key: "clickup",          label: "ClickUp" },
@@ -26,6 +32,7 @@ const NAV: { key: SectionKey; label: string }[] = [
   { key: "sow",              label: "SOW Clauses" },
   { key: "productivity",     label: "Productivity" },
   { key: "output-multiplier", label: "Output Multiplier" },
+  { key: "ongoing-tasks",    label: "Ongoing tasks" },
 ];
 
 export function Settings() {
@@ -203,6 +210,27 @@ export function Settings() {
                   />
                   <p className="text-label-small text-m-on-surface-variant">
                     The ClickUp top-level space that holds your client folders. Required before you can link clients to folders.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cu-internal-list">Internal list ID</Label>
+                  <Input
+                    id="cu-internal-list"
+                    defaultValue={s.clickup_internal_list_id ?? ""}
+                    placeholder="901234567890"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim() || null;
+                      if (v !== (s.clickup_internal_list_id ?? null)) {
+                        update.mutate(
+                          { clickup_internal_list_id: v },
+                          { onSuccess: () => toast.success("Saved") },
+                        );
+                      }
+                    }}
+                  />
+                  <p className="text-label-small text-m-on-surface-variant">
+                    ClickUp list that hosts all perpetual ongoing tasks (Standup, Admin, etc.).
+                    One list, every team member. Create it in ClickUp first, then paste the ID.
                   </p>
                 </div>
               </CardContent>
@@ -458,9 +486,95 @@ export function Settings() {
             </Card>
           )}
 
+          {activeSection === "ongoing-tasks" && <TimeCategoriesCard />}
+
         </div>
       </div>
     </div>
+  );
+}
+
+function TimeCategoriesCard() {
+  const { data: cats = [] } = useTimeCategories();
+  const upsert = useUpsertTimeCategory();
+  const archive = useArchiveTimeCategory();
+  const [newLabel, setNewLabel] = useState("");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Time categories</CardTitle>
+        <CardDescription>
+          Overhead buckets used for ongoing tasks. Each is provisioned as a
+          perpetual ClickUp task per team member.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cats.map((c) => (
+          <div key={c.id} className="flex items-center gap-2">
+            <Input
+              defaultValue={c.label}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== c.label) upsert.mutate({ id: c.id, label: v });
+              }}
+              className="flex-1"
+            />
+            <Input
+              type="number"
+              step="0.25"
+              defaultValue={c.weekly_budget_hours ?? ""}
+              placeholder="hrs/wk"
+              className="w-24"
+              onBlur={(e) => {
+                const raw = e.target.value.trim();
+                const v = raw === "" ? null : Number(raw);
+                if (v !== c.weekly_budget_hours) {
+                  upsert.mutate({ id: c.id, weekly_budget_hours: v });
+                }
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                if (confirm(`Archive "${c.label}"? Existing tasks stay; no new tasks will be provisioned.`)) {
+                  archive.mutate(c.id);
+                }
+              }}
+              aria-label={`Archive ${c.label}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 pt-2 border-t">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="New category label (e.g. Sales / BD)"
+            className="flex-1"
+          />
+          <Button
+            onClick={() => {
+              const label = newLabel.trim();
+              if (!label) return;
+              const label_key = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+              upsert.mutate(
+                {
+                  label,
+                  label_key,
+                  display_order: (cats[cats.length - 1]?.display_order ?? 0) + 10,
+                },
+                { onSuccess: () => setNewLabel("") },
+              );
+            }}
+          >
+            Add
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -38,11 +38,13 @@ interface PointModification {
 interface ResponseBody {
   sprintPoints: SprintPoint[];
   timeEntries: TimeEntry[];
+  overheadEntries: TimeEntry[];
   pointModifications: PointModification[];
   meta: {
     periodLabel: string;
     totalPoints: number;
     totalHours: number;
+    totalOverheadHours: number;
     dailyAvg: number;
     activeContributors: number;
   };
@@ -137,6 +139,14 @@ Deno.serve(async (req: Request) => {
     if (!settings?.clickup_workspace_id) return json({ error: "ClickUp workspace ID not configured" }, 400);
     if (!settings?.clickup_clients_space_id) return json({ error: "ClickUp clients space not configured" }, 400);
 
+    const { data: ongoingRows } = await supabase
+      .from("ongoing_tasks")
+      .select("clickup_task_id")
+      .is("archived_at", null);
+    const ongoingTaskIds = new Set(
+      (ongoingRows ?? []).map((r) => r.clickup_task_id),
+    );
+
     const [startMs, endMs] = periodRange(view, date);
     const CU_HEADERS = { Authorization: clickupPat, "Content-Type": "application/json" };
 
@@ -201,6 +211,7 @@ Deno.serve(async (req: Request) => {
         duration: string; // ms as string
         start: string;    // unix ms as string
         user: { id: number };
+        task?: { id: string };
       }>;
     };
 
@@ -235,17 +246,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Aggregate time entries by bucket + userId
+    // Aggregate time entries by bucket + userId — split delivery vs overhead
     const timeMap = new Map<string, TimeEntry>();
+    const overheadMap = new Map<string, TimeEntry>();
     for (const entry of timeBody.data ?? []) {
       const hours = Number(entry.duration) / 3_600_000;
       const bucket = toBucket(view, Number(entry.start));
       const key = `${bucket}::${entry.user.id}`;
-      const existing = timeMap.get(key);
+      const target = entry.task?.id && ongoingTaskIds.has(entry.task.id)
+        ? overheadMap
+        : timeMap;
+      const existing = target.get(key);
       if (existing) {
         existing.hours += hours;
       } else {
-        timeMap.set(key, { bucket, userId: entry.user.id, hours });
+        target.set(key, { bucket, userId: entry.user.id, hours });
       }
     }
 
@@ -306,23 +321,28 @@ Deno.serve(async (req: Request) => {
 
     const sprintPoints = Array.from(sprintMap.values());
     const timeEntries = Array.from(timeMap.values());
+    const overheadEntries = Array.from(overheadMap.values());
 
     const totalPoints = sprintPoints.reduce((s, r) => s + r.points, 0);
     const totalHours = timeEntries.reduce((s, r) => s + r.hours, 0);
+    const totalOverheadHours = overheadEntries.reduce((s, r) => s + r.hours, 0);
     const days = Math.max(workingDays(startMs, endMs), 1);
     const activeContributors = new Set([
       ...sprintPoints.map((r) => r.userId),
       ...timeEntries.map((r) => r.userId),
+      ...overheadEntries.map((r) => r.userId),
     ]).size;
 
     const result: ResponseBody = {
       sprintPoints,
       timeEntries,
+      overheadEntries,
       pointModifications,
       meta: {
         periodLabel: periodLabel(view, date),
         totalPoints,
         totalHours: Math.round(totalHours * 10) / 10,
+        totalOverheadHours: Math.round(totalOverheadHours * 10) / 10,
         dailyAvg: Math.round((totalPoints / days) * 10) / 10,
         activeContributors,
       },

@@ -32,6 +32,7 @@ export interface ProductivityMeta {
   periodLabel: string;
   totalPoints: number;
   totalHours: number;
+  totalOverheadHours: number;
   dailyAvg: number;
   activeContributors: number;
 }
@@ -39,6 +40,7 @@ export interface ProductivityMeta {
 export interface ProductivityData {
   sprintPoints: SprintPoint[];
   timeEntries: TimeEntry[];
+  overheadEntries: TimeEntry[];
   meta: ProductivityMeta;
   pointModifications: PointModification[];
 }

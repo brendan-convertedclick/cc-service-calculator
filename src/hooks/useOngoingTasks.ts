@@ -1,0 +1,90 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { TimeCategory, OngoingTaskWithCategory } from "@/types/ongoing";
+
+export function useTimeCategories() {
+  return useQuery<TimeCategory[]>({
+    queryKey: ["time-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("time_categories")
+        .select("*")
+        .is("archived_at", null)
+        .order("display_order");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useOngoingTasksForMember(memberId: string | null) {
+  return useQuery<OngoingTaskWithCategory[]>({
+    queryKey: ["ongoing-tasks", memberId],
+    enabled: !!memberId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ongoing_tasks")
+        .select("*, time_category:time_categories(*)")
+        .eq("team_member_id", memberId!)
+        .is("archived_at", null);
+      if (error) throw error;
+      return (data ?? []) as unknown as OngoingTaskWithCategory[];
+    },
+  });
+}
+
+export function useProvisionOngoingTasks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (teamMemberId: string) => {
+      const { data, error } = await supabase.functions.invoke(
+        "provision-ongoing-tasks",
+        { body: { team_member_id: teamMemberId } },
+      );
+      if (error) throw error;
+      if ((data as { error?: string }).error) throw new Error((data as { error: string }).error);
+      return data as { provisioned: number; skipped: number };
+    },
+    onSuccess: (_d, teamMemberId) => {
+      qc.invalidateQueries({ queryKey: ["ongoing-tasks", teamMemberId] });
+    },
+  });
+}
+
+export function useUpsertTimeCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<TimeCategory> & { id?: string; label_key?: string; label?: string }) => {
+      if (patch.id) {
+        const { error } = await supabase
+          .from("time_categories")
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq("id", patch.id);
+        if (error) throw error;
+      } else {
+        if (!patch.label_key || !patch.label) {
+          throw new Error("label_key and label required when creating a category");
+        }
+        const { error } = await supabase
+          .from("time_categories")
+          .insert({ label_key: patch.label_key, label: patch.label, ...patch });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["time-categories"] }),
+  });
+}
+
+export function useArchiveTimeCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("time_categories")
+        .update({ archived_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["time-categories"] }),
+  });
+}

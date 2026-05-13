@@ -73,6 +73,7 @@ This repo ships a dedicated MCP server in `.mcp.json` named **`cc-supabase`**, p
 - **Environment:** `.env.local` is gitignored; `.env.example` shows the shape. Vite prefixes with `VITE_`.
 - **Dev server port:** pinned to `5174` with `strictPort: true` in `vite.config.ts`. Other devs on the team use 5173 — do not change this port.
 - **AI:** Anthropic Claude Sonnet 4.6 via a single Supabase Edge Function `generate-process-steps`. Key stored as Supabase secret, never shipped to the browser.
+- **Ongoing tasks (overhead):** Time spent on standups, internal meetings, admin/comms, learning, and sales/BD is tracked via *perpetual* per-person ClickUp tasks living in `settings.clickup_internal_list_id`. Provision them from the Team page (one click per member). Task names follow `[Internal] {full_name} — {Category}` so Rize.io can auto-match. These tasks never close. Time flows in from Rize → ClickUp → `ongoing_actuals` via `sync-clickup-actuals` (existing cron). In the productivity view, ongoing-task hours are split out as Overhead — they're classified by checking each ClickUp time entry's `task.id` against the active `ongoing_tasks` set inside `get-productivity`.
 - **Edge function helpers:** shared via `supabase/functions/_shared/`. Use `cors()`, `json()`, `createUserClient(req)`, `createServiceRoleClient()`, `callAnthropic({...})`, `buildBriefComment(...)`, `resolveListAlias(...)` instead of inlining.
 
 ## Design tokens — Figma is the source of truth

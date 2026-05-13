@@ -726,6 +726,86 @@ export type Database = {
         }
         Relationships: []
       }
+      ongoing_actuals: {
+        Row: {
+          clickup_task_id: string
+          cumulative_hours: number
+          id: string
+          ongoing_task_id: string
+          synced_at: string
+          time_entries: Json | null
+        }
+        Insert: {
+          clickup_task_id: string
+          cumulative_hours?: number
+          id?: string
+          ongoing_task_id: string
+          synced_at?: string
+          time_entries?: Json | null
+        }
+        Update: {
+          clickup_task_id?: string
+          cumulative_hours?: number
+          id?: string
+          ongoing_task_id?: string
+          synced_at?: string
+          time_entries?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ongoing_actuals_ongoing_task_id_fkey"
+            columns: ["ongoing_task_id"]
+            isOneToOne: false
+            referencedRelation: "ongoing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ongoing_tasks: {
+        Row: {
+          archived_at: string | null
+          clickup_task_id: string
+          id: string
+          provisioned_at: string
+          task_name: string
+          team_member_id: string
+          time_category_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          clickup_task_id: string
+          id?: string
+          provisioned_at?: string
+          task_name: string
+          team_member_id: string
+          time_category_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          clickup_task_id?: string
+          id?: string
+          provisioned_at?: string
+          task_name?: string
+          team_member_id?: string
+          time_category_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ongoing_tasks_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ongoing_tasks_time_category_id_fkey"
+            columns: ["time_category_id"]
+            isOneToOne: false
+            referencedRelation: "time_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_clients: {
         Row: {
           dismissed_at: string | null
@@ -1800,6 +1880,7 @@ export type Database = {
           blended_hourly_rate_zar: number
           clickup_clients_space_id: string | null
           clickup_enabled: boolean
+          clickup_internal_list_id: string | null
           clickup_workspace_id: string | null
           id: number
           inbound_email_secret: string | null
@@ -1816,6 +1897,7 @@ export type Database = {
           blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
+          clickup_internal_list_id?: string | null
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
@@ -1832,6 +1914,7 @@ export type Database = {
           blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
+          clickup_internal_list_id?: string | null
           clickup_workspace_id?: string | null
           id?: number
           inbound_email_secret?: string | null
@@ -1948,6 +2031,42 @@ export type Database = {
           },
         ]
       }
+      time_categories: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          label: string
+          label_key: string
+          updated_at: string
+          weekly_budget_hours: number | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label: string
+          label_key: string
+          updated_at?: string
+          weekly_budget_hours?: number | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label?: string
+          label_key?: string
+          updated_at?: string
+          weekly_budget_hours?: number | null
+        }
+        Relationships: []
+      }
       xero_connection: {
         Row: {
           access_token: string
@@ -2043,6 +2162,23 @@ export type Database = {
       }
     }
     Views: {
+      ongoing_actuals_current: {
+        Row: {
+          clickup_task_id: string | null
+          cumulative_hours: number | null
+          ongoing_task_id: string | null
+          synced_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ongoing_actuals_ongoing_task_id_fkey"
+            columns: ["ongoing_task_id"]
+            isOneToOne: false
+            referencedRelation: "ongoing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_step_handoffs: {
         Row: {
           from_completed_at: string | null
@@ -2128,6 +2264,13 @@ export type Database = {
         }[]
       }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
+      queue_pending_client: {
+        Args: { p_domain: string; p_sender: string; p_subject: string }
+        Returns: {
+          id: string
+          seen_count: number
+        }[]
+      }
       queue_pending_sender: {
         Args: {
           p_client_id: string

@@ -46,6 +46,7 @@ export function ProductivityPage() {
     periodLabel: "",
     totalPoints: 0,
     totalHours: 0,
+    totalOverheadHours: 0,
     dailyAvg: 0,
     activeContributors: 0,
   };

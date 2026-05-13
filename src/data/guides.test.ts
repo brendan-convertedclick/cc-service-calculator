@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { decks } from './guides'
 
 describe('guides data', () => {
-  it('has all 6 decks', () => {
-    expect(decks).toHaveLength(6)
+  it('has all 7 decks', () => {
+    expect(decks).toHaveLength(7)
   })
 
   it('every deck has at least one step', () => {

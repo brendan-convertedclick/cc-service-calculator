@@ -66,7 +66,7 @@ describe("buildChartData", () => {
 });
 
 describe("buildHoursData", () => {
-  it("sums hours by bucket", () => {
+  it("sums hours per user per bucket", () => {
     const timeEntries = [
       { bucket: "2026-05-01", userId: 1, hours: 3 },
       { bucket: "2026-05-01", userId: 2, hours: 2 },
@@ -74,8 +74,8 @@ describe("buildHoursData", () => {
     ];
     const result = buildHoursData(timeEntries);
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ bucket: "2026-05-01", hours: 5 });
-    expect(result[1]).toMatchObject({ bucket: "2026-05-02", hours: 4 });
+    expect(result[0]).toMatchObject({ bucket: "2026-05-01", "1_hours": 3, "2_hours": 2 });
+    expect(result[1]).toMatchObject({ bucket: "2026-05-02", "1_hours": 4 });
   });
 
   it("returns empty array for empty input", () => {
