@@ -189,10 +189,10 @@ function PendingClientRow({
   onDismiss: () => void;
 }) {
   const defaultName = pending.domain
-    .replace(/\.[^.]+$/, "")
-    .split(".")
-    .pop()!
-    .replace(/^./, (c) => c.toUpperCase());
+    .split(".")[0]
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
   const [name, setName] = useState(defaultName);
 
   return (
