@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { evaluatePattern } from "@/lib/senderRules";
 
 export type SenderRule = {
   id: string;
@@ -158,14 +159,12 @@ export function useBriefsMatchingSender(
       const { data, error } = await supabase
         .from("briefs")
         .select("id, raw_subject, sender_email, received_at, status")
-        .eq("client_id", clientId);
+        .eq("client_id", clientId)
+        .not("status", "in", '("archived","rejected","spam")');
       if (error) throw error;
-      const norm = pattern.trim().toLowerCase();
-      const isWildcard = norm.startsWith("*@");
-      return (data ?? []).filter((b) => {
-        const e = (b.sender_email ?? "").toLowerCase();
-        return isWildcard ? e.endsWith(norm.slice(1)) : e === norm;
-      }) as BriefMatch[];
+      return (data ?? []).filter((b) =>
+        b.sender_email ? evaluatePattern(pattern, b.sender_email) : false,
+      ) as BriefMatch[];
     },
   });
 }

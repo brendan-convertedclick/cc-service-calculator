@@ -17,11 +17,11 @@ const mockBriefsInsert = vi.fn(() => ({ select: mockBriefsInsertSelect }))
 const mockRulesEq = vi.fn()
 const mockRulesSelect = vi.fn(() => ({ eq: mockRulesEq }))
 
-// pending_senders.upsert(...) — pending queue
-const mockPendingUpsert = vi.fn(() => Promise.resolve({ data: null, error: null }))
+// supabase.rpc('queue_pending_sender', ...) — pending queue
+const mockRpc = vi.fn(() => Promise.resolve({ data: null, error: null }))
 
 const mockFrom = vi.fn()
-vi.mock('../supabase.js', () => ({ supabase: { from: mockFrom } }))
+vi.mock('../supabase.js', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }))
 
 const { handler } = await import('./create-brief.js')
 
@@ -34,7 +34,6 @@ function setupBriefsFlow() {
       return { insert: mockBriefsInsert }
     }
     if (table === 'client_sender_rules') return { select: mockRulesSelect }
-    if (table === 'pending_senders') return { upsert: mockPendingUpsert }
     return {}
   })
 }
@@ -69,7 +68,7 @@ describe('create-brief', () => {
     }))
     expect(mockFireAutoScope).toHaveBeenCalledWith('new-brief')
     // Decision was 'pending' (no rules) but client_id present → pending row queued
-    expect(mockPendingUpsert).toHaveBeenCalled()
+    expect(mockRpc).toHaveBeenCalled()
   })
 
   it('blocks insert and skips auto-scope when a block rule matches', async () => {
@@ -95,7 +94,7 @@ describe('create-brief', () => {
       error: null,
     })
     await handler({ gmail_thread_id: 'thread-4', subject: 'Hi', body: '...', sender_email: 'sam@x.com', client_id: 'client-1' })
-    expect(mockPendingUpsert).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
     expect(mockFireAutoScope).toHaveBeenCalled()
   })
 })
