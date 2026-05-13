@@ -204,7 +204,42 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ inserted });
+    // Ongoing tasks — perpetual per-person overhead tasks. Pull current
+    // time entries and append a snapshot. No "all done" rollup; these
+    // tasks never close.
+    const { data: ongoing } = await supabase
+      .from("ongoing_tasks")
+      .select("id, clickup_task_id")
+      .is("archived_at", null);
+
+    let ongoingInserted = 0;
+    for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      const teRes = await fetch(
+        `https://api.clickup.com/api/v2/task/${ot.clickup_task_id}/time`,
+        CU,
+      );
+      if (!teRes.ok) continue;
+      const timeEntries = (await teRes.json()).data ?? [];
+      const cumulativeHours = timeEntries.reduce(
+        (acc: number, e: { time?: number | string }) =>
+          acc + Number(e.time ?? 0) / 3_600_000,
+        0,
+      );
+
+      const { error: insErr } = await supabase.from("ongoing_actuals").insert({
+        ongoing_task_id: ot.id,
+        clickup_task_id: ot.clickup_task_id,
+        cumulative_hours: cumulativeHours,
+        time_entries: timeEntries,
+      });
+      if (insErr) {
+        console.error("ongoing_actuals insert failed:", insErr.message);
+        continue;
+      }
+      ongoingInserted++;
+    }
+
+    return json({ inserted, ongoing_inserted: ongoingInserted });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
