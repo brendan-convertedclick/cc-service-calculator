@@ -3,6 +3,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateTeamMember, useDeleteTeamMember, useTeam, useUpdateTeamMember } from "@/hooks/useTeam";
+import {
+  useTimeCategories,
+  useOngoingTasksForMember,
+  useProvisionOngoingTasks,
+} from "@/hooks/useOngoingTasks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +49,7 @@ export function Team() {
                   <th className="py-2">Email</th>
                   <th className="py-2">Primary dept</th>
                   <th className="py-2">Skills</th>
+                  <th className="py-2">Ongoing</th>
                   <th className="py-2 text-right">Cost / hr</th>
                   <th className="py-2"></th>
                 </tr>
@@ -90,6 +96,7 @@ export function Team() {
                         onChange={(skills) => update.mutate({ id: m.id, patch: { skills } })}
                       />
                     </td>
+                    <OngoingCell memberId={m.id} />
                     <td className="py-3 pl-2 w-32">
                       <Input
                         type="number"
@@ -227,5 +234,37 @@ function NewMemberDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OngoingCell({ memberId }: { memberId: string }) {
+  const { data: cats = [] } = useTimeCategories();
+  const { data: tasks = [], isLoading } = useOngoingTasksForMember(memberId);
+  const provision = useProvisionOngoingTasks();
+  const missing = cats.length - tasks.length;
+
+  return (
+    <td className="py-3 pr-2">
+      <div className="flex items-center gap-2">
+        <Badge variant={missing > 0 ? "destructive" : "secondary"}>
+          {isLoading ? "…" : `${tasks.length}/${cats.length}`}
+        </Badge>
+        {missing > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={provision.isPending}
+            onClick={() =>
+              provision.mutate(memberId, {
+                onSuccess: (d) => toast.success(`Provisioned ${d.provisioned} task(s)`),
+                onError: (e) => toast.error(e.message),
+              })
+            }
+          >
+            {provision.isPending ? "…" : "Provision"}
+          </Button>
+        )}
+      </div>
+    </td>
   );
 }
