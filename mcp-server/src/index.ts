@@ -16,6 +16,10 @@ import * as setBriefIntelligence from './tools/set-brief-intelligence.js'
 import * as getBriefIntelligence from './tools/get-brief-intelligence.js'
 import * as listClientDomains from './tools/list-client-domains.js'
 import * as evaluateSender from './tools/evaluate-sender.js'
+import * as listSenderRules from './tools/list-sender-rules.js'
+import * as setSenderRule from './tools/set-sender-rule.js'
+import * as listPendingSenders from './tools/list-pending-senders.js'
+import * as resolvePendingSender from './tools/resolve-pending-sender.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -124,6 +128,34 @@ server.tool(
   'Evaluate a sender email against per-client allow/block rules. Returns { decision: allow | block | pending | unknown, client_id?, rule_id? }. Block wins; unknown means the sender domain is not a client domain.',
   rawShape(evaluateSender.schema),
   h(evaluateSender.handler),
+)
+
+server.tool(
+  'list-sender-rules',
+  'List allow/block rules for a client. Returns { allow: Rule[], blocked: Rule[] }.',
+  rawShape(listSenderRules.schema),
+  h(listSenderRules.handler),
+)
+
+server.tool(
+  'set-sender-rule',
+  'Upsert (or delete with delete=true) a single allow/block rule. Pattern is lowercased; must contain @.',
+  rawShape(setSenderRule.schema),
+  h(setSenderRule.handler),
+)
+
+server.tool(
+  'list-pending-senders',
+  'List senders awaiting explicit approval, optionally scoped to one client. Ordered by last_seen_at desc.',
+  rawShape(listPendingSenders.schema),
+  h(listPendingSenders.handler),
+)
+
+server.tool(
+  'resolve-pending-sender',
+  'Approve (action=allow) or reject (action=block) a pending sender. Creates a rule and removes the pending row.',
+  rawShape(resolvePendingSender.schema),
+  h(resolvePendingSender.handler),
 )
 
 const transport = new StdioServerTransport()
