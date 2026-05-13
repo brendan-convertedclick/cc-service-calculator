@@ -20,6 +20,8 @@ import * as listSenderRules from './tools/list-sender-rules.js'
 import * as setSenderRule from './tools/set-sender-rule.js'
 import * as listPendingSenders from './tools/list-pending-senders.js'
 import * as resolvePendingSender from './tools/resolve-pending-sender.js'
+import * as listBriefsMatchingSender from './tools/list-briefs-matching-sender.js'
+import * as applyRetroAction from './tools/apply-retro-action.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -156,6 +158,20 @@ server.tool(
   'Approve (action=allow) or reject (action=block) a pending sender. Creates a rule and removes the pending row.',
   rawShape(resolvePendingSender.schema),
   h(resolvePendingSender.handler),
+)
+
+server.tool(
+  'list-briefs-matching-sender',
+  'Preview which existing briefs would be affected by a sender rule pattern. Returns { briefs: [...] }.',
+  rawShape(listBriefsMatchingSender.schema),
+  h(listBriefsMatchingSender.handler),
+)
+
+server.tool(
+  'apply-retro-action',
+  'Bulk archive or delete briefs by id. Used after adding a block rule to clean up historical briefs from the now-blocked sender.',
+  rawShape(applyRetroAction.schema),
+  h(applyRetroAction.handler),
 )
 
 const transport = new StdioServerTransport()
