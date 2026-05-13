@@ -13,7 +13,7 @@ export async function handler(input: Input) {
       .from('projects')
       .select('id, name, project_code, status, created_at')
       .eq('client_id', input.client_id)
-      .in('status', ['active', 'in_progress'])
+      .eq('status', 'in_progress')
 
     if (error) throw new Error(error.message)
     return { content: [{ type: 'text' as const, text: JSON.stringify(data ?? []) }] }

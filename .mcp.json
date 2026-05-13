@@ -18,8 +18,7 @@
         "/Users/brendangunn/Github/cc-service-calculator/mcp-server/src/index.ts"
       ],
       "env": {
-        "SUPABASE_URL": "https://lpgwxacoqiqpcfpkklib.supabase.co",
-        "SUPABASE_SERVICE_ROLE_KEY": "${CC_CALC_ANON_KEY}"
+        "SUPABASE_URL": "https://lpgwxacoqiqpcfpkklib.supabase.co"
       }
     }
   }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { IconRail } from "@/components/nav/IconRail";
+import { Breadcrumbs } from "@/components/nav/Breadcrumbs";
 
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
@@ -9,6 +10,7 @@ export function AppShell() {
     <div className="min-h-screen flex bg-m-surface-container-low">
       <IconRail navOpen={navOpen} onToggle={() => setNavOpen((o) => !o)} />
       <main className="flex-1 min-h-screen flex flex-col overflow-auto">
+        <Breadcrumbs />
         <Outlet />
       </main>
     </div>

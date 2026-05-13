@@ -7,7 +7,7 @@ type BriefInsert = Database["public"]["Tables"]["briefs"]["Insert"];
 type BriefUpdate = Database["public"]["Tables"]["briefs"]["Update"];
 const DETAIL = (id: string) => ["briefs", "detail", id] as const;
 
-export type BriefScope = "mine" | "unassigned" | "waiting" | "all";
+export type BriefScope = "new" | "mine" | "unassigned" | "waiting" | "all";
 
 export type BriefFilterOptions = {
   clientId?: string | null;   // undefined = no filter; null = unassigned only
@@ -34,7 +34,9 @@ export function useBriefs(
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .order("received_at", { ascending: false });
 
-      if (scope === "mine") {
+      if (scope === "new") {
+        q = q.eq("status", "new");
+      } else if (scope === "mine") {
         if (!currentUserId) return [];
         q = q.eq("assignee_id", currentUserId);
       } else if (scope === "unassigned") {

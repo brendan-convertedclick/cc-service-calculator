@@ -121,6 +121,7 @@ export type Database = {
           priority_tier: string | null
           requirements: Json | null
           services_snapshot: Json | null
+          suggested_services: Json | null
           summary: string | null
           total_ai_hours: number | null
           total_human_hours_high: number | null
@@ -149,6 +150,7 @@ export type Database = {
           priority_tier?: string | null
           requirements?: Json | null
           services_snapshot?: Json | null
+          suggested_services?: Json | null
           summary?: string | null
           total_ai_hours?: number | null
           total_human_hours_high?: number | null
@@ -177,6 +179,7 @@ export type Database = {
           priority_tier?: string | null
           requirements?: Json | null
           services_snapshot?: Json | null
+          suggested_services?: Json | null
           summary?: string | null
           total_ai_hours?: number | null
           total_human_hours_high?: number | null

@@ -1,3 +1,4 @@
+import { forwardRef } from "react"
 import { Calculator, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -10,15 +11,20 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-function NavRow({ item, navOpen }: { item: NavItem; navOpen: boolean }) {
+const NavRow = forwardRef<
+  HTMLAnchorElement,
+  { item: NavItem; navOpen: boolean } & React.HTMLAttributes<HTMLAnchorElement>
+>(function NavRow({ item, navOpen, ...rest }, ref) {
   const { pathname } = useLocation()
   const isActive = item.end ? pathname === item.to : pathname.startsWith(item.to)
 
   return (
     <NavLink
+      ref={ref}
       to={item.to}
       end={item.end}
       aria-label={item.label}
+      {...rest}
       className={cn(
         "flex items-center shrink-0 transition-all duration-200 ease-out",
         navOpen
@@ -44,7 +50,7 @@ function NavRow({ item, navOpen }: { item: NavItem; navOpen: boolean }) {
       </span>
     </NavLink>
   )
-}
+})
 
 interface IconRailProps {
   navOpen: boolean

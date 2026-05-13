@@ -7,6 +7,7 @@ export const schema = z.object({
   business_objective:   z.string().optional().describe('What success looks like for the client'),
   client_context_snap:  z.unknown().optional().describe('Snapshot of wiki client context at generation time'),
   requirements:         z.unknown().optional().describe('Array of {text, interpretation, mapped_service_ids, confidence}'),
+  suggested_services:   z.unknown().optional().describe('Array of {service_id, qty, confidence, reasoning} — quote-builder ready rollup'),
   work_breakdown:       z.unknown().optional().describe('Array of department breakdowns with tasks and hours'),
   total_human_hours_low:  z.number().optional(),
   total_human_hours_mid:  z.number().optional(),
@@ -31,9 +32,24 @@ export const schema = z.object({
 
 type Input = z.infer<typeof schema>
 
+// Some MCP callers JSON.stringify array/object payloads before sending. JSONB columns
+// then store them as JSON-typed strings rather than arrays/objects, which crashes the
+// UI on `.map`. Parse strings back to their structured form at the boundary.
+function parseIfJsonString(v: unknown): unknown {
+  if (typeof v !== 'string') return v
+  const trimmed = v.trim()
+  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return v
+  try { return JSON.parse(trimmed) } catch { return v }
+}
+
+const JSON_FIELDS = ['client_context_snap', 'requirements', 'suggested_services', 'work_breakdown', 'open_questions', 'services_snapshot'] as const
+
 export async function handler(input: Input) {
   try {
     const { audit_trail_entry, ...fields } = input
+    for (const k of JSON_FIELDS) {
+      if (k in fields) (fields as Record<string, unknown>)[k] = parseIfJsonString((fields as Record<string, unknown>)[k])
+    }
 
     // Sequential append — the intake orchestrator runs stages sequentially so
     // concurrent calls to this tool on the same brief_id are not expected in V1.

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { X, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -109,19 +109,9 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl p-0">
         <SheetHeader className="flex-shrink-0 border-b p-4">
-          <div className="flex items-start justify-between gap-2">
-            <SheetTitle className="text-title-medium leading-snug line-clamp-2">
-              {brief.raw_subject ?? "(no subject)"}
-            </SheetTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 flex-shrink-0"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <SheetTitle className="text-title-medium leading-snug line-clamp-2 pr-8">
+            {brief.raw_subject ?? "(no subject)"}
+          </SheetTitle>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             {brief.intent_type ? (
               <Badge className="text-label-small">

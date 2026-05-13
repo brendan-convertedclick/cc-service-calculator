@@ -14,7 +14,7 @@ export async function handler(input: Input) {
       .select('id, raw_subject, scopes(enhanced_prose)')
       .eq('client_id', input.client_id)
       .eq('intent_type', 'retainer_thread')
-      .not('status', 'in', '("closed","spam")')
+      .not('status', 'in', '("archived","spam","rejected")')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()

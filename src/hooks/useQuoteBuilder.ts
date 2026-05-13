@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
+import { useBriefIntelligence } from "@/hooks/useBriefIntelligence";
 import { useScope } from "@/hooks/useScopes";
 import { useServices } from "@/hooks/useServices";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -75,6 +76,7 @@ export type UseQuoteBuilderResult = {
 export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderResult {
   const navigate = useNavigate();
   const { data: brief } = useBrief(briefId);
+  const { data: briefIntel } = useBriefIntelligence(briefId);
   const { data: scope } = useScope(briefId);
   const { data: services = [] } = useServices();
   const { data: depts = [] } = useDepartments();
@@ -137,6 +139,54 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     );
     setHydratedForQuote(liveQuote.id);
   }, [liveQuote, hydratedForQuote, quoteData]);
+
+  // Auto-fill from intake's pre-computed suggestions:
+  // when this quote has just been hydrated with zero saved lines AND the brief has
+  // suggested_services from /intake, drop them straight in as editor lines. The user
+  // can still edit or remove. We only do this once per quote — if they delete every
+  // line on purpose, we don't re-add.
+  const [autoFilledForQuote, setAutoFilledForQuote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!liveQuote || !quoteData || !briefIntel) return;
+    if (hydratedForQuote !== liveQuote.id) return;
+    if (autoFilledForQuote === liveQuote.id) return;
+    if (quoteData.services.length > 0) {
+      setAutoFilledForQuote(liveQuote.id);
+      return;
+    }
+    const suggested = briefIntel.suggested_services as
+      | Array<{ service_id: string; qty: number }>
+      | null;
+    if (!Array.isArray(suggested) || suggested.length === 0) {
+      setAutoFilledForQuote(liveQuote.id);
+      return;
+    }
+    const knownIds = new Set(services.map((s) => s.id));
+    const next: EditorLine[] = [];
+    for (const s of suggested) {
+      if (!s.service_id || !knownIds.has(s.service_id)) continue;
+      if (next.some((l) => l.service_id === s.service_id)) continue;
+      const byDept = matrix?.resolved[s.service_id] ?? {};
+      const allocation: Record<string, number> = {};
+      const hours: Record<string, number> = {};
+      for (const [deptId, entry] of Object.entries(byDept)) {
+        allocation[deptId] = Number(entry.pct ?? 0);
+        hours[deptId] = Number(entry.hours ?? 0);
+      }
+      next.push({
+        service_id: s.service_id,
+        qty: Math.max(0.25, Number(s.qty ?? 1)),
+        allocation,
+        hours,
+        is_recurring: false,
+        recurrence_interval: null,
+        recurrence_start: "",
+        recurrence_end: "",
+      });
+    }
+    if (next.length > 0) setLines(next);
+    setAutoFilledForQuote(liveQuote.id);
+  }, [liveQuote, quoteData, briefIntel, hydratedForQuote, autoFilledForQuote, services, matrix]);
 
   const lineTotals = useMemo<QuoteLine[]>(() => {
     return lines.map((l) => {

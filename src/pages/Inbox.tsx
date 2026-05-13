@@ -16,9 +16,10 @@ import type { ClaudePrompt } from "@/types/claude";
 const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
 const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
-const SCOPES: BriefScope[] = ["mine", "unassigned", "waiting", "all"];
+const SCOPES: BriefScope[] = ["new", "mine", "unassigned", "waiting", "all"];
 
 const TAB_LABEL: Record<BriefScope, string> = {
+  new: "New",
   mine: "Mine",
   unassigned: "Unassigned",
   waiting: "Waiting",
@@ -32,7 +33,7 @@ export function Inbox() {
   const { data: selectedBrief } = useBrief(briefId);
   const { data: filterTree } = useInboxFilterTree();
 
-  const defaultTab: BriefScope = currentUserId ? "mine" : "all";
+  const defaultTab: BriefScope = "new";
 
   // undefined = no filter; null = unassigned; string = specific client
   const [activeClientId, setActiveClientId] = useState<string | null | undefined>(undefined);
