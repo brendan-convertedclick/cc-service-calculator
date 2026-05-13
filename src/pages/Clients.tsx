@@ -25,6 +25,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { DetectedInboxButton } from "@/components/clients/DetectedInboxButton";
 
 const UNLINKED = "__unlinked__";
 
@@ -90,8 +91,9 @@ export function Clients() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>All clients</CardTitle>
+          <DetectedInboxButton />
         </CardHeader>
         <CardContent>
           {isLoading ? (
