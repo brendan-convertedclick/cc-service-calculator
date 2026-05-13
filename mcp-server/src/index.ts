@@ -15,6 +15,7 @@ import * as setBriefIntent from './tools/set-brief-intent.js'
 import * as setBriefIntelligence from './tools/set-brief-intelligence.js'
 import * as getBriefIntelligence from './tools/get-brief-intelligence.js'
 import * as listClientDomains from './tools/list-client-domains.js'
+import * as evaluateSender from './tools/evaluate-sender.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -116,6 +117,13 @@ server.tool(
   'Returns all unique email domains known to belong to clients — derived from inbound brief_messages history and clients.primary_domain. Used by intake to build Gmail scan filters.',
   rawShape(listClientDomains.schema),
   h(listClientDomains.handler),
+)
+
+server.tool(
+  'evaluate-sender',
+  'Evaluate a sender email against per-client allow/block rules. Returns { decision: allow | block | pending | unknown, client_id?, rule_id? }. Block wins; unknown means the sender domain is not a client domain.',
+  rawShape(evaluateSender.schema),
+  h(evaluateSender.handler),
 )
 
 const transport = new StdioServerTransport()
