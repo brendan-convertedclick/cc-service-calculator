@@ -103,6 +103,7 @@ const config = {
       backgroundImage: {
         "gradient-brand": "linear-gradient(135deg, #7C3AED, #EC4899)",
         "gradient-brand-r": "linear-gradient(to right, #7C3AED, #EC4899)",
+        "gradient-gold": "linear-gradient(135deg, #F59E0B, #FBBF24, #D97706)",
       },
     },
   },

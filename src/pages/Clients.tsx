@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Shield, Trash2 } from "lucide-react";
+import { Check, Plus, Search, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useClients,
@@ -258,18 +258,30 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 text-xs text-muted-foreground">
-        {c.clickup_folder_id
-          ? `✓ Linked${folderNameById.get(c.clickup_folder_id) ? ` to ${folderNameById.get(c.clickup_folder_id)}` : ""}`
-          : "Unlinked"}
+      <td className="py-3 pl-2 text-xs">
+        {c.clickup_folder_id ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            <span>
+              Linked
+              {folderNameById.get(c.clickup_folder_id)
+                ? ` to ${folderNameById.get(c.clickup_folder_id)}`
+                : ""}
+            </span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Unlinked</span>
+        )}
       </td>
       <td className="py-3 pl-2">
         <div className="flex items-center gap-1">
-          <Button asChild variant="ghost" size="icon" title="Sender rules">
-            <Link to={`/clients/${c.id}`}>
-              <Shield className="h-4 w-4" />
-            </Link>
-          </Button>
+          <Link
+            to={`/clients/${c.id}`}
+            title="Sender rules"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-gradient-gold text-white shadow-elev-1 transition hover:brightness-110 hover:shadow-elev-2 active:brightness-95"
+          >
+            <Shield className="h-4 w-4" />
+          </Link>
           <Button
             variant="ghost"
             size="icon"
