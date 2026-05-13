@@ -22,6 +22,7 @@ import * as listPendingSenders from './tools/list-pending-senders.js'
 import * as resolvePendingSender from './tools/resolve-pending-sender.js'
 import * as listBriefsMatchingSender from './tools/list-briefs-matching-sender.js'
 import * as applyRetroAction from './tools/apply-retro-action.js'
+import * as recordPendingClient from './tools/record-pending-client.js'
 
 // Helper: extract ZodRawShape from a ZodObject or ZodEffects(ZodObject).
 // The MCP SDK server.tool() requires a ZodRawShape (plain record of Zod types),
@@ -172,6 +173,13 @@ server.tool(
   'Bulk archive or delete briefs by id. Used after adding a block rule to clean up historical briefs from the now-blocked sender.',
   rawShape(applyRetroAction.schema),
   h(applyRetroAction.handler),
+)
+
+server.tool(
+  'record-pending-client',
+  'Record an inbound email from a domain that does not match any client. Upserts pending_clients keyed by domain; clears dismissed_at so the row reappears in the inbox. Called by /intake when evaluate-sender returns "unknown".',
+  rawShape(recordPendingClient.schema),
+  h(recordPendingClient.handler),
 )
 
 const transport = new StdioServerTransport()
