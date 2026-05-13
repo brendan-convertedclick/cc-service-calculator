@@ -67,13 +67,13 @@ Deno.serve(async (req: Request) => {
     let provisioned = 0;
     let skipped = 0;
     const created: Array<{ category: string; clickup_task_id: string }> = [];
-    const toInsert: Array<{
-      team_member_id: string;
-      time_category_id: string;
-      clickup_task_id: string;
-      task_name: string;
-    }> = [];
 
+    // Row-by-row insert: each successful CU task is persisted to the DB
+    // immediately. A failure mid-loop leaves at most ONE orphan CU task
+    // (the one whose DB insert just failed) instead of every CU task
+    // created so far. This minimises the blast radius of the orphan-on-
+    // retry-creates-duplicate failure mode the feature can't fully fix
+    // without a ClickUp-side existence check on retry.
     for (const cat of (categories ?? [])) {
       if (existingByCat.has(cat.id)) { skipped++; continue; }
 
@@ -102,19 +102,16 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      toInsert.push({
+      const { error: insErr } = await supabase.from("ongoing_tasks").insert({
         team_member_id: member.id,
         time_category_id: cat.id,
         clickup_task_id: cuTask.id,
         task_name: name,
       });
+      if (insErr) return json({ error: insErr.message }, 500);
+
       provisioned++;
       created.push({ category: cat.label, clickup_task_id: cuTask.id });
-    }
-
-    if (toInsert.length > 0) {
-      const { error: insErr } = await supabase.from("ongoing_tasks").insert(toInsert);
-      if (insErr) return json({ error: insErr.message }, 500);
     }
 
     return json({ provisioned, skipped, created });
