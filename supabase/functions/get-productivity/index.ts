@@ -140,13 +140,37 @@ Deno.serve(async (req: Request) => {
     const [startMs, endMs] = periodRange(view, date);
     const CU_HEADERS = { Authorization: clickupPat, "Content-Type": "application/json" };
 
+    type CUTask = {
+      id: string;
+      name: string;
+      points: number | null;
+      date_done: string;
+      assignees: Array<{ id: number }>;
+      creator: { id: number } | null;
+    };
+
+    async function fetchAllTasks(params: URLSearchParams): Promise<CUTask[]> {
+      const all: CUTask[] = [];
+      let page = 0;
+      const taskBase = `https://api.clickup.com/api/v2/team/${settings!.clickup_workspace_id}/task`;
+      while (page < 20) {
+        params.set("page", String(page));
+        const res = await fetch(`${taskBase}?${params}`, { headers: CU_HEADERS });
+        if (!res.ok) throw new Error(`ClickUp tasks ${res.status}: ${await res.text()}`);
+        const body = await res.json() as { tasks: CUTask[]; last_page?: boolean };
+        all.push(...(body.tasks ?? []));
+        if (body.last_page || (body.tasks ?? []).length === 0) break;
+        page++;
+      }
+      return all;
+    }
+
     // Build task query params
     const taskParams = new URLSearchParams({
       include_closed: "true",
       subtasks: "true",
       date_done_gt: String(startMs),
       date_done_lt: String(endMs),
-      page: "0",
     });
     // Filter to the Clients space; /space/{id}/task is not a valid ClickUp v2 endpoint —
     // use /team/{id}/task with space_ids[] instead
@@ -160,31 +184,18 @@ Deno.serve(async (req: Request) => {
     });
     if (clickup_user_id) timeParams.append("assignee", String(clickup_user_id));
 
-    // Parallel fetch
-    const [tasksRes, timeRes] = await Promise.all([
-      fetch(
-        `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/task?${taskParams}`,
-        { headers: CU_HEADERS },
-      ),
+    // Parallel fetch — tasks are paginated, time entries are not
+    const [allTasks, timeRes] = await Promise.all([
+      fetchAllTasks(taskParams),
       fetch(
         `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/time_entries?${timeParams}`,
         { headers: CU_HEADERS },
       ),
     ]);
 
-    if (!tasksRes.ok) return json({ error: `ClickUp tasks ${tasksRes.status}: ${await tasksRes.text()}` }, 502);
     if (!timeRes.ok) return json({ error: `ClickUp time ${timeRes.status}: ${await timeRes.text()}` }, 502);
 
-    const tasksBody = await tasksRes.json() as {
-      tasks: Array<{
-        id: string;
-        name: string;
-        points: number | null;
-        date_done: string; // unix ms as string
-        assignees: Array<{ id: number }>;
-        creator: { id: number } | null;
-      }>;
-    };
+    const tasksBody = { tasks: allTasks };
     const timeBody = await timeRes.json() as {
       data: Array<{
         duration: string; // ms as string

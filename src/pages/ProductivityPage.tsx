@@ -14,7 +14,7 @@ import { OutputMultiplierShell } from "@/components/productivity/OutputMultiplie
 import { DeliveryTab } from "@/components/productivity/DeliveryTab";
 
 export function ProductivityPage() {
-  const [view, setView] = useState<View>("month");
+  const [view, setView] = useState<View>("week");
   const [date, setDate] = useState(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
@@ -26,7 +26,7 @@ export function ProductivityPage() {
   const { data: settings } = useSettings();
   const goalPoints = settings?.productivity_goal_points ?? 40;
 
-  const { data, isLoading, isError } = useProductivity(
+  const { data, isLoading, isError, refetch, isFetching } = useProductivity(
     view,
     date,
     selectedUserId ?? undefined,
@@ -89,6 +89,8 @@ export function ProductivityPage() {
               periodLabel={data?.meta.periodLabel ?? ""}
               onViewChange={setView}
               onDateChange={setDate}
+              onRefresh={refetch}
+              isRefreshing={isFetching}
             />
 
             {isError && (

@@ -76,6 +76,25 @@ function getTaskType(task: ClickupTask): "external" | "internal" {
     : "external";
 }
 
+async function fetchAllTasks(
+  baseUrl: string,
+  params: URLSearchParams,
+  headers: Record<string, string>,
+): Promise<ClickupTask[]> {
+  const all: ClickupTask[] = [];
+  let page = 0;
+  while (page < 20) {
+    params.set("page", String(page));
+    const res = await fetch(`${baseUrl}?${params}`, { headers });
+    if (!res.ok) throw new Error(`ClickUp tasks ${res.status}: ${await res.text()}`);
+    const body = await res.json() as { tasks: ClickupTask[]; last_page?: boolean };
+    all.push(...(body.tasks ?? []));
+    if (body.last_page || (body.tasks ?? []).length === 0) break;
+    page++;
+  }
+  return all;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -108,7 +127,6 @@ Deno.serve(async (req: Request) => {
       subtasks: "true",
       date_done_gt: String(startMs),
       date_done_lt: String(endMs),
-      page: "0",
     });
     completedParams.append("space_ids[]", String(settings.clickup_clients_space_id));
     if (clickup_user_id) completedParams.append("assignees[]", String(clickup_user_id));
@@ -118,7 +136,6 @@ Deno.serve(async (req: Request) => {
       subtasks: "true",
       date_created_gt: String(startMs),
       date_created_lt: String(endMs),
-      page: "0",
     });
     createdParams.append("space_ids[]", String(settings.clickup_clients_space_id));
     if (clickup_user_id) createdParams.append("assignees[]", String(clickup_user_id));
@@ -130,18 +147,14 @@ Deno.serve(async (req: Request) => {
     if (clickup_user_id) timeParams.append("assignee", String(clickup_user_id));
 
     const base = `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}`;
-    const [completedRes, createdRes, timeRes] = await Promise.all([
-      fetch(`${base}/task?${completedParams}`, { headers: CU }),
-      fetch(`${base}/task?${createdParams}`, { headers: CU }),
+    const [completedTasks, createdTasks, timeRes] = await Promise.all([
+      fetchAllTasks(`${base}/task`, completedParams, CU),
+      fetchAllTasks(`${base}/task`, createdParams, CU),
       fetch(`${base}/time_entries?${timeParams}`, { headers: CU }),
     ]);
 
-    if (!completedRes.ok) return json({ error: `ClickUp completed tasks ${completedRes.status}: ${await completedRes.text()}` }, 502);
-    if (!createdRes.ok) return json({ error: `ClickUp created tasks ${createdRes.status}: ${await createdRes.text()}` }, 502);
     if (!timeRes.ok) return json({ error: `ClickUp time ${timeRes.status}: ${await timeRes.text()}` }, 502);
 
-    const { tasks: completedTasks } = await completedRes.json() as { tasks: ClickupTask[] };
-    const { tasks: createdTasks } = await createdRes.json() as { tasks: ClickupTask[] };
     const { data: timeData } = await timeRes.json() as {
       data: Array<{ duration: string; start: string; user: { id: number } }>;
     };

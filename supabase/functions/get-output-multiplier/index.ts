@@ -113,7 +113,7 @@ async function directView(
       .select("logged_by, session_date, ai_duration_minutes, ai_cost_zar")
       .gte("session_date", pr.startDate)
       .lt("session_date", pr.endDate)
-      .eq("engagement_type", "task");
+      .in("engagement_type", ["task", "agent-run"]);
     if (logged_by) q = q.eq("logged_by", logged_by);
     return q;
   })();
@@ -336,7 +336,7 @@ async function parallelView(
     .select("ai_duration_minutes, created_at, logged_by")
     .gte("session_date", pr.startDate)
     .lt("session_date", pr.endDate)
-    .eq("engagement_type", "task")
+    .in("engagement_type", ["task", "agent-run"])
     .gte("ai_duration_minutes", 1)
     .order("created_at");
 

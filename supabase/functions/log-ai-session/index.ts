@@ -3,8 +3,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
-const CU_LIST_ID    = "901217934382";
-const BRENDAN_CU_ID = 4619351;
+const DEFAULT_CU_LIST_ID = "901217934382";
+const BRENDAN_CU_ID      = 4619351;
 
 const CUSTOM_FIELDS_STATIC = [
   { id: "cb85dec8-42eb-46d2-89da-f8deb943377a", value: "a34ba210-42a2-473e-8279-f45fabeb9b44" },
@@ -29,6 +29,7 @@ interface RequestBody {
   create_clickup_task?: boolean;
   clickup_task_name?: string;
   clickup_task_description?: string;
+  clickup_list_id?: string;        // override which list to create the task in
   ai_session_start_iso?: string;
   jsonl_id?: string;  // JSONL filename UUID — deduplication key
 }
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
       pat,
       body.clickup_task_name,
       body.session_date,
+      body.clickup_list_id ?? DEFAULT_CU_LIST_ID,
       body.clickup_task_description,
       body.ai_duration_minutes,
       body.ai_session_start_iso,
@@ -139,13 +141,14 @@ async function createClickUpTask(
   pat: string,
   name: string,
   sessionDate: string,
+  listId: string,
   description?: string,
   durationMinutes?: number,
   sessionStartIso?: string,
 ): Promise<string | null> {
   const dateMs = new Date(sessionDate).getTime();
 
-  const res = await fetch(`https://api.clickup.com/api/v2/list/${CU_LIST_ID}/task`, {
+  const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
     method: "POST",
     headers: { Authorization: pat, "Content-Type": "application/json" },
     body: JSON.stringify({

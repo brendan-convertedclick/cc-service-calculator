@@ -1,6 +1,6 @@
 // src/components/productivity/OutputMultiplierShell.tsx
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DirectView } from "./DirectView";
 import { ParallelView } from "./ParallelView";
@@ -33,11 +33,11 @@ function anchorDate(period: MultiplierPeriod, offset: number): string {
 
 export function OutputMultiplierShell({ loggedBy }: Props) {
   const [view, setView] = useState<MultiplierView>("direct");
-  const [period, setPeriod] = useState<MultiplierPeriod>("month");
+  const [period, setPeriod] = useState<MultiplierPeriod>("week");
   const [periodOffset, setPeriodOffset] = useState(0);
 
   const date = anchorDate(period, periodOffset);
-  const { data, isLoading, isError } = useOutputMultiplier(view, period, date, loggedBy);
+  const { data, isLoading, isError, refetch, isFetching } = useOutputMultiplier(view, period, date, loggedBy);
 
   return (
     <div className="space-y-5">
@@ -96,6 +96,16 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            aria-label="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
         </div>
       </div>
 
@@ -113,7 +123,7 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
       {data && !isLoading && (
         <>
           {view === "direct" && "members" in data && <DirectView data={data} period={period} isTeam={!loggedBy} />}
-          {view === "parallel" && "heatmap" in data && <ParallelView data={data} />}
+          {view === "parallel" && "heatmap" in data && <ParallelView data={data} period={period} anchorDate={date} />}
           {view === "passive" && "agents" in data && <PassiveView data={data} />}
         </>
       )}

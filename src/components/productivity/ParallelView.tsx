@@ -1,8 +1,36 @@
 // src/components/productivity/ParallelView.tsx
-import { HeatmapCell, ParallelData } from "@/hooks/useOutputMultiplier";
+import { HeatmapCell, MultiplierPeriod, ParallelData } from "@/hooks/useOutputMultiplier";
 
 const MIN_HOUR = 5;
 const MAX_HOUR = 23;
+
+function periodDates(period: MultiplierPeriod, anchor: string): string[] {
+  const [y, mo, da] = anchor.split("-").map(Number);
+  const ref = new Date(y, mo - 1, da);
+  const dates: string[] = [];
+
+  if (period === "week") {
+    // Mon–Sun of the ISO week containing anchor
+    const dow = ref.getDay(); // 0=Sun
+    const monday = new Date(ref);
+    monday.setDate(ref.getDate() - ((dow + 6) % 7));
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+  } else if (period === "month") {
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    for (let i = 1; i <= daysInMonth; i++) {
+      dates.push(`${String(y)}-${String(mo).padStart(2, "0")}-${String(i).padStart(2, "0")}`);
+    }
+  } else {
+    for (let m = 1; m <= 12; m++) {
+      dates.push(`${String(y)}-${String(m).padStart(2, "0")}-01`);
+    }
+  }
+  return dates;
+}
 
 function formatHour(h: number): string {
   if (h === 0) return "12am";
@@ -29,21 +57,15 @@ function cellColorClass(sessions: number, peak: number): string {
 
 interface Props {
   data: ParallelData;
+  period: MultiplierPeriod;
+  anchorDate: string;
 }
 
-export function ParallelView({ data }: Props) {
+export function ParallelView({ data, period, anchorDate }: Props) {
   const { heatmap, summary, periodLabel } = data;
 
-  const dates = Object.keys(heatmap).sort();
+  const dates = periodDates(period, anchorDate);
   const hours = Array.from({ length: MAX_HOUR - MIN_HOUR + 1 }, (_, i) => i + MIN_HOUR);
-
-  if (dates.length === 0) {
-    return (
-      <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-12 text-center text-body-medium text-m-on-surface-variant/40">
-        No sessions logged for this period.
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">

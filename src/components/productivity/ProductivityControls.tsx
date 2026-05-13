@@ -1,5 +1,5 @@
 // src/components/productivity/ProductivityControls.tsx
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { View } from "@/hooks/useProductivity";
 
 interface Props {
@@ -8,9 +8,11 @@ interface Props {
   periodLabel: string;
   onViewChange: (v: View) => void;
   onDateChange: (d: string) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-const VIEWS: View[] = ["year", "month", "week"];
+const VIEWS: View[] = ["week", "month", "year"];
 
 function toLocalISO(d: Date): string {
   const y = d.getFullYear();
@@ -33,7 +35,7 @@ function navigate(view: View, date: string, direction: 1 | -1): string {
   return toLocalISO(dt);
 }
 
-export function ProductivityControls({ view, date, periodLabel, onViewChange, onDateChange }: Props) {
+export function ProductivityControls({ view, date, periodLabel, onViewChange, onDateChange, onRefresh, isRefreshing }: Props) {
   return (
     <div className="flex items-center justify-between">
       <h1 className="text-headline-medium text-m-on-surface">Productivity</h1>
@@ -60,6 +62,17 @@ export function ProductivityControls({ view, date, periodLabel, onViewChange, on
           >
             <ChevronRight className="h-4 w-4" />
           </button>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container transition-colors disabled:opacity-50"
+              aria-label="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
+          )}
         </div>
 
         {/* View tabs */}

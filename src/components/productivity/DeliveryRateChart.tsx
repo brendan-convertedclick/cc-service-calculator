@@ -34,37 +34,48 @@ export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
         Tasks Completed — External vs Internal
       </p>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} barCategoryGap="28%" barGap={2}>
+        <BarChart data={data} barCategoryGap="28%">
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
           <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Tooltip
+            contentStyle={TOOLTIP_STYLE}
+            formatter={(value, key) => {
+              const keyStr = String(key);
+              const isInt = keyStr.endsWith("_int");
+              const userId = isInt ? keyStr.slice(0, -4) : keyStr;
+              const member = members.find((m) => String(m.clickup_user_id) === userId);
+              const firstName = member?.full_name?.split(" ")[0] ?? userId;
+              return [value, `${firstName} (${isInt ? "internal" : "external"})`];
+            }}
+          />
           <Legend
             wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
             formatter={(value) => {
-              const [userId, type] = value.split("_");
-              const member = members.find((m) => String(m.clickup_user_id) === userId);
-              const label = member?.full_name?.split(" ")[0] ?? userId;
-              return `${label} (${type === "ext" ? "external" : "internal"})`;
+              const member = members.find((m) => String(m.clickup_user_id) === value);
+              return member?.full_name?.split(" ")[0] ?? value;
             }}
           />
           {visibleMembers.map((m) => {
             const color = memberColorMap[m.clickup_user_id] ?? "#7C3AED";
+            const stackId = String(m.clickup_user_id);
             return [
               <Bar
                 key={`${m.clickup_user_id}_ext`}
                 dataKey={`${m.clickup_user_id}_ext`}
-                name={`${m.clickup_user_id}_ext`}
+                name={String(m.clickup_user_id)}
+                stackId={stackId}
                 fill={color}
-                radius={[3, 3, 0, 0]}
+                radius={[0, 0, 0, 0]}
               />,
               <Bar
                 key={`${m.clickup_user_id}_int`}
                 dataKey={`${m.clickup_user_id}_int`}
                 name={`${m.clickup_user_id}_int`}
+                stackId={stackId}
                 fill={color}
-                opacity={0.4}
                 radius={[3, 3, 0, 0]}
+                legendType="none"
               />,
             ];
           })}

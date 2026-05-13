@@ -33,7 +33,7 @@ export function DeliveryTab({
   view, date, onViewChange, onDateChange,
   members, selectedUserId, clickupUserId,
 }: Props) {
-  const { data, isLoading, isError } = useDeliveryMetrics(view, date, clickupUserId);
+  const { data, isLoading, isError, refetch, isFetching } = useDeliveryMetrics(view, date, clickupUserId);
 
   const rateChartData = data ? buildRateChartData(data.buckets, view) : [];
   const valueChartData = data ? buildValueChartData(data.buckets, view) : [];
@@ -47,6 +47,8 @@ export function DeliveryTab({
         periodLabel={data?.meta.periodLabel ?? ""}
         onViewChange={onViewChange}
         onDateChange={onDateChange}
+        onRefresh={refetch}
+        isRefreshing={isFetching}
       />
 
       {isError && (
