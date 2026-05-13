@@ -93,7 +93,7 @@ export function Projects() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl p-6">
+    <div className="max-w-6xl p-6">
       <h1 className="mb-6 text-headline-medium">Projects</h1>
 
       {empty ? (
