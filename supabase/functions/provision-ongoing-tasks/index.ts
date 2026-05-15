@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
 
     let templateQuery = supabase
       .from("time_categories")
-      .select("id, label, label_key, group_id, is_custom, client_id, archived_at")
+      .select("id, label, label_key, group_id, is_custom, client_id, billable, archived_at")
       .is("archived_at", null);
     if (templateIds && templateIds.length > 0) {
       templateQuery = templateQuery.in("id", templateIds);
@@ -257,6 +257,9 @@ Deno.serve(async (req: Request) => {
           }
 
           const name = buildTaskName(member, tmpl, cell.row);
+          // Resolve effective billable: ongoing_tasks override is null at create
+          // time, so the template default rules.
+          const billable = !!tmpl.billable;
           const cuRes = await fetch(
             `https://api.clickup.com/api/v2/list/${listId}/task`,
             {
@@ -269,6 +272,7 @@ Deno.serve(async (req: Request) => {
                   : `Ongoing time bucket for ${member.full_name} on ${cell.row?.name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`,
                 assignees: member.clickup_user_id ? [member.clickup_user_id] : [],
                 status: "in progress",
+                billable,
               }),
             },
           );
@@ -299,6 +303,7 @@ Deno.serve(async (req: Request) => {
             client_list_id: clientListId,
             clickup_task_id: cuTask.id,
             task_name: name,
+            billable,
           });
           if (insErr) {
             failed.push({

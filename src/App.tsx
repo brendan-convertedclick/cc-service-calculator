@@ -29,6 +29,9 @@ const OngoingTasksPlanner = lazy(() =>
 const Foundations = lazy(() =>
   import("@/pages/Foundations").then((m) => ({ default: m.Foundations })),
 );
+const LiveTasksInvoicePreview = lazy(() =>
+  import("@/pages/LiveTasksInvoicePreview").then((m) => ({ default: m.LiveTasksInvoicePreview })),
+);
 const Inbox = lazy(() =>
   import("@/pages/Inbox").then((m) => ({ default: m.Inbox })),
 );
@@ -134,6 +137,7 @@ export default function App() {
               <Route path="scaffold" element={<Navigate to="/scaffold/live-tasks" replace />} />
               <Route path="scaffold/live-tasks" element={<OngoingTasksPlanner />} />
               <Route path="scaffold/foundations" element={<Foundations />} />
+              <Route path="scaffold/invoice-preview" element={<LiveTasksInvoicePreview />} />
               <Route path="pulse" element={<PulseView />} />
               <Route path="reconciliation" element={<ReconciliationView />} />
               <Route path="productivity" element={<ProductivityPage />} />

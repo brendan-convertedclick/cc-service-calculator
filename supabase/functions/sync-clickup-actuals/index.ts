@@ -209,17 +209,27 @@ Deno.serve(async (req: Request) => {
     // tasks never close.
     const { data: ongoing } = await supabase
       .from("ongoing_tasks")
-      .select("id, clickup_task_id")
+      .select("id, clickup_task_id, billable")
       .is("archived_at", null);
 
     let ongoingInserted = 0;
-    for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+    for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string; billable: boolean | null }>) {
       const teRes = await fetch(
         `https://api.clickup.com/api/v2/task/${ot.clickup_task_id}/time`,
         CU,
       );
       if (!teRes.ok) continue;
-      const timeEntries = (await teRes.json()).data ?? [];
+      type RawTimeEntry = { time?: number | string; billable?: boolean; [key: string]: unknown };
+      const rawEntries: RawTimeEntry[] = (await teRes.json()).data ?? [];
+      // ClickUp's /task/{id}/time response should include `billable` per entry,
+      // but defend against omissions by falling back to the row's resolved
+      // billable (or false if the row override is null — only possible on
+      // ongoing_tasks rows provisioned before migration 0050).
+      const taskBillableFallback = ot.billable ?? false;
+      const timeEntries = rawEntries.map((e) => ({
+        ...e,
+        billable: e.billable ?? taskBillableFallback,
+      }));
       const cumulativeHours = timeEntries.reduce(
         (acc: number, e: { time?: number | string }) =>
           acc + Number(e.time ?? 0) / 3_600_000,

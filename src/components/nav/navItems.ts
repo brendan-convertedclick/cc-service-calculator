@@ -10,6 +10,7 @@ import {
   ListTodo,
   Network,
   PackageSearch,
+  Receipt,
   Rocket,
   Settings as SettingsIcon,
   SlidersHorizontal,
@@ -47,6 +48,7 @@ const services: NavItem       = { to: "/services",      label: "Services",      
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false, gradient: "linear-gradient(135deg, #4F46E5, #7C3AED)", color: "#4F46E5" }
 const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks", icon: ListTodo,       end: false, gradient: "linear-gradient(135deg, #F97316, #FBBF24)", color: "#F97316" }
 const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundations", icon: LayoutTemplate, end: false, gradient: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#6366F1" }
+const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoice preview", icon: Receipt, end: false, gradient: "linear-gradient(135deg, #10B981, #14B8A6)", color: "#10B981" }
 
 const clients: NavItem        = { to: "/clients",       label: "Clients",       icon: Building2,         end: false, gradient: "linear-gradient(135deg, #0891B2, #059669)", color: "#0891B2" }
 const departments: NavItem    = { to: "/departments",   label: "Departments",   icon: Workflow,          end: false, gradient: "linear-gradient(135deg, #059669, #0891B2)", color: "#059669" }
@@ -73,7 +75,7 @@ export const navSections: NavSection[] = [
     icon: CalendarRange,
     gradient: "linear-gradient(135deg, #F97316, #FBBF24)",
     color: "#F97316",
-    items: [liveTasks, foundations],
+    items: [liveTasks, foundations, invoicePreview],
   },
   {
     label: "Organization",

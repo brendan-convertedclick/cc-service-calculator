@@ -48,3 +48,6 @@ verify_jwt = false
 
 [functions.provision-client-wiki]
 verify_jwt = false
+
+[functions.build-live-invoice]
+verify_jwt = false
