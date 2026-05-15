@@ -120,6 +120,51 @@ export function useProvisionOngoingTasks() {
   });
 }
 
+export type MatrixFailedCell = {
+  member_id: string;
+  client_id: string | null;
+  task_template_id: string;
+  reason: string;
+};
+
+export type MatrixResult = {
+  provisioned: number;
+  skipped: number;
+  created: Array<{
+    member_id: string;
+    client_id: string | null;
+    task_template_id: string;
+    clickup_task_id: string;
+  }>;
+  failed: MatrixFailedCell[];
+};
+
+export function useProvisionMatrix() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      member_ids: string[];
+      client_ids: string[];
+      task_template_ids: string[];
+      group_id?: string | null;
+    }) => {
+      const { data, error } = await supabase.functions.invoke(
+        "provision-ongoing-tasks",
+        { body: input },
+      );
+      if (error) throw error;
+      const body = data as MatrixResult & { error?: string };
+      if (body.error) throw new Error(body.error);
+      return body;
+    },
+    onSuccess: (_d, input) => {
+      for (const m of input.member_ids) {
+        qc.invalidateQueries({ queryKey: ["ongoing-tasks", m] });
+      }
+    },
+  });
+}
+
 export function useUpsertTimeCategory() {
   const qc = useQueryClient();
   return useMutation({
