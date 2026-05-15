@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -30,12 +29,7 @@ export function Team() {
           <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
           <p className="text-sm text-muted-foreground">People who deliver the work. Primary department drives default assignment.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link to="/team/ongoing-tasks/plan">Plan ongoing tasks</Link>
-          </Button>
-          <NewMemberDialog />
-        </div>
+        <NewMemberDialog />
       </div>
 
       <Card>

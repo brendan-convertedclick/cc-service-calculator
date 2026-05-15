@@ -1,6 +1,4 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useClients } from "@/hooks/useClients";
 import { useTeam } from "@/hooks/useTeam";
@@ -151,14 +149,7 @@ export function OngoingTasksPlanner() {
   return (
     <div className="container mx-auto max-w-7xl p-6 space-y-6">
       <div>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/team">
-            <ChevronLeft className="h-4 w-4" /> Team
-          </Link>
-        </Button>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Plan ongoing tasks
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Scaffold</h1>
         <p className="text-body-medium text-m-on-surface-variant">
           Bulk-provision perpetual ClickUp tasks across the matrix of clients,
           groups, task templates, and members.
