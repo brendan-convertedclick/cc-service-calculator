@@ -17,12 +17,16 @@ import {
 } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
 import {
+  useTaskGroups,
+  useUpsertTaskGroup,
+  useArchiveTaskGroup,
   useTimeCategories,
   useUpsertTimeCategory,
   useArchiveTimeCategory,
 } from "@/hooks/useOngoingTasks";
+import type { TaskGroup, TaskTemplate } from "@/types/ongoing";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier" | "ongoing-tasks";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier" | "task-catalog";
 
 const NAV: { key: SectionKey; label: string }[] = [
   { key: "clickup",          label: "ClickUp" },
@@ -32,7 +36,7 @@ const NAV: { key: SectionKey; label: string }[] = [
   { key: "sow",              label: "SOW Clauses" },
   { key: "productivity",     label: "Productivity" },
   { key: "output-multiplier", label: "Output Multiplier" },
-  { key: "ongoing-tasks",    label: "Ongoing tasks" },
+  { key: "task-catalog",     label: "Task catalog" },
 ];
 
 export function Settings() {
@@ -486,7 +490,7 @@ export function Settings() {
             </Card>
           )}
 
-          {activeSection === "ongoing-tasks" && <TimeCategoriesCard />}
+          {activeSection === "task-catalog" && <TaskCatalogCard />}
 
         </div>
       </div>
@@ -494,55 +498,110 @@ export function Settings() {
   );
 }
 
-function TimeCategoriesCard() {
-  const { data: cats = [] } = useTimeCategories();
-  const upsert = useUpsertTimeCategory();
-  const archive = useArchiveTimeCategory();
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function TaskCatalogCard() {
+  const { data: groups = [] } = useTaskGroups();
+  const { data: templates = [] } = useTimeCategories();
+
+  const globalTemplates = templates.filter((t) => !t.is_custom);
+  const customTemplates = templates.filter((t) => t.is_custom);
+
+  return (
+    <div className="space-y-4">
+      <TaskGroupsCard groups={groups} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Global task catalog</CardTitle>
+          <CardDescription>
+            Reusable task templates available to every client. Provisioning a
+            template creates a perpetual ClickUp task (member × client × template).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {groups.map((g) => (
+            <GroupTemplatesSection
+              key={g.id}
+              group={g}
+              templates={globalTemplates.filter((t) => t.group_id === g.id)}
+            />
+          ))}
+          {groups.length === 0 && (
+            <div className="text-body-small text-m-on-surface-variant">
+              Add a group above to start creating task templates.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {customTemplates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Custom (client-scoped) templates</CardTitle>
+            <CardDescription>
+              Templates created for a single client. Promote a custom template to
+              the global catalog once it's broadly useful (coming soon).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {customTemplates.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 text-body-small"
+              >
+                <span className="flex-1">{t.label}</span>
+                <span className="text-m-on-surface-variant">
+                  {groups.find((g) => g.id === t.group_id)?.label ?? "—"}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function TaskGroupsCard({ groups }: { groups: TaskGroup[] }) {
+  const upsert = useUpsertTaskGroup();
+  const archive = useArchiveTaskGroup();
   const [newLabel, setNewLabel] = useState("");
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Time categories</CardTitle>
+        <CardTitle>Task groups</CardTitle>
         <CardDescription>
-          Overhead buckets used for ongoing tasks. Each is provisioned as a
-          perpetual ClickUp task per team member.
+          Top-level groupings that map 1:1 to a ClickUp List inside each
+          client's Folder (e.g. Administration, Delivery, Meetings).
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {cats.map((c) => (
-          <div key={c.id} className="flex items-center gap-2">
+      <CardContent className="space-y-2">
+        {groups.map((g) => (
+          <div key={g.id} className="flex items-center gap-2">
             <Input
-              defaultValue={c.label}
+              defaultValue={g.label}
               onBlur={(e) => {
                 const v = e.target.value.trim();
-                if (v && v !== c.label) upsert.mutate({ id: c.id, label: v });
+                if (v && v !== g.label) upsert.mutate({ id: g.id, label: v });
               }}
               className="flex-1"
-            />
-            <Input
-              type="number"
-              step="0.25"
-              defaultValue={c.weekly_budget_hours ?? ""}
-              placeholder="hrs/wk"
-              className="w-24"
-              onBlur={(e) => {
-                const raw = e.target.value.trim();
-                const v = raw === "" ? null : Number(raw);
-                if (v !== c.weekly_budget_hours) {
-                  upsert.mutate({ id: c.id, weekly_budget_hours: v });
-                }
-              }}
             />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => {
-                if (confirm(`Archive "${c.label}"? Existing tasks stay; no new tasks will be provisioned.`)) {
-                  archive.mutate(c.id);
+                if (
+                  confirm(
+                    `Archive group "${g.label}"? Templates in it stay but won't show in pickers.`,
+                  )
+                ) {
+                  archive.mutate(g.id);
                 }
               }}
-              aria-label={`Archive ${c.label}`}
+              aria-label={`Archive ${g.label}`}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -552,19 +611,18 @@ function TimeCategoriesCard() {
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="New category label (e.g. Sales / BD)"
+            placeholder="New group (e.g. Strategy)"
             className="flex-1"
           />
           <Button
             onClick={() => {
               const label = newLabel.trim();
               if (!label) return;
-              const label_key = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
               upsert.mutate(
                 {
                   label,
-                  label_key,
-                  display_order: (cats[cats.length - 1]?.display_order ?? 0) + 10,
+                  label_key: slugify(label),
+                  display_order: (groups[groups.length - 1]?.display_order ?? 0) + 10,
                 },
                 { onSuccess: () => setNewLabel("") },
               );
@@ -575,6 +633,92 @@ function TimeCategoriesCard() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function GroupTemplatesSection({
+  group,
+  templates,
+}: {
+  group: TaskGroup;
+  templates: TaskTemplate[];
+}) {
+  const upsert = useUpsertTimeCategory();
+  const archive = useArchiveTimeCategory();
+  const [newLabel, setNewLabel] = useState("");
+
+  return (
+    <div className="space-y-2">
+      <div className="text-title-small">{group.label}</div>
+      {templates.map((t) => (
+        <div key={t.id} className="flex items-center gap-2">
+          <Input
+            defaultValue={t.label}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== t.label) upsert.mutate({ id: t.id, label: v });
+            }}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            step="0.25"
+            defaultValue={t.weekly_budget_hours ?? ""}
+            placeholder="hrs/wk"
+            className="w-24"
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              const v = raw === "" ? null : Number(raw);
+              if (v !== t.weekly_budget_hours) {
+                upsert.mutate({ id: t.id, weekly_budget_hours: v });
+              }
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              if (
+                confirm(
+                  `Archive "${t.label}"? Existing tasks stay; no new tasks will be provisioned.`,
+                )
+              ) {
+                archive.mutate(t.id);
+              }
+            }}
+            aria-label={`Archive ${t.label}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <Input
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          placeholder={`New ${group.label.toLowerCase()} template`}
+          className="flex-1"
+        />
+        <Button
+          variant="outline"
+          onClick={() => {
+            const label = newLabel.trim();
+            if (!label) return;
+            upsert.mutate(
+              {
+                label,
+                label_key: slugify(`${group.label_key}-${label}`),
+                group_id: group.id,
+                display_order: (templates[templates.length - 1]?.display_order ?? 0) + 10,
+              },
+              { onSuccess: () => setNewLabel("") },
+            );
+          }}
+        >
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }
 
