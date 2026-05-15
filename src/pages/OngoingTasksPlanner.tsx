@@ -112,7 +112,7 @@ export function OngoingTasksPlanner() {
       return;
     }
     if (selectedTemplates.size === 0) {
-      toast.error("Pick at least one task template");
+      toast.error("Pick at least one task");
       return;
     }
     if (selectedClients.size === 0) {
@@ -121,7 +121,7 @@ export function OngoingTasksPlanner() {
     }
     if (unmappedClients.length > 0) {
       toast.error(
-        `${unmappedClients.length} client(s) need a list mapped first. Visit the client page to map.`,
+        `${unmappedClients.length} client(s) need a ClickUp list mapped for this list. Visit the client page to map.`,
       );
       return;
     }
@@ -152,7 +152,7 @@ export function OngoingTasksPlanner() {
         <h1 className="text-2xl font-semibold tracking-tight">Scaffold</h1>
         <p className="text-body-medium text-m-on-surface-variant">
           Bulk-provision perpetual ClickUp tasks across the matrix of clients,
-          groups, task templates, and members.
+          lists, tasks, and team members.
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export function OngoingTasksPlanner() {
                   mappingReady.get(c.id) === false && (
                     <span
                       className="text-body-small text-destructive"
-                      title="No list mapped for this group"
+                      title="No ClickUp list mapped for this list"
                     >
                       ⚠
                     </span>
@@ -194,8 +194,8 @@ export function OngoingTasksPlanner() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-title-small">Group</CardTitle>
-            <CardDescription>One group per planning run.</CardDescription>
+            <CardTitle className="text-title-small">List</CardTitle>
+            <CardDescription>One list per planning run.</CardDescription>
           </CardHeader>
           <CardContent>
             <Select
@@ -206,7 +206,7 @@ export function OngoingTasksPlanner() {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Pick a group" />
+                <SelectValue placeholder="Pick a list" />
               </SelectTrigger>
               <SelectContent>
                 {groups.map((g) => (
@@ -222,18 +222,18 @@ export function OngoingTasksPlanner() {
         <Card>
           <CardHeader>
             <CardTitle className="text-title-small">
-              Templates ({selectedTemplates.size})
+              Tasks ({selectedTemplates.size})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 max-h-96 overflow-y-auto">
             {!selectedGroupId && (
               <div className="text-body-small text-m-on-surface-variant">
-                Pick a group first.
+                Pick a list first.
               </div>
             )}
             {selectedGroupId && visibleTemplates.length === 0 && (
               <div className="text-body-small text-m-on-surface-variant">
-                No templates in this group. Add some in Settings → Task catalog.
+                No tasks in this list. Add some in Settings → Task catalog.
               </div>
             )}
             {visibleTemplates.map((t) => (
@@ -261,7 +261,7 @@ export function OngoingTasksPlanner() {
         <Card>
           <CardHeader>
             <CardTitle className="text-title-small">
-              Members ({selectedMembers.size})
+              Team ({selectedMembers.size})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 max-h-96 overflow-y-auto">
