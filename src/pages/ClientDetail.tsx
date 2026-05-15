@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { useClients } from "@/hooks/useClients";
 import { SenderRulesPanel } from "@/components/clients/SenderRulesPanel";
+import { ClickUpListsPanel } from "@/components/clients/ClickUpListsPanel";
 import { Button } from "@/components/ui/button";
 
 export function ClientDetail() {
@@ -44,6 +45,11 @@ export function ClientDetail() {
       <SenderRulesPanel
         clientId={client.id}
         primaryDomain={client.primary_domain ?? null}
+      />
+      <h2 className="text-lg font-semibold">ClickUp lists</h2>
+      <ClickUpListsPanel
+        clientId={client.id}
+        clickupFolderId={client.clickup_folder_id ?? null}
       />
     </div>
   );
