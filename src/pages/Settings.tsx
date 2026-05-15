@@ -23,6 +23,7 @@ import {
   useTimeCategories,
   useUpsertTimeCategory,
   useArchiveTimeCategory,
+  usePromoteTaskTemplate,
 } from "@/hooks/useOngoingTasks";
 import type { TaskGroup, TaskTemplate } from "@/types/ongoing";
 
@@ -537,30 +538,60 @@ function TaskCatalogCard() {
       </Card>
 
       {customTemplates.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Custom (client-scoped) templates</CardTitle>
-            <CardDescription>
-              Templates created for a single client. Promote a custom template to
-              the global catalog once it's broadly useful (coming soon).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {customTemplates.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center gap-2 text-body-small"
-              >
-                <span className="flex-1">{t.label}</span>
-                <span className="text-m-on-surface-variant">
-                  {groups.find((g) => g.id === t.group_id)?.label ?? "—"}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <CustomTemplatesCard templates={customTemplates} groups={groups} />
       )}
     </div>
+  );
+}
+
+function CustomTemplatesCard({
+  templates,
+  groups,
+}: {
+  templates: TaskTemplate[];
+  groups: TaskGroup[];
+}) {
+  const promote = usePromoteTaskTemplate();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Custom (client-scoped) templates</CardTitle>
+        <CardDescription>
+          Templates created for a single client. Promote one when it's broadly
+          useful — promotion exposes it to every client on the next planning
+          run; existing tasks already provisioned stay put.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {templates.map((t) => (
+          <div
+            key={t.id}
+            className="flex items-center gap-2 text-body-small"
+          >
+            <span className="flex-1">{t.label}</span>
+            <span className="text-m-on-surface-variant">
+              {groups.find((g) => g.id === t.group_id)?.label ?? "—"}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={promote.isPending}
+              onClick={() => {
+                if (
+                  confirm(
+                    `Promote "${t.label}" to the global catalog? It will become available for every client on the next planning run.`,
+                  )
+                ) {
+                  promote.mutate(t.id);
+                }
+              }}
+            >
+              Promote
+            </Button>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

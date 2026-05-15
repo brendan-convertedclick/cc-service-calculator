@@ -213,3 +213,21 @@ export function useArchiveTimeCategory() {
 }
 
 export const useArchiveTaskTemplate = useArchiveTimeCategory;
+
+// Promote a custom (client-scoped) template into the global catalog so any
+// client can pick it on the next planning run. Existing ongoing_tasks rows
+// referencing this template keep working — only future provisions are
+// affected (per spec section 8.4).
+export function usePromoteTaskTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("time_categories")
+        .update({ is_custom: false, client_id: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["time-categories"] }),
+  });
+}
