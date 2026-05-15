@@ -61,6 +61,38 @@ export function useUpdateClientList() {
   });
 }
 
+export function useCreateClientList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      client_id: string;
+      group_id?: string | null;
+      custom_label?: string | null;
+    }) => {
+      const { data, error } = await supabase.functions.invoke(
+        "create-client-list",
+        { body: input },
+      );
+      if (error) throw error;
+      const body = data as {
+        error?: string;
+        client_list_id?: string;
+        clickup_list_id?: string;
+        clickup_list_name?: string;
+      };
+      if (body.error) throw new Error(body.error);
+      return body as {
+        client_list_id: string;
+        clickup_list_id: string;
+        clickup_list_name: string;
+      };
+    },
+    onSuccess: (_d, input) => {
+      qc.invalidateQueries({ queryKey: ["client-lists", input.client_id] });
+    },
+  });
+}
+
 export function useArchiveClientList() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2, Plus } from "lucide-react";
 import {
   useClientLists,
   useSyncClientStructure,
   useUpdateClientList,
   useArchiveClientList,
+  useCreateClientList,
 } from "@/hooks/useClientLists";
 import { useTaskGroups } from "@/hooks/useOngoingTasks";
 import {
@@ -16,6 +17,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -38,7 +40,10 @@ export function ClickUpListsPanel({
   const sync = useSyncClientStructure();
   const update = useUpdateClientList();
   const archive = useArchiveClientList();
+  const create = useCreateClientList();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [newLabel, setNewLabel] = useState("");
+  const [newGroupId, setNewGroupId] = useState<string>("__custom__");
 
   const handleSync = () => {
     sync.mutate(clientId, {
@@ -161,6 +166,59 @@ export function ClickUpListsPanel({
             </Button>
           </div>
         ))}
+
+        <div className="flex items-center gap-2 pt-3 border-t">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="New list name (creates in ClickUp)"
+            className="flex-1"
+          />
+          <Select value={newGroupId} onValueChange={setNewGroupId}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__custom__">Custom (no group)</SelectItem>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={create.isPending || (!newLabel.trim() && newGroupId === "__custom__")}
+            onClick={() => {
+              const isCustom = newGroupId === "__custom__";
+              const label = newLabel.trim();
+              if (isCustom && !label) {
+                toast.error("Custom list needs a name");
+                return;
+              }
+              create.mutate(
+                {
+                  client_id: clientId,
+                  group_id: isCustom ? null : newGroupId,
+                  custom_label: isCustom ? label : null,
+                },
+                {
+                  onSuccess: (r) => {
+                    toast.success(`Created "${r.clickup_list_name}" in ClickUp`);
+                    setNewLabel("");
+                    setNewGroupId("__custom__");
+                  },
+                  onError: (e) =>
+                    toast.error(e instanceof Error ? e.message : "Create failed"),
+                },
+              );
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1" /> New list
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
