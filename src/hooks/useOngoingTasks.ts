@@ -1,7 +1,73 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { TimeCategory, OngoingTaskWithCategory } from "@/types/ongoing";
+import type {
+  TaskGroup,
+  TaskTemplate,
+  TimeCategory,
+  OngoingTaskWithCategory,
+} from "@/types/ongoing";
 
+export function useTaskGroups() {
+  return useQuery<TaskGroup[]>({
+    queryKey: ["task-groups"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_groups")
+        .select("*")
+        .is("archived_at", null)
+        .order("display_order");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useUpsertTaskGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      patch: Partial<TaskGroup> & { id?: string; label_key?: string; label?: string },
+    ) => {
+      if (patch.id) {
+        const { error } = await supabase
+          .from("task_groups")
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq("id", patch.id);
+        if (error) throw error;
+      } else {
+        if (!patch.label_key || !patch.label) {
+          throw new Error("label_key and label required when creating a group");
+        }
+        const { error } = await supabase
+          .from("task_groups")
+          .insert({ label_key: patch.label_key, label: patch.label, ...patch });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["task-groups"] }),
+  });
+}
+
+export function useArchiveTaskGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("task_groups")
+        .update({ archived_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task-groups"] });
+      qc.invalidateQueries({ queryKey: ["time-categories"] });
+    },
+  });
+}
+
+// Returns active templates. Global catalog rows (is_custom=false) plus any
+// custom rows scoped to a client. Callers can filter on group_id, is_custom,
+// or client_id in-memory.
 export function useTimeCategories() {
   return useQuery<TimeCategory[]>({
     queryKey: ["time-categories"],
@@ -16,6 +82,9 @@ export function useTimeCategories() {
     },
   });
 }
+
+// Canonical alias going forward.
+export const useTaskTemplates = useTimeCategories;
 
 export function useOngoingTasksForMember(memberId: string | null) {
   return useQuery<OngoingTaskWithCategory[]>({
@@ -54,7 +123,13 @@ export function useProvisionOngoingTasks() {
 export function useUpsertTimeCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<TimeCategory> & { id?: string; label_key?: string; label?: string }) => {
+    mutationFn: async (
+      patch: Partial<TaskTemplate> & {
+        id?: string;
+        label_key?: string;
+        label?: string;
+      },
+    ) => {
       if (patch.id) {
         const { error } = await supabase
           .from("time_categories")
@@ -75,6 +150,9 @@ export function useUpsertTimeCategory() {
   });
 }
 
+// Canonical alias.
+export const useUpsertTaskTemplate = useUpsertTimeCategory;
+
 export function useArchiveTimeCategory() {
   const qc = useQueryClient();
   return useMutation({
@@ -88,3 +166,5 @@ export function useArchiveTimeCategory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["time-categories"] }),
   });
 }
+
+export const useArchiveTaskTemplate = useArchiveTimeCategory;
