@@ -141,10 +141,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: ongoingRows } = await supabase
       .from("ongoing_tasks")
-      .select("clickup_task_id")
+      .select("clickup_task_id, billable")
       .is("archived_at", null);
-    const ongoingTaskIds = new Set(
-      (ongoingRows ?? []).map((r) => r.clickup_task_id),
+    // Map: ClickUp task id -> resolved billable (null override coerced to false).
+    const ongoingBillable = new Map<string, boolean>(
+      (ongoingRows ?? []).map((r) => [r.clickup_task_id, r.billable ?? false]),
     );
 
     const [startMs, endMs] = periodRange(view, date);
@@ -210,6 +211,7 @@ Deno.serve(async (req: Request) => {
       data: Array<{
         duration: string; // ms as string
         start: string;    // unix ms as string
+        billable?: boolean;
         user: { id: number };
         task?: { id: string };
       }>;
@@ -253,9 +255,19 @@ Deno.serve(async (req: Request) => {
       const hours = Number(entry.duration) / 3_600_000;
       const bucket = toBucket(view, Number(entry.start));
       const key = `${bucket}::${entry.user.id}`;
-      const target = entry.task?.id && ongoingTaskIds.has(entry.task.id)
-        ? overheadMap
-        : timeMap;
+      // Classification priority:
+      //  1. If ClickUp returned billable on the entry, trust it (operator
+      //     can override per-entry in ClickUp itself).
+      //  2. Else if the task is in ongoing_tasks, use that row's resolved
+      //     billable (live tasks may be billable; overhead/admin/meetings
+      //     are non-billable per the template's billable flag).
+      //  3. Else assume billable — project/sprint work outside ongoing_tasks
+      //     is billable by default.
+      const fromDb = entry.task?.id ? ongoingBillable.get(entry.task.id) : undefined;
+      const isBillable = typeof entry.billable === "boolean"
+        ? entry.billable
+        : (fromDb !== undefined ? fromDb : true);
+      const target = isBillable ? timeMap : overheadMap;
       const existing = target.get(key);
       if (existing) {
         existing.hours += hours;
