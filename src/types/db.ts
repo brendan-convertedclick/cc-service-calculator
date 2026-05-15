@@ -449,6 +449,57 @@ export type Database = {
           },
         ]
       }
+      client_lists: {
+        Row: {
+          archived_at: string | null
+          clickup_list_id: string
+          clickup_list_name: string
+          client_id: string
+          created_at: string
+          custom_label: string | null
+          discovered_at: string | null
+          group_id: string | null
+          id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          clickup_list_id: string
+          clickup_list_name: string
+          client_id: string
+          created_at?: string
+          custom_label?: string | null
+          discovered_at?: string | null
+          group_id?: string | null
+          id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          clickup_list_id?: string
+          clickup_list_name?: string
+          client_id?: string
+          created_at?: string
+          custom_label?: string | null
+          discovered_at?: string | null
+          group_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_lists_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_lists_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_sender_rules: {
         Row: {
           client_id: string
@@ -532,6 +583,7 @@ export type Database = {
           name: string
           notes: string | null
           primary_domain: string | null
+          short_name: string
           updated_at: string
           wiki_path: string | null
           xero_contact_id: string | null
@@ -545,6 +597,7 @@ export type Database = {
           name: string
           notes?: string | null
           primary_domain?: string | null
+          short_name: string
           updated_at?: string
           wiki_path?: string | null
           xero_contact_id?: string | null
@@ -558,6 +611,7 @@ export type Database = {
           name?: string
           notes?: string | null
           primary_domain?: string | null
+          short_name?: string
           updated_at?: string
           wiki_path?: string | null
           xero_contact_id?: string | null
@@ -765,6 +819,8 @@ export type Database = {
         Row: {
           archived_at: string | null
           clickup_task_id: string
+          client_id: string | null
+          client_list_id: string | null
           id: string
           provisioned_at: string
           task_name: string
@@ -774,6 +830,8 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           clickup_task_id: string
+          client_id?: string | null
+          client_list_id?: string | null
           id?: string
           provisioned_at?: string
           task_name: string
@@ -783,6 +841,8 @@ export type Database = {
         Update: {
           archived_at?: string | null
           clickup_task_id?: string
+          client_id?: string | null
+          client_list_id?: string | null
           id?: string
           provisioned_at?: string
           task_name?: string
@@ -790,6 +850,20 @@ export type Database = {
           time_category_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ongoing_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ongoing_tasks_client_list_id_fkey"
+            columns: ["client_list_id"]
+            isOneToOne: false
+            referencedRelation: "client_lists"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ongoing_tasks_team_member_id_fkey"
             columns: ["team_member_id"]
@@ -1954,6 +2028,39 @@ export type Database = {
         }
         Relationships: []
       }
+      task_groups: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          label: string
+          label_key: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label: string
+          label_key: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          label?: string
+          label_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       team_member_departments: {
         Row: {
           department_id: string
@@ -2034,10 +2141,13 @@ export type Database = {
       time_categories: {
         Row: {
           archived_at: string | null
+          client_id: string | null
           created_at: string
           description: string | null
           display_order: number
+          group_id: string
           id: string
+          is_custom: boolean
           label: string
           label_key: string
           updated_at: string
@@ -2045,10 +2155,13 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          client_id?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
+          group_id: string
           id?: string
+          is_custom?: boolean
           label: string
           label_key: string
           updated_at?: string
@@ -2056,16 +2169,34 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          client_id?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
+          group_id?: string
           id?: string
+          is_custom?: boolean
           label?: string
           label_key?: string
           updated_at?: string
           weekly_budget_hours?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "time_categories_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       xero_connection: {
         Row: {
