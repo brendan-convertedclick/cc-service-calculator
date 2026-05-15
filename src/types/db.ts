@@ -995,6 +995,7 @@ export type Database = {
       ongoing_tasks: {
         Row: {
           archived_at: string | null
+          billable: boolean | null
           clickup_task_id: string
           client_id: string | null
           client_list_id: string | null
@@ -1006,6 +1007,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          billable?: boolean | null
           clickup_task_id: string
           client_id?: string | null
           client_list_id?: string | null
@@ -1017,6 +1019,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          billable?: boolean | null
           clickup_task_id?: string
           client_id?: string | null
           client_list_id?: string | null
