@@ -12,6 +12,7 @@ import { useClientLists } from "@/hooks/useClientLists";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import type { ClientList } from "@/types/ongoing";
+import { BillableBadge } from "@/components/BillableBadge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -247,11 +248,12 @@ export function OngoingTasksPlanner() {
                     setSelectedTemplates(next);
                   }}
                 />
-                <span className="flex-1 truncate text-body-small">
+                <span className="flex-1 truncate text-body-small flex items-center gap-1.5">
                   {t.label}
                   {t.is_custom && (
                     <span className="ml-1 text-m-on-surface-variant">(custom)</span>
                   )}
+                  <BillableBadge billable={t.billable} />
                 </span>
               </label>
             ))}
