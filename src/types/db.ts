@@ -103,6 +103,95 @@ export type Database = {
           },
         ]
       }
+      baseline_lists: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          group_id: string
+          id: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          group_id: string
+          id?: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          group_id?: string
+          id?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_lists_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      baseline_tasks: {
+        Row: {
+          archived_at: string | null
+          baseline_list_id: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          baseline_list_id: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          baseline_list_id?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_tasks_baseline_list_id_fkey"
+            columns: ["baseline_list_id"]
+            isOneToOne: false
+            referencedRelation: "baseline_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baseline_tasks_baseline_list_id_fkey"
+            columns: ["baseline_list_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["baseline_list_id"]
+          },
+        ]
+      }
       brief_intelligence: {
         Row: {
           am_notes: string | null
@@ -359,6 +448,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "briefs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
             foreignKeyName: "briefs_parent_project_id_fkey"
             columns: ["parent_project_id"]
             isOneToOne: false
@@ -449,6 +545,52 @@ export type Database = {
           },
         ]
       }
+      client_baseline_tasks_log: {
+        Row: {
+          baseline_task_id: string
+          clickup_task_id: string
+          client_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          baseline_task_id: string
+          clickup_task_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          baseline_task_id?: string
+          clickup_task_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_baseline_tasks_log_baseline_task_id_fkey"
+            columns: ["baseline_task_id"]
+            isOneToOne: false
+            referencedRelation: "baseline_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_baseline_tasks_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_baseline_tasks_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
       client_lists: {
         Row: {
           archived_at: string | null
@@ -490,6 +632,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_lists_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "client_lists_group_id_fkey"
@@ -536,6 +685,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_sender_rules_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
         ]
       }
       client_touchpoints: {
@@ -570,6 +726,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_touchpoints_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
         ]
       }
@@ -657,6 +820,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
         ]
       }
       departments: {
@@ -735,6 +905,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "list_alias_overrides_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
         ]
       }
@@ -858,6 +1035,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ongoing_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
             foreignKeyName: "ongoing_tasks_client_list_id_fkey"
             columns: ["client_list_id"]
             isOneToOne: false
@@ -951,6 +1135,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_senders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "pending_senders_sample_brief_id_fkey"
@@ -1292,6 +1483,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "projects_quote_id_fkey"
@@ -2190,6 +2388,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "time_categories_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
             foreignKeyName: "time_categories_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -2281,6 +2486,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xero_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "xero_invoices_project_id_fkey"
@@ -2380,6 +2592,31 @@ export type Database = {
           total_price_cents: number | null
         }
         Relationships: []
+      }
+      v_foundations_coverage: {
+        Row: {
+          baseline_label: string | null
+          baseline_list_id: string | null
+          clickup_folder_id: string | null
+          clickup_list_id: string | null
+          client_id: string | null
+          client_name: string | null
+          display_order: number | null
+          group_id: string | null
+          has_list: boolean | null
+          short_name: string | null
+          tasks_created: number | null
+          tasks_total: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_lists_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {

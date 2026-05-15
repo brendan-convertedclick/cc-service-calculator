@@ -1,9 +1,16 @@
-import { forwardRef } from "react"
-import { Calculator, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
+import { forwardRef, useEffect, useState } from "react"
+import { Calculator, ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { navItems, type NavItem } from "./navItems"
+import {
+  bottomNavItems,
+  navItems,
+  navSections,
+  topNavItems,
+  type NavItem,
+  type NavSection,
+} from "./navItems"
 import {
   Tooltip,
   TooltipContent,
@@ -13,8 +20,8 @@ import {
 
 const NavRow = forwardRef<
   HTMLAnchorElement,
-  { item: NavItem; navOpen: boolean } & React.HTMLAttributes<HTMLAnchorElement>
->(function NavRow({ item, navOpen, ...rest }, ref) {
+  { item: NavItem; navOpen: boolean; indent?: boolean } & React.HTMLAttributes<HTMLAnchorElement>
+>(function NavRow({ item, navOpen, indent = false, ...rest }, ref) {
   const { pathname } = useLocation()
   const isActive = item.end ? pathname === item.to : pathname.startsWith(item.to)
 
@@ -29,7 +36,8 @@ const NavRow = forwardRef<
         "flex items-center shrink-0 transition-all duration-200 ease-out",
         navOpen
           ? cn(
-              "w-full gap-3 rounded-full px-3 py-2 text-label-large",
+              "w-full gap-3 rounded-full py-2 text-label-large",
+              indent ? "pl-6 pr-3" : "px-3",
               isActive ? "text-white" : "hover:bg-m-surface-container",
             )
           : cn(
@@ -51,6 +59,46 @@ const NavRow = forwardRef<
     </NavLink>
   )
 })
+
+function SectionGroup({ section }: { section: NavSection }) {
+  const { pathname } = useLocation()
+  const hasActiveChild = section.items.some((it) =>
+    it.end ? pathname === it.to : pathname.startsWith(it.to),
+  )
+  const [open, setOpen] = useState(hasActiveChild)
+  // Auto-expand when navigating into a child, but allow the user to collapse
+  // afterwards (don't keep forcing it open while the child stays active).
+  useEffect(() => {
+    if (hasActiveChild) setOpen(true)
+  }, [hasActiveChild])
+  const Icon = section.icon
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={section.label}
+        className="flex items-center w-full gap-3 rounded-full px-3 py-2 text-label-large transition-all duration-200 ease-out shrink-0 hover:bg-m-surface-container"
+        style={{ color: section.color }}
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" />
+        <span className="flex-1 text-left whitespace-nowrap">{section.label}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 transition-transform duration-200",
+            open ? "rotate-0" : "-rotate-90",
+          )}
+        />
+      </button>
+      {open &&
+        section.items.map((item) => (
+          <NavRow key={item.to} item={item} navOpen={true} indent />
+        ))}
+    </div>
+  )
+}
 
 interface IconRailProps {
   navOpen: boolean
@@ -112,17 +160,27 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
         </button>
 
         {/* Nav items */}
-        {navItems.map((item) =>
-          navOpen ? (
-            <NavRow key={item.to} item={item} navOpen={navOpen} />
-          ) : (
+        {navOpen ? (
+          <>
+            {topNavItems.map((item) => (
+              <NavRow key={item.to} item={item} navOpen={true} />
+            ))}
+            {navSections.map((section) => (
+              <SectionGroup key={section.label} section={section} />
+            ))}
+            {bottomNavItems.map((item) => (
+              <NavRow key={item.to} item={item} navOpen={true} />
+            ))}
+          </>
+        ) : (
+          navItems.map((item) => (
             <Tooltip key={item.to}>
               <TooltipTrigger asChild>
-                <NavRow item={item} navOpen={navOpen} />
+                <NavRow item={item} navOpen={false} />
               </TooltipTrigger>
               <TooltipContent side="right">{item.label}</TooltipContent>
             </Tooltip>
-          ),
+          ))
         )}
 
         {/* Sign out — pinned to bottom */}

@@ -26,6 +26,9 @@ const Team = lazy(() =>
 const OngoingTasksPlanner = lazy(() =>
   import("@/pages/OngoingTasksPlanner").then((m) => ({ default: m.OngoingTasksPlanner })),
 );
+const Foundations = lazy(() =>
+  import("@/pages/Foundations").then((m) => ({ default: m.Foundations })),
+);
 const Inbox = lazy(() =>
   import("@/pages/Inbox").then((m) => ({ default: m.Inbox })),
 );
@@ -128,7 +131,9 @@ export default function App() {
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />
-              <Route path="scaffold" element={<OngoingTasksPlanner />} />
+              <Route path="scaffold" element={<Navigate to="/scaffold/live-tasks" replace />} />
+              <Route path="scaffold/live-tasks" element={<OngoingTasksPlanner />} />
+              <Route path="scaffold/foundations" element={<Foundations />} />
               <Route path="pulse" element={<PulseView />} />
               <Route path="reconciliation" element={<ReconciliationView />} />
               <Route path="productivity" element={<ProductivityPage />} />

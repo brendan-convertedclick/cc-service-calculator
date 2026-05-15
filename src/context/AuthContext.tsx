@@ -2,9 +2,9 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-const DEV_SESSION = import.meta.env.DEV
-  ? ({ user: { id: "dev", email: "team@convertedclick.co.za" } } as unknown as Session)
-  : null;
+const DEV_AUTO_LOGIN = import.meta.env.DEV;
+const DEV_EMAIL = "team@convertedclick.co.za";
+const DEV_PASSWORD = "cc-calc-2026-temp";
 
 type AuthContextValue = {
   session: Session | null;
@@ -23,16 +23,28 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(DEV_SESSION);
-  const [loading, setLoading] = useState(!import.meta.env.DEV);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [domainError, setDomainError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (cancelled) return;
-      setSession(data.session);
+      if (data.session) {
+        setSession(data.session);
+        setLoading(false);
+        return;
+      }
+      if (DEV_AUTO_LOGIN) {
+        const { data: signed } = await supabase.auth.signInWithPassword({
+          email: DEV_EMAIL,
+          password: DEV_PASSWORD,
+        });
+        if (cancelled) return;
+        setSession(signed.session ?? null);
+      }
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {

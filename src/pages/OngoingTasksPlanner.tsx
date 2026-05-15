@@ -149,7 +149,7 @@ export function OngoingTasksPlanner() {
   return (
     <div className="container mx-auto max-w-7xl p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Scaffold</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Live tasks</h1>
         <p className="text-body-medium text-m-on-surface-variant">
           Bulk-provision perpetual ClickUp tasks across the matrix of clients,
           lists, tasks, and team members.

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Plus, Search, Shield, Trash2 } from "lucide-react";
+import { Check, Search, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useClients,
-  useCreateClient,
   useUpdateClient,
   useArchiveClient,
   useClickUpFolders,
@@ -22,12 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { DetectedInboxButton } from "@/components/clients/DetectedInboxButton";
-
-const UNLINKED = "__unlinked__";
+import { NewClientDialog, UNLINKED } from "@/components/clients/NewClientDialog";
 
 export function Clients() {
   const { data: clients = [], isLoading } = useClients();
@@ -302,116 +298,5 @@ function ClientRow({
         </div>
       </td>
     </tr>
-  );
-}
-
-function NewClientDialog({
-  folderOptions,
-  disabled,
-}: {
-  folderOptions: Array<{ value: string; label: string }>;
-  disabled: boolean;
-}) {
-  const create = useCreateClient();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [domain, setDomain] = useState("");
-  const [folderId, setFolderId] = useState<string>(UNLINKED);
-  const [xeroContactId, setXeroContactId] = useState("");
-  const [marginTarget, setMarginTarget] = useState("40");
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4" /> New client
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>New client</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </div>
-          <div className="space-y-2">
-            <Label>Primary domain (optional)</Label>
-            <Input
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="example.co.za"
-            />
-          </div>
-          {!disabled && (
-            <div className="space-y-2">
-              <Label>ClickUp folder (optional)</Label>
-              <Combobox
-                options={folderOptions}
-                value={folderId}
-                onChange={setFolderId}
-                placeholder="Pick a folder..."
-              />
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label>Margin target (%)</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              step="0.5"
-              value={marginTarget}
-              onChange={(e) => setMarginTarget(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Xero Contact ID (optional)</Label>
-            <Input
-              value={xeroContactId}
-              onChange={(e) => setXeroContactId(e.target.value)}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="ghost">Cancel</Button>
-          </DialogClose>
-          <Button
-            onClick={() => {
-              const trimmed = name.trim();
-              if (!trimmed) return toast.error("Name required");
-              const marginNum = parseFloat(marginTarget);
-              create.mutate(
-                {
-                  name: trimmed,
-                  primary_domain: domain.trim() || null,
-                  clickup_folder_id: folderId === UNLINKED ? null : folderId,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  margin_target_pct: (!isNaN(marginNum) ? marginNum : 40) as any,
-                  xero_contact_id: xeroContactId.trim() || null,
-                },
-                {
-                  onSuccess: () => {
-                    setName("");
-                    setDomain("");
-                    setFolderId(UNLINKED);
-                    setXeroContactId("");
-                    setMarginTarget("40");
-                    setOpen(false);
-                    toast.success(`Created ${trimmed}`);
-                  },
-                  onError: (e) => toast.error(e.message),
-                },
-              );
-            }}
-          >
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
