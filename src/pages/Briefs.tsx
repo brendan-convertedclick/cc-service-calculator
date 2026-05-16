@@ -4,22 +4,17 @@ import { toast } from "sonner";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ProgressRing } from "@/components/ProgressRing";
 import { CardActionsMenu, CardActionItem } from "@/components/CardActionsMenu";
-import { useProjects, useUpdateProject } from "@/hooks/useProjects";
+import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
-import {
-  STATUS_LABEL,
-  deriveProjectStatusFromActuals,
-  type DerivedStatus,
-} from "@/lib/project-status";
+import { STATUS_LABEL, resumeHref, type BriefStatus } from "@/lib/brief-routing";
 
-const STATUS_ORDER: DerivedStatus[] = ["backlog", "in_progress", "complete", "cancelled", "archived"];
+const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
 
-export function Projects() {
-  const { data: projects = [] } = useProjects();
+export function Briefs() {
+  const { data: allBriefs = [] } = useBriefs("all");
   const { data: clients = [] } = useClients();
-  const updateProject = useUpdateProject();
+  const updateBrief = useUpdateBrief();
 
   const handleArchiveToggle = async (
     id: string,
@@ -31,13 +26,13 @@ export function Projects() {
     e.stopPropagation();
     close();
     try {
-      await updateProject.mutateAsync({
+      await updateBrief.mutateAsync({
         id,
-        patch: { status: isArchived ? "in_progress" : "archived" },
+        patch: { status: isArchived ? "new" : "archived" },
       });
-      toast.success(isArchived ? "Project restored" : "Project archived");
+      toast.success(isArchived ? "Brief restored" : "Brief archived");
     } catch {
-      toast.error("Failed to update project");
+      toast.error("Failed to update brief");
     }
   };
 
@@ -46,58 +41,41 @@ export function Projects() {
     [clients],
   );
 
-  const enriched = useMemo(
-    () =>
-      projects.map((p) => {
-        const { status, progress } = deriveProjectStatusFromActuals(p.status, p.actuals);
-        return { project: p, status, progress };
-      }),
-    [projects],
+  const inFlightAll = useMemo(
+    () => allBriefs.filter((b) => IN_PROGRESS.includes(b.status as BriefStatus)),
+    [allBriefs],
   );
 
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<DerivedStatus>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<BriefStatus>>(new Set());
 
   const clientOptions = useMemo(() => {
     const ids = new Set<string>();
-    for (const { project } of enriched) {
-      const cid = (project as { client_id?: string | null }).client_id;
-      if (cid) ids.add(cid);
-    }
+    for (const b of inFlightAll) if (b.client_id) ids.add(b.client_id);
     return Array.from(ids)
       .map((id) => ({ id, name: clientById.get(id) ?? "Unknown" }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [enriched, clientById]);
+  }, [inFlightAll, clientById]);
 
   const statusOptions = useMemo(() => {
-    const present = new Set<DerivedStatus>();
-    for (const { status } of enriched) present.add(status);
-    return STATUS_ORDER.filter((s) => present.has(s));
-  }, [enriched]);
+    const set = new Set<BriefStatus>();
+    for (const b of inFlightAll) set.add(b.status as BriefStatus);
+    return Array.from(set).sort();
+  }, [inFlightAll]);
 
-  const filtered = useMemo(
+  const inFlight = useMemo(
     () =>
-      enriched.filter(({ project, status }) => {
-        if (selectedClients.size > 0) {
-          const cid = (project as { client_id?: string | null }).client_id;
-          if (!cid || !selectedClients.has(cid)) return false;
+      inFlightAll.filter((b) => {
+        if (selectedClients.size > 0 && (!b.client_id || !selectedClients.has(b.client_id))) {
+          return false;
         }
-        if (selectedStatuses.size > 0 && !selectedStatuses.has(status)) return false;
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(b.status as BriefStatus)) {
+          return false;
+        }
         return true;
       }),
-    [enriched, selectedClients, selectedStatuses],
+    [inFlightAll, selectedClients, selectedStatuses],
   );
-
-  const grouped = useMemo(() => {
-    const buckets = new Map<DerivedStatus, typeof filtered>();
-    for (const row of filtered) {
-      const list = buckets.get(row.status) ?? [];
-      list.push(row);
-      buckets.set(row.status, list);
-    }
-    return STATUS_ORDER.map((status) => ({ status, rows: buckets.get(status) ?? [] }))
-      .filter((g) => g.rows.length > 0);
-  }, [filtered]);
 
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
 
@@ -110,7 +88,7 @@ export function Projects() {
     });
   };
 
-  const toggleStatus = (s: DerivedStatus) => {
+  const toggleStatus = (s: BriefStatus) => {
     setSelectedStatuses((prev) => {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s);
@@ -121,11 +99,11 @@ export function Projects() {
 
   return (
     <div className="max-w-6xl p-6">
-      <h1 className="mb-6 text-headline-medium">Projects</h1>
+      <h1 className="mb-6 text-headline-medium">Briefs</h1>
 
-      {projects.length === 0 ? (
+      {inFlightAll.length === 0 ? (
         <div className="text-body-medium text-m-on-surface-variant">
-          No projects yet. Accept a brief from the Inbox to start one.
+          No open briefs. New briefs land in the Inbox and become in-flight once triaged.
         </div>
       ) : (
         <div className="flex gap-8">
@@ -226,46 +204,34 @@ export function Projects() {
           </aside>
 
           <div className="min-w-0 flex-1 space-y-8">
-            {grouped.map(({ status, rows }) => (
-              <section key={status} className="space-y-3">
-                <h2 className="text-title-medium">
-                  {STATUS_LABEL[status]} ({rows.length})
-                </h2>
+            {inFlight.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="text-title-medium">In progress ({inFlight.length})</h2>
                 <div className="space-y-2">
-                  {rows.map(({ project: p, status, progress }) => {
-                    const cid = (p as { client_id?: string | null }).client_id;
-                    const clientName = cid ? clientById.get(cid) : undefined;
-                    const showRing = progress.taskTotal > 0;
-                    const ringTitle = `Tasks ${progress.taskComplete}/${progress.taskTotal} (${Math.round(progress.taskPct * 100)}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${Math.round(progress.timePct * 100)}%)`;
+                  {inFlight.map((b) => {
+                    const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
                     return (
-                      <Link to={`/projects/${p.id}`} key={p.id} className="block">
+                      <Link to={resumeHref(b)} key={b.id} className="block">
                         <Card className="transition-colors hover:bg-m-surface-container">
                           <CardContent className="flex items-center justify-between gap-4 p-4">
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-title-small">
-                                {(p as { name?: string }).name ?? "Untitled project"}
+                                {b.raw_subject ?? "(no subject)"}
                               </div>
                               <div className="text-label-small text-m-on-surface-variant">
-                                {clientName ? `${clientName} · ` : ""}Started{" "}
-                                {new Date(p.started_at).toLocaleDateString("en-ZA")}
+                                {clientName ?? b.sender_email ?? "manual"} ·{" "}
+                                {new Date(b.received_at).toLocaleDateString("en-ZA")}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {showRing && (
-                                <ProgressRing
-                                  taskPct={progress.taskPct}
-                                  timePct={progress.timePct}
-                                  title={ringTitle}
-                                />
-                              )}
-                              <Badge>{STATUS_LABEL[status]}</Badge>
-                              <CardActionsMenu ariaLabel="Project actions">
+                              <Badge>{STATUS_LABEL[b.status]}</Badge>
+                              <CardActionsMenu ariaLabel="Brief actions">
                                 {(close) => {
-                                  const isArchived = status === "archived";
+                                  const isArchived = b.status === "archived";
                                   return (
                                     <CardActionItem
-                                      onClick={(e) => handleArchiveToggle(p.id, isArchived, e, close)}
-                                      disabled={updateProject.isPending}
+                                      onClick={(e) => handleArchiveToggle(b.id, isArchived, e, close)}
+                                      disabled={updateBrief.isPending}
                                       icon={
                                         isArchived ? (
                                           <ArchiveRestore className="h-4 w-4" />
@@ -286,11 +252,9 @@ export function Projects() {
                   })}
                 </div>
               </section>
-            ))}
-
-            {hasFilters && grouped.length === 0 && (
+            ) : (
               <div className="text-body-medium text-m-on-surface-variant">
-                No projects match the current filters.
+                No briefs match the current filters.
               </div>
             )}
           </div>

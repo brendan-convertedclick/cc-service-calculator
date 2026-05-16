@@ -56,6 +56,9 @@ const QuoteDetail = lazy(() =>
 const Projects = lazy(() =>
   import("@/pages/Projects").then((m) => ({ default: m.Projects })),
 );
+const Briefs = lazy(() =>
+  import("@/pages/Briefs").then((m) => ({ default: m.Briefs })),
+);
 const ProjectDetail = lazy(() =>
   import("@/pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })),
 );
@@ -110,7 +113,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
-              <Route path="briefs" element={<Navigate to="/inbox" replace />} />
+              <Route path="briefs" element={<Briefs />} />
               <Route path="briefs/new" element={<NewBrief />} />
               <Route path="briefs/:id" element={<BriefResume />} />
               <Route path="briefs/:id/scope" element={<Scope />} />

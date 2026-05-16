@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarRange,
   FileBarChart2,
+  FileText,
   FolderKanban,
   LayoutDashboard,
   LayoutTemplate,
@@ -45,6 +46,7 @@ const pulse: NavItem        = { to: "/pulse",         label: "Pulse",         ic
 const productivity: NavItem = { to: "/productivity",  label: "Productivity",  icon: TrendingUp,        end: false, gradient: "linear-gradient(135deg, #059669, #0891B2)", color: "#059669" }
 
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false, gradient: "linear-gradient(135deg, #EA580C, #FBBF24)", color: "#EA580C" }
+const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false, gradient: "linear-gradient(135deg, #8B5CF6, #EC4899)", color: "#8B5CF6" }
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false, gradient: "linear-gradient(135deg, #4F46E5, #7C3AED)", color: "#4F46E5" }
 const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks", icon: ListTodo,       end: false, gradient: "linear-gradient(135deg, #F97316, #FBBF24)", color: "#F97316" }
 const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundations", icon: LayoutTemplate, end: false, gradient: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#6366F1" }
@@ -68,7 +70,7 @@ export const navSections: NavSection[] = [
     icon: Rocket,
     gradient: "linear-gradient(135deg, #DB2777, #F97316)",
     color: "#DB2777",
-    items: [services, projects],
+    items: [services, briefs, projects],
   },
   {
     label: "Scaffold",

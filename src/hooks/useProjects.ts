@@ -6,14 +6,31 @@ type Project = Database["public"]["Tables"]["projects"]["Row"];
 type ProjectUpdate = Database["public"]["Tables"]["projects"]["Update"];
 type Actual = Database["public"]["Views"]["project_actuals_current"]["Row"];
 
+export type ProjectWithActuals = Project & { actuals: Actual[] };
+
 export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
-    queryFn: async (): Promise<Project[]> => {
-      const { data, error } = await supabase
-        .from("projects").select("*").order("started_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+    queryFn: async (): Promise<ProjectWithActuals[]> => {
+      const [projectsRes, actualsRes] = await Promise.all([
+        supabase.from("projects").select("*").order("started_at", { ascending: false }),
+        supabase.from("project_actuals_current").select("*"),
+      ]);
+      if (projectsRes.error) throw projectsRes.error;
+      if (actualsRes.error) throw actualsRes.error;
+
+      const byProject = new Map<string, Actual[]>();
+      for (const a of actualsRes.data ?? []) {
+        if (!a.project_id) continue;
+        const list = byProject.get(a.project_id) ?? [];
+        list.push(a);
+        byProject.set(a.project_id, list);
+      }
+
+      return (projectsRes.data ?? []).map((p) => ({
+        ...p,
+        actuals: byProject.get(p.id) ?? [],
+      }));
     },
   });
 }

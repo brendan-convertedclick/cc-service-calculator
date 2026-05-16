@@ -2686,7 +2686,7 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "archived"
-      project_status: "in_progress" | "completed" | "cancelled"
+      project_status: "in_progress" | "completed" | "cancelled" | "archived"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
       recurrence_mode: "none" | "project" | "per_service"
@@ -2830,7 +2830,7 @@ export const Constants = {
         "rejected",
         "archived",
       ],
-      project_status: ["in_progress", "completed", "cancelled"],
+      project_status: ["in_progress", "completed", "cancelled", "archived"],
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],
       recurrence_interval: ["weekly", "biweekly", "monthly", "quarterly"],
       recurrence_mode: ["none", "project", "per_service"],
