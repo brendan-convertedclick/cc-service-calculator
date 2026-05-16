@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateClient } from "@/hooks/useClients";
 import { useApplyFoundations } from "@/hooks/useFoundations";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,16 +101,15 @@ export function NewClientDialog({
           <div className="space-y-2 pt-2 border-t">
             <label className="flex items-center gap-2 text-sm" data-testid="apply-foundations-toggle">
               <Checkbox
-                checked={applyFoundationsOnCreate && folderSelected}
-                disabled={!folderSelected}
+                checked={applyFoundationsOnCreate}
                 onCheckedChange={(v) => setApplyFoundationsOnCreate(v === true)}
               />
               Apply Foundations baseline on create
               {!folderSelected ? (
-                <span className="text-muted-foreground">(needs ClickUp folder)</span>
+                <span className="text-muted-foreground">(folder will be created)</span>
               ) : null}
             </label>
-            {applyFoundationsOnCreate && folderSelected ? (
+            {applyFoundationsOnCreate ? (
               <label className="flex items-center gap-2 text-sm pl-6">
                 <Checkbox
                   checked={includeSeedTasks}
@@ -125,15 +125,50 @@ export function NewClientDialog({
             <Button variant="ghost">Cancel</Button>
           </DialogClose>
           <Button
-            onClick={() => {
+            disabled={create.isPending}
+            onClick={async () => {
               const trimmed = name.trim();
               if (!trimmed) return toast.error("Name required");
               const marginNum = parseFloat(marginTarget);
+
+              // If no folder selected, create one in the ClickUp Clients space
+              // so the new client always has its own folder.
+              let resolvedFolderId: string | null = folderId === UNLINKED ? null : folderId;
+              let applyFoundationsAllowed = folderSelected;
+              if (!resolvedFolderId) {
+                try {
+                  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+                  const { data: sessionData } = await supabase.auth.getSession();
+                  const accessToken = sessionData.session?.access_token ?? "";
+                  const res = await fetch(`${supabaseUrl}/functions/v1/create-clickup-folder`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify({ name: trimmed }),
+                  });
+                  const body = await res.json();
+                  if (!res.ok || !body?.id) {
+                    return toast.error(
+                      `ClickUp folder create failed: ${body?.error ?? res.statusText}`,
+                    );
+                  }
+                  resolvedFolderId = String(body.id);
+                  applyFoundationsAllowed = true;
+                } catch (e) {
+                  return toast.error(
+                    `ClickUp folder create failed: ${e instanceof Error ? e.message : String(e)}`,
+                  );
+                }
+              }
+
               create.mutate(
                 {
                   name: trimmed,
+                  short_name: trimmed,
                   primary_domain: domain.trim() || null,
-                  clickup_folder_id: folderId === UNLINKED ? null : folderId,
+                  clickup_folder_id: resolvedFolderId,
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   margin_target_pct: (!isNaN(marginNum) ? marginNum : 40) as any,
                   xero_contact_id: xeroContactId.trim() || null,
@@ -147,7 +182,7 @@ export function NewClientDialog({
                     setMarginTarget("40");
                     setOpen(false);
                     toast.success(`Created ${trimmed}`);
-                    if (applyFoundationsOnCreate && folderSelected && created?.id) {
+                    if (applyFoundationsOnCreate && applyFoundationsAllowed && created?.id) {
                       applyFoundations
                         .mutateAsync({
                           client_ids: [created.id],
