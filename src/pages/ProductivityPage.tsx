@@ -13,6 +13,7 @@ import { PointModificationsTable } from "@/components/productivity/PointModifica
 import { OutputMultiplierShell } from "@/components/productivity/OutputMultiplierShell";
 import { DeliveryTab } from "@/components/productivity/DeliveryTab";
 import { ProfitabilityTab } from "@/components/productivity/ProfitabilityTab";
+import { TaskBreakdownTab } from "@/components/productivity/TaskBreakdownTab";
 
 export function ProductivityPage() {
   const [view, setView] = useState<View>("week");
@@ -21,7 +22,7 @@ export function ProductivityPage() {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
   });
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [pageTab, setPageTab] = useState<"sprint" | "multiplier" | "delivery" | "profitability">("multiplier");
+  const [pageTab, setPageTab] = useState<"sprint" | "multiplier" | "delivery" | "profitability" | "tasks">("multiplier");
 
   const { data: members = [] } = useTeam();
   const { data: settings } = useSettings();
@@ -67,10 +68,11 @@ export function ProductivityPage() {
       <main className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
         {/* Page tab switcher */}
         <div className="flex gap-0 border-b border-m-outline-variant mb-6 -mx-6 px-6">
-          {(["multiplier", "sprint", "delivery", "profitability"] as const).map((tab) => (
+          {(["multiplier", "sprint", "tasks", "delivery", "profitability"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setPageTab(tab)}
+              data-testid={`productivity-tab-${tab}`}
               className={[
                 "px-5 py-3.5 text-label-medium border-b-2 -mb-px transition-colors",
                 pageTab === tab
@@ -78,7 +80,15 @@ export function ProductivityPage() {
                   : "text-m-on-surface-variant border-transparent hover:text-m-on-surface",
               ].join(" ")}
             >
-              {tab === "sprint" ? "Sprint Output" : tab === "delivery" ? "Delivery" : tab === "profitability" ? "Profitability" : "Output Multiplier"}
+              {tab === "sprint"
+                ? "Sprint Output"
+                : tab === "delivery"
+                  ? "Delivery"
+                  : tab === "profitability"
+                    ? "Profitability"
+                    : tab === "tasks"
+                      ? "Tasks"
+                      : "Output Multiplier"}
             </button>
           ))}
         </div>
@@ -144,6 +154,10 @@ export function ProductivityPage() {
 
         {pageTab === "profitability" && (
           <ProfitabilityTab />
+        )}
+
+        {pageTab === "tasks" && (
+          <TaskBreakdownTab members={members} selectedUserId={selectedUserId} />
         )}
       </main>
     </div>

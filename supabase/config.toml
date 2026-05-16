@@ -31,6 +31,9 @@ verify_jwt = false
 [functions.list-clickup-folders]
 verify_jwt = false
 
+[functions.create-clickup-folder]
+verify_jwt = false
+
 [functions.list-clickup-spaces]
 verify_jwt = false
 
@@ -50,4 +53,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.build-live-invoice]
+verify_jwt = false
+
+[functions.get-task-breakdown]
 verify_jwt = false
