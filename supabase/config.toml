@@ -84,3 +84,7 @@ verify_jwt = false
 
 [functions.roll-forward-recurring-tasks]
 verify_jwt = false
+
+# --- Phase 4: SoW visualization ---
+[functions.match-tasks-to-sow]
+verify_jwt = false
