@@ -5,7 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { useProjects } from "@/hooks/useProjects";
 import { useBriefs } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
+import { useProjectRollups, useStandardPointRate } from "@/hooks/useProjectRollups";
+import { ProjectMetricsRow } from "@/components/projects/ProjectMetricsRow";
 import { STATUS_LABEL, resumeHref, type BriefStatus } from "@/lib/brief-routing";
+
+const INTERNAL_CLIENT_NAME_MARKERS = ["converted click", "internal"];
 
 const IN_PROGRESS: BriefStatus[] = ["triaged", "scoped", "quoted", "accepted"];
 
@@ -13,6 +17,8 @@ export function Projects() {
   const { data: projects = [] } = useProjects();
   const { data: allBriefs = [] } = useBriefs("all");
   const { data: clients = [] } = useClients();
+  const { data: rollups } = useProjectRollups();
+  const { data: pointRateCents = null } = useStandardPointRate();
 
   const clientById = useMemo(
     () => new Map(clients.map((c) => [c.id, c.name])),
@@ -232,24 +238,34 @@ export function Projects() {
               <section className="space-y-3">
                 <h2 className="text-title-medium">Active ({filteredProjects.length})</h2>
                 <div className="space-y-2">
-                  {filteredProjects.map((p) => (
-                    <Link to={`/projects/${p.id}`} key={p.id} className="block">
-                      <Card className="transition-colors hover:bg-m-surface-container">
-                        <CardContent className="flex items-center justify-between gap-4 p-4">
-                          <div>
-                            {/* Cast until `npm run supabase:gen-types` regenerates src/types/db.ts post-0015. */}
-                            <div className="text-title-small">
-                              {(p as { name?: string }).name ?? "Untitled project"}
-                            </div>
-                            <div className="text-label-small text-m-on-surface-variant">
-                              Started {new Date(p.started_at).toLocaleDateString("en-ZA")}
-                            </div>
-                          </div>
-                          <Badge>{p.status}</Badge>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                  {filteredProjects.map((p) => {
+                    const clientName =
+                      (p as { client_id?: string }).client_id
+                        ? clientById.get((p as { client_id: string }).client_id) ?? ""
+                        : "";
+                    const isInternal = INTERNAL_CLIENT_NAME_MARKERS.some((m) =>
+                      clientName.toLowerCase().includes(m),
+                    );
+                    return (
+                      <ProjectMetricsRow
+                        key={p.id}
+                        project={{
+                          id: p.id,
+                          name: (p as { name?: string }).name ?? null,
+                          started_at: p.started_at,
+                          status: String(p.status),
+                          engagement_type: p.engagement_type,
+                          is_recurring: p.is_recurring,
+                          retainer_monthly_fee_cents: p.retainer_monthly_fee_cents,
+                          quote_id: p.quote_id,
+                        }}
+                        projectValueCents={null /* Phase 3 follow-up: join through quotes */}
+                        isInternal={isInternal}
+                        rollup={rollups?.get(p.id) ?? null}
+                        pointRateCents={pointRateCents}
+                      />
+                    );
+                  })}
                 </div>
               </section>
             )}
