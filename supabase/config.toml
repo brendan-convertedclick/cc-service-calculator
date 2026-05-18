@@ -65,3 +65,7 @@ verify_jwt = false
 
 [functions.approve-extension-request]
 verify_jwt = false
+
+# --- Phase 5: problem detection ---
+[functions.detect-project-problems]
+verify_jwt = false
