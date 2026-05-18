@@ -1,12 +1,14 @@
 // src/App.tsx
 import { Suspense, lazy } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AuthProvider } from "@/context/AuthContext";
+import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { Login } from "@/pages/Login";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { StaffBriefForm } from "@/pages/StaffBriefForm";
 
 const ServicesList = lazy(() =>
   import("@/pages/ServicesList").then((m) => ({ default: m.ServicesList })),
@@ -90,6 +92,42 @@ const SOWFamilyPage = lazy(() => import("@/pages/SOWFamilyPage"));
 const ProductivityPage = lazy(() =>
   import("@/pages/ProductivityPage").then((m) => ({ default: m.ProductivityPage })),
 );
+const Approvals = lazy(() =>
+  import("@/pages/Approvals").then((m) => ({ default: m.Approvals })),
+);
+const Escalations = lazy(() =>
+  import("@/pages/Escalations").then((m) => ({ default: m.Escalations })),
+);
+const ComposeEmail = lazy(() =>
+  import("@/pages/ComposeEmail").then((m) => ({ default: m.ComposeEmail })),
+);
+const SowCheck = lazy(() =>
+  import("@/pages/SowCheck").then((m) => ({ default: m.SowCheck })),
+);
+
+/**
+ * Phase 1 role gates.
+ * - <RoleAwareIndex> at `/` redirects staff to `/staff`, others see Dashboard.
+ * - <RequireAdmin> blocks staff from the full app and bounces them to `/staff`.
+ */
+function RoleAwareIndex() {
+  const { role, isLoading } = useCurrentRole();
+  if (isLoading) return <RouteFallback />;
+  if (role === "staff") return <Navigate to="/staff" replace />;
+  return <DashboardPage />;
+}
+function RequireAdmin() {
+  const { role, isLoading } = useCurrentRole();
+  if (isLoading) return <RouteFallback />;
+  if (role !== "admin" && role !== "owner") return <Navigate to="/staff" replace />;
+  return <Outlet />;
+}
+function RequireOwner() {
+  const { role, isLoading } = useCurrentRole();
+  if (isLoading) return <RouteFallback />;
+  if (role !== "owner") return <Navigate to="/" replace />;
+  return <Outlet />;
+}
 
 function RouteFallback() {
   return (
@@ -106,17 +144,30 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
-            {/* Dashboard — standalone IDE layout, no AppShell */}
-            <Route index element={<DashboardPage />} />
+            {/* Phase 1: staff-only single-page surface */}
+            <Route path="/staff" element={<StaffBriefForm />} />
 
-            {/* All other routes — AppShell without sidebar */}
-            <Route element={<AppShell />}>
-              <Route path="inbox" element={<Inbox />} />
+            {/* Index decides based on role: staff → /staff, admin/owner → Dashboard */}
+            <Route index element={<RoleAwareIndex />} />
+
+            {/* Everything below requires admin or owner. Staff bounce to /staff. */}
+            <Route element={<RequireAdmin />}>
+              <Route path="approvals" element={<Approvals />} />
+              {/* Phase 6: outbound communications compose */}
+              <Route path="comms/new" element={<ComposeEmail />} />
+              {/* Owner-only escalations queue (>50% extension requests) */}
+              <Route element={<RequireOwner />}>
+                <Route path="escalations" element={<Escalations />} />
+              </Route>
+              {/* All other routes — AppShell without sidebar */}
+              <Route element={<AppShell />}>
+                <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs" element={<Briefs />} />
               <Route path="briefs/new" element={<NewBrief />} />
               <Route path="briefs/:id" element={<BriefResume />} />
               <Route path="briefs/:id/scope" element={<Scope />} />
+              <Route path="briefs/:id/sow-check" element={<SowCheck />} />
               <Route path="briefs/:id/builder" element={<ProjectBuilder />} />
               <Route path="quotes" element={<Navigate to="/inbox" replace />} />
               <Route path="quotes/:id" element={<QuoteDetail />} />
@@ -145,6 +196,7 @@ export default function App() {
               <Route path="reconciliation" element={<ReconciliationView />} />
               <Route path="productivity" element={<ProductivityPage />} />
               <Route path="guides" element={<Guides />} />
+              </Route>
             </Route>
           </Route>
         </Routes>

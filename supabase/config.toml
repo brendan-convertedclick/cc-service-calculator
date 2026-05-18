@@ -57,3 +57,40 @@ verify_jwt = false
 
 [functions.get-task-breakdown]
 verify_jwt = false
+
+# --- Phase 1: staff-authored briefs ---
+[functions.list-client-clickup-lists]
+verify_jwt = false
+
+[functions.approve-staff-brief]
+verify_jwt = false
+
+# --- Phase 2: extension requests ---
+[functions.list-my-open-clickup-tasks]
+verify_jwt = false
+
+[functions.approve-extension-request]
+verify_jwt = false
+
+# --- Phase 5: problem detection ---
+[functions.detect-project-problems]
+verify_jwt = false
+
+# --- Phase 6: outbound emails ---
+[functions.send-outbound-email]
+verify_jwt = false
+
+# --- Phase 7: change estimates ---
+[functions.change-estimate-webhook]
+verify_jwt = false
+
+# --- Phase 8: planning workflow ---
+[functions.provision-retainer-period]
+verify_jwt = false
+
+[functions.roll-forward-recurring-tasks]
+verify_jwt = false
+
+# --- Phase 4: SoW visualization ---
+[functions.match-tasks-to-sow]
+verify_jwt = false
