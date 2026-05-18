@@ -51,3 +51,10 @@ verify_jwt = false
 
 [functions.build-live-invoice]
 verify_jwt = false
+
+# --- Phase 1: staff-authored briefs ---
+[functions.list-client-clickup-lists]
+verify_jwt = false
+
+[functions.approve-staff-brief]
+verify_jwt = false
