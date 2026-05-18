@@ -69,3 +69,7 @@ verify_jwt = false
 # --- Phase 5: problem detection ---
 [functions.detect-project-problems]
 verify_jwt = false
+
+# --- Phase 6: outbound emails ---
+[functions.send-outbound-email]
+verify_jwt = false

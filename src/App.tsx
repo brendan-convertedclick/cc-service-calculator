@@ -95,6 +95,9 @@ const Approvals = lazy(() =>
 const Escalations = lazy(() =>
   import("@/pages/Escalations").then((m) => ({ default: m.Escalations })),
 );
+const ComposeEmail = lazy(() =>
+  import("@/pages/ComposeEmail").then((m) => ({ default: m.ComposeEmail })),
+);
 
 /**
  * Phase 1 role gates.
@@ -144,6 +147,8 @@ export default function App() {
             {/* Everything below requires admin or owner. Staff bounce to /staff. */}
             <Route element={<RequireAdmin />}>
               <Route path="approvals" element={<Approvals />} />
+              {/* Phase 6: outbound communications compose */}
+              <Route path="comms/new" element={<ComposeEmail />} />
               {/* Owner-only escalations queue (>50% extension requests) */}
               <Route element={<RequireOwner />}>
                 <Route path="escalations" element={<Escalations />} />
