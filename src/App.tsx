@@ -92,6 +92,9 @@ const ProductivityPage = lazy(() =>
 const Approvals = lazy(() =>
   import("@/pages/Approvals").then((m) => ({ default: m.Approvals })),
 );
+const Escalations = lazy(() =>
+  import("@/pages/Escalations").then((m) => ({ default: m.Escalations })),
+);
 
 /**
  * Phase 1 role gates.
@@ -108,6 +111,12 @@ function RequireAdmin() {
   const { role, isLoading } = useCurrentRole();
   if (isLoading) return <RouteFallback />;
   if (role !== "admin" && role !== "owner") return <Navigate to="/staff" replace />;
+  return <Outlet />;
+}
+function RequireOwner() {
+  const { role, isLoading } = useCurrentRole();
+  if (isLoading) return <RouteFallback />;
+  if (role !== "owner") return <Navigate to="/" replace />;
   return <Outlet />;
 }
 
@@ -135,6 +144,10 @@ export default function App() {
             {/* Everything below requires admin or owner. Staff bounce to /staff. */}
             <Route element={<RequireAdmin />}>
               <Route path="approvals" element={<Approvals />} />
+              {/* Owner-only escalations queue (>50% extension requests) */}
+              <Route element={<RequireOwner />}>
+                <Route path="escalations" element={<Escalations />} />
+              </Route>
               {/* All other routes — AppShell without sidebar */}
               <Route element={<AppShell />}>
                 <Route path="inbox" element={<Inbox />} />

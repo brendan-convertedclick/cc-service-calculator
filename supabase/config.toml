@@ -58,3 +58,10 @@ verify_jwt = false
 
 [functions.approve-staff-brief]
 verify_jwt = false
+
+# --- Phase 2: extension requests ---
+[functions.list-my-open-clickup-tasks]
+verify_jwt = false
+
+[functions.approve-extension-request]
+verify_jwt = false
