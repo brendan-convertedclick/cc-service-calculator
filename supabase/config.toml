@@ -77,3 +77,10 @@ verify_jwt = false
 # --- Phase 7: change estimates ---
 [functions.change-estimate-webhook]
 verify_jwt = false
+
+# --- Phase 8: planning workflow ---
+[functions.provision-retainer-period]
+verify_jwt = false
+
+[functions.roll-forward-recurring-tasks]
+verify_jwt = false
