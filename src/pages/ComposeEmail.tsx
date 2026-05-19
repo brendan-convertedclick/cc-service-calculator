@@ -51,21 +51,30 @@ export function ComposeEmail() {
     primary_domain: string | null;
   } | null>(null);
 
-  // Load templates + optional client context.
+  // Load templates only when Phase 6 backend is enabled (migration 0056
+  // applied). Until then we skip the fetch to avoid a 404 in console — the
+  // page still works for blank composition.
+  const phase6Enabled = import.meta.env.VITE_PHASE6_ENABLED === "1";
   useEffect(() => {
+    if (!phase6Enabled) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         // @ts-expect-error email_templates added by migration 0056
         .from("email_templates")
         .select("*")
         .order("name");
-      if (!cancelled) setTemplates((data ?? []) as unknown as EmailTemplateRow[]);
+      if (cancelled) return;
+      if (error) {
+        setTemplates([]);
+        return;
+      }
+      setTemplates((data ?? []) as unknown as EmailTemplateRow[]);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [phase6Enabled]);
 
   useEffect(() => {
     const clientId = clientIdParam;
