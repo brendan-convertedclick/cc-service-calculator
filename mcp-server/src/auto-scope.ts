@@ -16,6 +16,6 @@ export function fireAutoScope(briefId: string): void {
     body: JSON.stringify({ brief_id: briefId }),
   }).catch((e: unknown) => {
     const msg = e instanceof Error ? e.message : String(e)
-    console.error(`[cc-calculator-mcp] auto-scope fire failed for ${briefId}: ${msg}`)
+    console.error(`[conductor-mcp] auto-scope fire failed for ${briefId}: ${msg}`)
   })
 }

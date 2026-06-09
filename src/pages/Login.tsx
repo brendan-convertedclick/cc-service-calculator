@@ -51,7 +51,7 @@ export function Login() {
               <Calculator className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-title-small text-m-on-surface">CC Calculator</div>
+              <div className="text-title-small text-m-on-surface">Conductor</div>
               <div className="text-label-small text-m-on-surface-variant">Service pricing</div>
             </div>
           </div>

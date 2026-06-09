@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "cc-calculator",
+      name: "conductor",
       script: "npm",
       args: "run dev",
       watch: false,

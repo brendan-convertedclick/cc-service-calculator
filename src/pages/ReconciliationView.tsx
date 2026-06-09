@@ -284,7 +284,7 @@ export function ReconciliationView() {
   const { data: rows = [], isLoading } = useReconciliation(year, month);
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
   const monthLabel = formatMonthLabel(year, month);
 

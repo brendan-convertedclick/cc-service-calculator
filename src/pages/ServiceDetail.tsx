@@ -120,7 +120,7 @@ export function ServiceDetail({ mode }: Props) {
   }
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
   const servicePrompts: ClaudePrompt[] =
     mode === "edit" && form.name

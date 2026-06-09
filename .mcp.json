@@ -11,7 +11,7 @@
         "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN_CC_CALCULATOR}"
       }
     },
-    "cc-calculator": {
+    "conductor": {
       "command": "/Users/brendangunn/.nvm/versions/node/v22.22.0/bin/node",
       "args": [
         "/Users/brendangunn/Github/cc-service-calculator/mcp-server/node_modules/.bin/tsx",

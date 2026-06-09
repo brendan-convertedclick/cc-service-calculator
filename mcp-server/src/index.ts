@@ -35,7 +35,7 @@ function rawShape(schema: z.ZodTypeAny): z.ZodRawShape {
 }
 
 const server = new McpServer({
-  name: 'cc-calculator',
+  name: 'conductor',
   version: '0.1.0',
 })
 

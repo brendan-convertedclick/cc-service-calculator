@@ -14,7 +14,7 @@ import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks
 import type { ClaudePrompt } from "@/types/claude";
 
 const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
 const SCOPES: BriefScope[] = ["new", "mine", "unassigned", "waiting", "all", "archived"];
 
@@ -90,7 +90,7 @@ Brief ID: ${selectedBrief.id}
 
 ${MCP_NOTE}
 
-Action: Run /intake or /brief using the email thread above as context. Look up the client via find-client using the sender email or client name. Create or update a brief in cc-service-calculator with the relevant context, classify the intent, and generate a scope or draft reply as appropriate.
+Action: Run /intake or /brief using the email thread above as context. Look up the client via find-client using the sender email or client name. Create or update a brief in Conductor with the relevant context, classify the intent, and generate a scope or draft reply as appropriate.
 
 Output: Confirmation of brief created or updated, with intent classification and any generated scope lines or draft reply.`,
         },

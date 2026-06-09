@@ -23,7 +23,7 @@ export function ProjectBuilder() {
   if (!qb.ready || !qb.brief || !qb.scope) return <div className="p-6">Loading…</div>;
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-  const MCP_NOTE = `You have access to the cc-calculator MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
   const focusedService = qb.lines.length > 0
     ? qb.services?.find((s) => s.id === qb.lines[qb.lines.length - 1].service_id)

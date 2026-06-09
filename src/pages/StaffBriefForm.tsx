@@ -34,7 +34,7 @@ export function StaffBriefForm() {
             <Calculator className="h-4 w-4" />
           </div>
           <div className="leading-tight">
-            <div className="text-title-small text-m-on-surface">Converted Click</div>
+            <div className="text-title-small text-m-on-surface">Conductor</div>
             <div className="text-label-small text-m-on-surface-variant">Brief & extensions</div>
           </div>
         </div>

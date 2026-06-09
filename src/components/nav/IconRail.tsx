@@ -139,7 +139,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
               navOpen ? "opacity-100 max-w-[160px]" : "opacity-0 max-w-0",
             )}
           >
-            Converted Click
+            Conductor
           </span>
         </div>
 

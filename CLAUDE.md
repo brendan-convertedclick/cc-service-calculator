@@ -1,4 +1,4 @@
-# cc-service-calculator — Agent Handbook
+# Conductor — Agent Handbook
 
 Internal service calculator for Converted Click. React SPA + Supabase. See the plan at `~/.claude/plans/https-lpgwxacoqiqpcfpkklib-supabase-co-i-cuddly-puffin.md` for the full V1 spec.
 
@@ -17,7 +17,7 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 
 Single shared login (V1 has no per-user roles). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
 
-## cc-calculator MCP server setup
+## conductor MCP server setup
 
 The repo ships a local MCP server at `mcp-server/` that exposes 7 agency tools (find-client, check-duplicate-brief, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief).
 
@@ -30,13 +30,13 @@ cp .env.example .env
 # Edit .env — fill in SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
 ```
 
-The server runs via `npm run dev` (tsx, no build step needed). It is registered in `.mcp.json` as `cc-calculator` and starts automatically when Claude Code opens this repo.
+The server runs via `npm run dev` (tsx, no build step needed). It is registered in `.mcp.json` as `conductor` and starts automatically when Claude Code opens this repo.
 
-To call tools in agent sessions: use `mcp__cc-calculator__<tool-name>`.
+To call tools in agent sessions: use `mcp__conductor__<tool-name>`.
 
 ### Sender rule enforcement in intake
 
-The intake flow must call `mcp__cc-calculator__evaluate-sender` before
+The intake flow must call `mcp__conductor__evaluate-sender` before
 `create-brief` for every inbound thread on a known client domain. Decision values:
 
 - `allow` — proceed and create the brief normally.
