@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/timeAgo";
 
@@ -26,25 +27,25 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
         aria-label={name}
         onClick={() => onSelect(id)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-label-small transition-colors text-left",
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
           isSelected
             ? "bg-m-primary-container text-m-on-primary-container"
             : isCompleted
-            ? "text-m-on-surface-variant cursor-default"
-            : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+            ? "cursor-default text-m-on-surface-variant"
+            : "text-m-on-surface hover:bg-m-surface-container"
         )}
       >
         <span
           data-testid="status-dot"
           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot[scopeStatus] ?? "bg-gray-400")}
         />
-        <span className="flex-1 truncate text-m-on-surface-variant group-hover:text-m-on-surface">{name}</span>
+        <span className="flex-1 truncate text-label-medium">{name}</span>
         {lastActivityAt && (
-          <span className="shrink-0 text-[10px] text-m-on-surface-variant">
-            {timeAgo(lastActivityAt)}
+          <span className="shrink-0 text-[10px] tabular-nums text-current opacity-50">
+            {timeAgo(lastActivityAt).replace(" ago", "")}
           </span>
         )}
-        <span className="shrink-0 rounded px-1 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+        <span className="shrink-0 text-[9px] font-medium uppercase tracking-wider text-current opacity-40">
           {engagementType}
         </span>
       </button>
@@ -52,9 +53,9 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
       <button
         aria-label="dismiss"
         onClick={(e) => { e.stopPropagation(); onHide(id); }}
-        className="absolute right-8 top-1/2 -translate-y-1/2 hidden group-hover:flex h-5 w-5 items-center justify-center rounded text-[10px] text-m-on-surface-variant hover:bg-m-surface-container-high"
+        className="absolute right-1.5 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-m-surface-container text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface group-hover:flex"
       >
-        ✓
+        <Check className="h-3 w-3" />
       </button>
     </div>
   );

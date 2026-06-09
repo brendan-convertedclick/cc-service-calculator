@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, CheckCircle } from "lucide-react";
+import { ChevronRight, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardProjectRow } from "./DashboardProjectRow";
 import type { ClientWithProjects } from "@/hooks/useClientProjects";
@@ -68,12 +68,12 @@ function ClientSection({
   if (visibleProjects.length === 0) return null;
 
   return (
-    <div className="mb-1">
+    <div className="mb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 px-3 py-1 text-label-medium font-semibold uppercase tracking-widest text-m-on-surface transition-colors"
+        className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-label-small font-medium uppercase tracking-wider text-m-on-surface-variant transition-colors hover:text-m-on-surface"
       >
-        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <ChevronRight className={cn("h-3 w-3 shrink-0 opacity-60 transition-transform", open && "rotate-90")} />
         <span className="truncate">{client.name}</span>
       </button>
 
@@ -104,19 +104,44 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
   const [showCompleted, setShowCompleted] = useState(false);
   const setScopeFilter = onScopeFilterChange;
 
-  const pillClasses = (filter: ScopeFilter, active: string, inactive: string) =>
-    cn(
-      "cursor-pointer rounded px-2 py-0.5 text-label-small transition-colors",
-      scopeFilter === filter ? active : inactive
-    );
+  const scopePill = (filter: ScopeFilter, dotClass: string, label: string, activeClasses: string) => (
+    <button
+      onClick={() => setScopeFilter(scopeFilter === filter ? "all" : filter)}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full px-2 py-1 text-label-small transition-colors",
+        scopeFilter === filter
+          ? activeClasses
+          : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", dotClass)} />
+      {label}
+    </button>
+  );
 
   return (
     <div className="flex flex-col border-r border-m-outline-variant bg-m-surface-container-low overflow-hidden">
       {/* Header */}
-      <div className="border-b border-m-outline-variant px-3 pt-4 pb-2">
-        <p className="mb-2 px-1 text-label-small uppercase tracking-wide text-m-on-surface-variant">
-          Projects
-        </p>
+      <div className="border-b border-m-outline-variant px-3 pb-3 pt-4">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-label-small font-medium uppercase tracking-wider text-m-on-surface-variant">
+            Projects
+          </p>
+          <button
+            onClick={() => setShowCompleted((v) => !v)}
+            title={showCompleted ? "Hide completed" : "Show completed"}
+            aria-pressed={showCompleted}
+            className={cn(
+              "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+              showCompleted
+                ? "bg-m-primary-container text-m-on-primary-container"
+                : "text-m-on-surface-variant/70 hover:bg-m-surface-container hover:text-m-on-surface"
+            )}
+          >
+            <CheckCircle className="h-3 w-3" />
+            Completed
+          </button>
+        </div>
         <input
           type="text"
           placeholder="Filter…"
@@ -124,55 +149,33 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
           onChange={(e) => setFilterText(e.target.value)}
           className="w-full rounded-md border border-m-outline-variant bg-m-surface px-2 py-1.5 text-label-medium text-m-on-surface placeholder:text-m-on-surface-variant focus:outline-none focus:ring-1 focus:ring-m-primary"
         />
-        <button
-          onClick={() => setShowCompleted((v) => !v)}
-          title={showCompleted ? "Hide completed" : "Show completed"}
-          className={cn(
-            "mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-label-small transition-colors",
-            showCompleted
-              ? "bg-m-primary-container text-m-on-primary-container"
-              : "text-m-on-surface-variant hover:bg-m-surface-container"
-          )}
-        >
-          <CheckCircle className="h-3.5 w-3.5" />
-          <span>Completed</span>
-        </button>
-      </div>
 
-      {/* Health pills */}
-      <div className="flex flex-wrap gap-1.5 border-b border-m-outline-variant px-3 py-2">
-        <button
-          onClick={() => setScopeFilter("on_track")}
-          className={pillClasses("on_track", "bg-m-tertiary-container text-m-on-tertiary-container", "bg-m-surface-container text-m-tertiary")}
-        >
-          {opsData.onTrackCount} on track
-        </button>
-        <button
-          onClick={() => setScopeFilter("needs_attention")}
-          className={pillClasses("needs_attention", "bg-amber-200 text-amber-900", "bg-amber-50 text-amber-700")}
-        >
-          {opsData.needsAttentionCount} ⚠
-        </button>
-        {opsData.overdueCount > 0 && (
-          <button
-            onClick={() => setScopeFilter("overdue")}
-            className={pillClasses("overdue", "bg-m-error-container text-m-on-error-container", "bg-m-surface-container text-m-error")}
-          >
-            {opsData.overdueCount} 🔴
-          </button>
-        )}
-        {scopeFilter !== "all" && (
-          <button
-            onClick={() => setScopeFilter("all")}
-            className="rounded px-2 py-0.5 text-label-small text-m-on-surface-variant hover:text-m-on-surface"
-          >
-            ✕ clear
-          </button>
-        )}
+        {/* Scope filter pills */}
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {scopePill(
+            "on_track",
+            "bg-m-tertiary",
+            `${opsData.onTrackCount} on track`,
+            "bg-m-tertiary-container text-m-on-tertiary-container"
+          )}
+          {scopePill(
+            "needs_attention",
+            "bg-amber-400",
+            `${opsData.needsAttentionCount} attention`,
+            "bg-amber-100 text-amber-900"
+          )}
+          {opsData.overdueCount > 0 &&
+            scopePill(
+              "overdue",
+              "bg-m-error",
+              `${opsData.overdueCount} overdue`,
+              "bg-m-error-container text-m-on-error-container"
+            )}
+        </div>
       </div>
 
       {/* Client sections */}
-      <nav className="flex-1 overflow-y-auto px-1 py-2">
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
         {clientsData.map((client) => (
           <ClientSection
             key={client.id}

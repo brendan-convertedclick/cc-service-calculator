@@ -238,48 +238,48 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "on_track" ? "all" : "on_track")}
           className={cn(
-            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-tertiary",
+            "relative flex flex-col justify-center overflow-hidden rounded-lg border p-3 text-left transition-all hover:ring-2 hover:ring-m-tertiary",
             scopeFilter === "on_track"
               ? "border-m-tertiary bg-m-tertiary-container ring-2 ring-m-tertiary"
               : "border-m-outline-variant bg-m-tertiary-container"
           )}
         >
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small text-m-on-tertiary-container">{opsData.onTrackCount}</div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-tertiary-container">On track</div>
+          <div className="text-headline-medium text-m-on-tertiary-container">{opsData.onTrackCount}</div>
+          <div className="mt-0.5 text-label-small font-semibold text-m-on-tertiary-container">On track</div>
         </button>
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "needs_attention" ? "all" : "needs_attention")}
           className={cn(
-            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-amber-400",
+            "relative flex flex-col justify-center overflow-hidden rounded-lg border p-3 text-left transition-all hover:ring-2 hover:ring-amber-400",
             scopeFilter === "needs_attention"
               ? "border-amber-400 bg-amber-50 ring-2 ring-amber-400"
               : "border-amber-200 bg-amber-50"
           )}
         >
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small text-amber-800">{opsData.needsAttentionCount}</div>
-          <div className="mt-1 text-label-small font-semibold text-amber-700">Needs attention</div>
+          <div className="text-headline-medium text-amber-800">{opsData.needsAttentionCount}</div>
+          <div className="mt-0.5 text-label-small font-semibold text-amber-700">Needs attention</div>
         </button>
         <button
           onClick={() => onScopeFilterChange(scopeFilter === "overdue" ? "all" : "overdue")}
           className={cn(
-            "relative overflow-hidden rounded-lg border p-4 text-left transition-all hover:ring-2 hover:ring-m-error",
+            "relative flex flex-col justify-center overflow-hidden rounded-lg border p-3 text-left transition-all hover:ring-2 hover:ring-m-error",
             scopeFilter === "overdue"
               ? "border-m-error bg-m-error-container ring-2 ring-m-error"
               : "border-m-outline-variant bg-m-error-container"
           )}
         >
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small text-m-on-error-container">{opsData.overdueCount}</div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-error-container">Overdue</div>
+          <div className="text-headline-medium text-m-on-error-container">{opsData.overdueCount}</div>
+          <div className="mt-0.5 text-label-small font-semibold text-m-on-error-container">Overdue</div>
         </button>
-        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4">
+        <div className="relative flex flex-col justify-center overflow-hidden rounded-lg border border-m-outline-variant bg-white p-3">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small bg-gradient-brand bg-clip-text text-transparent">
+          <div className="text-headline-medium bg-gradient-brand bg-clip-text text-transparent">
             {monthlyHours !== null ? `${monthlyHours}h` : "—"}
           </div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
+          <div className="mt-0.5 text-label-small font-semibold text-m-on-surface-variant">
             Burned this month
           </div>
         </div>
@@ -313,12 +313,12 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
                   : "text-red-700";
           const isNeutral = rate === null || rate.total === 0;
           return (
-            <div className={cn("relative overflow-hidden rounded-lg border p-4", ragColor)}>
+            <div className={cn("relative flex flex-col justify-center overflow-hidden rounded-lg border p-3", ragColor)}>
               <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-              <div className={cn("text-display-small", isNeutral ? "bg-gradient-brand bg-clip-text text-transparent" : textColor)}>
+              <div className={cn("text-headline-medium", isNeutral ? "bg-gradient-brand bg-clip-text text-transparent" : textColor)}>
                 {isNeutral ? "—" : `${rate.rate}%`}
               </div>
-              <div className={cn("mt-1 text-label-small font-semibold", labelColor)}>
+              <div className={cn("mt-0.5 text-label-small font-semibold", labelColor)}>
                 On-time delivery
               </div>
               {rate !== null && rate.total > 0 && (
@@ -331,14 +331,14 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
         })()}
 
         {/* Avg brief→DFT cycle time card */}
-        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4">
+        <div className="relative flex flex-col justify-center overflow-hidden rounded-lg border border-m-outline-variant bg-white p-3">
           <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small bg-gradient-brand bg-clip-text text-transparent">
+          <div className="text-headline-medium bg-gradient-brand bg-clip-text text-transparent">
             {dftCycleTime === null || dftCycleTime.avgDays === null
               ? "—"
               : `${dftCycleTime.avgDays}d`}
           </div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">
+          <div className="mt-0.5 text-label-small font-semibold text-m-on-surface-variant">
             Avg brief→DFT
           </div>
           {dftCycleTime !== null && dftCycleTime.avgDays !== null ? (
@@ -347,7 +347,7 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
             </div>
           ) : (
             <div className="mt-0.5 text-label-small text-m-on-surface-variant">
-              Baseline: no data yet
+              No baseline yet
             </div>
           )}
         </div>
