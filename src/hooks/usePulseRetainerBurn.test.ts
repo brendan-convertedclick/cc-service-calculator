@@ -6,6 +6,7 @@ const TODAY = new Date('2026-05-09T08:00:00Z')
 const project = {
   id: 'p1',
   engagement_type: 'retainer',
+  status: 'in_progress',
   retainer_hours_target: 8,
   retainer_monthly_fee_cents: 1_000_000,
   client_name: 'Acme',
@@ -39,5 +40,12 @@ describe('computeRetainerBurn', () => {
     const fixed = { ...project, engagement_type: 'fixed' }
     const rows = computeRetainerBurn([fixed], [{ project_id: 'p1', actual_hours: 4 }], TODAY)
     expect(rows).toHaveLength(0)
+  })
+
+  it('returns an in_progress retainer (Pulse burn query filters status=in_progress)', () => {
+    const rows = computeRetainerBurn([project], [{ project_id: 'p1', actual_hours: 4 }], TODAY)
+    expect(project.status).toBe('in_progress')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].projectId).toBe('p1')
   })
 })

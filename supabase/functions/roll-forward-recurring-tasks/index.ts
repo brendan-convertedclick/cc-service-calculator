@@ -1,8 +1,10 @@
 // supabase/functions/roll-forward-recurring-tasks/index.ts
 //
 // Cron entry. Runs on the 1st of every month (00:05 Africa/Johannesburg)
-// and invokes provision-retainer-period for every active retainer project
-// (is_recurring = true, status != archived).
+// and invokes provision-retainer-period for every active recurring project
+// (is_recurring = true OR engagement_type = 'retainer'; status != archived).
+// Standalone retainers are is_recurring = false, so they are matched by the
+// engagement_type clause — see the create-retainer flow.
 //
 // Each invocation is idempotent — re-running the same month is a no-op.
 
@@ -19,7 +21,7 @@ Deno.serve(async (req: Request) => {
   const { data: retainers, error } = await sb
     .from("projects")
     .select("id")
-    .eq("is_recurring", true)
+    .or("is_recurring.eq.true,engagement_type.eq.retainer")
     .neq("status", "archived");
   if (error) return json({ error: error.message }, 500);
 
