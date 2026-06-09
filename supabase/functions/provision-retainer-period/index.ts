@@ -161,7 +161,8 @@ async function createClickupTask(
   const body: Record<string, unknown> = {
     name: args.name,
     description: args.description,
-    status: "to do",
+    // Omit `status` — let ClickUp use the list's default. Client spaces use
+    // custom status sets, so hardcoding "to do" fails with CRTSK_001.
     time_estimate: args.timeEstimateMs,
   };
   if (args.assigneeIds.length > 0) body.assignees = args.assigneeIds;

@@ -112,7 +112,8 @@ Deno.serve(async (req: Request) => {
         `**Extension request**\n\n${row.reason}\n\n---\n` +
         `_+${row.extra_points} pts · tier=${row.tier} · approved by ${callerEmail}_\n` +
         `EXTENSION:: ${row.id}`,
-      status: "to do",
+      // Omit `status` — let ClickUp use the list's default. Client spaces use
+      // custom status sets, so hardcoding "to do" fails with CRTSK_001.
       parent: row.parent_clickup_task_id,
       time_estimate: Math.round(row.extra_points * POINT_TO_MIN * 60_000),
     };

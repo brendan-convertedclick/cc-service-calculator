@@ -94,3 +94,10 @@ verify_jwt = false
 # --- Phase 4: SoW visualization ---
 [functions.match-tasks-to-sow]
 verify_jwt = false
+
+# --- Foundations + ongoing-task provisioning ---
+[functions.apply-foundations]
+verify_jwt = false
+
+[functions.provision-ongoing-tasks]
+verify_jwt = false

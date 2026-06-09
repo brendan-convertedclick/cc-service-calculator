@@ -223,10 +223,12 @@ Deno.serve(async (req: Request) => {
             {
               ...CU,
               method: "POST",
+              // Omit `status` so ClickUp uses the list's default (first)
+              // status. Client spaces use custom status sets (e.g. "backlog"),
+              // so hardcoding "to do" fails with CRTSK_001 "Status not found".
               body: JSON.stringify({
                 name: t.name,
                 description: t.description ?? "",
-                status: "to do",
               }),
             },
           );

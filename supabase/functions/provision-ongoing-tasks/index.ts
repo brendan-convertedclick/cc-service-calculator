@@ -271,7 +271,10 @@ Deno.serve(async (req: Request) => {
                   ? `Ongoing time bucket for ${member.full_name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`
                   : `Ongoing time bucket for ${member.full_name} on ${cell.row?.name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`,
                 assignees: member.clickup_user_id ? [member.clickup_user_id] : [],
-                status: "in progress",
+                // Omit `status` — let ClickUp use the list's default. Client
+                // spaces use custom status sets, so hardcoding a status name
+                // fails with CRTSK_001 "Status not found". (Rize matches time
+                // entries by task id, not status, so this is safe.)
                 billable,
               }),
             },

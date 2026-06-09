@@ -158,7 +158,8 @@ Deno.serve(async (req: Request) => {
     const taskBody: Record<string, unknown> = {
       name: brief.task_name,
       description,
-      status: "to do",
+      // Omit `status` — let ClickUp use the list's default. Client spaces use
+      // custom status sets, so hardcoding "to do" fails with CRTSK_001.
       time_estimate: Math.round(brief.sprint_points * POINT_TO_MIN * 60_000),
       custom_fields: customFieldsPayload,
     };
