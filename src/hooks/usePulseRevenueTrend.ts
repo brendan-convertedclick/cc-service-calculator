@@ -51,7 +51,7 @@ export function usePulseRevenueTrend(): RevenueTrendRow[] | null {
       const { supabase } = await import('@/lib/supabase')
       const since = new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toISOString()
       const [{ data: clients }, { data: invoices }] = await Promise.all([
-        supabase.from('clients').select('id, name').eq('status', 'active'),
+        supabase.from('clients').select('id, name').is('archived_at', null),
         supabase.from('xero_invoices').select('client_id, amount_cents, paid_at').eq('status', 'PAID').gte('paid_at', since),
       ])
       if (!clients) return null

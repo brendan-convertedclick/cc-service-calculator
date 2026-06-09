@@ -16,6 +16,7 @@ const burn: RetainerBurnRow = {
   isOverrunRisk: false,
   isUnderutilised: false,
   rag: "green",
+  needsSetup: false,
 };
 
 describe("HoursUsedCell", () => {
@@ -27,6 +28,11 @@ describe("HoursUsedCell", () => {
 
   it("renders an em dash when there is no burn data", () => {
     render(<HoursUsedCell burn={null} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("renders an em dash for a retainer with no hours target", () => {
+    render(<HoursUsedCell burn={{ ...burn, hoursTarget: 0, needsSetup: true }} />);
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 

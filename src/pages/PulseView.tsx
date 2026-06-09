@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useAvgDftCycleTime } from '@/hooks/useAvgDftCycleTime'
-import { usePulseRetainerBurn } from '@/hooks/usePulseRetainerBurn'
+import { currentMonthKey, usePulseRetainerBurn } from '@/hooks/usePulseRetainerBurn'
 import { usePulseWipFunnel } from '@/hooks/usePulseWipFunnel'
 import { usePulseArAging } from '@/hooks/usePulseArAging'
 import { usePulseClientHealth } from '@/hooks/usePulseClientHealth'
@@ -15,7 +16,10 @@ import { PricingHealthSection } from '@/components/pulse/PricingHealthSection'
 import { RevenueTrendSection } from '@/components/pulse/RevenueTrendSection'
 
 export function PulseView() {
-  const retainerBurn  = usePulseRetainerBurn()
+  const [burnMonth, setBurnMonth] = useState(() => currentMonthKey())
+  const retainerBurn  = usePulseRetainerBurn(burnMonth)
+  // Alerts stay anchored to the current month regardless of the picked month.
+  const currentBurn   = usePulseRetainerBurn(currentMonthKey())
   const wipFunnel     = usePulseWipFunnel()
   const arAging       = usePulseArAging()
   const clientHealth  = usePulseClientHealth()
@@ -24,7 +28,7 @@ export function PulseView() {
   const dftCycle      = useAvgDftCycleTime()
 
   const wipWithCycle = { ...wipFunnel, avgCycleDays: dftCycle?.avgDays ?? null }
-  const alerts = computeAlerts(retainerBurn, arAging ?? [], clientHealth, [])
+  const alerts = computeAlerts(currentBurn, arAging ?? [], clientHealth, [])
 
   return (
     <div className="flex flex-col gap-6 overflow-auto p-6">
@@ -39,7 +43,7 @@ export function PulseView() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-xl border border-m-outline-variant bg-m-surface p-5">
-          <RetainerBurnSection rows={retainerBurn} />
+          <RetainerBurnSection rows={retainerBurn} month={burnMonth} onMonthChange={setBurnMonth} />
         </div>
         <div className="rounded-xl border border-m-outline-variant bg-m-surface p-5">
           <WipFunnelSection data={wipWithCycle} />

@@ -6,7 +6,7 @@ const retainer: RetainerBurnRow = {
   projectId: 'p1', clientName: 'Acme', feePerMonthCents: 1_000_000,
   hoursTarget: 8, hoursUsed: 7.5, burnPct: 94, daysLeftInMonth: 9,
   effectiveHourlyRateCents: 125_000, projectedHours: 12,
-  isOverrunRisk: true, isUnderutilised: false, rag: 'red',
+  isOverrunRisk: true, isUnderutilised: false, rag: 'red', needsSetup: false,
 }
 const arBand: ArAgingBand = {
   band: '60+',
@@ -32,6 +32,13 @@ describe('computeAlerts', () => {
   it('creates FLAG_AM alert for client silent 21+ days', () => {
     const alerts = computeAlerts([], [], [quietClient], [])
     expect(alerts.some(a => a.level === 'flag_am' && a.message.includes('Gama'))).toBe(true)
+  })
+
+  it('uses "no contact recorded" copy for never-contacted clients', () => {
+    const never = { ...quietClient, daysSinceContact: 999, lastTouchpointType: null }
+    const alerts = computeAlerts([], [], [never], [])
+    expect(alerts[0].message).toContain('No contact recorded yet')
+    expect(alerts[0].message).not.toContain('999')
   })
 
   it('sorts overdue before watch before flag_am', () => {

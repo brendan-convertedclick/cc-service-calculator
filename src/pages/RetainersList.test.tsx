@@ -31,7 +31,7 @@ const burnRow: RetainerBurnRow = {
   projectId: "p1", clientName: "Test Conductor", feePerMonthCents: 1000000,
   hoursTarget: 10, hoursUsed: 2, burnPct: 20, daysLeftInMonth: 21,
   effectiveHourlyRateCents: 100000, projectedHours: 6,
-  isOverrunRisk: false, isUnderutilised: false, rag: "green",
+  isOverrunRisk: false, isUnderutilised: false, rag: "green", needsSetup: false,
 };
 vi.mock("@/hooks/usePulseRetainerBurn", () => ({
   usePulseRetainerBurn: () => [burnRow],

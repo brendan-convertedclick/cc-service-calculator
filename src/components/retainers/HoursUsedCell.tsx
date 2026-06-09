@@ -8,9 +8,9 @@ const barColor: Record<RetainerBurnRow["rag"], string> = {
 };
 
 // Current-month hours consumed vs target with a thin RAG burn bar.
-// `burn` is null for retainers with no target / no burn data → renders "—".
+// `burn` is null (or flagged needsSetup) for retainers with no target → renders "—".
 export function HoursUsedCell({ burn }: { burn: RetainerBurnRow | null }) {
-  if (!burn) {
+  if (!burn || burn.needsSetup) {
     return (
       <div className="min-w-[7rem]">
         <span className="text-body-medium text-m-on-surface-variant">—</span>

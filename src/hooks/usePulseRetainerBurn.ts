@@ -19,18 +19,38 @@ export function computeRetainerBurn(
   actuals: ActualRow[],
   today: Date,
 ): RetainerBurnRow[] {
-  const retainers = projects.filter(p => p.engagement_type === 'retainer' && p.retainer_hours_target)
+  const retainers = projects.filter(p => p.engagement_type === 'retainer')
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   const dayOfMonth = today.getDate()
   const daysLeft = daysInMonth - dayOfMonth
 
   return retainers.map(p => {
-    const target = p.retainer_hours_target!
     const fee = p.retainer_monthly_fee_cents ?? 0
     const used = actuals
       .filter(a => a.project_id === p.id)
       .reduce((s, a) => s + (a.actual_hours ?? 0), 0)
 
+    // Running retainer with no hours target: burn can't be computed, but the
+    // row is surfaced so the operator knows configuration is missing.
+    if (!p.retainer_hours_target) {
+      return {
+        projectId: p.id,
+        clientName: p.client_name,
+        feePerMonthCents: fee,
+        hoursTarget: 0,
+        hoursUsed: Math.round(used * 10) / 10,
+        burnPct: 0,
+        daysLeftInMonth: daysLeft,
+        effectiveHourlyRateCents: 0,
+        projectedHours: 0,
+        isOverrunRisk: false,
+        isUnderutilised: false,
+        rag: 'green' as const,
+        needsSetup: true,
+      }
+    }
+
+    const target = p.retainer_hours_target
     const burnPct = Math.round((used / target) * 100)
     const pace = dayOfMonth > 0 ? (used / dayOfMonth) * daysInMonth : 0
     const projectedHours = Math.round(pace * 10) / 10
@@ -51,18 +71,40 @@ export function computeRetainerBurn(
       isOverrunRisk: projectedHours > target && daysLeft > 5,
       isUnderutilised: burnPct < 40 && daysLeft < 10,
       rag,
+      needsSetup: false,
     }
-  })
+  }).sort((a, b) => Number(a.needsSetup) - Number(b.needsSetup))
 }
 
-export function usePulseRetainerBurn(): RetainerBurnRow[] {
+/** Month key in 'YYYY-MM' form, matching <input type="month"> values. */
+export function currentMonthKey(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function monthRange(month: string): { start: Date; end: Date } {
+  const [y, m] = month.split('-').map(Number)
+  return { start: new Date(y, m - 1, 1), end: new Date(y, m, 1) }
+}
+
+/**
+ * Date used as "today" when computing burn for a month: now when viewing the
+ * current month, the last day for past months (0 days left, projection = used),
+ * the first day for future months.
+ */
+export function referenceDateForMonth(month: string, now: Date): Date {
+  const [y, m] = month.split('-').map(Number)
+  const { start, end } = monthRange(month)
+  if (now < start) return start
+  if (now >= end) return new Date(y, m, 0)
+  return now
+}
+
+export function usePulseRetainerBurn(month: string = currentMonthKey()): RetainerBurnRow[] {
   const { data } = useQuery({
-    queryKey: ['pulseRetainerBurn'],
+    queryKey: ['pulseRetainerBurn', month],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase')
-      const start = new Date()
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
+      const { start, end } = monthRange(month)
 
       const [{ data: projects }, { data: actuals }] = await Promise.all([
         supabase
@@ -73,7 +115,8 @@ export function usePulseRetainerBurn(): RetainerBurnRow[] {
         supabase
           .from('project_actuals_current')
           .select('project_id, actual_hours')
-          .gte('recorded_at', start.toISOString()),
+          .gte('recorded_at', start.toISOString())
+          .lt('recorded_at', end.toISOString()),
       ])
 
       const mapped = (projects ?? []).map(p => ({
@@ -81,7 +124,7 @@ export function usePulseRetainerBurn(): RetainerBurnRow[] {
         client_name: (p.clients as { name: string } | null)?.name ?? 'Unknown',
       }))
 
-      return computeRetainerBurn(mapped, actuals ?? [], new Date())
+      return computeRetainerBurn(mapped, actuals ?? [], referenceDateForMonth(month, new Date()))
     },
     staleTime: 5 * 60 * 1000,
   })

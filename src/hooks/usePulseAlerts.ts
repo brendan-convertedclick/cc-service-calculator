@@ -34,7 +34,9 @@ export function computeAlerts(
     .forEach(c => alerts.push({
       id: `client-${c.clientId}`,
       level: c.daysSinceContact >= 30 ? 'overdue' : 'flag_am',
-      message: `${c.clientName} — No email or meeting in ${c.daysSinceContact} days. Account manager should follow up.`,
+      message: c.daysSinceContact >= 999
+        ? `${c.clientName} — No contact recorded yet. Account manager should follow up.`
+        : `${c.clientName} — No email or meeting in ${c.daysSinceContact} days. Account manager should follow up.`,
       linkTo: `/clients`,
     }))
 

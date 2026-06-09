@@ -11,12 +11,16 @@ export interface RetainerBurnRow {
   isOverrunRisk: boolean
   isUnderutilised: boolean
   rag: 'green' | 'amber' | 'red'
+  /** Retainer is running but has no hours target configured, so burn can't be computed. */
+  needsSetup: boolean
 }
 
 export interface WipFunnelStage {
   stage: 'Received' | 'Scoping' | 'Quoted' | 'Accepted' | 'Delivered'
   count: number
   itemIds: string[]
+  /** Display names matching itemIds — brief subjects or project names. */
+  itemNames: string[]
 }
 
 export interface WipFunnelData {

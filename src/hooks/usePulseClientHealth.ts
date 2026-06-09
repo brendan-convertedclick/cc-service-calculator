@@ -62,7 +62,7 @@ export function usePulseClientHealth(): ClientHealthRow[] {
       const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString()
       const [{ data: clients }, { data: briefs }, { data: touchpoints }, { data: invoices }] =
         await Promise.all([
-          supabase.from('clients').select('id, name').eq('status', 'active'),
+          supabase.from('clients').select('id, name').is('archived_at', null),
           supabase.from('briefs').select('client_id, created_at').gte('created_at', ninetyDaysAgo),
           supabase.from('client_touchpoints').select('client_id, type, occurred_at').gte('occurred_at', ninetyDaysAgo),
           supabase.from('xero_invoices').select('client_id, paid_at').not('paid_at', 'is', null).gte('paid_at', ninetyDaysAgo),

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import type { RetainerBurnRow } from '@/types/pulse'
 
@@ -10,17 +11,52 @@ const barColor: Record<RetainerBurnRow['rag'], string> = {
   red: 'bg-m-error',
 }
 
-export function RetainerBurnSection({ rows }: { rows: RetainerBurnRow[] }) {
+interface RetainerBurnSectionProps {
+  rows: RetainerBurnRow[]
+  /** 'YYYY-MM' month being shown; defaults to the current month. */
+  month?: string
+  onMonthChange?: (month: string) => void
+}
+
+export function RetainerBurnSection({ rows, month, onMonthChange }: RetainerBurnSectionProps) {
+  const monthLabel = (month ? new Date(`${month}-01T00:00:00`) : new Date())
+    .toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })
   return (
     <section>
-      <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">
-        Retainer Burn — {new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">
+          Retainer Burn — {monthLabel}
+        </h2>
+        {month && onMonthChange && (
+          <input
+            type="month"
+            aria-label="Select month"
+            value={month}
+            onChange={e => e.target.value && onMonthChange(e.target.value)}
+            className="rounded-md border border-m-outline-variant bg-transparent px-2 py-0.5 text-label-small text-m-on-surface-variant"
+          />
+        )}
+      </div>
       {rows.length === 0 ? (
         <p className="text-body-small text-m-on-surface-variant">No retainer clients configured.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {rows.map(r => (
+          {rows.map(r => r.needsSetup ? (
+            <div key={r.projectId}>
+              <div className="mb-1 flex items-baseline justify-between">
+                <span className="text-body-small font-semibold text-m-on-surface">
+                  {r.clientName}{' '}
+                  <span className="text-label-small font-normal text-m-on-surface-variant">
+                    {r.hoursUsed > 0 && `${r.hoursUsed}h used · `}no hours target set
+                  </span>
+                </span>
+                <Link to="/retainers" className="text-label-small font-medium text-m-primary hover:underline">
+                  Set target
+                </Link>
+              </div>
+              <div className="h-2 w-full rounded-full border border-dashed border-m-outline-variant" />
+            </div>
+          ) : (
             <div key={r.projectId}>
               <div className="mb-1 flex items-baseline justify-between">
                 <span className="text-body-small font-semibold text-m-on-surface">
