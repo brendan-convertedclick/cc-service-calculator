@@ -1,6 +1,7 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRetainers, useDeleteRetainer } from "@/hooks/useRetainers";
-import { formatZar } from "@/lib/utils";
+import { usePulseRetainerBurn } from "@/hooks/usePulseRetainerBurn";
+import { useSyncActuals } from "@/hooks/useSyncActuals";
+import { HoursUsedCell } from "@/components/retainers/HoursUsedCell";
+import { formatZar, cn } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
 
 function statusLabel(status: string): string {
@@ -24,15 +28,40 @@ export function RetainersList() {
   const navigate = useNavigate();
   const { data: retainers = [] } = useRetainers();
   const deleteRetainer = useDeleteRetainer();
+  const burnRows = usePulseRetainerBurn();
+  const sync = useSyncActuals();
+  const burnByProject = useMemo(
+    () => new Map(burnRows.map((b) => [b.projectId, b])),
+    [burnRows],
+  );
+
+  function handleSync(projectId?: string, label?: string) {
+    sync.mutate(projectId, {
+      onSuccess: () => toast.success(label ? `Synced ${label}` : "Synced all retainers"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Sync failed"),
+    });
+  }
 
   return (
     <div className="max-w-6xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-headline-medium">Retainers</h1>
-        <Button onClick={() => navigate("/retainers/new")}>
-          <Plus className="h-4 w-4" />
-          New retainer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleSync(undefined)}
+            disabled={sync.isPending}
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", sync.isPending && sync.variables === undefined && "animate-spin")}
+            />
+            Sync all
+          </Button>
+          <Button onClick={() => navigate("/retainers/new")}>
+            <Plus className="h-4 w-4" />
+            New retainer
+          </Button>
+        </div>
       </div>
 
       {retainers.length === 0 ? (
@@ -50,6 +79,7 @@ export function RetainersList() {
                   <TableHead>Name</TableHead>
                   <TableHead className="text-right">Monthly fee</TableHead>
                   <TableHead className="text-right">Hours target</TableHead>
+                  <TableHead>Hours used</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-px" />
                 </TableRow>
@@ -76,9 +106,26 @@ export function RetainersList() {
                       {r.retainer_hours_target ?? "—"}
                     </TableCell>
                     <TableCell>
+                      <HoursUsedCell burn={burnByProject.get(r.id) ?? null} />
+                    </TableCell>
+                    <TableCell>
                       <Badge>{statusLabel(r.status)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={sync.isPending}
+                        aria-label={`Sync ${r.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSync(r.id, r.name);
+                        }}
+                      >
+                        <RefreshCw
+                          className={cn("h-4 w-4", sync.isPending && sync.variables === r.id && "animate-spin")}
+                        />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
