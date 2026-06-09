@@ -1,9 +1,25 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
+import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { navItems, ICON_RAIL_WIDTH, type NavItem } from "./navItems"
+import {
+  bottomNavItems,
+  navSections,
+  topNavItems,
+  ICON_RAIL_WIDTH,
+  type NavItem,
+  type NavSection,
+} from "./navItems"
 
-function NavRow({ item, onClose }: { item: NavItem; onClose: () => void }) {
+function NavRow({
+  item,
+  onClose,
+  indent = false,
+}: {
+  item: NavItem
+  onClose: () => void
+  indent?: boolean
+}) {
   const { pathname } = useLocation()
   const isActive = item.end ? pathname === item.to : pathname.startsWith(item.to)
   return (
@@ -12,18 +28,56 @@ function NavRow({ item, onClose }: { item: NavItem; onClose: () => void }) {
       end={item.end}
       onClick={onClose}
       className={cn(
-        "flex items-center gap-3 rounded-full px-4 py-2.5 text-label-large transition-all",
+        "flex items-center gap-3 rounded-full py-2.5 text-label-large transition-all",
+        indent ? "pl-7 pr-4" : "px-4",
         isActive ? "text-white shadow-sm" : "hover:bg-m-surface-container",
       )}
-      style={
-        isActive
-          ? { background: item.gradient }
-          : { color: item.color }
-      }
+      style={isActive ? { background: item.gradient } : { color: item.color }}
     >
       <item.icon className="h-[18px] w-[18px] shrink-0" />
       {item.label}
     </NavLink>
+  )
+}
+
+// Mirrors the expanded IconRail: a collapsible parent whose children are
+// hidden until expanded, so the overlay shows the same nine entries rather
+// than flattening every child.
+function SectionGroup({ section, onClose }: { section: NavSection; onClose: () => void }) {
+  const { pathname } = useLocation()
+  const hasActiveChild = section.items.some((it) =>
+    it.end ? pathname === it.to : pathname.startsWith(it.to),
+  )
+  const [open, setOpen] = useState(hasActiveChild)
+  useEffect(() => {
+    if (hasActiveChild) setOpen(true)
+  }, [hasActiveChild])
+  const Icon = section.icon
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={section.label}
+        className="flex items-center w-full gap-3 rounded-full px-4 py-2.5 text-label-large transition-all hover:bg-m-surface-container"
+        style={{ color: section.color }}
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0" />
+        <span className="flex-1 text-left">{section.label}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 transition-transform duration-200",
+            open ? "rotate-0" : "-rotate-90",
+          )}
+        />
+      </button>
+      {open &&
+        section.items.map((item) => (
+          <NavRow key={item.to} item={item} onClose={onClose} indent />
+        ))}
+    </div>
   )
 }
 
@@ -81,7 +135,13 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
           Navigation
         </p>
 
-        {navItems.map((item) => (
+        {topNavItems.map((item) => (
+          <NavRow key={item.to} item={item} onClose={onClose} />
+        ))}
+        {navSections.map((section) => (
+          <SectionGroup key={section.label} section={section} onClose={onClose} />
+        ))}
+        {bottomNavItems.map((item) => (
           <NavRow key={item.to} item={item} onClose={onClose} />
         ))}
       </nav>

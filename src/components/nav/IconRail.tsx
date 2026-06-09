@@ -1,11 +1,10 @@
-import { forwardRef, useEffect, useState } from "react"
+import { forwardRef, useEffect, useRef, useState } from "react"
 import { Calculator, ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
 import {
   bottomNavItems,
-  navItems,
   navSections,
   topNavItems,
   type NavItem,
@@ -17,6 +16,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 const NavRow = forwardRef<
   HTMLAnchorElement,
@@ -100,6 +104,83 @@ function SectionGroup({ section }: { section: NavSection }) {
   )
 }
 
+// Collapsed-rail counterpart to SectionGroup: a single section icon that
+// reveals its children in a hover/click flyout, so the rail shows the same
+// nine entries as the expanded nav (4 top + 4 sections + Settings) rather than
+// flattening every child into the rail.
+function CollapsedSection({ section }: { section: NavSection }) {
+  const { pathname } = useLocation()
+  const hasActiveChild = section.items.some((it) =>
+    it.end ? pathname === it.to : pathname.startsWith(it.to),
+  )
+  const [open, setOpen] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const Icon = section.icon
+
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+  }
+  // Small grace period so moving the cursor from the icon across the gap to the
+  // flyout doesn't dismiss it.
+  const scheduleClose = () => {
+    cancelClose()
+    closeTimer.current = setTimeout(() => setOpen(false), 120)
+  }
+  useEffect(() => cancelClose, [])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={section.label}
+          onMouseEnter={() => {
+            cancelClose()
+            setOpen(true)
+          }}
+          onMouseLeave={scheduleClose}
+          className={cn(
+            "grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors",
+            hasActiveChild ? "text-white shadow-sm" : "hover:bg-m-surface-container",
+          )}
+          style={hasActiveChild ? { background: section.gradient } : { color: section.color }}
+        >
+          <Icon className="h-[18px] w-[18px]" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="start"
+        sideOffset={10}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+        className="w-56 p-1.5"
+      >
+        <p
+          className="px-3 pb-1.5 pt-1 text-label-small uppercase tracking-wide"
+          style={{ color: section.color }}
+        >
+          {section.label}
+        </p>
+        <div className="flex flex-col gap-0.5">
+          {section.items.map((item) => (
+            <NavRow
+              key={item.to}
+              item={item}
+              navOpen={true}
+              onClick={() => setOpen(false)}
+            />
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 interface IconRailProps {
   navOpen: boolean
   onToggle: () => void
@@ -173,14 +254,27 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
             ))}
           </>
         ) : (
-          navItems.map((item) => (
-            <Tooltip key={item.to}>
-              <TooltipTrigger asChild>
-                <NavRow item={item} navOpen={false} />
-              </TooltipTrigger>
-              <TooltipContent side="right">{item.label}</TooltipContent>
-            </Tooltip>
-          ))
+          <>
+            {topNavItems.map((item) => (
+              <Tooltip key={item.to}>
+                <TooltipTrigger asChild>
+                  <NavRow item={item} navOpen={false} />
+                </TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            ))}
+            {navSections.map((section) => (
+              <CollapsedSection key={section.label} section={section} />
+            ))}
+            {bottomNavItems.map((item) => (
+              <Tooltip key={item.to}>
+                <TooltipTrigger asChild>
+                  <NavRow item={item} navOpen={false} />
+                </TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            ))}
+          </>
         )}
 
         {/* Sign out — pinned to bottom */}

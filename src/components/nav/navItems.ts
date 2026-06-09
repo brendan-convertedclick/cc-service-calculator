@@ -12,6 +12,7 @@ import {
   Network,
   PackageSearch,
   Receipt,
+  Repeat,
   Rocket,
   Settings as SettingsIcon,
   SlidersHorizontal,
@@ -48,6 +49,7 @@ const productivity: NavItem = { to: "/productivity",  label: "Productivity",  ic
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false, gradient: "linear-gradient(135deg, #EA580C, #FBBF24)", color: "#EA580C" }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false, gradient: "linear-gradient(135deg, #8B5CF6, #EC4899)", color: "#8B5CF6" }
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false, gradient: "linear-gradient(135deg, #4F46E5, #7C3AED)", color: "#4F46E5" }
+const retainers: NavItem      = { to: "/retainers",     label: "Retainers",     icon: Repeat,            end: false, gradient: "linear-gradient(135deg, #DB2777, #F97316)", color: "#DB2777" }
 const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks", icon: ListTodo,       end: false, gradient: "linear-gradient(135deg, #F97316, #FBBF24)", color: "#F97316" }
 const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundations", icon: LayoutTemplate, end: false, gradient: "linear-gradient(135deg, #6366F1, #8B5CF6)", color: "#6366F1" }
 const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoice preview", icon: Receipt, end: false, gradient: "linear-gradient(135deg, #10B981, #14B8A6)", color: "#10B981" }
@@ -70,7 +72,7 @@ export const navSections: NavSection[] = [
     icon: Rocket,
     gradient: "linear-gradient(135deg, #DB2777, #F97316)",
     color: "#DB2777",
-    items: [services, briefs, projects],
+    items: [services, briefs, projects, retainers],
   },
   {
     label: "Scaffold",
@@ -96,13 +98,5 @@ export const navSections: NavSection[] = [
 ]
 
 export const bottomNavItems: NavItem[] = [settings]
-
-// Flat list — preserved for the collapsed icon rail and any consumers that
-// want every nav target in display order.
-export const navItems: NavItem[] = [
-  ...topNavItems,
-  ...navSections.flatMap((s) => s.items),
-  ...bottomNavItems,
-]
 
 export const ICON_RAIL_WIDTH = 56
