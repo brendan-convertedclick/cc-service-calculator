@@ -21,6 +21,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { collectProvisionedActuals } from "../_shared/retainer-actuals-logic.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -82,9 +83,58 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Phase 8: retainer provisioned tasks are recorded in provisioned_tasks but
+    // never seeded into project_actuals, so their ClickUp time never enters the
+    // burn pipeline. Pull the current-period task IDs here and fold them into
+    // each project's actuals set below. First sync inserts a project_actuals
+    // row; later syncs carry them forward via project_actuals_current.
+    type ProvRow = {
+      clickup_task_ids: string[] | null;
+      period_start: string;
+      period_end: string;
+      // recurring_service_id is a NOT NULL to-one FK (migration 0058) →
+      // PostgREST returns a single object here, never an array.
+      retainer_recurring_services: { points_per_occurrence: number } | null;
+    };
+    const provisionedByProject = new Map<
+      string,
+      Array<{ clickup_task_ids: string[]; period_start: string; period_end: string; points_per_occurrence: number | null }>
+    >();
+    if (projectIds.length > 0) {
+      const { data: provisioned, error: provErr } = await supabase
+        // deno-lint-ignore no-explicit-any
+        .from("provisioned_tasks" as any)
+        .select(
+          "project_id, clickup_task_ids, period_start, period_end, retainer_recurring_services(points_per_occurrence)",
+        )
+        .in("project_id", projectIds);
+      if (provErr) console.error("provisioned_tasks fetch failed:", provErr.message);
+      for (const row of (provisioned ?? []) as Array<ProvRow & { project_id: string }>) {
+        const list = provisionedByProject.get(row.project_id) ?? [];
+        list.push({
+          clickup_task_ids: row.clickup_task_ids ?? [],
+          period_start: row.period_start,
+          period_end: row.period_end,
+          points_per_occurrence: row.retainer_recurring_services?.points_per_occurrence ?? null,
+        });
+        provisionedByProject.set(row.project_id, list);
+      }
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+
     let inserted = 0;
     for (const p of projects ?? []) {
       const actuals = actualsByProject.get(p.id) ?? [];
+
+      // Fold in current-period retainer provisioned tasks not already tracked.
+      const existingTaskIds = new Set(actuals.map((a) => a.clickup_task_id));
+      for (const seed of collectProvisionedActuals(
+        existingTaskIds,
+        provisionedByProject.get(p.id) ?? [],
+        todayIso,
+      )) {
+        actuals.push({ ...seed, project_id: p.id });
+      }
 
       let allDone = actuals.length > 0;
 
@@ -115,6 +165,9 @@ Deno.serve(async (req: Request) => {
         );
 
         const status: string | null = task.status?.status?.toLowerCase() ?? null;
+        // Retainer provisioned tasks are perpetual (live) and never close, so
+        // they keep allDone=false for retainer projects — correct, by design
+        // (retainers must not auto-complete mid-period).
         if (status !== "complete" && status !== "closed" && status !== "done") allDone = false;
 
         // Append-only insert: a brand new row per task per tick. recorded_at
