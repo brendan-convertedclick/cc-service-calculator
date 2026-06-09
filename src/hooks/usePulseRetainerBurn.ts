@@ -69,7 +69,7 @@ export function usePulseRetainerBurn(): RetainerBurnRow[] {
           .from('projects')
           .select('id, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')
           .eq('engagement_type', 'retainer')
-          .eq('status', 'active'),
+          .eq('status', 'in_progress'),
         supabase
           .from('project_actuals_current')
           .select('project_id, actual_hours')

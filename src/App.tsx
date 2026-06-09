@@ -64,6 +64,12 @@ const Briefs = lazy(() =>
 const ProjectDetail = lazy(() =>
   import("@/pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })),
 );
+const RetainersList = lazy(() =>
+  import("@/pages/RetainersList").then((m) => ({ default: m.RetainersList })),
+);
+const NewRetainerWizard = lazy(() =>
+  import("@/pages/NewRetainerWizard").then((m) => ({ default: m.NewRetainerWizard })),
+);
 const Clients = lazy(() =>
   import("@/pages/Clients").then((m) => ({ default: m.Clients })),
 );
@@ -178,6 +184,8 @@ export default function App() {
               <Route path="clients/:clientId/projects/:projectId" element={<ProjectScopeView />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
+              <Route path="retainers" element={<RetainersList />} />
+              <Route path="retainers/new" element={<NewRetainerWizard />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
               <Route path="sow" element={<Navigate to="/services" replace />} />
