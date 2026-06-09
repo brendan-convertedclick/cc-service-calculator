@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2, RefreshCw } from "lucide-react";
+import { ChevronRight, Plus, Trash2, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useRetainers, useDeleteRetainer } from "@/hooks/useRetainers";
 import { usePulseRetainerBurn } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { HoursUsedCell } from "@/components/retainers/HoursUsedCell";
+import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
 import { formatZar, cn } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
 
@@ -28,12 +29,20 @@ export function RetainersList() {
   const navigate = useNavigate();
   const { data: retainers = [] } = useRetainers();
   const deleteRetainer = useDeleteRetainer();
-  const burnRows = usePulseRetainerBurn();
+  // includeCompleted: a retainer that has completed must still show its
+  // consumed hours here (Pulse keeps the default in-progress-only view).
+  // Month defaults to the current month.
+  const burnRows = usePulseRetainerBurn(undefined, { includeCompleted: true });
   const sync = useSyncActuals();
   const burnByProject = useMemo(
     () => new Map(burnRows.map((b) => [b.projectId, b])),
     [burnRows],
   );
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
   function handleSync(projectId?: string, label?: string) {
     sync.mutate(projectId, {
@@ -75,6 +84,7 @@ export function RetainersList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-px" />
                   <TableHead>Client</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead className="text-right">Monthly fee</TableHead>
@@ -86,11 +96,30 @@ export function RetainersList() {
               </TableHeader>
               <TableBody>
                 {retainers.map((r) => (
+                  <Fragment key={r.id}>
                   <TableRow
-                    key={r.id}
                     onClick={() => navigate(`/projects/${r.id}`)}
                     className="cursor-pointer"
                   >
+                    <TableCell className="w-px pr-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`${expanded[r.id] ? "Hide" : "Show"} tasks for ${r.name}`}
+                        aria-expanded={!!expanded[r.id]}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpanded(r.id);
+                        }}
+                      >
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            expanded[r.id] && "rotate-90",
+                          )}
+                        />
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-body-medium text-m-on-surface">
                       {r.client_name}
                     </TableCell>
@@ -152,6 +181,14 @@ export function RetainersList() {
                       </Button>
                     </TableCell>
                   </TableRow>
+                  {expanded[r.id] && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={8} className="bg-m-surface-container-low p-0">
+                        <RetainerSubItems projectId={r.id} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

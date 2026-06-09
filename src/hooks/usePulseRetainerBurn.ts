@@ -99,32 +99,77 @@ export function referenceDateForMonth(month: string, now: Date): Date {
   return now
 }
 
-export function usePulseRetainerBurn(month: string = currentMonthKey()): RetainerBurnRow[] {
+export type BurnStatus = 'in_progress' | 'completed'
+
+export function burnStatuses(includeCompleted: boolean): BurnStatus[] {
+  return includeCompleted ? ['in_progress', 'completed'] : ['in_progress']
+}
+
+/**
+ * Keep the selected month's snapshots for in-progress retainers (per-month
+ * burn), but keep ALL snapshots for completed retainers: the cron only syncs
+ * in_progress projects, so a completed retainer's latest snapshots freeze at
+ * completion and would otherwise fall out of the month window at rollover,
+ * rendering a misleading "0 / Nh". actual_hours is cumulative per task, so the
+ * frozen snapshots are exactly the final consumed hours.
+ */
+export function filterBurnActuals(
+  actuals: Array<ActualRow & { recorded_at: string | null }>,
+  completedProjectIds: Set<string>,
+  monthStart: Date,
+  monthEnd: Date,
+): ActualRow[] {
+  return actuals.filter(a => {
+    if (a.project_id == null) return false
+    if (completedProjectIds.has(a.project_id)) return true
+    if (a.recorded_at == null) return false
+    const recorded = new Date(a.recorded_at)
+    return recorded >= monthStart && recorded < monthEnd
+  })
+}
+
+// Pulse passes a month and defaults to in-progress retainers only (pace
+// alerts are meaningless once a retainer is closed). The Retainers list
+// passes includeCompleted so hours consumed stay visible after a retainer
+// completes.
+export function usePulseRetainerBurn(
+  month: string = currentMonthKey(),
+  opts: { includeCompleted?: boolean } = {},
+): RetainerBurnRow[] {
+  const includeCompleted = opts.includeCompleted ?? false
   const { data } = useQuery({
-    queryKey: ['pulseRetainerBurn', month],
+    queryKey: ['pulseRetainerBurn', month, { includeCompleted }],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase')
       const { start, end } = monthRange(month)
 
-      const [{ data: projects }, { data: actuals }] = await Promise.all([
-        supabase
-          .from('projects')
-          .select('id, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')
-          .eq('engagement_type', 'retainer')
-          .eq('status', 'in_progress'),
-        supabase
-          .from('project_actuals_current')
-          .select('project_id, actual_hours')
-          .gte('recorded_at', start.toISOString())
-          .lt('recorded_at', end.toISOString()),
-      ])
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')
+        .eq('engagement_type', 'retainer')
+        .in('status', burnStatuses(includeCompleted))
 
       const mapped = (projects ?? []).map(p => ({
         ...p,
         client_name: (p.clients as { name: string } | null)?.name ?? 'Unknown',
       }))
 
-      return computeRetainerBurn(mapped, actuals ?? [], referenceDateForMonth(month, new Date()))
+      // No recorded_at window in SQL — completed retainers' snapshots predate
+      // the current month. filterBurnActuals applies the month window to
+      // in-progress projects only.
+      const { data: actuals } = await supabase
+        .from('project_actuals_current')
+        .select('project_id, actual_hours, recorded_at')
+        .in('project_id', mapped.map(p => p.id))
+
+      const completedIds = new Set(
+        mapped.filter(p => p.status === 'completed').map(p => p.id),
+      )
+      return computeRetainerBurn(
+        mapped,
+        filterBurnActuals(actuals ?? [], completedIds, start, end),
+        referenceDateForMonth(month, new Date()),
+      )
     },
     staleTime: 5 * 60 * 1000,
   })
