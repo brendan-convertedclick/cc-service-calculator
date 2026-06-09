@@ -20,6 +20,21 @@ export type BriefTaskSowPlacement = {
   approved_at: string | null;
   created_at: string;
   updated_at: string;
+  // Columns added by migration 0061 — self-contained scope-map items.
+  item_name: string | null;
+  item_description: string | null;
+  sow_slug: string | null;
+  suggested_service_id: string | null;
+  estimated_cents: number | null;
+};
+
+// client_sows added by migration 0061 — which master SOW engagements a
+// client has. Remembered so the scope map never re-asks per brief.
+export type ClientSow = {
+  client_id: string;
+  sow_slug: string;
+  status: "active" | "ended";
+  created_at: string;
 };
 
 export type ProposedTaskForPlacement = {
@@ -27,37 +42,3 @@ export type ProposedTaskForPlacement = {
   name: string;
   description?: string;
 };
-
-/**
- * Group a set of placements into buckets keyed by service_area_id. The
- * sentinel key "__outside" collects placements that are out of scope.
- */
-export function bucketPlacements(
-  placements: BriefTaskSowPlacement[],
-): Map<string, BriefTaskSowPlacement[]> {
-  const out = new Map<string, BriefTaskSowPlacement[]>();
-  for (const p of placements) {
-    const key = p.is_inside && p.service_area_id ? p.service_area_id : "__outside";
-    const list = out.get(key) ?? [];
-    list.push(p);
-    out.set(key, list);
-  }
-  return out;
-}
-
-/**
- * Aggregate counts useful for the CE branching decision after the operator
- * approves placements.
- */
-export function placementCounts(placements: BriefTaskSowPlacement[]): {
-  inside: number;
-  outside: number;
-} {
-  let inside = 0;
-  let outside = 0;
-  for (const p of placements) {
-    if (p.is_inside) inside += 1;
-    else outside += 1;
-  }
-  return { inside, outside };
-}
