@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeRetainerBurn } from './usePulseRetainerBurn'
+import { burnStatuses, computeRetainerBurn, filterBurnActuals } from './usePulseRetainerBurn'
 
 const TODAY = new Date('2026-05-09T08:00:00Z')
 
@@ -54,5 +54,43 @@ describe('computeRetainerBurn', () => {
     const rows = computeRetainerBurn([completed], [{ project_id: 'p1', actual_hours: 2 }], TODAY)
     expect(rows).toHaveLength(1)
     expect(rows[0].hoursUsed).toBe(2)
+  })
+})
+
+describe('burnStatuses', () => {
+  it('queries only in_progress by default (Pulse)', () => {
+    expect(burnStatuses(false)).toEqual(['in_progress'])
+  })
+
+  it('adds completed when includeCompleted (Retainers list)', () => {
+    expect(burnStatuses(true)).toEqual(['in_progress', 'completed'])
+  })
+})
+
+describe('filterBurnActuals', () => {
+  const monthStart = new Date('2026-06-01T00:00:00Z')
+  const thisMonth = { project_id: 'p1', actual_hours: 1, recorded_at: '2026-06-09T10:00:00Z' }
+  const lastMonth = { project_id: 'p1', actual_hours: 3, recorded_at: '2026-05-20T10:00:00Z' }
+
+  it('applies the month window to in-progress retainers', () => {
+    const kept = filterBurnActuals([thisMonth, lastMonth], new Set(), monthStart)
+    expect(kept).toEqual([thisMonth])
+  })
+
+  it('keeps frozen pre-month snapshots for completed retainers (no misleading 0/N after rollover)', () => {
+    const kept = filterBurnActuals([lastMonth], new Set(['p1']), monthStart)
+    expect(kept).toEqual([lastMonth])
+  })
+
+  it('drops rows with no project or no recorded_at for in-progress projects', () => {
+    const kept = filterBurnActuals(
+      [
+        { project_id: null, actual_hours: 1, recorded_at: '2026-06-09T10:00:00Z' },
+        { project_id: 'p1', actual_hours: 1, recorded_at: null },
+      ],
+      new Set(),
+      monthStart,
+    )
+    expect(kept).toEqual([])
   })
 })

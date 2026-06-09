@@ -8,10 +8,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRetainerSubItems } from "@/hooks/useRetainerSubItems";
+import { errorMessage } from "@/lib/utils";
 
+// timeZone UTC: period_start/period_end are date-only columns, parsed by
+// new Date() as UTC midnight — formatting in local time would shift the
+// period a day early for viewers west of UTC.
 const dayMonth = new Intl.DateTimeFormat("en-ZA", {
   day: "numeric",
   month: "short",
+  timeZone: "UTC",
 });
 
 function formatPeriod(startIso: string, endIso: string): string {
@@ -42,7 +47,7 @@ export function RetainerSubItems({ projectId }: { projectId: string }) {
   if (error) {
     return (
       <div className="px-12 py-3 text-body-medium text-m-error">
-        Failed to load tasks for this retainer.
+        Failed to load tasks for this retainer: {errorMessage(error)}
       </div>
     );
   }

@@ -54,4 +54,16 @@ describe("RetainerSubItems", () => {
     render(<RetainerSubItems projectId="p1" />);
     expect(screen.getByText(/Loading tasks/i)).toBeInTheDocument();
   });
+
+  it("surfaces the error message when loading fails", () => {
+    mockUseRetainerSubItems.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: { message: "permission denied for table provisioned_tasks" },
+    });
+    render(<RetainerSubItems projectId="p1" />);
+    expect(
+      screen.getByText(/Failed to load tasks for this retainer: permission denied/i),
+    ).toBeInTheDocument();
+  });
 });

@@ -18,6 +18,9 @@ export function useSyncActuals() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["retainers"] });
       qc.invalidateQueries({ queryKey: ["pulseRetainerBurn"] });
+      // Unscoped on purpose: "Sync all" has no projectId, and an expanded
+      // sub-items panel stays mounted, so it only refreshes via invalidation.
+      qc.invalidateQueries({ queryKey: ["retainerSubItems"] });
     },
   });
 }
