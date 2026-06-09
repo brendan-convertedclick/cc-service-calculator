@@ -42,3 +42,21 @@ export function useRetainers() {
     },
   });
 }
+
+// Deletes a retainer project row. Child rows (recurring services, actuals,
+// process-step instances, …) cascade at the DB level; the provisioned ClickUp
+// list/tasks are left untouched.
+export function useDeleteRetainer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["retainers"] });
+      qc.invalidateQueries({ queryKey: ["pulseRetainerBurn"] });
+    },
+  });
+}
