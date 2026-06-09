@@ -7,8 +7,7 @@ ALTER TABLE team_members
     CHECK (tracking_mode IN ('live','manual'));
 
 COMMENT ON COLUMN team_members.tracking_mode IS
-  'Phase 8: live = perpetual ClickUp task + Rize.io time syncs; ' ||
-  'manual = discrete dated ClickUp tasks seeded per period.';
+  'Phase 8: live = perpetual ClickUp task + Rize.io time syncs; manual = discrete dated ClickUp tasks seeded per period.';
 
 -- Recurring services attached to a retainer (which is a project with is_recurring=true).
 CREATE TABLE IF NOT EXISTS retainer_recurring_services (
@@ -56,9 +55,7 @@ FROM project_actuals_current pa
 WHERE pa.actual_hours IS NOT NULL;
 
 COMMENT ON VIEW v_sprint_actuals IS
-  'Phase 8: canonical sprint-points view over project_actuals_current. ' ||
-  '1 sprint point = 15 minutes. All Productivity/Pulse/Projects consumers ' ||
-  'should read points from here rather than computing from hours inline.';
+  'Phase 8: canonical sprint-points view over project_actuals_current. 1 sprint point = 15 minutes. All Productivity/Pulse/Projects consumers should read points from here rather than computing from hours inline.';
 
 -- RLS
 ALTER TABLE retainer_recurring_services ENABLE ROW LEVEL SECURITY;

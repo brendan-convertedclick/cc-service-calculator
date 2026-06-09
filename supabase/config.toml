@@ -101,3 +101,7 @@ verify_jwt = false
 
 [functions.provision-ongoing-tasks]
 verify_jwt = false
+
+# --- Standalone New Retainer creation flow ---
+[functions.create-retainer]
+verify_jwt = false
