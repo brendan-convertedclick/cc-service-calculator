@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState, type MouseEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Settings, Archive, ArchiveRestore, FolderPlus } from "lucide-react";
+import { Settings, Archive, ArchiveRestore, FolderPlus, Link2, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { useBriefs, useUpdateBrief, type BriefScope, type BriefFilterOptions, type BriefSortDirection } from "@/hooks/useBriefs";
+import { useClientProjects } from "@/hooks/useClientProjects";
 import { STATUS_LABEL } from "@/lib/brief-routing";
 import type { Database } from "@/types/db";
 
@@ -69,6 +70,59 @@ const EMPTY: Record<BriefScope, string> = {
   archived: "No archived briefs.",
 };
 
+interface ProjectLookupEntry {
+  id: string;
+  name: string | null;
+  clientName: string;
+}
+
+function ProjectChip({
+  project,
+  hasProjectId,
+  onAssignClick,
+}: {
+  project: ProjectLookupEntry | undefined;
+  hasProjectId: boolean;
+  onAssignClick: () => void;
+}) {
+  const navigate = useNavigate();
+
+  if (hasProjectId && project) {
+    const label = project.name ?? "Project";
+    return (
+      <button
+        type="button"
+        onClick={(e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          navigate(`/projects/${project.id}`);
+        }}
+        title={`Open project · ${project.clientName} — ${label}`}
+        className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-m-primary/30 bg-m-primary-container px-2 py-0.5 text-label-small font-medium text-m-on-primary-container hover:bg-m-primary/20"
+      >
+        <FolderOpen className="h-3 w-3 shrink-0" />
+        <span className="truncate">{label}</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onAssignClick();
+      }}
+      title="Link to project"
+      className="inline-flex items-center gap-1 rounded-full border border-dashed border-m-outline-variant px-2 py-0.5 text-label-small text-m-on-surface-variant hover:border-m-primary hover:bg-m-surface-container hover:text-m-on-surface"
+    >
+      <Link2 className="h-3 w-3" />
+      Link
+    </button>
+  );
+}
+
 interface BriefListProps {
   scope: BriefScope;
   currentUserId?: string | null;
@@ -79,6 +133,17 @@ interface BriefListProps {
 
 export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions, sortDirection }: BriefListProps) {
   const { data: briefs = [], isLoading } = useBriefs(scope, currentUserId, filterOptions, sortDirection);
+  const { data: clients = [] } = useClientProjects();
+
+  const projectsById = useMemo(() => {
+    const map = new Map<string, ProjectLookupEntry>();
+    for (const c of clients) {
+      for (const p of c.projects) {
+        map.set(p.id, { id: p.id, name: p.name, clientName: c.name });
+      }
+    }
+    return map;
+  }, [clients]);
 
   if (isLoading) {
     return <div className="text-body-medium text-m-on-surface-variant p-4">Loading…</div>;
@@ -90,13 +155,18 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
   return (
     <div className="space-y-2">
       {briefs.map((b: Brief) => (
-        <BriefRow key={b.id} brief={b} selected={selectedBriefId === b.id} />
+        <BriefRow
+          key={b.id}
+          brief={b}
+          selected={selectedBriefId === b.id}
+          project={b.parent_project_id ? projectsById.get(b.parent_project_id) : undefined}
+        />
       ))}
     </div>
   );
 }
 
-function BriefRow({ brief: b, selected }: { brief: Brief; selected: boolean }) {
+function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boolean; project: ProjectLookupEntry | undefined }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const { mutateAsync: updateBrief, isPending } = useUpdateBrief();
@@ -145,6 +215,11 @@ function BriefRow({ brief: b, selected }: { brief: Brief; selected: boolean }) {
               </div>
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
+              <ProjectChip
+                project={project}
+                hasProjectId={!!b.parent_project_id}
+                onAssignClick={() => setAssignOpen(true)}
+              />
               <IntentBadge type={b.intent_type ?? null} />
               <Badge variant="secondary">{STATUS_LABEL[b.status]}</Badge>
               <Popover open={menuOpen} onOpenChange={setMenuOpen}>

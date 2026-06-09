@@ -43,6 +43,14 @@ vi.mock("@/hooks/useTeam", () => ({
   useTeam: () => ({ data: [] }),
 }));
 
+vi.mock("@/hooks/useAssignBriefToProject", () => ({
+  useAssignBriefToProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@/components/scope/InboxAssignModal", () => ({
+  InboxAssignModal: () => null,
+}));
+
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { email: "brendan@convertedclick.co.za" } }),
   useCurrentUserId: () => "user-1",
@@ -73,6 +81,7 @@ const brief: Brief = {
   rejection_reason: null,
   draft_reply: null,
   intent_type: null,
+  parent_project_id: null,
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };

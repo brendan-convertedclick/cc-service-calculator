@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BurnChart } from "@/components/BurnChart";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProjectCommunications } from "@/components/projects/ProjectCommunications";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useDepartments } from "@/hooks/useDepartments";
 import type { Database } from "@/types/db";
@@ -240,6 +242,12 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
         </CardContent>
       </Card>
 
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="communications">Communications</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Claude Code attribution</CardTitle>
@@ -472,6 +480,11 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
           </table>
         </CardContent>
       </Card>
+        </TabsContent>
+        <TabsContent value="communications">
+          <ProjectCommunications projectId={project.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
