@@ -39,6 +39,24 @@ vi.mock("@/hooks/usePulseRetainerBurn", () => ({
 vi.mock("@/hooks/useSyncActuals", () => ({
   useSyncActuals: () => ({ mutate: mockSyncMutate, isPending: false, variables: undefined }),
 }));
+vi.mock("@/hooks/useRetainerSubItems", () => ({
+  useRetainerSubItems: () => ({
+    data: [
+      {
+        taskId: "t1",
+        serviceName: "Local SEO Pack",
+        assigneeName: "Brendan",
+        periodStart: "2026-06-01",
+        periodEnd: "2026-06-30",
+        estimatedHours: 0.25,
+        usedHours: 2,
+        status: "closed",
+        isDone: true,
+      },
+    ],
+    isLoading: false,
+  }),
+}));
 
 import { RetainersList } from "./RetainersList";
 
@@ -63,5 +81,32 @@ describe("RetainersList sync controls", () => {
     await userEvent.click(screen.getByRole("button", { name: /sync all/i }));
     expect(mockSyncMutate).toHaveBeenCalled();
     expect(mockSyncMutate.mock.calls[0][0]).toBeUndefined();
+  });
+});
+
+describe("RetainersList sub-items", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("expands a retainer's sub-tasks via the chevron without navigating", async () => {
+    render(<RetainersList />);
+    expect(screen.queryByText("Local SEO Pack")).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByLabelText("Show tasks for Test Conductor retainer"),
+    );
+    expect(screen.getByText("Local SEO Pack")).toBeInTheDocument();
+    expect(screen.getByText("0.25h")).toBeInTheDocument();
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("collapses sub-tasks on a second click", async () => {
+    render(<RetainersList />);
+    await userEvent.click(
+      screen.getByLabelText("Show tasks for Test Conductor retainer"),
+    );
+    await userEvent.click(
+      screen.getByLabelText("Hide tasks for Test Conductor retainer"),
+    );
+    expect(screen.queryByText("Local SEO Pack")).not.toBeInTheDocument();
   });
 });

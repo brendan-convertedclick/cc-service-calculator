@@ -48,4 +48,11 @@ describe('computeRetainerBurn', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].projectId).toBe('p1')
   })
+
+  it('computes burn for a completed retainer (status filtering is the query layer’s job)', () => {
+    const completed = { ...project, status: 'completed' }
+    const rows = computeRetainerBurn([completed], [{ project_id: 'p1', actual_hours: 2 }], TODAY)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].hoursUsed).toBe(2)
+  })
 })

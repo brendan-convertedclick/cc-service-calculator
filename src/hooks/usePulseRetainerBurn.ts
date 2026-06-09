@@ -55,21 +55,30 @@ export function computeRetainerBurn(
   })
 }
 
-export function usePulseRetainerBurn(): RetainerBurnRow[] {
+// Pulse defaults to in-progress retainers only (pace alerts are meaningless
+// once a retainer is closed). The Retainers list passes includeCompleted so
+// hours consumed stay visible after a retainer completes.
+export function usePulseRetainerBurn(
+  opts: { includeCompleted?: boolean } = {},
+): RetainerBurnRow[] {
+  const includeCompleted = opts.includeCompleted ?? false
   const { data } = useQuery({
-    queryKey: ['pulseRetainerBurn'],
+    queryKey: ['pulseRetainerBurn', { includeCompleted }],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase')
       const start = new Date()
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
 
+      const statuses: Array<'in_progress' | 'completed'> = includeCompleted
+        ? ['in_progress', 'completed']
+        : ['in_progress']
       const [{ data: projects }, { data: actuals }] = await Promise.all([
         supabase
           .from('projects')
           .select('id, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')
           .eq('engagement_type', 'retainer')
-          .eq('status', 'in_progress'),
+          .in('status', statuses),
         supabase
           .from('project_actuals_current')
           .select('project_id, actual_hours')
