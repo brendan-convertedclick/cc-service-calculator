@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { cn, formatHours, formatZar } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
@@ -75,15 +76,6 @@ export function ServicesList() {
     return { counts, uncategorized };
   }, [services, primaryDeptByService]);
 
-  function toggleGroup(id: string) {
-    setGroupFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   // Lifted: a single mutation handle drives every row's save/revert. mutate() is
   // a stable reference across renders, so the per-row React.memo stays effective.
   const setChecklist = useSetServiceChecklist();
@@ -107,15 +99,15 @@ export function ServicesList() {
     });
   }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService]);
 
-  const groupChips = useMemo(() => {
-    const chips = depts
-      .map((d) => ({ id: d.id, name: d.name, count: groupCounts.counts[d.id] ?? 0 }))
-      .filter((c) => c.count > 0)
+  const groupOptions = useMemo(() => {
+    const opts = depts
+      .map((d) => ({ value: d.id, label: d.name, count: groupCounts.counts[d.id] ?? 0 }))
+      .filter((o) => o.count > 0)
       .sort((a, b) => b.count - a.count);
     if (groupCounts.uncategorized > 0) {
-      chips.push({ id: "__none__", name: "Uncategorized", count: groupCounts.uncategorized });
+      opts.push({ value: "__none__", label: "Uncategorized", count: groupCounts.uncategorized });
     }
-    return chips;
+    return opts;
   }, [depts, groupCounts]);
 
   const activeFilterCount =
@@ -202,6 +194,17 @@ export function ServicesList() {
             </SelectContent>
           </Select>
 
+          {groupOptions.length > 0 && (
+            <MultiSelect
+              options={groupOptions}
+              values={[...groupFilter]}
+              onChange={(vals) => setGroupFilter(new Set(vals))}
+              placeholder="All groups"
+              searchPlaceholder="Search groups…"
+              className="h-10 w-[220px]"
+            />
+          )}
+
           {activeFilterCount > 0 && (
             <Button variant="ghost" size="sm" onClick={clearAll} className="h-10 text-m-on-surface-variant">
               <X className="h-3.5 w-3.5" /> Clear filters
@@ -209,39 +212,6 @@ export function ServicesList() {
           )}
         </div>
 
-        {groupChips.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-label-small uppercase tracking-wide text-m-on-surface-variant">
-              Group
-            </span>
-            {groupChips.map((c) => {
-              const active = groupFilter.has(c.id);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggleGroup(c.id)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-label-small transition-colors",
-                    active
-                      ? "border-m-primary bg-m-primary text-m-on-primary"
-                      : "border-m-outline-variant bg-m-surface text-m-on-surface hover:bg-m-surface-container"
-                  )}
-                >
-                  <span>{c.name}</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 py-0 text-[10px] font-medium tabular-nums",
-                      active ? "bg-m-on-primary/20 text-m-on-primary" : "bg-m-surface-container text-m-on-surface-variant"
-                    )}
-                  >
-                    {c.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <Card>
