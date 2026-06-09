@@ -42,6 +42,7 @@ export function ScopeItemChip({
   const ariaLabel = [
     name,
     verdict,
+    item.is_inside ? null : selected ? "Included in estimate" : "Not included in estimate",
     item.ai_match_quote ? `Reasoning: ${item.ai_match_quote}` : null,
   ]
     .filter(Boolean)
@@ -54,7 +55,7 @@ export function ScopeItemChip({
           type="button"
           aria-label={ariaLabel}
           className={cn(
-            "absolute z-10 flex max-w-[150px] -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-label-medium shadow-elev-1 motion-safe:transition-all motion-safe:duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+            "absolute z-10 flex max-w-[110px] -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-label-medium shadow-elev-1 motion-safe:transition-all motion-safe:duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             item.is_inside
               ? "bg-m-primary-container text-m-on-primary-container"
               : "bg-m-error-container text-m-on-error-container",
@@ -68,13 +69,13 @@ export function ScopeItemChip({
           }}
         >
           {!item.is_inside && (
-            // A real <button> cannot nest inside the trigger button, so the
-            // estimate checkbox is a span with checkbox semantics. Clicks
-            // stop propagation so they never toggle the popover.
+            // Purely decorative mouse shortcut — a real control cannot nest
+            // inside the trigger button, so the operable checkbox lives in
+            // the popover and selection state is announced via the chip
+            // button's aria-label. Clicks stop propagation so they never
+            // toggle the popover.
             <span
-              role="checkbox"
-              aria-checked={selected}
-              aria-label={`Include "${name}" in estimate`}
+              aria-hidden="true"
               data-testid={`chip-select-${item.task_ref}`}
               onClick={(e) => {
                 e.stopPropagation();

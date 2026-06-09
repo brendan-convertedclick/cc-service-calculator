@@ -57,6 +57,16 @@ import type { BriefTaskSowPlacement } from "@/types/sow-placements";
  */
 export function SowCheck() {
   const { id: briefId } = useParams<{ id: string }>();
+  if (!briefId) {
+    return <div className="p-6 text-body-medium">Brief not found.</div>;
+  }
+  // Keyed by briefId so all per-brief state (autoRanRef, selectionInitRef,
+  // selection, selectedRefs, the analyze mutation) resets when navigating
+  // between briefs — React Router reuses the mounted element across :id changes.
+  return <SowCheckInner key={briefId} briefId={briefId} />;
+}
+
+function SowCheckInner({ briefId }: { briefId: string }) {
   const navigate = useNavigate();
 
   const briefQuery = useBrief(briefId);
@@ -159,16 +169,20 @@ export function SowCheck() {
         override_reason: isInside ? "Operator moved inside" : "Operator moved outside",
       },
       {
+        // Selection follows the placement only once the write lands — on error
+        // the chip rolls back, so the estimate selection must not move either.
+        onSuccess: () => {
+          setSelectedRefs((prev) => {
+            const next = new Set(prev);
+            if (isInside) next.delete(ref);
+            else next.add(ref);
+            return next;
+          });
+        },
         onError: (e) =>
           toast.error(e instanceof Error ? e.message : "Failed to update placement"),
       },
     );
-    setSelectedRefs((prev) => {
-      const next = new Set(prev);
-      if (isInside) next.delete(ref);
-      else next.add(ref);
-      return next;
-    });
   };
 
   const approvedCount = useMemo(
@@ -212,6 +226,37 @@ export function SowCheck() {
     0,
   );
 
+  // Read failures must surface explicitly — without this branch a failed
+  // placements fetch left the page on a permanent fake "Mapping…" spinner
+  // (the idle analyze mutation looked like in-flight work).
+  if (briefQuery.isError || placementsQuery.isError) {
+    const error = briefQuery.isError ? briefQuery.error : placementsQuery.error;
+    return (
+      <div className="p-6">
+        <Card className="mx-auto max-w-md border-destructive/30 shadow-elev-1">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <p className="text-body-medium text-destructive">
+              {briefQuery.isError
+                ? "Failed to load the brief."
+                : "Failed to load scope placements."}
+            </p>
+            <p className="text-body-small text-m-on-surface-variant">
+              {error instanceof Error ? error.message : String(error)}
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (briefQuery.isError) void briefQuery.refetch();
+                if (placementsQuery.isError) void placementsQuery.refetch();
+              }}
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (briefQuery.isLoading || (placementsQuery.isLoading && placements === undefined)) {
     return (
       <div className="space-y-4 p-6">
@@ -267,7 +312,11 @@ export function SowCheck() {
           onConfirm={(slugs) => runAnalyze({ sow_slugs: slugs, persist_client_sows: true })}
         />
       ) : !hasPlacements ? (
-        analyzing || placementsQuery.isFetching || (!analyze.isError && !analyze.isSuccess) ? (
+        // Spinner only while work is genuinely pending/expected: an idle
+        // mutation counts (auto-run is imminent) but never when the read errored.
+        analyzing ||
+        placementsQuery.isFetching ||
+        (analyze.isIdle && !placementsQuery.isError) ? (
           <Card className="mx-auto max-w-md border-m-outline-variant shadow-elev-1">
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
               <Sparkles className="h-8 w-8 animate-pulse text-m-primary" />

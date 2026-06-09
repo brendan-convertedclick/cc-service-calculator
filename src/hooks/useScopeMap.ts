@@ -57,7 +57,10 @@ export function useScopeMapPlacements(briefId: string | undefined) {
         .from("brief_task_sow_placements")
         .select("*")
         .eq("brief_id", briefId)
-        .order("created_at");
+        // Batch inserts share created_at, and the layout is index-sensitive —
+        // tiebreak on id so the chip order is stable across refetches.
+        .order("created_at")
+        .order("id");
       if (error) throw error;
       return (data ?? []) as unknown as BriefTaskSowPlacement[];
     },
@@ -106,7 +109,10 @@ export function useAnalyzeBrief(briefId: string | undefined) {
       if (!res.ok) throw new Error(body.error ?? `Analysis failed (HTTP ${res.status})`);
       return body;
     },
-    onSuccess: () => {
+    // onSettled (not onSuccess): the edge fn deletes/reinserts rows server-side
+    // before a failure can surface, so a failed/aborted re-analysis must still
+    // resync the cache with whatever the server now holds.
+    onSettled: () => {
       if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
       qc.invalidateQueries({ queryKey: ["client-sows"] });
     },

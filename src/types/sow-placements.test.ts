@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bucketPlacements, placementCounts, type BriefTaskSowPlacement } from "./sow-placements";
+import type { BriefTaskSowPlacement } from "./sow-placements";
 
+// Factory mirrors the full row shape — a compile error here flags any drift
+// between the hand-maintained type and code building placement rows.
 const p = (overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacement => ({
   id: crypto.randomUUID(),
   brief_id: "b",
@@ -22,33 +24,18 @@ const p = (overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacement => 
   ...overrides,
 });
 
-describe("bucketPlacements", () => {
-  it("groups inside by service_area_id", () => {
-    const buckets = bucketPlacements([
-      p({ is_inside: true, service_area_id: "A" }),
-      p({ is_inside: true, service_area_id: "A" }),
-      p({ is_inside: true, service_area_id: "B" }),
-    ]);
-    expect(buckets.get("A")).toHaveLength(2);
-    expect(buckets.get("B")).toHaveLength(1);
-  });
-  it("collects outside under __outside", () => {
-    const buckets = bucketPlacements([
-      p({ is_inside: false }),
-      p({ is_inside: true, service_area_id: "A" }),
-    ]);
-    expect(buckets.get("__outside")).toHaveLength(1);
-    expect(buckets.get("A")).toHaveLength(1);
-  });
-});
-
-describe("placementCounts", () => {
-  it("counts inside vs outside", () => {
-    const r = placementCounts([
-      p({ is_inside: true, service_area_id: "A" }),
-      p({ is_inside: false }),
-      p({ is_inside: false }),
-    ]);
-    expect(r).toEqual({ inside: 1, outside: 2 });
+describe("BriefTaskSowPlacement factory", () => {
+  it("carries the self-contained item fields added by migration 0061", () => {
+    const row = p({
+      item_name: "Homepage hero rework",
+      item_description: "Replace the hero with the new campaign visual",
+      sow_slug: "web-retainer",
+      estimated_cents: 250_000,
+    });
+    expect(row.item_name).toBe("Homepage hero rework");
+    expect(row.item_description).toBe("Replace the hero with the new campaign visual");
+    expect(row.sow_slug).toBe("web-retainer");
+    expect(row.estimated_cents).toBe(250_000);
+    expect(row.suggested_service_id).toBeNull();
   });
 });

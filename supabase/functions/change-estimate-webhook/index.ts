@@ -89,7 +89,9 @@ Deno.serve(async (req: Request) => {
     .eq("id", payload.change_estimate_id)
     .single();
   if (!existing) return json({ error: "CE not found" }, 404);
-  if ((existing as { status: string }).status === "approved" && payload.decision === "approved") {
+  // project_id is nullable since migration 0061 (intake CEs have no project).
+  const ce = existing as { project_id: string | null; status: string };
+  if (ce.status === "approved" && payload.decision === "approved") {
     return json({ already_approved: true });
   }
 
@@ -99,17 +101,23 @@ Deno.serve(async (req: Request) => {
     .eq("id", payload.change_estimate_id);
   if (upErr) return json({ error: upErr.message }, 500);
 
-  // Phase 5 event-log entry
-  await sb.from("project_events").insert({
-    project_id: (existing as { project_id: string }).project_id,
-    event_type: payload.decision === "approved" ? "ce_approved" : "ce_rejected",
-    payload: {
-      change_estimate_id: payload.change_estimate_id,
-      approver_email: payload.approver_email,
-      note: payload.note,
-    },
-    occurred_at: new Date().toISOString(),
-  });
+  // Phase 5 event-log entry — project_events.project_id is NOT NULL, so skip
+  // for null-project intake CEs.
+  if (ce.project_id) {
+    const { error: evErr } = await sb.from("project_events").insert({
+      project_id: ce.project_id,
+      event_type: payload.decision === "approved" ? "ce_approved" : "ce_rejected",
+      payload: {
+        change_estimate_id: payload.change_estimate_id,
+        approver_email: payload.approver_email,
+        note: payload.note,
+      },
+      occurred_at: new Date().toISOString(),
+    });
+    if (evErr) {
+      console.error("[change-estimate-webhook] project_events insert failed:", evErr.message);
+    }
+  }
 
   return json({ ok: true });
 });

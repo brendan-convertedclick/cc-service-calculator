@@ -20,6 +20,9 @@ export function resumeHref(b: Brief): string {
     case "triaged":
       return `/briefs/${b.id}/scope`;
     case "scoped":
+      // Scope lock routes through the scope map (placement approval) before
+      // the builder; resume there until the brief is quoted.
+      return `/briefs/${b.id}/sow-check`;
     case "quoted":
     case "accepted":
       return `/briefs/${b.id}/builder`;

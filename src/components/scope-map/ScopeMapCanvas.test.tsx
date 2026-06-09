@@ -133,7 +133,7 @@ describe("ScopeMapCanvas", () => {
     expect(screen.queryByRole("button", { name: /Move inside/ })).not.toBeInTheDocument();
   });
 
-  it("reflects selected state on the outside chip checkbox", () => {
+  it("announces selected state in the outside chip's accessible name", () => {
     render(
       <ScopeMapCanvas
         items={items}
@@ -143,6 +143,30 @@ describe("ScopeMapCanvas", () => {
         onOverride={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("chip-select-item_2_app")).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("button", {
+        name: /Build a mobile app.*Outside SOW.*Included in estimate/,
+      }),
+    ).toBeInTheDocument();
+    // The inline checkbox is purely decorative — no checkbox semantics.
+    expect(screen.getByTestId("chip-select-item_2_app")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("chip-select-item_2_app")).not.toHaveAttribute("role");
+  });
+
+  it("announces unselected outside chips as not included in the estimate", () => {
+    render(
+      <ScopeMapCanvas
+        items={items}
+        sowTitles={[]}
+        selectedRefs={new Set()}
+        onToggleSelect={vi.fn()}
+        onOverride={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Build a mobile app.*Outside SOW.*Not included in estimate/,
+      }),
+    ).toBeInTheDocument();
   });
 });

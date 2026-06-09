@@ -1,5 +1,9 @@
 // supabase/functions/match-tasks-to-sow/index.ts
 //
+// DEPRECATED — superseded by analyze-brief-sow. The old SowCheck UI that
+// called this function was rewritten to use analyze-brief-sow (scope map).
+// Slated for removal once no callers remain.
+//
 // Request:  POST {
 //   brief_id: string,
 //   sow_slug: string,

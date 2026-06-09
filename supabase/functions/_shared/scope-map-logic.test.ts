@@ -6,6 +6,7 @@ import {
   buildSuggestUser,
   extractText,
   makeTaskRef,
+  MAX_ESTIMATED_CENTS,
   parseScopeMapItems,
   parseSuggestedSlugs,
   truncate,
@@ -96,6 +97,44 @@ Deno.test("parseScopeMapItems: clamps confidence and converts estimated_zar to c
   assertEquals(items![0].estimated_cents, 123456);
 });
 
+Deno.test("parseScopeMapItems: nulls negative estimated_zar", () => {
+  const text = `[{ "item_name": "Refund-shaped item", "item_description": "x", "is_inside": false,
+    "sow_slug": null, "service_area_id": null, "confidence": 0.5,
+    "reasoning": "", "suggested_service_code": null, "estimated_zar": -500 }]`;
+  const items = parseScopeMapItems(text, PARSE_OPTS);
+  assertEquals(items![0].estimated_cents, null);
+});
+
+Deno.test("parseScopeMapItems: nulls estimated_zar that would overflow int4 cents", () => {
+  const text = `[{ "item_name": "Hallucinated mega project", "item_description": "x", "is_inside": false,
+    "sow_slug": null, "service_area_id": null, "confidence": 0.5,
+    "reasoning": "", "suggested_service_code": null, "estimated_zar": 25000000 }]`;
+  const items = parseScopeMapItems(text, PARSE_OPTS);
+  assertEquals(items![0].estimated_cents, null);
+});
+
+Deno.test("parseScopeMapItems: keeps estimated_zar at the cap boundary and at zero", () => {
+  const text = `[
+    { "item_name": "At cap", "item_description": "x", "is_inside": false,
+      "sow_slug": null, "service_area_id": null, "confidence": 0.5,
+      "reasoning": "", "suggested_service_code": null, "estimated_zar": 20000000 },
+    { "item_name": "Free", "item_description": "x", "is_inside": false,
+      "sow_slug": null, "service_area_id": null, "confidence": 0.5,
+      "reasoning": "", "suggested_service_code": null, "estimated_zar": 0 }
+  ]`;
+  const items = parseScopeMapItems(text, PARSE_OPTS);
+  assertEquals(items![0].estimated_cents, MAX_ESTIMATED_CENTS);
+  assertEquals(items![1].estimated_cents, 0);
+});
+
+Deno.test("parseScopeMapItems: catalogue price still wins over an out-of-range estimated_zar", () => {
+  const text = `[{ "item_name": "LP", "item_description": "x", "is_inside": false,
+    "sow_slug": null, "service_area_id": null, "confidence": 0.5,
+    "reasoning": "", "suggested_service_code": "LP-BUILD", "estimated_zar": -1 }]`;
+  const items = parseScopeMapItems(text, PARSE_OPTS);
+  assertEquals(items![0].estimated_cents, 1200000);
+});
+
 Deno.test("parseScopeMapItems: drops malformed elements, keeps valid ones", () => {
   const text = `[
     { "item_name": "", "is_inside": true },
@@ -151,6 +190,12 @@ Deno.test("buildAnalyzeUser: truncates long bodies and includes scope notes", ()
   assertStringIncludes(user, "Clarified summary");
   assertStringIncludes(user, "In scope (draft):");
   assertStringIncludes(user, "Return ONLY a JSON array");
+});
+
+Deno.test("buildAnalyzeUser: caps extraction at 25 asks and bounds reasoning length", () => {
+  const user = buildAnalyzeUser({ subject: "S", body: "B", scope: null });
+  assertStringIncludes(user, "25 most substantive asks");
+  assertStringIncludes(user, "200 characters or fewer");
 });
 
 Deno.test("buildAnalyzeUser: omits scope section when scope is null", () => {

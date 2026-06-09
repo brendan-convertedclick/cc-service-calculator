@@ -11,6 +11,9 @@
 //   the top-right (full 360° when crowded).
 // - A fixed-iteration pairwise-repulsion pass relaxes collisions, with
 //   clamps keeping inside items inside and outside items outside + on-canvas.
+//   Repulsion is elliptical (wider along x than y) because chips render as
+//   wide, short pills — horizontal neighbours need more separation than
+//   vertical ones.
 //
 // No dependencies, no Math.random — same input always yields same output.
 
@@ -88,10 +91,16 @@ export function layoutScopeMap(items: LayoutItem[], size: number): ScopeMapLayou
   });
 
   // --- Collision relaxation ----------------------------------------------
-  const minDist = size * 0.13; // approximate chip footprint
+  // Chips are wide, short pills (max-w ~110px), so the enforced
+  // centre-to-centre distance is elliptical: larger along x (~chip width)
+  // than along y (~chip height). Relaxation runs in a y-stretched space
+  // where that ellipse becomes a circle of radius minDistX.
+  const minDistX = size * 0.19; // horizontal chip footprint
+  const minDistY = size * 0.1; // vertical chip footprint
+  const yStretch = minDistX / minDistY;
   const insideMax = r * 0.88; // inside chips stay within the circle
   const outsideMin = r * 1.12; // outside chips stay clear of the boundary
-  const pad = size * 0.08; // canvas padding
+  const pad = size * 0.11; // canvas padding ≥ chip half-width at default size
 
   const nodes = items
     .map((i) => working.get(i.ref))
@@ -129,10 +138,11 @@ export function layoutScopeMap(items: LayoutItem[], size: number): ScopeMapLayou
       for (let b = a + 1; b < nodes.length; b++) {
         const na = nodes[a];
         const nb = nodes[b];
+        // Work in y-stretched space so the elliptical footprint is a circle.
         let dx = nb.x - na.x;
-        let dy = nb.y - na.y;
+        let dy = (nb.y - na.y) * yStretch;
         let dist = Math.hypot(dx, dy);
-        if (dist >= minDist) continue;
+        if (dist >= minDistX) continue;
         if (dist < 1e-9) {
           // Perfectly coincident — separate along a deterministic
           // index-derived direction (no randomness).
@@ -141,13 +151,14 @@ export function layoutScopeMap(items: LayoutItem[], size: number): ScopeMapLayou
           dy = Math.sin(fallback);
           dist = 1;
         }
-        const push = (minDist - Math.min(dist, minDist)) / 2;
+        const push = (minDistX - Math.min(dist, minDistX)) / 2;
         const ux = dx / dist;
         const uy = dy / dist;
+        // Map the stretched-space push back to real coordinates.
         na.x -= ux * push;
-        na.y -= uy * push;
+        na.y -= (uy * push) / yStretch;
         nb.x += ux * push;
-        nb.y += uy * push;
+        nb.y += (uy * push) / yStretch;
       }
     }
     nodes.forEach(applyClamps);

@@ -9,8 +9,9 @@
 // Response (suggest mode — no SOW link exists yet, no DB writes):
 //   200 { ok: true, needs_sow_selection: true, suggested_slugs, available }
 // Response (analyze mode):
-//   200 { ok: true, sow_slugs, placements }   // inserted + kept approved rows
-//   404 brief / SOWs not found · 502 AI returned non-JSON · 4xx/5xx { error }
+//   200 { ok: true, sow_slugs, placements }   // upserted + kept approved rows
+//   404 brief / SOWs not found · 422 no asks extracted ·
+//   502 AI returned non-JSON / response truncated · 4xx/5xx { error }
 //
 // Extracts discrete asks from the brief itself (brief_intelligence.requirements
 // is null in practice) and classifies each against the selected master SOW
@@ -158,9 +159,13 @@ Deno.serve(async (req: Request) => {
         role: "user",
         content: buildAnalyzeUser({ subject, body: briefBody, scope: (scope ?? null) as ScopeRow | null }),
       }],
-      maxTokens: 4000,
+      maxTokens: 8000,
       cacheSystem: true,
     });
+
+    if (raw.stop_reason === "max_tokens") {
+      return json({ error: "AI response truncated — brief has too many asks" }, 502);
+    }
 
     const text = extractText(raw);
     const items = parseScopeMapItems(text, {
@@ -169,8 +174,16 @@ Deno.serve(async (req: Request) => {
       services,
     });
     if (!items) return json({ error: "AI returned non-JSON output", raw: text }, 502);
+    // Guard BEFORE any write — an empty extraction must never wipe an existing map.
+    if (items.length === 0) {
+      return json({ error: "no asks extracted from the brief" }, 422);
+    }
 
     // 6. Persist — approved rows survive re-analysis unless force.
+    //    Non-destructive and race-safe: upsert the new rows first, then prune
+    //    stale rows. A failed write can never destroy the existing map, and
+    //    concurrent runs converge instead of 500ing on the
+    //    brief_task_sow_placements_unique (brief_id, task_ref) index.
     const { data: existing, error: existErr } = await sb
       .from("brief_task_sow_placements")
       .select("*")
@@ -180,14 +193,6 @@ Deno.serve(async (req: Request) => {
     const kept: Array<Record<string, unknown>> = body.force
       ? []
       : ((existing ?? []) as Array<Record<string, unknown>>).filter((r) => r.approved_at !== null);
-
-    let delQuery = sb
-      .from("brief_task_sow_placements")
-      .delete()
-      .eq("brief_id", body.brief_id);
-    if (!body.force) delQuery = delQuery.is("approved_at", null);
-    const { error: delErr } = await delQuery;
-    if (delErr) return json({ error: delErr.message }, 500);
 
     const keptRefs = new Set(kept.map((r) => r.task_ref as string));
     const rows = items
@@ -203,23 +208,43 @@ Deno.serve(async (req: Request) => {
         ai_match_quote: item.ai_match_quote,
         suggested_service_id: item.suggested_service_id,
         estimated_cents: item.estimated_cents,
+        // force replaces approved placements — clear stale approval/override
+        // stamps when an old row is overwritten via the upsert conflict path.
+        ...(body.force
+          ? { approved_at: null, approved_by: null, override_reason: null }
+          : {}),
       }))
       .filter((r) => !keptRefs.has(r.task_ref));
 
-    let inserted: Array<Record<string, unknown>> = [];
+    let upserted: Array<Record<string, unknown>> = [];
     if (rows.length > 0) {
-      const { data: ins, error: insErr } = await sb
+      const { data: ups, error: upsErr } = await sb
         .from("brief_task_sow_placements")
-        .insert(rows)
+        .upsert(rows, { onConflict: "brief_id,task_ref" })
         .select();
-      if (insErr) return json({ error: insErr.message }, 500);
-      inserted = (ins ?? []) as Array<Record<string, unknown>>;
+      if (upsErr) return json({ error: upsErr.message }, 500);
+      upserted = (ups ?? []) as Array<Record<string, unknown>>;
     }
+
+    // Only after a successful upsert: delete stale rows from previous analyses.
+    // task_refs are makeTaskRef output ([a-z0-9_-] only), so the PostgREST
+    // in-list quoting below is safe (same pattern as useBriefs.ts).
+    const newRefs = rows.map((r) => r.task_ref);
+    let delQuery = sb
+      .from("brief_task_sow_placements")
+      .delete()
+      .eq("brief_id", body.brief_id);
+    if (!body.force) delQuery = delQuery.is("approved_at", null);
+    if (newRefs.length > 0) {
+      delQuery = delQuery.not("task_ref", "in", `(${newRefs.map((r) => `"${r}"`).join(",")})`);
+    }
+    const { error: delErr } = await delQuery;
+    if (delErr) return json({ error: delErr.message }, 500);
 
     return json({
       ok: true,
       sow_slugs: sows.map((s) => s.slug),
-      placements: [...inserted, ...kept],
+      placements: [...upserted, ...kept],
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

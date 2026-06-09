@@ -32,6 +32,12 @@ export type ParsedScopeItem = {
 
 export const BRIEF_BODY_MAX_CHARS = 8000;
 
+/**
+ * Ceiling for AI ballpark estimates: R20M in cents, safely inside int4
+ * (estimated_cents column, max 2,147,483,647). Out-of-range values → null.
+ */
+export const MAX_ESTIMATED_CENTS = 2_000_000_000;
+
 export function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
@@ -182,6 +188,8 @@ export function buildAnalyzeUser(opts: {
     "",
     "# Instructions",
     "Extract every discrete ask the client is making in this request, then classify each ask against the SOWs in the system prompt.",
+    "Cap the extraction at the 25 most substantive asks — if there are more, keep only the 25 that matter most.",
+    'Keep every "reasoning" value at 200 characters or fewer.',
     "Return ONLY a JSON array, nothing else. Each element:",
     '{ "item_name": "<short label, max 60 chars>",',
     '  "item_description": "<what the client wants, one or two sentences>",',
@@ -205,7 +213,8 @@ export function buildAnalyzeUser(opts: {
  * - whitelists service_area_id to the loaded areas;
  * - maps suggested_service_code → catalogue row (suggested_service_id +
  *   estimated_cents = sell_price_cents), else estimated_cents from
- *   estimated_zar when given, else null.
+ *   estimated_zar when given and within [0, MAX_ESTIMATED_CENTS]
+ *   (negative/overflow → null, mirroring the confidence clamp), else null.
  */
 export function parseScopeMapItems(
   text: string,
@@ -250,10 +259,14 @@ export function parseScopeMapItems(
       typeof r.estimated_zar === "number" && Number.isFinite(r.estimated_zar)
         ? r.estimated_zar
         : null;
+    const rawCents = estimatedZar !== null ? Math.round(estimatedZar * 100) : null;
     const estimatedCents = service
       ? service.sell_price_cents
-      : estimatedZar !== null
-        ? Math.round(estimatedZar * 100)
+      : rawCents !== null &&
+          Number.isFinite(rawCents) &&
+          rawCents >= 0 &&
+          rawCents <= MAX_ESTIMATED_CENTS
+        ? rawCents
         : null;
 
     items.push({

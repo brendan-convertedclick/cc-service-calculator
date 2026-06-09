@@ -4,7 +4,7 @@ export type CELineKind = "add" | "cancel" | "reduce";
 
 export type ChangeEstimateRow = {
   id: string;
-  project_id: string;
+  project_id: string | null; // relaxed by migration 0061 — intake CEs have no project
   brief_id: string | null;
   client_id: string;
   source: CESource;
@@ -20,7 +20,7 @@ export type ChangeEstimateRow = {
   approval_note: string | null;
   rejected_at: string | null;
   rejected_reason: string | null;
-  created_by: string;
+  created_by: string | null; // relaxed by migration 0061 — shared login has no team_members row
   created_at: string;
   updated_at: string;
 };

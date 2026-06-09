@@ -3,6 +3,13 @@ import { layoutScopeMap, type LayoutItem } from "./scope-map-layout";
 
 const SIZE = 800;
 
+// Mirror the layout constants: chips repel elliptically (wide pills need
+// more horizontal than vertical separation) and clamp to the canvas pad.
+const MIN_DIST_X = SIZE * 0.19;
+const MIN_DIST_Y = SIZE * 0.1;
+const Y_STRETCH = MIN_DIST_X / MIN_DIST_Y;
+const PAD = SIZE * 0.11;
+
 function makeItems(insideCount: number, outsideCount: number): LayoutItem[] {
   const items: LayoutItem[] = [];
   for (let i = 0; i < insideCount; i++) {
@@ -34,33 +41,68 @@ describe("layoutScopeMap — placement invariants", () => {
     }
   });
 
-  it("places all outside items beyond the circle radius and within the canvas", () => {
+  it("places all outside items beyond the circle radius and within the canvas pad", () => {
     const { circle, positions } = layoutScopeMap(makeItems(8, 4), SIZE);
     for (const p of positions.filter((p) => p.ref.startsWith("out_"))) {
       expect(distFromCentre(p.x, p.y)).toBeGreaterThan(circle.r);
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThanOrEqual(SIZE);
-      expect(p.y).toBeGreaterThanOrEqual(0);
-      expect(p.y).toBeLessThanOrEqual(SIZE);
+      expect(p.x).toBeGreaterThanOrEqual(PAD - 1e-6);
+      expect(p.x).toBeLessThanOrEqual(SIZE - PAD + 1e-6);
+      expect(p.y).toBeGreaterThanOrEqual(PAD - 1e-6);
+      expect(p.y).toBeLessThanOrEqual(SIZE - PAD + 1e-6);
     }
   });
 
-  it("keeps invariants under crowding (25 items, >10 outside → 360° spread)", () => {
-    const { circle, positions } = layoutScopeMap(makeItems(13, 12), SIZE);
-    expect(positions).toHaveLength(25);
-    for (const p of positions) {
-      const d = distFromCentre(p.x, p.y);
-      if (p.ref.startsWith("in_")) {
-        expect(d).toBeLessThanOrEqual(circle.r + 1e-6);
-      } else {
-        expect(d).toBeGreaterThan(circle.r);
+  it.each([
+    [1, 0],
+    [0, 1],
+    [3, 2],
+    [8, 7],
+    [13, 12],
+  ])(
+    "keeps containment invariants with %i inside / %i outside items",
+    (insideCount, outsideCount) => {
+      const { circle, positions } = layoutScopeMap(
+        makeItems(insideCount, outsideCount),
+        SIZE,
+      );
+      expect(positions).toHaveLength(insideCount + outsideCount);
+      for (const p of positions) {
+        const d = distFromCentre(p.x, p.y);
+        if (p.ref.startsWith("in_")) {
+          expect(d).toBeLessThanOrEqual(circle.r + 1e-6);
+        } else {
+          expect(d).toBeGreaterThan(circle.r);
+        }
+        // Every chip stays in-canvas with room for its own footprint.
+        expect(p.x).toBeGreaterThanOrEqual(PAD - 1e-6);
+        expect(p.x).toBeLessThanOrEqual(SIZE - PAD + 1e-6);
+        expect(p.y).toBeGreaterThanOrEqual(PAD - 1e-6);
+        expect(p.y).toBeLessThanOrEqual(SIZE - PAD + 1e-6);
       }
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThanOrEqual(SIZE);
-      expect(p.y).toBeGreaterThanOrEqual(0);
-      expect(p.y).toBeLessThanOrEqual(SIZE);
-    }
-  });
+    },
+  );
+
+  it.each([
+    [3, 2],
+    [8, 7],
+    [13, 12],
+  ])(
+    "separates chips to the elliptical footprint with %i inside / %i outside items",
+    (insideCount, outsideCount) => {
+      const { positions } = layoutScopeMap(makeItems(insideCount, outsideCount), SIZE);
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const ellipticalDist = Math.hypot(
+            positions[i].x - positions[j].x,
+            (positions[i].y - positions[j].y) * Y_STRETCH,
+          );
+          // Allow slight under-convergence at high density; this still
+          // guarantees non-overlapping ~110px-wide chips at default size.
+          expect(ellipticalDist).toBeGreaterThanOrEqual(MIN_DIST_X * 0.95);
+        }
+      }
+    },
+  );
 
   it("scales radius by confidence: higher confidence sits nearer the centre", () => {
     const { positions } = layoutScopeMap(
