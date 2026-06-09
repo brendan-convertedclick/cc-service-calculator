@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { LimitedList } from './LimitedList'
 import type { PulseAlert } from '@/types/pulse'
 
 const levelStyles: Record<PulseAlert['level'], { strip: string; badge: string; badgeText: string }> = {
@@ -24,18 +25,23 @@ export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
           ⚠ {alerts.length} item{alerts.length !== 1 ? 's' : ''} need{alerts.length === 1 ? 's' : ''} your attention
         </span>
       </div>
-      <div className="flex flex-col gap-2 p-3">
-        {alerts.map(alert => {
-          const s = levelStyles[alert.level]
-          return (
-            <div key={alert.id} className={cn('flex items-center gap-3 rounded bg-m-surface px-3 py-2', s.strip)}>
-              <p className="flex-1 text-body-small text-m-on-surface">{alert.message}</p>
-              <Link to={alert.linkTo} className={cn('shrink-0 rounded-full px-3 py-0.5 text-label-small font-bold', s.badge)}>
-                {s.badgeText}
-              </Link>
-            </div>
-          )
-        })}
+      <div className="p-3">
+        <LimitedList
+          items={alerts}
+          className="flex flex-col gap-2"
+          toggleClassName="text-m-on-error-container"
+          renderItem={alert => {
+            const s = levelStyles[alert.level]
+            return (
+              <div key={alert.id} className={cn('flex items-center gap-3 rounded bg-m-surface px-3 py-2', s.strip)}>
+                <p className="flex-1 text-body-small text-m-on-surface">{alert.message}</p>
+                <Link to={alert.linkTo} className={cn('shrink-0 rounded-full px-3 py-0.5 text-label-small font-bold', s.badge)}>
+                  {s.badgeText}
+                </Link>
+              </div>
+            )
+          }}
+        />
       </div>
     </div>
   )

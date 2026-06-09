@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { LogTouchpointModal } from './LogTouchpointModal'
+import { LimitedList } from './LimitedList'
 import { useLogTouchpoint } from '@/hooks/usePulseClientHealth'
 import type { ClientHealthRow } from '@/types/pulse'
 
@@ -27,8 +28,10 @@ export function ClientHealthSection({ rows, onLogTouchpoint }: Props) {
       <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">
         Client Relationship Health
       </h2>
-      <div className="flex flex-col gap-2">
-        {rows.map(r => (
+      <LimitedList
+        items={rows}
+        className="flex flex-col gap-2"
+        renderItem={r => (
           <div key={r.clientId} className="flex items-center gap-3 rounded-lg bg-m-surface-container px-3 py-2.5">
             <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', ragDot[r.rag])} />
             <span className="flex-1 text-body-small font-medium text-m-on-surface">{r.clientName}</span>
@@ -41,8 +44,8 @@ export function ClientHealthSection({ rows, onLogTouchpoint }: Props) {
               Log
             </Button>
           </div>
-        ))}
-      </div>
+        )}
+      />
       <p className="mt-2 text-label-small text-m-on-surface-variant">
         Auto-tracked: inbound emails + paid invoices · Manual: log meetings and calls above
       </p>

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { LimitedList } from './LimitedList'
 import type { RevenueTrendRow } from '@/types/pulse'
 
 const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
@@ -20,8 +21,10 @@ export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }
   return (
     <section>
       <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">Revenue Trend — Client MoM</h2>
-      <div className="flex flex-col gap-2">
-        {rows.map(r => {
+      <LimitedList
+        items={rows}
+        className="flex flex-col gap-2"
+        renderItem={r => {
           const maxCents = Math.max(...r.months.map(m => m.cents), 1)
           return (
             <div key={r.clientId} className="flex items-center gap-3 rounded-lg bg-m-surface-container px-3 py-2.5">
@@ -42,8 +45,8 @@ export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }
               <span className="ml-auto text-body-small text-m-on-surface-variant">{fmt(r.thisMonthCents)}</span>
             </div>
           )
-        })}
-      </div>
+        }}
+      />
     </section>
   )
 }

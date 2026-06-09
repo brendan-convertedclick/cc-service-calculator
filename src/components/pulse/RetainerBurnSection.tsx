@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { LimitedList } from './LimitedList'
 import type { RetainerBurnRow } from '@/types/pulse'
 
 const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
@@ -40,8 +41,10 @@ export function RetainerBurnSection({ rows, month, onMonthChange }: RetainerBurn
       {rows.length === 0 ? (
         <p className="text-body-small text-m-on-surface-variant">No retainer clients configured.</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {rows.map(r => r.needsSetup ? (
+        <LimitedList
+          items={rows}
+          className="flex flex-col gap-4"
+          renderItem={r => r.needsSetup ? (
             <div key={r.projectId}>
               <div className="mb-1 flex items-baseline justify-between">
                 <span className="text-body-small font-semibold text-m-on-surface">
@@ -79,8 +82,8 @@ export function RetainerBurnSection({ rows, month, onMonthChange }: RetainerBurn
                 {' · '}{fmt(r.effectiveHourlyRateCents)}/h effective rate
               </p>
             </div>
-          ))}
-        </div>
+          )}
+        />
       )}
     </section>
   )

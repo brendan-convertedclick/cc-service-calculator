@@ -1,3 +1,4 @@
+import { LimitedList } from './LimitedList'
 import type { PricingHealthData } from '@/types/pulse'
 
 export function PricingHealthSection({ data }: { data: PricingHealthData | null }) {
@@ -32,8 +33,10 @@ export function PricingHealthSection({ data }: { data: PricingHealthData | null 
       {data.byClient.length > 0 && (
         <div>
           <p className="mb-2 text-label-small font-semibold text-m-on-surface-variant">Scope creep by client (90 days)</p>
-          <div className="flex flex-col gap-2">
-            {data.byClient.map(c => (
+          <LimitedList
+            items={data.byClient}
+            className="flex flex-col gap-2"
+            renderItem={c => (
               <div key={c.clientId} className="flex items-center gap-3">
                 <span className="w-24 truncate text-body-small text-m-on-surface">{c.clientName}</span>
                 <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-m-surface-container-high">
@@ -46,8 +49,8 @@ export function PricingHealthSection({ data }: { data: PricingHealthData | null 
                   {c.scopeCreepRate}%
                 </span>
               </div>
-            ))}
-          </div>
+            )}
+          />
         </div>
       )}
     </section>
