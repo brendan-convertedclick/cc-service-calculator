@@ -1,13 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ChevronRight, Sparkles, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Calculator, ChevronRight, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useBrief } from "@/hooks/useBriefs";
+import {
+  useAnalyzeBrief,
+  useApprovePlacements,
+  useClientSows,
+  useOverridePlacement,
+  useScopeMapPlacements,
+  type AnalyzeBriefInput,
+  type SowOption,
+} from "@/hooks/useScopeMap";
+import { ScopeMapCanvas } from "@/components/scope-map/ScopeMapCanvas";
+import { SowSelectionCard } from "@/components/scope-map/SowSelectionCard";
+import { EstimateSheet } from "@/components/scope-map/EstimateSheet";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -15,233 +35,188 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  bucketPlacements,
-  placementCounts,
-  type BriefTaskSowPlacement,
-  type ProposedTaskForPlacement,
-  type SowServiceArea,
-} from "@/types/sow-placements";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
-
-type DraftPlacement = Omit<BriefTaskSowPlacement, "id" | "created_at" | "updated_at"> & {
-  task_name: string;
-};
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatCurrency } from "@/lib/format";
+import type { BriefTaskSowPlacement } from "@/types/sow-placements";
 
 /**
- * Phase 4 — SoW visualization step. Sits between scope and builder in the
- * brief pipeline. Shows proposed tasks bucketed into service-area bubbles
- * (inside) or the outside zone. Operator can override each placement and
- * approve to proceed.
- *
- * V1 takes a non-DnD approach for accessibility + simplicity: each task
- * has a Select that moves it between service areas or "outside". A future
- * DnD layer can be added on top without changing the data model.
+ * Scope map — Phase 4 of the brief pipeline (route /briefs/:id/sow-check).
+ * Maps the request's discrete asks against the client's SOW(s): in-scope asks
+ * land inside the circle, out-of-scope asks sit outside it with selectable
+ * checkboxes that feed a cost estimate. Analysis auto-runs; the first brief
+ * for a client asks which SOWs they have (persisted to client_sows).
  */
 export function SowCheck() {
   const { id: briefId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentUserId } = useAuth();
 
-  const [brief, setBrief] = useState<{ id: string; client_id: string | null } | null>(null);
-  const [sowSlug, setSowSlug] = useState<string>("");
-  const [availableSows, setAvailableSows] = useState<Array<{ slug: string; title: string }>>([]);
-  const [areas, setAreas] = useState<SowServiceArea[]>([]);
-  const [tasks, setTasks] = useState<ProposedTaskForPlacement[]>([]);
-  const [drafts, setDrafts] = useState<DraftPlacement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [aiRunning, setAiRunning] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const briefQuery = useBrief(briefId);
+  const brief = briefQuery.data;
+  const placementsQuery = useScopeMapPlacements(briefId);
+  const placements = placementsQuery.data;
+  const clientSowsQuery = useClientSows(brief?.client_id);
+  const clientSows = useMemo(() => clientSowsQuery.data ?? [], [clientSowsQuery.data]);
 
-  // Load brief + master SoWs + (when slug set) service areas.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!briefId) return;
-      const [{ data: b }, { data: sows }] = await Promise.all([
-        supabase.from("briefs").select("id, client_id").eq("id", briefId).single(),
-        supabase.from("master_sows").select("slug, title").order("title"),
-      ]);
-      if (cancelled) return;
-      setBrief(b ?? null);
-      setAvailableSows((sows ?? []) as Array<{ slug: string; title: string }>);
-      // Load proposed tasks from the brief's scope.line_items as a starting
-      // point. Schema may vary — we accept the simplest shape.
-      const { data: scope } = await supabase
-        .from("scopes")
-        .select("line_items")
-        .eq("brief_id", briefId)
-        .maybeSingle();
-      const proposed: ProposedTaskForPlacement[] = ((scope?.line_items as unknown as Array<{
-        id?: string;
-        service_name?: string;
-        description?: string;
-      }>) ?? []).map((li, i) => ({
-        task_ref: li.id ?? `line_${i}`,
-        name: li.service_name ?? `Task ${i + 1}`,
-        description: li.description,
-      }));
-      setTasks(proposed);
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [briefId]);
+  const analyze = useAnalyzeBrief(briefId);
+  const override = useOverridePlacement(briefId);
+  const approve = useApprovePlacements(briefId);
 
-  useEffect(() => {
-    if (!sowSlug) return;
-    let cancelled = false;
-    (async () => {
-      const [{ data: a }, { data: existing }] = await Promise.all([
-        supabase
-          // @ts-expect-error sow_service_areas added by migration 0059
-          .from("sow_service_areas")
-          .select("*")
-          .eq("sow_slug", sowSlug)
-          .order("sort_order"),
-        supabase
-          // @ts-expect-error brief_task_sow_placements added by migration 0059
-          .from("brief_task_sow_placements")
-          .select("*")
-          .eq("brief_id", briefId),
-      ]);
-      if (cancelled) return;
-      setAreas((a ?? []) as unknown as SowServiceArea[]);
-      // Hydrate drafts from existing placements, falling back to "outside" defaults.
-      const existingMap = new Map<string, BriefTaskSowPlacement>(
-        ((existing ?? []) as unknown as BriefTaskSowPlacement[]).map((p) => [p.task_ref, p]),
-      );
-      setDrafts(
-        tasks.map((t) => {
-          const ex = existingMap.get(t.task_ref);
-          return {
-            task_name: t.name,
-            brief_id: briefId!,
-            task_ref: t.task_ref,
-            service_area_id: ex?.service_area_id ?? null,
-            is_inside: ex?.is_inside ?? false,
-            ai_match_quote: ex?.ai_match_quote ?? null,
-            ai_confidence: ex?.ai_confidence ?? null,
-            override_reason: ex?.override_reason ?? null,
-            approved_by: ex?.approved_by ?? null,
-            approved_at: ex?.approved_at ?? null,
-          };
-        }),
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [sowSlug, briefId, tasks]);
-
-  const runAi = async () => {
-    if (!sowSlug || tasks.length === 0) return;
-    setAiRunning(true);
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/match-tasks-to-sow`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({
-          brief_id: briefId,
-          sow_slug: sowSlug,
-          service_areas: areas.map((a) => ({
-            id: a.id,
-            name: a.name,
-            description: a.description,
-          })),
-          tasks,
-        }),
-      });
-      const body = (await res.json()) as {
-        placements?: Array<{
-          task_ref: string;
-          is_inside: boolean;
-          service_area_id: string | null;
-          ai_confidence: number;
-          ai_match_quote: string;
-        }>;
-        error?: string;
-      };
-      if (!res.ok) {
-        toast.error(body.error ?? "AI matcher failed");
-        return;
-      }
-      const map = new Map(body.placements!.map((p) => [p.task_ref, p]));
-      setDrafts((prev) =>
-        prev.map((d) => {
-          const m = map.get(d.task_ref);
-          if (!m) return d;
-          return {
-            ...d,
-            is_inside: m.is_inside,
-            service_area_id: m.service_area_id,
-            ai_confidence: m.ai_confidence,
-            ai_match_quote: m.ai_match_quote,
-          };
-        }),
-      );
-      toast.success("AI placement complete.");
-    } finally {
-      setAiRunning(false);
-    }
-  };
-
-  const updateDraft = (taskRef: string, patch: Partial<DraftPlacement>) => {
-    setDrafts((prev) => prev.map((d) => (d.task_ref === taskRef ? { ...d, ...patch } : d)));
-  };
-
-  const approveAll = async () => {
-    if (!briefId || !currentUserId) return;
-    setSaving(true);
-    try {
-      const payload = drafts.map((d) => ({
-        brief_id: briefId,
-        task_ref: d.task_ref,
-        service_area_id: d.is_inside ? d.service_area_id : null,
-        is_inside: d.is_inside,
-        ai_match_quote: d.ai_match_quote,
-        ai_confidence: d.ai_confidence,
-        override_reason: d.override_reason,
-        approved_by: currentUserId,
-        approved_at: new Date().toISOString(),
-      }));
-      const { error } = await supabase
-        // @ts-expect-error brief_task_sow_placements added by migration 0059
-        .from("brief_task_sow_placements")
-        .upsert(payload, { onConflict: "brief_id,task_ref" });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success("Placements approved.");
-      const counts = placementCounts(drafts as unknown as BriefTaskSowPlacement[]);
-      if (counts.outside > 0) {
-        toast.info(
-          `${counts.outside} task(s) fall outside the SoW — generate a Change Estimate from the brief's builder.`,
-        );
-      }
-      navigate(`/briefs/${briefId}/builder`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const buckets = useMemo(
-    () => bucketPlacements(drafts as unknown as BriefTaskSowPlacement[]),
-    [drafts],
+  // slug → title for badges + canvas chips (master_sows is a typed table).
+  const { data: masterSows } = useQuery({
+    queryKey: ["master-sows"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<SowOption[]> => {
+      const { data, error } = await supabase
+        .from("master_sows")
+        .select("slug, title")
+        .order("title");
+      if (error) throw error;
+      return (data ?? []) as SowOption[];
+    },
+  });
+  const sowTitleBySlug = useMemo(
+    () => new Map((masterSows ?? []).map((s) => [s.slug, s.title])),
+    [masterSows],
   );
 
-  if (loading) {
+  const [selection, setSelection] = useState<{
+    available: SowOption[];
+    suggested: string[];
+  } | null>(null);
+  const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
+  const [estimateOpen, setEstimateOpen] = useState(false);
+  const [reanalyseOpen, setReanalyseOpen] = useState(false);
+  const autoRanRef = useRef(false);
+  const selectionInitRef = useRef(false);
+
+  const runAnalyze = (input: AnalyzeBriefInput) => {
+    setSelection(null);
+    analyze.mutate(input, {
+      onSuccess: (res) => {
+        if (res.needs_sow_selection) {
+          setSelection({ available: res.available, suggested: res.suggested_slugs });
+          return;
+        }
+        // Fresh placements → default-select every outside item for the estimate.
+        setSelectedRefs(
+          new Set(res.placements.filter((p) => !p.is_inside).map((p) => p.task_ref)),
+        );
+        selectionInitRef.current = true;
+        toast.success(
+          `Mapped ${res.placements.length} item(s) against ${res.sow_slugs.length} SOW(s).`,
+        );
+      },
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Analysis failed"),
+    });
+  };
+
+  // Auto-run the analysis exactly once when the brief loads with no placements.
+  // The edge fn decides between suggest mode (no client→SOW link) and analyze.
+  useEffect(() => {
+    if (autoRanRef.current) return;
+    if (!brief || placements === undefined) return;
+    if (placements.length > 0) return;
+    if (brief.client_id && clientSowsQuery.isPending) return;
+    autoRanRef.current = true;
+    runAnalyze({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brief, placements, clientSowsQuery.isPending]);
+
+  // Default-select all outside items when placements arrive already persisted
+  // (page reload) — analyze success handles the fresh-analysis path.
+  useEffect(() => {
+    if (selectionInitRef.current) return;
+    if (!placements || placements.length === 0) return;
+    selectionInitRef.current = true;
+    setSelectedRefs(new Set(placements.filter((p) => !p.is_inside).map((p) => p.task_ref)));
+  }, [placements]);
+
+  const handleToggleSelect = (ref: string) => {
+    setSelectedRefs((prev) => {
+      const next = new Set(prev);
+      if (next.has(ref)) next.delete(ref);
+      else next.add(ref);
+      return next;
+    });
+  };
+
+  const handleOverride = (ref: string, isInside: boolean) => {
+    override.mutate(
+      {
+        task_ref: ref,
+        is_inside: isInside,
+        service_area_id: null,
+        ...(isInside ? {} : { sow_slug: null }),
+        override_reason: isInside ? "Operator moved inside" : "Operator moved outside",
+      },
+      {
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : "Failed to update placement"),
+      },
+    );
+    setSelectedRefs((prev) => {
+      const next = new Set(prev);
+      if (isInside) next.delete(ref);
+      else next.add(ref);
+      return next;
+    });
+  };
+
+  const approvedCount = useMemo(
+    () => (placements ?? []).filter((p) => p.approved_at !== null).length,
+    [placements],
+  );
+
+  const handleReanalyse = () => {
+    if (approvedCount > 0) setReanalyseOpen(true);
+    else runAnalyze({ force: false });
+  };
+
+  const handleApprove = () => {
+    approve.mutate(undefined, {
+      onSuccess: () => {
+        toast.success("Placements approved.");
+        navigate(`/briefs/${briefId}/builder`);
+      },
+      onError: (e) =>
+        toast.error(e instanceof Error ? e.message : "Failed to approve placements"),
+    });
+  };
+
+  // SOW badges: the client's saved engagements, else the slugs the analysis used.
+  const sowSlugs = useMemo(() => {
+    if (clientSows.length > 0) return clientSows.map((s) => s.sow_slug);
+    const fromPlacements = new Set(
+      (placements ?? []).map((p) => p.sow_slug).filter((s): s is string => !!s),
+    );
+    return Array.from(fromPlacements);
+  }, [clientSows, placements]);
+  const sowTitles = sowSlugs.map((slug) => sowTitleBySlug.get(slug) ?? slug);
+
+  const selectedItems = useMemo(
+    () =>
+      (placements ?? []).filter((p) => !p.is_inside && selectedRefs.has(p.task_ref)),
+    [placements, selectedRefs],
+  );
+  const selectedEstimateCents = selectedItems.reduce(
+    (sum, p) => sum + (p.estimated_cents ?? 0),
+    0,
+  );
+
+  if (briefQuery.isLoading || (placementsQuery.isLoading && placements === undefined)) {
     return (
       <div className="space-y-4 p-6">
         <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="mx-auto aspect-square w-full max-w-[760px] rounded-xl" />
       </div>
     );
   }
@@ -249,202 +224,249 @@ export function SowCheck() {
     return <div className="p-6 text-body-medium">Brief not found.</div>;
   }
 
+  const analyzing = analyze.isPending;
+  const hasPlacements = (placements?.length ?? 0) > 0;
+
   return (
     <div className="space-y-6 p-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-headline-small">SoW check</h1>
-          <p className="text-body-small text-m-on-surface-variant">
-            Confirm which proposed tasks are covered by the active SoW. Anything
-            outside becomes a Change Estimate.
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-headline-small">Scope map</h1>
+          <p className="truncate text-body-small text-m-on-surface-variant">
+            {brief.raw_subject ?? "(no subject)"} — in-scope asks land inside the
+            circle; anything outside can become a cost estimate.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={sowSlug} onValueChange={setSowSlug}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Pick the active SoW" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSows.map((s) => (
-                <SelectItem key={s.slug} value={s.slug}>
-                  {s.title}
-                </SelectItem>
+          {sowTitles.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {sowTitles.map((title) => (
+                <Badge key={title} variant="muted">
+                  {title}
+                </Badge>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
+        </div>
+        {hasPlacements && (
           <Button
             variant="outline"
-            disabled={!sowSlug || aiRunning}
-            onClick={runAi}
+            disabled={analyzing}
+            onClick={handleReanalyse}
             className="gap-2"
           >
-            <Sparkles className={`h-4 w-4 ${aiRunning ? "animate-pulse" : ""}`} />
-            {aiRunning ? "Matching…" : "AI match"}
+            <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
+            {analyzing ? "Analysing…" : "Re-analyse"}
           </Button>
-        </div>
+        )}
       </header>
 
-      {sowSlug ? (
-        <div className="grid gap-4 lg:grid-cols-[1fr,360px]">
-          {/* Inside bubbles */}
-          <section className="space-y-4">
-            <h2 className="text-title-medium text-m-on-surface">Inside scope</h2>
-            {areas.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="py-10 text-center text-body-medium text-m-on-surface-variant">
-                  No service areas defined for this SoW yet. Add some in the SoW page.
+      {selection ? (
+        <SowSelectionCard
+          available={selection.available}
+          suggestedSlugs={selection.suggested}
+          confirming={analyzing}
+          onConfirm={(slugs) => runAnalyze({ sow_slugs: slugs, persist_client_sows: true })}
+        />
+      ) : !hasPlacements ? (
+        analyzing || placementsQuery.isFetching || (!analyze.isError && !analyze.isSuccess) ? (
+          <Card className="mx-auto max-w-md border-m-outline-variant shadow-elev-1">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <Sparkles className="h-8 w-8 animate-pulse text-m-primary" />
+              <p className="text-body-medium text-m-on-surface">
+                {clientSows.length > 0
+                  ? `Mapping request against ${clientSows.length} SOW(s)…`
+                  : "Checking which SOW engagements this client has…"}
+              </p>
+              <p className="text-body-small text-m-on-surface-variant">
+                Extracting every discrete ask and classifying it against the SOW
+                clauses.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="mx-auto max-w-md border-dashed">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <p className="text-body-medium text-m-on-surface-variant">
+                {analyze.isError
+                  ? "Analysis failed. Fix the issue and try again."
+                  : "The analysis didn't extract any scope items from this brief."}
+              </p>
+              <Button variant="outline" onClick={() => runAnalyze({})} className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                {analyze.isError ? "Run analysis" : "Re-run analysis"}
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      ) : (
+        <>
+          <Tabs defaultValue="map">
+            <TabsList>
+              <TabsTrigger value="map">Map</TabsTrigger>
+              <TabsTrigger value="list">List</TabsTrigger>
+            </TabsList>
+            <TabsContent value="map" className="pt-6">
+              <ScopeMapCanvas
+                items={placements ?? []}
+                sowTitles={sowTitles}
+                selectedRefs={selectedRefs}
+                onToggleSelect={handleToggleSelect}
+                onOverride={handleOverride}
+              />
+            </TabsContent>
+            <TabsContent value="list" className="pt-2">
+              <PlacementsTable
+                placements={placements ?? []}
+                sowTitleBySlug={sowTitleBySlug}
+                onOverride={handleOverride}
+              />
+            </TabsContent>
+          </Tabs>
+
+          {selectedItems.length > 0 && (
+            <div className="sticky bottom-4 z-20">
+              <Card className="border-m-outline-variant bg-m-surface-container shadow-elev-3">
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                  <span className="text-body-medium text-m-on-surface">
+                    <strong>{selectedItems.length}</strong> item(s) selected · est.{" "}
+                    <strong>{formatCurrency(selectedEstimateCents / 100)}</strong>
+                  </span>
+                  <Button onClick={() => setEstimateOpen(true)} className="gap-2">
+                    <Calculator className="h-4 w-4" />
+                    Build cost estimate
+                  </Button>
                 </CardContent>
               </Card>
-            ) : (
-              areas.map((area) => {
-                const inBucket = buckets.get(area.id) ?? [];
-                return (
-                  <Card key={area.id} className="border-m-primary/40 shadow-elev-1">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center gap-2 text-title-small">
-                        <span className="rounded-full bg-m-primary-container px-3 py-0.5 text-label-medium text-m-on-primary-container">
-                          {area.name}
-                        </span>
-                        <Badge variant="muted">{inBucket.length}</Badge>
-                      </CardTitle>
-                      {area.description && (
-                        <p className="text-label-small text-m-on-surface-variant">{area.description}</p>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {inBucket.length === 0 ? (
-                        <p className="text-body-small text-m-on-surface-variant">
-                          No tasks here yet.
-                        </p>
-                      ) : (
-                        inBucket.map((p) => {
-                          const draft = drafts.find((d) => d.task_ref === p.task_ref);
-                          if (!draft) return null;
-                          return (
-                            <TaskRow
-                              key={p.task_ref}
-                              draft={draft}
-                              areas={areas}
-                              onChange={(patch) => updateDraft(p.task_ref, patch)}
-                            />
-                          );
-                        })
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-          </section>
+            </div>
+          )}
 
-          {/* Outside zone */}
-          <aside>
-            <Card className="border-2 border-dashed border-rose-300">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-title-small text-rose-700">
-                  Outside scope
-                  <Badge variant="destructive">
-                    {(buckets.get("__outside") ?? []).length}
-                  </Badge>
-                </CardTitle>
-                <p className="text-label-small text-m-on-surface-variant">
-                  These will become a Change Estimate.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(buckets.get("__outside") ?? []).length === 0 ? (
-                  <p className="text-body-small text-m-on-surface-variant">
-                    Nothing outside scope.
-                  </p>
-                ) : (
-                  (buckets.get("__outside") ?? []).map((p) => {
-                    const draft = drafts.find((d) => d.task_ref === p.task_ref);
-                    if (!draft) return null;
-                    return (
-                      <TaskRow
-                        key={p.task_ref}
-                        draft={draft}
-                        areas={areas}
-                        onChange={(patch) => updateDraft(p.task_ref, patch)}
-                      />
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-          </aside>
-        </div>
-      ) : (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center text-body-medium text-m-on-surface-variant">
-            Pick the active SoW above to load service areas and AI-match the tasks.
-          </CardContent>
-        </Card>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button disabled={approve.isPending} onClick={handleApprove} className="gap-2">
+              Approve placements
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
       )}
 
-      {sowSlug && drafts.length > 0 && (
-        <div className="flex items-center justify-end gap-2 pt-4">
-          <Button disabled={saving} onClick={approveAll} className="gap-2">
-            Approve placements
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <EstimateSheet
+        open={estimateOpen}
+        onOpenChange={setEstimateOpen}
+        brief={{
+          id: brief.id,
+          client_id: brief.client_id,
+          parent_project_id: brief.parent_project_id,
+        }}
+        items={selectedItems}
+      />
+
+      <Dialog open={reanalyseOpen} onOpenChange={setReanalyseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Approved placements exist</DialogTitle>
+            <DialogDescription>
+              {approvedCount} placement(s) on this brief are already approved. Keep
+              them and re-analyse the rest, or replace everything from scratch.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReanalyseOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReanalyseOpen(false);
+                runAnalyze({ force: false });
+              }}
+            >
+              Keep approved & re-analyse
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setReanalyseOpen(false);
+                runAnalyze({ force: true });
+              }}
+            >
+              Replace all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function TaskRow({
-  draft,
-  areas,
-  onChange,
+/** Accessible List tab — the screen-reader path for the map. */
+function PlacementsTable({
+  placements,
+  sowTitleBySlug,
+  onOverride,
 }: {
-  draft: { task_ref: string; task_name: string; is_inside: boolean; service_area_id: string | null; ai_match_quote: string | null; ai_confidence: number | null };
-  areas: SowServiceArea[];
-  onChange: (patch: Partial<{ is_inside: boolean; service_area_id: string | null; override_reason: string | null }>) => void;
+  placements: BriefTaskSowPlacement[];
+  sowTitleBySlug: Map<string, string>;
+  onOverride: (ref: string, isInside: boolean) => void;
 }) {
-  const value = draft.is_inside ? (draft.service_area_id ?? "") : "__outside";
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md bg-m-surface px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-body-medium text-m-on-surface">{draft.task_name}</div>
-        {draft.ai_match_quote && (
-          <p
-            className="truncate text-label-small text-m-on-surface-variant"
-            title={draft.ai_match_quote}
-          >
-            {draft.ai_confidence !== null && (
-              <span className="mr-1 inline-flex items-center gap-1">
-                {draft.is_inside ? <Check className="h-3 w-3 text-emerald-600" /> : <X className="h-3 w-3 text-rose-600" />}
-                {(draft.ai_confidence * 100).toFixed(0)}%
-              </span>
-            )}
-            {draft.ai_match_quote}
-          </p>
-        )}
-      </div>
-      <Select
-        value={value}
-        onValueChange={(v) => {
-          if (v === "__outside") {
-            onChange({ is_inside: false, service_area_id: null, override_reason: "moved to outside" });
-          } else {
-            onChange({ is_inside: true, service_area_id: v, override_reason: null });
-          }
-        }}
-      >
-        <SelectTrigger className="w-44">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {areas.map((a) => (
-            <SelectItem key={a.id} value={a.id}>
-              {a.name}
-            </SelectItem>
+    <div className="rounded-xl border border-m-outline-variant bg-m-surface">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Item</TableHead>
+            <TableHead>Verdict</TableHead>
+            <TableHead className="w-24">Confidence</TableHead>
+            <TableHead>Reasoning</TableHead>
+            <TableHead>SOW</TableHead>
+            <TableHead className="w-36">Override</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {placements.map((p) => (
+            <TableRow key={p.task_ref}>
+              <TableCell>
+                <div className="text-body-medium text-m-on-surface">
+                  {p.item_name ?? p.task_ref}
+                </div>
+                {p.item_description && (
+                  <div className="max-w-xs truncate text-label-small text-m-on-surface-variant">
+                    {p.item_description}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant={p.is_inside ? "muted" : "destructive"}>
+                  {p.is_inside ? "In SOW" : "Outside SOW"}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-body-small text-m-on-surface-variant">
+                {p.ai_confidence !== null ? `${Math.round(p.ai_confidence * 100)}%` : "—"}
+              </TableCell>
+              <TableCell className="max-w-sm">
+                <span className="line-clamp-2 text-body-small text-m-on-surface-variant">
+                  {p.ai_match_quote ?? "—"}
+                </span>
+              </TableCell>
+              <TableCell className="text-body-small text-m-on-surface-variant">
+                {p.sow_slug ? (sowTitleBySlug.get(p.sow_slug) ?? p.sow_slug) : "—"}
+              </TableCell>
+              <TableCell>
+                <Select
+                  value={p.is_inside ? "inside" : "outside"}
+                  onValueChange={(v) => onOverride(p.task_ref, v === "inside")}
+                >
+                  <SelectTrigger aria-label={`Override placement for ${p.item_name ?? p.task_ref}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inside">Inside</SelectItem>
+                    <SelectItem value="outside">Outside</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TableCell>
+            </TableRow>
           ))}
-          <SelectItem value="__outside">— Outside —</SelectItem>
-        </SelectContent>
-      </Select>
+        </TableBody>
+      </Table>
     </div>
   );
 }

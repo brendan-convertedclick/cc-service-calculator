@@ -14,6 +14,11 @@ const p = (overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacement => 
   approved_at: null,
   created_at: "",
   updated_at: "",
+  item_name: null,
+  item_description: null,
+  sow_slug: null,
+  suggested_service_id: null,
+  estimated_cents: null,
   ...overrides,
 });
 

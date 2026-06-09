@@ -118,7 +118,7 @@ export function Scope() {
         locked_by: userId,
       });
       await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
-      navigate(`/briefs/${id}/builder`);
+      navigate(`/briefs/${id}/sow-check`);
     } catch {
       toast.error("Failed to lock scope");
     }
