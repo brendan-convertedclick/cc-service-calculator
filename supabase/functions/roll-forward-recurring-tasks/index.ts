@@ -3,8 +3,11 @@
 // Cron entry. Runs on the 1st of every month (00:05 Africa/Johannesburg)
 // and invokes provision-retainer-period for every active recurring project
 // (is_recurring = true OR engagement_type = 'retainer'; status != archived).
-// Standalone retainers are is_recurring = false, so they are matched by the
-// engagement_type clause — see the create-retainer flow.
+// Retainers are created with is_recurring = true (since migration 0062); the
+// engagement_type clause keeps them rolling even if the flag is unchecked.
+//
+// Also advances due_date to the current month-end for all active retainers,
+// so on-time tracking always measures against the running period.
 //
 // Each invocation is idempotent — re-running the same month is a no-op.
 
@@ -52,5 +55,20 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ period_start: periodStart, count: retainers?.length ?? 0, results });
+  // Retainers carry the current period's month-end due date.
+  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
+    .toISOString();
+  const { error: dueErr } = await sb
+    .from("projects")
+    .update({ due_date: periodEnd })
+    .eq("engagement_type", "retainer")
+    .neq("status", "archived");
+
+  return json({
+    period_start: periodStart,
+    count: retainers?.length ?? 0,
+    results,
+    retainer_due_date: periodEnd,
+    ...(dueErr ? { due_date_error: dueErr.message } : {}),
+  });
 });

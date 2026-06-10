@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectCommunications } from "@/components/projects/ProjectCommunications";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useDepartments } from "@/hooks/useDepartments";
+import { currentMonthKey, filterBurnActuals, monthRange } from "@/hooks/usePulseRetainerBurn";
 import type { Database } from "@/types/db";
 import type { ClaudePrompt } from "@/types/claude";
 
@@ -83,7 +84,7 @@ export function ProjectDetail() {
     }
     return Array.from(byDept.entries()).map(([dept_id, v]) => ({
       dept_id,
-      dept_name: depts.find((d) => d.id === dept_id)?.name ?? "Unknown",
+      dept_name: depts.find((d) => d.id === dept_id)?.name ?? "No department",
       planned: v.planned,
       actual: v.actual,
     }));
@@ -94,6 +95,19 @@ export function ProjectDetail() {
 
   const totalPlanned = rows.reduce((a, r) => a + r.planned, 0);
   const totalActual = rows.reduce((a, r) => a + r.actual, 0);
+
+  const engagementType = project.engagement_type ?? "fixed";
+  const isRetainer = engagementType === "retainer";
+
+  // Hours consumed this period — same month-window rules as the pulse burn
+  // view (frozen snapshots count in full for completed retainers).
+  const { start: monthStart, end: monthEnd } = monthRange(currentMonthKey());
+  const periodHours = filterBurnActuals(
+    actuals,
+    project.status === "completed" ? new Set([project.id]) : new Set(),
+    monthStart,
+    monthEnd,
+  ).reduce((s, a) => s + Number(a.actual_hours ?? 0), 0);
 
   function saveRecurrence() {
     if (!id) return;
@@ -155,9 +169,6 @@ export function ProjectDetail() {
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
   const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
-
-  const engagementType = project.engagement_type ?? "fixed";
-  const isRetainer = engagementType === "retainer";
 
   const actualsSummary = rows
     .map((r) => `  ${r.dept_name}: ${r.actual}h actual / ${r.planned}h planned`)
@@ -246,52 +257,9 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="communications">Communications</TabsTrigger>
+          <TabsTrigger value="ai">AI</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Claude Code attribution</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-body-small text-m-on-surface-variant">
-            Token usage from Claude Code sessions in the linked repo will accumulate on the
-            ClickUp parent task. The SessionStart hook resolves the binding via either a
-            <code className="mx-1 px-1 rounded bg-m-surface-container">.cc-project</code>
-            file at repo root, or by matching{" "}
-            <code className="mx-1 px-1 rounded bg-m-surface-container">git remote get-url origin</code>{" "}
-            against the URL below.
-          </div>
-          <div className="space-y-2">
-            <Label>Git remote URL</Label>
-            <div className="flex gap-2">
-              <Input
-                value={remoteDraft}
-                onChange={(e) => setRemoteDraft(e.target.value)}
-                placeholder="https://github.com/org/repo.git"
-                className="font-mono text-xs"
-              />
-              <Button size="sm" onClick={saveGitRemote} disabled={updateProject.isPending}>
-                <Save className="h-4 w-4" />
-                Save
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Both HTTPS and SSH forms work — they normalise to the same canonical key.
-            </p>
-          </div>
-          <div>
-            <Button size="sm" variant="outline" onClick={copyCcProject}>
-              <Copy className="h-4 w-4" />
-              Copy .cc-project
-            </Button>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Paste into a file named <code>.cc-project</code> at the repo root and commit it
-              — the binding is a property of the codebase.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Due date</CardTitle>
@@ -373,13 +341,28 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
 
       <Card>
         <CardContent className="p-4">
-          <BurnChart rows={rows} />
+          {isRetainer ? (
+            project.retainer_hours_target ? (
+              <BurnChart
+                rows={[
+                  {
+                    dept_id: "retainer",
+                    dept_name: "Hours used this month",
+                    planned: project.retainer_hours_target,
+                    actual: periodHours,
+                  },
+                ]}
+              />
+            ) : (
+              <p className="text-body-small text-m-on-surface-variant">
+                Set the monthly hours target above to track retainer burn.
+              </p>
+            )
+          ) : (
+            <BurnChart rows={rows} />
+          )}
         </CardContent>
       </Card>
-
-      <div className="mt-4">
-        <ClaudePromptPanel prompts={projectPrompts} />
-      </div>
 
       <Card>
         <CardHeader>
@@ -483,6 +466,53 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
         </TabsContent>
         <TabsContent value="communications">
           <ProjectCommunications projectId={project.id} />
+        </TabsContent>
+        <TabsContent value="ai" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Claude Code attribution</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-body-small text-m-on-surface-variant">
+                Token usage from Claude Code sessions in the linked repo will accumulate on the
+                ClickUp parent task. The SessionStart hook resolves the binding via either a
+                <code className="mx-1 px-1 rounded bg-m-surface-container">.cc-project</code>
+                file at repo root, or by matching{" "}
+                <code className="mx-1 px-1 rounded bg-m-surface-container">git remote get-url origin</code>{" "}
+                against the URL below.
+              </div>
+              <div className="space-y-2">
+                <Label>Git remote URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={remoteDraft}
+                    onChange={(e) => setRemoteDraft(e.target.value)}
+                    placeholder="https://github.com/org/repo.git"
+                    className="font-mono text-xs"
+                  />
+                  <Button size="sm" onClick={saveGitRemote} disabled={updateProject.isPending}>
+                    <Save className="h-4 w-4" />
+                    Save
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Both HTTPS and SSH forms work — they normalise to the same canonical key.
+                </p>
+              </div>
+              <div>
+                <Button size="sm" variant="outline" onClick={copyCcProject}>
+                  <Copy className="h-4 w-4" />
+                  Copy .cc-project
+                </Button>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Paste into a file named <code>.cc-project</code> at the repo root and commit it
+                  — the binding is a property of the codebase.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <ClaudePromptPanel prompts={projectPrompts} />
         </TabsContent>
       </Tabs>
     </div>

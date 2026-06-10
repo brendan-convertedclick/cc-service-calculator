@@ -106,6 +106,9 @@ verify_jwt = false
 [functions.create-retainer]
 verify_jwt = false
 
+[functions.create-recurring-tasks]
+verify_jwt = false
+
 # --- Scope map (Phase 4 SowCheck rebuild) ---
 [functions.analyze-brief-sow]
 verify_jwt = false

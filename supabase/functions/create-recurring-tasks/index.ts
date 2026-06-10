@@ -45,6 +45,9 @@ Deno.serve(async (req: Request) => {
       .select("id,name,quote_id,clickup_parent_task_id,status,is_recurring,recurrence_interval,recurrence_start,recurrence_end,last_recurring_cycle_at")
       .eq("is_recurring", true)
       .eq("status", "in_progress")
+      // Retainers are is_recurring=true but provision through
+      // provision-retainer-period — exclude them or they'd be provisioned twice.
+      .neq("engagement_type", "retainer")
       .not("recurrence_interval", "is", null)
       .not("recurrence_start", "is", null);
     if (projErr) return json({ error: projErr.message }, 500);

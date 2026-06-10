@@ -11,7 +11,9 @@
 // Orchestrates standalone retainer creation, mirroring push-to-clickup:
 //   1. Validate body + confirm client and its active ClickUp list.
 //   2. Create a ClickUp "retainer parent" task in clickup_list_id (status omitted → CRTSK_001).
-//   3. Insert the projects row (engagement_type='retainer', status='in_progress').
+//   3. Insert the projects row (engagement_type='retainer', status='in_progress',
+//      is_recurring=true, due_date=month-end of recurrence_start; the monthly
+//      roll-forward cron advances due_date each period).
 //   4. Insert one retainer_recurring_services row per service.
 //   5. Invoke provision-retainer-period { project_id } for the current period.
 //
@@ -68,6 +70,10 @@ Deno.serve(async (req: Request) => {
       return json({ error: "name required" }, 400);
     }
     if (!recurrence_start) return json({ error: "recurrence_start required" }, 400);
+    const recurrenceStartDate = new Date(recurrence_start);
+    if (isNaN(recurrenceStartDate.getTime())) {
+      return json({ error: "recurrence_start must be a valid date" }, 400);
+    }
     if (typeof retainer_hours_target !== "number" || !(retainer_hours_target > 0)) {
       return json({ error: "retainer_hours_target must be a positive number" }, 400);
     }
@@ -141,6 +147,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- Step 3: insert the projects row ---
+    // is_recurring=true marks the retainer as a recurring project; execution
+    // stays with provision-retainer-period (create-recurring-tasks excludes
+    // engagement_type='retainer'). due_date = first period's month-end.
+    const firstPeriodEnd = new Date(Date.UTC(
+      recurrenceStartDate.getUTCFullYear(),
+      recurrenceStartDate.getUTCMonth() + 1,
+      0,
+    ));
     const { data: project, error: pErr } = await sb
       .from("projects")
       .insert({
@@ -148,10 +162,11 @@ Deno.serve(async (req: Request) => {
         client_id,
         engagement_type: "retainer",
         status: "in_progress",
-        is_recurring: false,
+        is_recurring: true,
         recurrence_mode: "none",
         recurrence_interval: "monthly",
         recurrence_start,
+        due_date: firstPeriodEnd.toISOString(),
         retainer_hours_target,
         retainer_monthly_fee_cents,
         clickup_list_id,
