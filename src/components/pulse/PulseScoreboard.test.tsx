@@ -52,10 +52,10 @@ function renderBoard(over: Partial<Parameters<typeof PulseScoreboard>[0]> = {}) 
 }
 
 describe('PulseScoreboard', () => {
-  it('shows total outstanding AR with the 30d+ overdue subline', () => {
+  it('shows overdue AR with the 30d+ overdue subline and amount', () => {
     renderBoard()
     expect(screen.getByText(fmt(18_335_000))).toBeInTheDocument()
-    expect(screen.getByText(new RegExp(`2 invoices 30d\\+ overdue`))).toBeInTheDocument()
+    expect(screen.getByText(`2 invoices 30d+ overdue · ${fmt(6_095_000)}`)).toBeInTheDocument()
   })
 
   it('shows a calm AR subline when nothing is 30d+ overdue', () => {

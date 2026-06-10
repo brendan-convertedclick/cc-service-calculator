@@ -15,11 +15,11 @@ interface PulseScoreboardProps {
 
 function Tile({ title, to, linkLabel, children }: { title: string; to: string; linkLabel: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col rounded-xl border border-m-outline-variant bg-m-surface p-4 transition-shadow hover:shadow-elev-1">
-      <h3 className="mb-2 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">{title}</h3>
+    <div className="flex flex-col rounded-xl border border-m-outline-variant bg-m-surface p-4">
+      <h2 className="mb-2 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">{title}</h2>
       <div className="flex-1">{children}</div>
       <Link to={to} className="mt-3 text-label-small font-medium text-m-primary hover:underline">
-        {linkLabel} →
+        {linkLabel} <span aria-hidden="true">→</span>
       </Link>
     </div>
   )
@@ -67,7 +67,8 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Tile title="Outstanding AR" to="/reconciliation" linkLabel="Reconciliation">
+      {/* "Overdue", not "outstanding": the AR hook only includes invoices already past due. */}
+      <Tile title="Overdue AR" to="/reconciliation" linkLabel="Reconciliation">
         {arBands === null ? (
           <>
             <Stat value="—" />
