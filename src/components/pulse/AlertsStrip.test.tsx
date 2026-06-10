@@ -1,25 +1,121 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect } from 'vitest'
 import { AlertsStrip } from './AlertsStrip'
 import { MemoryRouter } from 'react-router-dom'
+import type { PulseAlert } from '@/types/pulse'
 
-const alerts = [
-  { id: 'a1', level: 'overdue' as const, message: 'Acme overdue 34 days', linkTo: '/reconciliation' },
-]
+const overdue1: PulseAlert = { id: 'o1', level: 'overdue', message: 'Eva-Last — Invoice INV-0231 overdue 42 days', linkTo: '/reconciliation' }
+const overdue2: PulseAlert = { id: 'o2', level: 'overdue', message: 'Pebble — Invoice INV-0198 overdue 35 days', linkTo: '/reconciliation' }
+const watch1: PulseAlert = { id: 'w1', level: 'watch', message: 'AeT retainer — 91% of hours burned with 12 days left', linkTo: '/projects' }
+const routine = (n: number): PulseAlert => ({
+  id: `f${n}`, level: 'flag_am',
+  message: `Client ${n} — No contact recorded yet. Account manager should follow up.`,
+  linkTo: '/clients',
+})
+const mix: PulseAlert[] = [overdue1, overdue2, watch1, ...Array.from({ length: 25 }, (_, i) => routine(i))]
 
-describe('AlertsStrip', () => {
+function renderStrip(alerts: PulseAlert[]) {
+  return render(<MemoryRouter><AlertsStrip alerts={alerts} /></MemoryRouter>)
+}
+
+describe('AlertsStrip (pulse meter)', () => {
   it('shows all-clear when no alerts', () => {
-    render(<MemoryRouter><AlertsStrip alerts={[]} /></MemoryRouter>)
+    renderStrip([])
     expect(screen.getByText(/all clear/i)).toBeInTheDocument()
   })
 
-  it('shows alert count when alerts present', () => {
-    render(<MemoryRouter><AlertsStrip alerts={alerts} /></MemoryRouter>)
-    expect(screen.getByText(/1 item/i)).toBeInTheDocument()
+  it('shows total signal count', () => {
+    renderStrip(mix)
+    expect(screen.getByText(/28 signals/i)).toBeInTheDocument()
   })
 
-  it('renders alert message', () => {
-    render(<MemoryRouter><AlertsStrip alerts={alerts} /></MemoryRouter>)
-    expect(screen.getByText(/Acme overdue 34 days/i)).toBeInTheDocument()
+  it('headlines the urgent count when overdue alerts exist', () => {
+    renderStrip(mix)
+    expect(screen.getByText(/2 urgent items need action/i)).toBeInTheDocument()
+  })
+
+  it('uses singular copy for one urgent item', () => {
+    renderStrip([overdue1])
+    expect(screen.getByText(/1 urgent item needs action/i)).toBeInTheDocument()
+  })
+
+  it('headlines calm copy when nothing is urgent', () => {
+    renderStrip([watch1, routine(1)])
+    expect(screen.getByText(/nothing urgent/i)).toBeInTheDocument()
+  })
+
+  it('headlines all-routine copy when only follow-ups exist', () => {
+    renderStrip([routine(1), routine(2)])
+    expect(screen.getByText(/all routine/i)).toBeInTheDocument()
+  })
+
+  it('shows a legend key with count per non-empty group', () => {
+    renderStrip(mix)
+    expect(screen.getByRole('button', { name: /2 overdue/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /1 to watch/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /25 follow-ups/i })).toBeInTheDocument()
+  })
+
+  it('omits legend keys for empty groups', () => {
+    renderStrip([overdue1])
+    expect(screen.queryByRole('button', { name: /to watch/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /follow-ups/i })).toBeNull()
+  })
+
+  it('keeps all detail panels closed by default', () => {
+    renderStrip(mix)
+    expect(screen.queryByText(/INV-0231/)).toBeNull()
+    expect(screen.queryByText(/91% of hours/)).toBeNull()
+  })
+
+  it('opens a group panel when its legend key is clicked', async () => {
+    const user = userEvent.setup()
+    renderStrip(mix)
+    await user.click(screen.getByRole('button', { name: /2 overdue/i }))
+    expect(screen.getByText(/INV-0231/)).toBeInTheDocument()
+    expect(screen.queryByText(/91% of hours/)).toBeNull()
+  })
+
+  it('switches panels when another legend key is clicked', async () => {
+    const user = userEvent.setup()
+    renderStrip(mix)
+    await user.click(screen.getByRole('button', { name: /2 overdue/i }))
+    await user.click(screen.getByRole('button', { name: /1 to watch/i }))
+    expect(screen.queryByText(/INV-0231/)).toBeNull()
+    expect(screen.getByText(/91% of hours/)).toBeInTheDocument()
+  })
+
+  it('closes the panel when its open legend key is clicked again', async () => {
+    const user = userEvent.setup()
+    renderStrip(mix)
+    const key = screen.getByRole('button', { name: /2 overdue/i })
+    await user.click(key)
+    await user.click(key)
+    expect(screen.queryByText(/INV-0231/)).toBeNull()
+  })
+
+  it('renders the follow-ups group as name chips capped with a "+N more" link', async () => {
+    const user = userEvent.setup()
+    renderStrip(mix)
+    await user.click(screen.getByRole('button', { name: /25 follow-ups/i }))
+    expect(screen.getByText('Client 0')).toBeInTheDocument()
+    const more = screen.getByRole('link', { name: /\+17 more/i })
+    expect(more).toHaveAttribute('href', '/clients')
+  })
+
+  it('links each open panel to its destination page', async () => {
+    const user = userEvent.setup()
+    renderStrip(mix)
+    await user.click(screen.getByRole('button', { name: /2 overdue/i }))
+    expect(screen.getByRole('link', { name: /open reconciliation/i })).toHaveAttribute('href', '/reconciliation')
+  })
+
+  it('hides the panel destination link when a group mixes destinations', async () => {
+    const user = userEvent.setup()
+    const silentClient: PulseAlert = { id: 'o3', level: 'overdue', message: 'Gama — No email or meeting in 45 days', linkTo: '/clients' }
+    renderStrip([overdue1, silentClient])
+    await user.click(screen.getByRole('button', { name: /2 overdue/i }))
+    expect(screen.queryByRole('link', { name: /^open /i })).toBeNull()
   })
 })
