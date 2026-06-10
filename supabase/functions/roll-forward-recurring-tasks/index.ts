@@ -1,6 +1,6 @@
 // supabase/functions/roll-forward-recurring-tasks/index.ts
 //
-// Cron entry. Runs on the 1st of every month (00:05 Africa/Johannesburg)
+// Cron entry (migration 0063). Runs on the 1st of every month (00:05 UTC)
 // and invokes provision-retainer-period for every active recurring project
 // (is_recurring = true OR engagement_type = 'retainer'; status != archived).
 // Retainers are created with is_recurring = true (since migration 0062); the
