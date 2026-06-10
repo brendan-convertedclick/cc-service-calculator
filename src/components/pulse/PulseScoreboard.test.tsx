@@ -132,11 +132,15 @@ describe('PulseScoreboard', () => {
     expect(screen.getByText('+2 more')).toBeInTheDocument()
   })
 
-  it('renders a mini burn bar per configured retainer, hottest first', () => {
-    renderBoard()
+  it('renders mini burn bars hottest-first, capped at three', () => {
+    renderBoard({
+      retainers: [...retainers, { ...retainerBase, projectId: 'p5', clientName: 'Coldest', burnPct: 10 }],
+    })
     expect(screen.getByTitle('AeT — 91% burned')).toBeInTheDocument()
     expect(screen.getByTitle('BMC — 88% burned')).toBeInTheDocument()
     expect(screen.getByTitle('Calm — 40% burned')).toBeInTheDocument()
+    // 4th configured retainer is the coolest, so the cap folds it away.
+    expect(screen.queryByTitle('Coldest — 10% burned')).toBeNull()
   })
 
   it('shows quietest-client chips with a more chip when over the cap', () => {

@@ -15,6 +15,7 @@ interface PulseScoreboardProps {
 
 const INVOICE_LIMIT = 2
 const CHIP_LIMIT = 5
+const BURN_BAR_LIMIT = 3
 
 // Same canonical order and palette as WipFunnelSection.
 const WIP_STAGES = ['Received', 'Scoping', 'Quoted', 'Accepted', 'Delivered'] as const
@@ -138,7 +139,7 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
               <Sub tone="ok">All on pace</Sub>
             )}
             <ul className="mt-2 space-y-1.5">
-              {[...configured].sort((a, b) => b.burnPct - a.burnPct).slice(0, 3).map(r => (
+              {[...configured].sort((a, b) => b.burnPct - a.burnPct).slice(0, BURN_BAR_LIMIT).map(r => (
                 <li key={r.projectId} title={`${r.clientName} — ${r.burnPct}% burned`} className="flex items-center gap-2 text-label-small">
                   <span className="w-20 truncate text-m-on-surface-variant">{r.clientName}</span>
                   <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-m-surface-container-high">
@@ -158,7 +159,7 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
         {dueClients.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {dueClients.slice(0, CHIP_LIMIT).map(c => (
-              <span key={c.clientId} className="rounded-full bg-m-surface-container px-2 py-0.5 text-label-small text-m-on-surface-variant">
+              <span key={c.clientId} className="max-w-full truncate rounded-full bg-m-surface-container px-2 py-0.5 text-label-small text-m-on-surface-variant">
                 {c.clientName}
               </span>
             ))}
