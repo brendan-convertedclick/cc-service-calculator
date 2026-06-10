@@ -45,6 +45,11 @@ describe('AlertsStrip (pulse meter)', () => {
     expect(screen.getByText(/nothing urgent/i)).toBeInTheDocument()
   })
 
+  it('headlines all-routine copy when only follow-ups exist', () => {
+    renderStrip([routine(1), routine(2)])
+    expect(screen.getByText(/all routine/i)).toBeInTheDocument()
+  })
+
   it('shows a legend key with count per non-empty group', () => {
     renderStrip(mix)
     expect(screen.getByRole('button', { name: /2 overdue/i })).toBeInTheDocument()
@@ -104,5 +109,13 @@ describe('AlertsStrip (pulse meter)', () => {
     renderStrip(mix)
     await user.click(screen.getByRole('button', { name: /2 overdue/i }))
     expect(screen.getByRole('link', { name: /open reconciliation/i })).toHaveAttribute('href', '/reconciliation')
+  })
+
+  it('hides the panel destination link when a group mixes destinations', async () => {
+    const user = userEvent.setup()
+    const silentClient: PulseAlert = { id: 'o3', level: 'overdue', message: 'Gama — No email or meeting in 45 days', linkTo: '/clients' }
+    renderStrip([overdue1, silentClient])
+    await user.click(screen.getByRole('button', { name: /2 overdue/i }))
+    expect(screen.queryByRole('link', { name: /^open /i })).toBeNull()
   })
 })

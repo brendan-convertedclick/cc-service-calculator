@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,11 @@ const CHIP_LIMIT = 8
 
 export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
   const [open, setOpen] = useState<PulseAlertLevel | null>(null)
+  const panelId = useId()
+  // Stable item arrays so LimitedList's expand state survives parent re-renders.
+  const groups = useMemo(() => GROUP_ORDER
+    .map(level => ({ level, items: alerts.filter(a => a.level === level) }))
+    .filter(g => g.items.length > 0), [alerts])
 
   if (alerts.length === 0) {
     return (
@@ -45,10 +50,6 @@ export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
       </div>
     )
   }
-
-  const groups = GROUP_ORDER
-    .map(level => ({ level, items: alerts.filter(a => a.level === level) }))
-    .filter(g => g.items.length > 0)
   const counts = Object.fromEntries(GROUP_ORDER.map(l => [l, 0])) as Record<PulseAlertLevel, number>
   groups.forEach(g => { counts[g.level] = g.items.length })
 
@@ -84,6 +85,7 @@ export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
             key={g.level}
             type="button"
             aria-expanded={open === g.level}
+            aria-controls={panelId}
             onClick={() => toggle(g.level)}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full border border-transparent px-2.5 py-0.5 transition-colors hover:bg-m-surface-container',
@@ -98,7 +100,7 @@ export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
         ))}
       </div>
 
-      <div className={cn('grid transition-[grid-template-rows] duration-300', openGroup ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+      <div id={panelId} className={cn('grid transition-[grid-template-rows] duration-300', openGroup ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
         <div className="min-h-0 overflow-hidden">
           {openGroup && (
             <div className="mt-2.5 border-t border-m-outline-variant pt-3">
@@ -106,9 +108,12 @@ export function AlertsStrip({ alerts }: { alerts: PulseAlert[] }) {
                 <span className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">
                   {openGroup.items.length} {groupMeta[openGroup.level].label(openGroup.items.length)}
                 </span>
-                <Link to={openGroup.items[0].linkTo} className="shrink-0 text-label-small font-medium text-m-primary hover:underline">
-                  Open {destinationLabels[openGroup.items[0].linkTo] ?? 'page'} →
-                </Link>
+                {/* Only meaningful when the whole group shares a destination; rows always deep-link. */}
+                {new Set(openGroup.items.map(a => a.linkTo)).size === 1 && (
+                  <Link to={openGroup.items[0].linkTo} className="shrink-0 text-label-small font-medium text-m-primary hover:underline">
+                    Open {destinationLabels[openGroup.items[0].linkTo] ?? 'page'} →
+                  </Link>
+                )}
               </div>
               {openGroup.level === 'flag_am' ? (
                 <div className="flex flex-wrap gap-1.5 px-1.5 pb-1">
