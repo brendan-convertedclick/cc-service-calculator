@@ -33,7 +33,8 @@ export function computeAlerts(
     .filter(c => c.daysSinceContact >= 21)
     .forEach(c => alerts.push({
       id: `client-${c.clientId}`,
-      level: c.daysSinceContact >= 30 ? 'overdue' : 'flag_am',
+      // 999 means "never contacted" — a bootstrapping gap, not an emergency.
+      level: c.daysSinceContact >= 30 && c.daysSinceContact < 999 ? 'overdue' : 'flag_am',
       message: c.daysSinceContact >= 999
         ? `${c.clientName} — No contact recorded yet. Account manager should follow up.`
         : `${c.clientName} — No email or meeting in ${c.daysSinceContact} days. Account manager should follow up.`,

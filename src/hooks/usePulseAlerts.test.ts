@@ -41,6 +41,18 @@ describe('computeAlerts', () => {
     expect(alerts[0].message).not.toContain('999')
   })
 
+  it('treats never-contacted clients as routine flag_am, not overdue', () => {
+    const never = { ...quietClient, daysSinceContact: 999, lastTouchpointType: null }
+    const alerts = computeAlerts([], [], [never], [])
+    expect(alerts[0].level).toBe('flag_am')
+  })
+
+  it('still escalates genuinely silent clients at 30+ days to overdue', () => {
+    const silent = { ...quietClient, daysSinceContact: 45 }
+    const alerts = computeAlerts([], [], [silent], [])
+    expect(alerts[0].level).toBe('overdue')
+  })
+
   it('sorts overdue before watch before flag_am', () => {
     const alerts = computeAlerts([retainer], [arBand], [quietClient], [])
     expect(alerts[0].level).toBe('overdue')
