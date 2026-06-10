@@ -112,6 +112,48 @@ export function useDeleteSenderRule() {
   });
 }
 
+export function useBlacklistSender() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      briefId,
+      clientId,
+      senderEmail,
+    }: {
+      briefId: string;
+      clientId: string;
+      senderEmail: string;
+    }) => {
+      const pattern = senderEmail.trim().toLowerCase();
+      const { error: ruleErr } = await supabase
+        .from("client_sender_rules")
+        .upsert(
+          { client_id: clientId, pattern, mode: "block" },
+          { onConflict: "client_id,pattern" },
+        );
+      if (ruleErr) throw ruleErr;
+      const { error: pendErr } = await supabase
+        .from("pending_senders")
+        .delete()
+        .eq("client_id", clientId)
+        .eq("email", pattern);
+      if (pendErr) throw pendErr;
+      const { error: briefErr } = await supabase
+        .from("briefs")
+        .update({ status: "archived", updated_at: new Date().toISOString() })
+        .eq("id", briefId);
+      if (briefErr) throw briefErr;
+      return { clientId, pattern };
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["briefs"] });
+      qc.invalidateQueries({ queryKey: ["briefs-matching"] });
+      qc.invalidateQueries({ queryKey: ["sender-rules", r.clientId] });
+      qc.invalidateQueries({ queryKey: ["pending-senders", r.clientId] });
+    },
+  });
+}
+
 export function useResolvePendingSender() {
   const qc = useQueryClient();
   return useMutation({

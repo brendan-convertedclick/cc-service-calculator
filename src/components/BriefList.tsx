@@ -1,7 +1,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Settings, Archive, ArchiveRestore, FolderPlus, Link2, FolderOpen } from "lucide-react";
+import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { useBriefs, useUpdateBrief, type BriefScope, type BriefFilterOptions, type BriefSortDirection } from "@/hooks/useBriefs";
 import { useClientProjects } from "@/hooks/useClientProjects";
+import { useBlacklistSender } from "@/hooks/useSenderRules";
 import { STATUS_LABEL } from "@/lib/brief-routing";
 import type { Database } from "@/types/db";
 
@@ -170,7 +171,9 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
   const [menuOpen, setMenuOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const { mutateAsync: updateBrief, isPending } = useUpdateBrief();
+  const { mutateAsync: blacklistSender, isPending: isBlacklisting } = useBlacklistSender();
   const isArchived = b.status === "archived";
+  const canBlacklist = !!b.sender_email && !!b.client_id;
 
   async function handleArchiveToggle(e: React.MouseEvent) {
     e.preventDefault();
@@ -184,6 +187,23 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
       toast.success(isArchived ? "Brief restored" : "Brief archived");
     } catch {
       toast.error("Failed to update brief");
+    }
+  }
+
+  async function handleBlacklist(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (!b.sender_email || !b.client_id) return;
+    try {
+      await blacklistSender({
+        briefId: b.id,
+        clientId: b.client_id,
+        senderEmail: b.sender_email,
+      });
+      toast.success(`Blacklisted ${b.sender_email} — brief archived`);
+    } catch {
+      toast.error("Failed to blacklist sender");
     }
   }
 
@@ -264,6 +284,16 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
                   >
                     <FolderPlus className="h-4 w-4" /> Tag to project
                   </button>
+                  {canBlacklist && (
+                    <button
+                      onClick={handleBlacklist}
+                      disabled={isBlacklisting}
+                      title="Block this sender for the client and archive this brief"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-medium text-m-error hover:bg-m-surface-container disabled:opacity-50"
+                    >
+                      <Ban className="h-4 w-4" /> Blacklist sender
+                    </button>
+                  )}
                 </PopoverContent>
               </Popover>
             </div>
