@@ -13,6 +13,21 @@ interface PulseScoreboardProps {
   wip: WipFunnelData
 }
 
+const INVOICE_LIMIT = 2
+const CHIP_LIMIT = 5
+const BURN_BAR_LIMIT = 3
+
+// Same canonical order and palette as WipFunnelSection.
+const WIP_STAGES = ['Received', 'Scoping', 'Quoted', 'Accepted', 'Delivered'] as const
+const WIP_STAGE_COLORS = ['bg-indigo-500', 'bg-violet-500', 'bg-violet-400', 'bg-violet-300', 'bg-green-500']
+
+// Same rag → bar colour mapping as RetainerBurnSection.
+const burnBarColor: Record<RetainerBurnRow['rag'], string> = {
+  green: 'bg-green-500',
+  amber: 'bg-amber-400',
+  red: 'bg-m-error',
+}
+
 function Tile({ title, to, linkLabel, children }: { title: string; to: string; linkLabel: string; children: ReactNode }) {
   return (
     <div className="flex flex-col rounded-xl border border-m-outline-variant bg-m-surface p-4">
@@ -60,10 +75,14 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
   const hottest = hot.reduce<RetainerBurnRow | null>((m, r) => (m === null || r.burnPct > m.burnPct ? r : m), null)
 
   // Client touch — same 21-day threshold as computeAlerts.
-  const followUpsDue = clientHealth.filter(c => c.daysSinceContact >= 21).length
+  const dueClients = clientHealth
+    .filter(c => c.daysSinceContact >= 21)
+    .sort((a, b) => b.daysSinceContact - a.daysSinceContact)
+  const followUpsDue = dueClients.length
   const contactedThisWeek = clientHealth.filter(c => c.daysSinceContact <= 7).length
 
   const accepted = wip.stages.find(s => s.stage === 'Accepted')?.count ?? 0
+  const maxStageCount = Math.max(...wip.stages.map(s => s.count), 1)
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -78,9 +97,26 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
           <>
             <Stat value={fmt(arTotal)} />
             {overdueInvoices.length > 0 ? (
-              <Sub tone="error">
-                {overdueInvoices.length} invoice{overdueInvoices.length !== 1 ? 's' : ''} 30d+ overdue · {fmt(overdueTotal)}
-              </Sub>
+              <>
+                <Sub tone="error">
+                  {overdueInvoices.length} invoice{overdueInvoices.length !== 1 ? 's' : ''} 30d+ overdue · {fmt(overdueTotal)}
+                </Sub>
+                <ul className="mt-2 space-y-1.5">
+                  {[...overdueInvoices].sort((a, b) => b.amountCents - a.amountCents).slice(0, INVOICE_LIMIT).map(i => (
+                    <li key={i.id} className="flex items-center gap-1.5 text-label-small">
+                      <span className="truncate font-medium text-m-on-surface">{i.clientName}</span>
+                      {i.invoiceNumber && <span className="shrink-0 text-m-on-surface-variant">{i.invoiceNumber}</span>}
+                      <span className="ml-auto shrink-0 font-semibold tabular-nums text-m-on-surface">{fmt(i.amountCents)}</span>
+                      <span className="shrink-0 rounded-full bg-m-error-container px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-m-on-error-container">
+                        {i.daysOverdue}d
+                      </span>
+                    </li>
+                  ))}
+                  {overdueInvoices.length > INVOICE_LIMIT && (
+                    <li className="text-label-small text-m-on-surface-variant">+{overdueInvoices.length - INVOICE_LIMIT} more</li>
+                  )}
+                </ul>
+              </>
             ) : (
               <Sub tone="ok">Nothing 30d+ overdue</Sub>
             )}
@@ -102,6 +138,17 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
             ) : (
               <Sub tone="ok">All on pace</Sub>
             )}
+            <ul className="mt-2 space-y-1.5">
+              {[...configured].sort((a, b) => b.burnPct - a.burnPct).slice(0, BURN_BAR_LIMIT).map(r => (
+                <li key={r.projectId} title={`${r.clientName} — ${r.burnPct}% burned`} className="flex items-center gap-2 text-label-small">
+                  <span className="w-20 truncate text-m-on-surface-variant">{r.clientName}</span>
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-m-surface-container-high">
+                    <span className={cn('block h-full rounded-full', burnBarColor[r.rag])} style={{ width: `${Math.min(r.burnPct, 100)}%` }} />
+                  </span>
+                  <span className="w-9 shrink-0 text-right font-semibold tabular-nums text-m-on-surface">{r.burnPct}%</span>
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </Tile>
@@ -109,6 +156,20 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
       <Tile title="Client touch" to="/clients" linkLabel="Clients">
         <Stat value={String(followUpsDue)} unit={`follow-up${followUpsDue !== 1 ? 's' : ''} due`} />
         <Sub>{contactedThisWeek} contacted this week</Sub>
+        {dueClients.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {dueClients.slice(0, CHIP_LIMIT).map(c => (
+              <span key={c.clientId} className="max-w-full truncate rounded-full bg-m-surface-container px-2 py-0.5 text-label-small text-m-on-surface-variant">
+                {c.clientName}
+              </span>
+            ))}
+            {dueClients.length > CHIP_LIMIT && (
+              <span className="rounded-full bg-m-tertiary-container px-2 py-0.5 text-label-small font-semibold text-m-on-tertiary-container">
+                +{dueClients.length - CHIP_LIMIT} more
+              </span>
+            )}
+          </div>
+        )}
       </Tile>
 
       <Tile title="Work in flight" to="/briefs" linkLabel="Briefs">
@@ -120,6 +181,19 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
         ) : (
           <Sub>No briefs in the pipeline yet</Sub>
         )}
+        <div className="mt-2.5 flex h-9 items-end gap-1.5" aria-hidden="true">
+          {WIP_STAGES.map((stage, idx) => {
+            const count = wip.stages.find(s => s.stage === stage)?.count ?? 0
+            return (
+              <span
+                key={stage}
+                title={`${stage}: ${count}`}
+                className={cn('block flex-1 rounded-t', WIP_STAGE_COLORS[idx], count === 0 && 'opacity-25')}
+                style={{ height: `${Math.max((count / maxStageCount) * 100, 6)}%` }}
+              />
+            )
+          })}
+        </div>
       </Tile>
     </div>
   )
