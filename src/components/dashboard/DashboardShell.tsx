@@ -72,6 +72,8 @@ export function DashboardShell() {
         ) : (
           <OpsOverview
             opsData={opsData}
+            clientsData={clientsData}
+            lastBriefActivity={lastBriefActivity}
             onSelect={handleSelect}
             monthlyHours={monthlyHours}
             deliveryRate={deliveryRate}
