@@ -8,6 +8,7 @@ import { usePulsePricingHealth } from '@/hooks/usePulsePricingHealth'
 import { usePulseRevenueTrend } from '@/hooks/usePulseRevenueTrend'
 import { computeAlerts } from '@/hooks/usePulseAlerts'
 import { AlertsStrip } from '@/components/pulse/AlertsStrip'
+import { PulseScoreboard } from '@/components/pulse/PulseScoreboard'
 import { RetainerBurnSection } from '@/components/pulse/RetainerBurnSection'
 import { WipFunnelSection } from '@/components/pulse/WipFunnelSection'
 import { ArAgingSection } from '@/components/pulse/ArAgingSection'
@@ -38,6 +39,8 @@ export function PulseView() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
+
+      <PulseScoreboard arBands={arAging} retainers={currentBurn} clientHealth={clientHealth} wip={wipWithCycle} />
 
       <AlertsStrip alerts={alerts} />
 
