@@ -108,4 +108,56 @@ describe('PulseScoreboard', () => {
     expect(screen.getByRole('link', { name: /clients/i })).toHaveAttribute('href', '/clients')
     expect(screen.getByRole('link', { name: /briefs/i })).toHaveAttribute('href', '/briefs')
   })
+
+  it('lists the biggest 30d+ overdue invoices with day badges', () => {
+    renderBoard()
+    expect(screen.getByText('Eva-Last')).toBeInTheDocument()
+    expect(screen.getByText('42d')).toBeInTheDocument()
+    expect(screen.getByText('Pebble')).toBeInTheDocument()
+    expect(screen.getByText('35d')).toBeInTheDocument()
+  })
+
+  it('caps the AR invoice list at two with a more line', () => {
+    const extra = {
+      band: '60+' as const, totalCents: 9_000_000,
+      invoices: [
+        { id: 'x1', invoiceNumber: 'INV-8', clientName: 'Big', amountCents: 5_000_000, daysOverdue: 70 },
+        { id: 'x2', invoiceNumber: 'INV-9', clientName: 'Small', amountCents: 100_000, daysOverdue: 65 },
+      ],
+    }
+    renderBoard({ arBands: [...bands, extra] })
+    expect(screen.getByText('Big')).toBeInTheDocument()
+    expect(screen.getByText('Eva-Last')).toBeInTheDocument()
+    expect(screen.queryByText('Small')).toBeNull()
+    expect(screen.getByText('+2 more')).toBeInTheDocument()
+  })
+
+  it('renders a mini burn bar per configured retainer, hottest first', () => {
+    renderBoard()
+    expect(screen.getByTitle('AeT — 91% burned')).toBeInTheDocument()
+    expect(screen.getByTitle('BMC — 88% burned')).toBeInTheDocument()
+    expect(screen.getByTitle('Calm — 40% burned')).toBeInTheDocument()
+  })
+
+  it('shows quietest-client chips with a more chip when over the cap', () => {
+    const many = [
+      ...clientHealth,
+      health('c5', 30), health('c6', 28), health('c7', 22), health('c8', 26),
+    ]
+    renderBoard({ clientHealth: many })
+    // 7 due; quietest five shown, two folded away
+    expect(screen.getByText('c2')).toBeInTheDocument()
+    expect(screen.getByText('c4')).toBeInTheDocument()
+    expect(screen.queryByText('c7')).toBeNull()
+    expect(screen.getByText('+2 more')).toBeInTheDocument()
+  })
+
+  it('renders a mini bar per WIP stage including zero-count stages', () => {
+    renderBoard()
+    expect(screen.getByTitle('Received: 28')).toBeInTheDocument()
+    expect(screen.getByTitle('Scoping: 0')).toBeInTheDocument()
+    expect(screen.getByTitle('Quoted: 0')).toBeInTheDocument()
+    expect(screen.getByTitle('Accepted: 6')).toBeInTheDocument()
+    expect(screen.getByTitle('Delivered: 1')).toBeInTheDocument()
+  })
 })
