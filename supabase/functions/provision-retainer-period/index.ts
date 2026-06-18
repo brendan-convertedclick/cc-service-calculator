@@ -76,9 +76,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- Resolve naming + custom-field inputs ---------------------------------
-    const clientName = project.client_id
-      ? (await sb.from("clients").select("name").eq("id", project.client_id).single()).data?.name ?? ""
-      : "";
+    const clientRow = project.client_id
+      ? (await sb.from("clients").select("name, clickup_client_name").eq("id", project.client_id).single()).data as
+        | { name?: string; clickup_client_name?: string | null }
+        | null
+      : null;
+    // Real name drives the task title; the ClickUp dropdown option label
+    // (clickup_client_name override, falling back to the name) drives the
+    // "Client Name" custom field — they differ for some clients.
+    const clientName = clientRow?.name ?? "";
+    const clickupClientName = clientRow?.clickup_client_name ?? clientName;
 
     // ClickUp custom field definitions for this list (drives Client Name /
     // Engagement Type / Work Stream / Date of Engagement). Failure → empty, so
@@ -122,8 +129,8 @@ Deno.serve(async (req: Request) => {
 
     const buildCustomFields = (serviceId: string, dateMs: number): CustomField[] => {
       const cf: CustomField[] = [];
-      if (clientName) {
-        const c = resolveDropdownOption(cuFields, "Client Name", clientName);
+      if (clickupClientName) {
+        const c = resolveDropdownOption(cuFields, "Client Name", clickupClientName);
         if (c) cf.push(c);
       }
       const eng = resolveDropdownOption(cuFields, "Engagement Type", "Task");
@@ -268,7 +275,7 @@ Deno.serve(async (req: Request) => {
     if (rename_existing) {
       const firstDept = [...serviceDeptById.values()][0] ?? null;
       field_resolution = {
-        clientName: !!(clientName && resolveDropdownOption(cuFields, "Client Name", clientName)),
+        clientName: !!(clickupClientName && resolveDropdownOption(cuFields, "Client Name", clickupClientName)),
         engagementType: !!resolveDropdownOption(cuFields, "Engagement Type", "Task"),
         workStream: !!(firstDept && resolveDropdownOption(cuFields, "Work Stream", firstDept)),
         dateOfEngagement: !!findCustomField(cuFields, "Date of Engagement", "date"),

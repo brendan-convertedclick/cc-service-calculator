@@ -739,6 +739,7 @@ export type Database = {
       clients: {
         Row: {
           archived_at: string | null
+          clickup_client_name: string | null
           clickup_folder_id: string | null
           created_at: string
           id: string
@@ -753,6 +754,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
@@ -767,6 +769,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
           id?: string

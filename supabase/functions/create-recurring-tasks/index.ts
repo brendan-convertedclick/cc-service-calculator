@@ -69,20 +69,25 @@ Deno.serve(async (req: Request) => {
     // Resolve client names via project → quote → scope → brief → client for
     // the Client Name custom field.
     const quoteIds = [...new Set(active.map((p) => p.quote_id).filter(Boolean))];
-    const clientByProject = new Map<string, string>();
+    const clientByProject = new Map<string, { name: string; clickup: string }>();
     if (quoteIds.length > 0) {
       const { data: quotes } = await supabase
         .from("quotes")
-        .select("id,scope:scopes(brief:briefs(client:clients(name)))")
+        .select("id,scope:scopes(brief:briefs(client:clients(name,clickup_client_name)))")
         .in("id", quoteIds);
       for (const q of (quotes ?? []) as Array<{
         id: string;
-        scope?: { brief?: { client?: { name: string } } };
+        scope?: { brief?: { client?: { name: string; clickup_client_name?: string | null } } };
       }>) {
-        const name = q?.scope?.brief?.client?.name;
-        if (!name) continue;
+        const client = q?.scope?.brief?.client;
+        if (!client?.name) continue;
         const proj = active.find((p) => p.quote_id === q.id);
-        if (proj) clientByProject.set(proj.id, name);
+        if (proj) {
+          clientByProject.set(proj.id, {
+            name: client.name,
+            clickup: client.clickup_client_name ?? client.name,
+          });
+        }
       }
     }
 
@@ -179,7 +184,9 @@ Deno.serve(async (req: Request) => {
           return option ? { id: field.id, value: option.id } : null;
         }
 
-        const clientName = clientByProject.get(project.id) ?? "Unknown";
+        const clientEntry = clientByProject.get(project.id);
+        const clientName = clientEntry?.name ?? "Unknown";
+        const clickupClientName = clientEntry?.clickup ?? clientName;
         const dateField = cuFields.find(
           (f) => f.name === "Date of Engagement" && f.type === "date",
         );
@@ -203,7 +210,7 @@ Deno.serve(async (req: Request) => {
             const cycleIso = cycleDate.toISOString().slice(0, 10);
 
             const cf: Array<{ id: string; value: string | number }> = [];
-            const clientCf = resolveDropdownOption("Client Name", clientName);
+            const clientCf = resolveDropdownOption("Client Name", clickupClientName);
             if (clientCf) cf.push(clientCf);
             const engCf = resolveDropdownOption("Engagement Type", "Task");
             if (engCf) cf.push(engCf);
