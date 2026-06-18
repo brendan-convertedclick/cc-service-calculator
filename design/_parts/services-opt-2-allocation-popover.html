@@ -1,0 +1,515 @@
+<article class="opt" id="opt2">
+  <div class="opt-head"><span class="opt-num">OPTION 2</span><h2>Narrow ledger with an allocation popover</h2></div>
+  <p class="opt-tagline">All eight department columns collapse into one fixed-width Allocation cell — total hours, a tiny stacked bar, a dominant-department label — and clicking it opens an anchored popover where the real editing happens.</p>
+  <div class="frame">
+    <section class="o2-root">
+      <style>
+        .o2-root{position:relative;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);background:var(--surface);padding:20px 22px 28px;border-radius:12px;font-size:13px;font-variant-numeric:tabular-nums;}
+        .o2-root *{box-sizing:border-box;}
+        /* ---------- header ---------- */
+        .o2-root .o2-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px;}
+        .o2-root .o2-title{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.2;}
+        .o2-root .o2-count{margin:3px 0 0;font-size:12px;color:var(--on-surface-variant);}
+        .o2-root .o2-count .o2-sep{margin:0 6px;opacity:.5;}
+        .o2-root .o2-new{display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:var(--on-primary);border:0;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;}
+        .o2-root .o2-new:hover{background:color-mix(in srgb,var(--primary) 88%,black);}
+        .o2-root .o2-new:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+        /* ---------- toolbar ---------- */
+        .o2-root .o2-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+        .o2-root .o2-search{display:flex;align-items:center;gap:7px;border:1px solid var(--outline-variant);border-radius:10px;padding:0 10px;height:34px;flex:0 1 250px;background:var(--surface);color:var(--on-surface-variant);transition:border-color .15s,box-shadow .15s;}
+        .o2-root .o2-search:focus-within{border-color:var(--outline);box-shadow:0 0 0 3px var(--primary-container);}
+        .o2-root .o2-search input{border:0;outline:0;flex:1;min-width:0;background:transparent;font-family:inherit;font-size:13px;color:var(--on-surface);}
+        .o2-root .o2-search input::placeholder{color:var(--on-surface-variant);opacity:.7;}
+        .o2-root .o2-select{display:inline-flex;align-items:center;gap:6px;height:34px;border:1px solid var(--outline-variant);border-radius:10px;background:var(--surface);font-family:inherit;font-size:12.5px;color:var(--on-surface-variant);padding:0 10px;cursor:pointer;max-width:150px;}
+        .o2-root .o2-select:hover{border-color:var(--outline);}
+        .o2-root .o2-clear{border:0;background:transparent;color:var(--primary);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:8px;}
+        .o2-root .o2-clear:hover{background:var(--primary-container);}
+        /* ---------- legend ---------- */
+        .o2-root .o2-legend{display:flex;gap:13px;justify-content:flex-end;align-items:center;margin:0 2px 8px;flex-wrap:wrap;}
+        .o2-root .o2-legend span{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--on-surface-variant);}
+        .o2-root .o2-legend i{width:7px;height:7px;border-radius:2px;}
+        /* ---------- table ---------- */
+        .o2-root .o2-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+        .o2-root .o2-table th{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--on-surface-variant);text-align:left;padding:8px 10px;border-bottom:1px solid var(--outline-variant);white-space:nowrap;}
+        .o2-root .o2-table td{height:46px;padding:0 10px;border-bottom:1px solid var(--outline-variant);vertical-align:middle;white-space:nowrap;overflow:hidden;}
+        .o2-root .o2-table th:first-child,.o2-root .o2-table td:first-child{padding-left:12px;}
+        .o2-root .o2-table tr:last-child td{border-bottom:0;}
+        .o2-root .o2-r{text-align:right;}
+        .o2-root .o2-tr{animation:o2-row-in .34s cubic-bezier(.2,.6,.2,1) both;}
+        .o2-root .o2-tr:hover td{background:var(--surface-container);}
+        @keyframes o2-row-in{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+        /* ---------- group chip ---------- */
+        .o2-root .o2-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;height:22px;padding:0 9px;border:1px solid var(--outline-variant);background:var(--surface-container);border-radius:999px;font-size:11px;color:var(--on-surface-variant);min-width:0;vertical-align:middle;}
+        .o2-root .o2-chip i{width:7px;height:7px;border-radius:50%;flex:none;}
+        .o2-root .o2-chip em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-root .o2-chip-none i{background:transparent;border:1.5px solid var(--outline);}
+        /* ---------- code / name / rule / price ---------- */
+        .o2-root .o2-code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--on-surface-variant);}
+        .o2-root .o2-name{display:flex;align-items:center;gap:7px;min-width:0;}
+        .o2-root .o2-name a{font-size:13px;font-weight:500;color:var(--on-surface);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+        .o2-root .o2-name a:hover{color:var(--primary);text-decoration:underline;}
+        .o2-root .o2-badge{flex:none;font-size:10px;font-weight:600;padding:2.5px 7px;border-radius:999px;line-height:1.1;}
+        .o2-root .o2-badge-b{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o2-root .o2-badge-c{background:var(--primary-container);color:var(--on-primary-container);}
+        .o2-root .o2-badge-custom{font-size:10px;font-weight:600;padding:2.5px 7px;border-radius:999px;border:1px solid var(--outline-variant);color:var(--on-surface-variant);}
+        .o2-root .o2-rule{display:flex;align-items:baseline;gap:4px;min-width:0;font-size:12px;color:var(--on-surface-variant);opacity:.85;white-space:nowrap;}
+        .o2-root .o2-rule>span{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+        .o2-root .o2-fb{flex:none;font-style:italic;font-size:11px;opacity:.7;}
+        .o2-root .o2-rule-dim{opacity:.45;}
+        .o2-root .o2-price{font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+        /* ---------- allocation cell ---------- */
+        .o2-root .o2-alloc{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border:0;background:transparent;border-radius:8px;cursor:pointer;font-family:inherit;text-align:left;transition:background .12s,box-shadow .12s;}
+        .o2-root .o2-alloc:hover,.o2-root .o2-alloc.o2-open{background:var(--surface-container-high);}
+        .o2-root .o2-alloc:focus-visible{outline:2px solid var(--primary);outline-offset:1px;}
+        .o2-root .o2-alloc-h{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;color:var(--on-surface);width:50px;text-align:right;flex:none;}
+        .o2-root .o2-alloc-h.o2-inh{font-style:italic;font-weight:400;color:var(--on-surface-variant);}
+        .o2-root .o2-alloc-bar{flex:1;display:flex;gap:2px;height:6px;min-width:0;}
+        .o2-root .o2-alloc-bar i{display:block;border-radius:2px;min-width:3px;}
+        .o2-root .o2-alloc-dom{flex:none;width:88px;font-size:10.5px;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-root .o2-alloc-empty{justify-content:center;gap:6px;height:26px;margin:2px 0;border:1px dashed var(--outline);border-radius:999px;color:var(--on-surface-variant);font-size:11.5px;background:transparent;}
+        .o2-root .o2-alloc-empty:hover{border-color:var(--primary);color:var(--primary);background:var(--surface-container);}
+        .o2-root .o2-alloc.o2-dirty{background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber);}
+        .o2-root .o2-alloc.o2-dirty:hover{background:var(--amber-soft);}
+        /* ---------- status / mini actions ---------- */
+        .o2-root .o2-status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--on-surface-variant);}
+        .o2-root .o2-status i{width:7px;height:7px;border-radius:50%;background:var(--outline);flex:none;}
+        .o2-root .o2-st-active{color:var(--green-deep);}
+        .o2-root .o2-st-active i{background:var(--green);}
+        .o2-root .o2-mini{display:inline-flex;align-items:center;gap:4px;}
+        .o2-root .o2-mini-save{border:0;background:var(--primary);color:var(--on-primary);font-family:inherit;font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;cursor:pointer;}
+        .o2-root .o2-mini-save:hover{background:color-mix(in srgb,var(--primary) 88%,black);}
+        .o2-root .o2-mini-cancel{border:1px solid var(--outline-variant);background:transparent;color:var(--on-surface-variant);width:23px;height:23px;border-radius:7px;cursor:pointer;font-size:11px;line-height:1;padding:0;}
+        .o2-root .o2-mini-cancel:hover{border-color:var(--outline);color:var(--on-surface);}
+        /* ---------- popover ---------- */
+        .o2-root .o2-pop{position:absolute;z-index:50;width:356px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;box-shadow:0 10px 30px rgba(26,12,58,.14),0 2px 6px rgba(26,12,58,.08);padding:12px 14px;animation:o2-pop-in .14s ease;}
+        .o2-root .o2-pop[hidden]{display:none;}
+        @keyframes o2-pop-in{from{opacity:0;transform:translateY(-3px);}to{opacity:1;transform:none;}}
+        .o2-root .o2-pop-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding-bottom:9px;border-bottom:1px solid var(--outline-variant);margin-bottom:6px;}
+        .o2-root .o2-pop-id{display:flex;align-items:baseline;gap:8px;min-width:0;}
+        .o2-root .o2-pop-id strong{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-root .o2-pop-id .o2-badge{transform:translateY(-1px);}
+        .o2-root .o2-pop-code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--on-surface-variant);flex:none;}
+        .o2-root .o2-pop-detail{font-size:11px;font-weight:500;color:var(--primary);text-decoration:none;white-space:nowrap;flex:none;}
+        .o2-root .o2-pop-detail:hover{text-decoration:underline;}
+        .o2-root .o2-pop-note{font-size:11px;line-height:1.45;color:var(--on-tertiary-container);background:var(--tertiary-container);border-radius:8px;padding:7px 10px;margin:4px 0 8px;}
+        .o2-root .o2-pop-row{display:flex;align-items:center;gap:8px;height:30px;}
+        .o2-root .o2-dot{width:7px;height:7px;border-radius:50%;flex:none;}
+        .o2-root .o2-pop-dept{width:54px;font-size:11.5px;font-weight:500;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-root .o2-pop-rate{width:62px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--on-surface-variant);flex:none;}
+        .o2-root .o2-step{display:flex;align-items:center;height:24px;border:1px solid var(--outline-variant);border-radius:7px;overflow:hidden;flex:none;}
+        .o2-root .o2-step-btn{width:22px;height:100%;border:0;background:var(--surface-container);color:var(--on-surface-variant);cursor:pointer;font-size:13px;line-height:1;padding:0;font-family:inherit;}
+        .o2-root .o2-step-btn:hover{background:var(--surface-container-high);color:var(--on-surface);}
+        .o2-root .o2-step-in{width:44px;height:100%;border:0;outline:0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface);color:var(--on-surface);padding:0;}
+        .o2-root .o2-step-in:focus{background:var(--primary-container);}
+        .o2-root .o2-step-in.o2-inh{font-style:italic;color:var(--on-surface-variant);}
+        .o2-root .o2-pop-val{width:90px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;flex:none;}
+        .o2-root .o2-pop-cost{margin-left:auto;min-width:64px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--on-surface-variant);}
+        .o2-root .o2-zero{color:var(--outline);}
+        .o2-root .o2-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--outline-variant);margin-top:7px;padding-top:10px;}
+        .o2-root .o2-pop-tot{font-size:11.5px;color:var(--on-surface-variant);}
+        .o2-root .o2-pop-tot b{color:var(--on-surface);font-weight:600;}
+        .o2-root .o2-pop-btns{display:flex;align-items:center;gap:6px;}
+        .o2-root .o2-btn{border:0;background:var(--primary);color:var(--on-primary);border-radius:8px;padding:6px 13px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;}
+        .o2-root .o2-btn:hover{background:color-mix(in srgb,var(--primary) 88%,black);}
+        .o2-root .o2-btn-ghost{border:0;background:transparent;color:var(--on-surface-variant);border-radius:8px;padding:6px 9px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+        .o2-root .o2-btn-ghost:hover{background:var(--surface-container);color:var(--on-surface);}
+        .o2-root .o2-revert{border:0;background:transparent;color:var(--error);font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 8px;border-radius:7px;cursor:pointer;}
+        .o2-root .o2-revert:hover{background:var(--error-container);}
+        .o2-root .o2-revert.o2-arm{background:var(--error-container);color:var(--on-error-container);}
+        .o2-root .o2-pop-ro{font-size:11px;font-style:italic;color:var(--on-surface-variant);opacity:.7;}
+        /* ---------- snackbar ---------- */
+        .o2-root .o2-snack{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) translateY(8px);background:var(--on-surface);color:var(--surface);font-size:12.5px;padding:9px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.18);white-space:nowrap;}
+        .o2-root .o2-snack.o2-show{opacity:1;transform:translateX(-50%) translateY(0);}
+        @media (prefers-reduced-motion:reduce){.o2-root *{animation:none!important;transition:none!important;}}
+      </style>
+
+      <header class="o2-top">
+        <div>
+          <h1 class="o2-title">Services</h1>
+          <p class="o2-count"><span id="o2-count">16 of 139 shown — sample data</span><span class="o2-sep">·</span>click any allocation to edit hours by department</p>
+        </div>
+        <button class="o2-new" id="o2-new" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New service
+        </button>
+      </header>
+
+      <div class="o2-toolbar">
+        <label class="o2-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="o2-q" type="text" placeholder="Search name or code…" autocomplete="off">
+        </label>
+        <select class="o2-select" aria-label="Filter by rule">
+          <option>All rules</option><option>Video / 3D / Motion Production</option><option>Paid Media</option><option>SEO</option><option>Development</option><option>Social Media</option><option>Creative Production</option><option>Software / Spend / Pass-Through / Non-Delivery</option>
+        </select>
+        <select class="o2-select" aria-label="Filter by status">
+          <option selected>Active</option><option>Draft</option><option>Archived</option><option>All statuses</option>
+        </select>
+        <button class="o2-select" type="button" aria-label="Filter by group">All groups
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="o2-clear" id="o2-clear" type="button" hidden>Clear filters</button>
+      </div>
+
+      <div class="o2-legend" id="o2-legend" aria-hidden="true"></div>
+
+      <table class="o2-table">
+        <colgroup>
+          <col style="width:118px"><col style="width:64px"><col><col style="width:152px"><col style="width:84px"><col style="width:234px"><col style="width:92px">
+        </colgroup>
+        <thead>
+          <tr><th>Group</th><th>Code</th><th>Name</th><th>Rule</th><th class="o2-r">Price</th><th>Allocation</th><th>Status</th></tr>
+        </thead>
+        <tbody id="o2-tbody"></tbody>
+      </table>
+
+      <div class="o2-pop" id="o2-pop" hidden role="dialog" aria-label="Edit hour allocation"></div>
+      <div class="o2-snack" id="o2-snack" role="status"></div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's calmer</h3><p>Eight hour columns and a Total collapse into one fixed-width cell, so the wall of grey zeros disappears entirely — zero-hour rows show a single quiet “Set hours” ghost. No horizontal scroll: price sits beside the name, every row is exactly 46px, and group taxonomy lives in a one-line ellipsized chip. Editing moves into a focused anchored popover with steppers, live cost-per-department, and a running % of price, so the grid itself never has to host 8 inputs per row.</p></div>
+    <div><h3>Trade-offs</h3><p>Exact per-department hours are one click away rather than scannable in the grid — the bar conveys shape, not values (segment tooltips and the legend mitigate). Bulk editing across many services means opening popovers one at a time. The 8-colour ramp asks a small learning cost, hence the persistent legend.</p></div>
+  </div>
+
+  <script>(function(){
+    var art = document.getElementById('opt2'); if(!art) return;
+    var root = art.querySelector('.o2-root');
+    var tbody = root.querySelector('#o2-tbody');
+    var pop = root.querySelector('#o2-pop');
+
+    var DEPTS = [
+      {k:'pm',     name:'Project Management',            short:'PM',       rate:850,  c:'var(--outline)'},
+      {k:'strat',  name:'Strategy',                      short:'Strat',    rate:1100, c:'var(--primary)'},
+      {k:'dev',    name:'Development',                   short:'Dev',      rate:1075, c:'var(--tertiary)'},
+      {k:'seo',    name:'SEO',                           short:'SEO',      rate:650,  c:'var(--green)'},
+      {k:'media',  name:'Paid Media',                    short:'Media',    rate:700,  c:'var(--amber)'},
+      {k:'creative',name:'Creative Production',          short:'Creative', rate:750,  c:'var(--amber-deep)'},
+      {k:'social', name:'Social Media',                  short:'Social',   rate:600,  c:'var(--green-deep)'},
+      {k:'video',  name:'Video / 3D / Motion Production',short:'Video/3D', rate:900,  c:'var(--on-primary-container)'}
+    ];
+
+    var S = [
+      {code:'046',   name:'3D Configurator',                                  rule:'Video / 3D / Motion Production', price:16500, hours:{pm:.25,video:12}, kind:'checklist', inherited:false},
+      {code:'3D0102',name:'3D Rendering — High Res Still',                    rule:'Video / 3D / Motion Production', price:280,   hours:{video:.25}, kind:'editable', inherited:true},
+      {code:'3D0101',name:'3D Rendering — High Res Video',                    rule:'Video / 3D / Motion Production', price:660,   hours:{}, kind:'editable', inherited:false},
+      {code:'3D002', name:'4K High Res Rendering',                            rule:'Video / 3D / Motion Production', price:1200,  hours:{}, kind:'editable', inherited:false},
+      {code:'013',   name:'Ad Account Creation',                              rule:'Paid Media',                     price:1980,  hours:{media:2,pm:.5}, kind:'editable', inherited:true},
+      {code:'10111', name:'Annual Website Hosting',                           rule:'Software / Spend / Pass-Through / Non-Delivery', price:1960, hours:{}, kind:'editable', inherited:false},
+      {code:'026',   name:'SEO Competitor Audit',                             rule:'SEO',                            price:27500, hours:{seo:16,strat:4,pm:2}, kind:'editable', inherited:true},
+      {code:'002',   name:'Full Website Build Page — Development, No SEO',    rule:'Development',                    price:5500,  hours:{dev:4,creative:1,pm:.5}, kind:'editable', inherited:true},
+      {code:'038',   name:'Social Media Plan (3 month)',                      rule:'Social Media',                   price:13200, hours:{social:12,strat:6,pm:1.5}, kind:'editable', inherited:true},
+      {code:'044',   name:'Campaign Strategy',                                rule:'Creative Production',            price:7200,  hours:{strat:5.5,pm:.75}, kind:'editable', inherited:true},
+      {code:'100',   name:'Paid Media',                                       rule:'Paid Media',                     price:null, pct:10, hours:{media:1}, kind:'editable', inherited:true},
+      {code:'1003',  name:'Campaign Creation & Complete Creative Solutions',  rule:null, bundleN:6,                  price:65100, hours:{media:8,creative:14,strat:4,pm:3}, kind:'bundle', inherited:false},
+      {code:'007',   name:'Emailer — Creative only',                          rule:'Creative Production',            price:3300,  hours:{creative:3,pm:.25}, kind:'editable', inherited:true},
+      {code:'062',   name:'SEO:Services',                                     rule:null, custom:true,                price:1075,  hours:{seo:1}, kind:'editable', inherited:false},
+      {code:'031',   name:'SEO Reporting',                                    rule:'SEO',                            price:495,   hours:{seo:.5}, kind:'editable', inherited:true, status:'draft'},
+      {code:'10',    name:'Chatbot Set Up',                                   rule:'Development',                    price:1150,  hours:{dev:1}, kind:'editable', inherited:true}
+    ];
+    S.forEach(function(s){ s.pending = null; s.status = s.status || 'active'; });
+
+    var PLUS = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+
+    function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+    function fmtR(n){ return 'R ' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
+    function fmtH(h){ return String(Math.round(h*100)/100); }
+    function cur(s){ return s.pending || s.hours; }
+    function totH(m){ var t=0; DEPTS.forEach(function(d){ t += m[d.k]||0; }); return t; }
+    function totCost(m){ var t=0; DEPTS.forEach(function(d){ t += (m[d.k]||0)*d.rate; }); return t; }
+    function topDept(m){ var best=null; DEPTS.forEach(function(d){ var h=m[d.k]||0; if(h>0 && (!best||h>best.h)) best={d:d,h:h}; }); return best; }
+    function isDirty(s){ if(!s.pending) return false; return DEPTS.some(function(d){ return (s.pending[d.k]||0)!==(s.hours[d.k]||0); }); }
+
+    /* ---------- row rendering ---------- */
+    function chipHTML(s){
+      var t = topDept(cur(s));
+      if(!t) return '<span class="o2-chip o2-chip-none" title="Uncategorized"><i></i><em>Uncategorized</em></span>';
+      return '<span class="o2-chip" title="'+esc(t.d.name)+'"><i style="background:'+t.d.c+'"></i><em>'+esc(t.d.name)+'</em></span>';
+    }
+    function ruleHTML(s){
+      if(s.kind==='bundle') return '<span class="o2-rule o2-rule-dim" title="Derived from included services">—</span>';
+      if(!s.rule) return '<span class="o2-badge-custom">custom</span>';
+      var fb = s.kind==='checklist' ? '<i class="o2-fb">(fallback)</i>' : '';
+      var title = s.rule + (s.kind==='checklist' ? ' (fallback)' : '');
+      return '<span class="o2-rule" title="'+esc(title)+'"><span>'+esc(s.rule)+'</span>'+fb+'</span>';
+    }
+    function allocHTML(s,i){
+      var m=cur(s), t=totH(m), dirty=isDirty(s);
+      var open = (popIdx===i) ? ' o2-open' : '';
+      if(t<=0){
+        return '<button type="button" class="o2-alloc o2-alloc-empty'+(dirty?' o2-dirty':'')+open+'" data-i="'+i+'" aria-haspopup="dialog">'+PLUS+'Set hours</button>';
+      }
+      var segs='', n=0;
+      DEPTS.forEach(function(d){
+        var h=m[d.k]||0; if(h<=0) return; n++;
+        segs += '<i style="flex:'+h+' 1 0%;background:'+d.c+'" title="'+esc(d.short)+' · '+fmtH(h)+' h"></i>';
+      });
+      var top = topDept(m);
+      var dom = n===1 ? top.d.short+' only' : top.d.short+'-heavy';
+      var inh = (s.inherited && !dirty) ? ' o2-inh' : '';
+      return '<button type="button" class="o2-alloc'+(dirty?' o2-dirty':'')+open+'" data-i="'+i+'" aria-haspopup="dialog">'+
+        '<span class="o2-alloc-h'+inh+'">'+fmtH(t)+'&nbsp;h</span>'+
+        '<span class="o2-alloc-bar">'+segs+'</span>'+
+        '<span class="o2-alloc-dom" title="'+esc(dom)+'">'+esc(dom)+'</span></button>';
+    }
+    function statusHTML(s,i){
+      if(isDirty(s) && popIdx!==i){
+        return '<span class="o2-mini"><button type="button" class="o2-mini-save" data-i="'+i+'">Save</button><button type="button" class="o2-mini-cancel" data-i="'+i+'" title="Discard changes">&#10005;</button></span>';
+      }
+      var st = s.status;
+      return '<span class="o2-status o2-st-'+st+'"><i></i>'+st.charAt(0).toUpperCase()+st.slice(1)+'</span>';
+    }
+    function badgesHTML(s){
+      var b='';
+      if(s.kind==='bundle') b += '<span class="o2-badge o2-badge-b">bundle · '+s.bundleN+'</span>';
+      if(s.kind==='checklist') b += '<span class="o2-badge o2-badge-c">checklist</span>';
+      return b;
+    }
+    function rowHTML(s,i){
+      var price = s.pct ? s.pct+'%' : fmtR(s.price);
+      return '<td>'+chipHTML(s)+'</td>'+
+        '<td><span class="o2-code">'+esc(s.code)+'</span></td>'+
+        '<td><span class="o2-name"><a href="#" data-i="'+i+'" title="'+esc(s.name)+'">'+esc(s.name)+'</a>'+badgesHTML(s)+'</span></td>'+
+        '<td>'+ruleHTML(s)+'</td>'+
+        '<td class="o2-r"><span class="o2-price">'+price+'</span></td>'+
+        '<td class="o2-td-alloc">'+allocHTML(s,i)+'</td>'+
+        '<td class="o2-td-status">'+statusHTML(s,i)+'</td>';
+    }
+    function rerenderRow(i){
+      var tr = tbody.querySelector('tr[data-i="'+i+'"]');
+      if(tr) tr.innerHTML = rowHTML(S[i],i);
+    }
+    function updateAlloc(i){
+      var td = tbody.querySelector('tr[data-i="'+i+'"] .o2-td-alloc');
+      if(td) td.innerHTML = allocHTML(S[i],i);
+    }
+    function updateStatus(i){
+      var td = tbody.querySelector('tr[data-i="'+i+'"] .o2-td-status');
+      if(td) td.innerHTML = statusHTML(S[i],i);
+    }
+
+    /* ---------- popover ---------- */
+    var popIdx = -1;
+    function popHTML(s,i){
+      var m = cur(s);
+      var h = '<div class="o2-pop-head"><div class="o2-pop-id"><span class="o2-pop-code">'+esc(s.code)+'</span><strong title="'+esc(s.name)+'">'+esc(s.name)+'</strong>'+badgesHTML(s)+'</div><a href="#" class="o2-pop-detail">detail &rarr;</a></div>';
+      if(s.kind==='bundle') h += '<div class="o2-pop-note">Derived from '+s.bundleN+' included services — edit hours in the service detail.</div>';
+      DEPTS.forEach(function(d){
+        var v = m[d.k]||0;
+        var cost = v ? fmtR(v*d.rate) : '—';
+        var left = '<i class="o2-dot" style="background:'+(v?d.c:'var(--outline-variant)')+'"></i>'+
+          '<span class="o2-pop-dept" title="'+esc(d.name)+'">'+esc(d.short)+'</span>'+
+          '<span class="o2-pop-rate">'+fmtR(d.rate)+'/h</span>';
+        if(s.kind!=='editable'){
+          h += '<div class="o2-pop-row">'+left+'<span class="o2-pop-val'+(v?'':' o2-zero')+'">'+fmtH(v)+' h</span><span class="o2-pop-cost'+(v?'':' o2-zero')+'">'+cost+'</span></div>';
+        } else {
+          var inh = s.inherited && v===(s.hours[d.k]||0);
+          h += '<div class="o2-pop-row">'+left+
+            '<span class="o2-step"><button type="button" class="o2-step-btn" data-k="'+d.k+'" data-dir="-1" aria-label="Decrease '+esc(d.short)+'">&minus;</button>'+
+            '<input class="o2-step-in'+(inh?' o2-inh':'')+(v?'':' o2-zero')+'" data-k="'+d.k+'" value="'+fmtH(v)+'" inputmode="decimal" aria-label="'+esc(d.name)+' hours">'+
+            '<button type="button" class="o2-step-btn" data-k="'+d.k+'" data-dir="1" aria-label="Increase '+esc(d.short)+'">+</button></span>'+
+            '<span class="o2-pop-cost'+(v?'':' o2-zero')+'" data-cost="'+d.k+'">'+cost+'</span></div>';
+        }
+      });
+      h += '<div class="o2-pop-foot">'+totLineHTML(s,m);
+      if(s.kind==='editable'){
+        h += '<div class="o2-pop-btns"><button type="button" class="o2-btn-ghost" data-act="cancel">Cancel</button><button type="button" class="o2-btn" data-act="save">Save</button></div>';
+      } else if(s.kind==='checklist'){
+        h += '<button type="button" class="o2-revert" data-act="revert">Revert to rule</button>';
+      } else {
+        h += '<span class="o2-pop-ro">read-only</span>';
+      }
+      return h+'</div>';
+    }
+    function totLineHTML(s,m){
+      var t=totH(m), cost=totCost(m);
+      if(s.pct) return '<div class="o2-pop-tot">Total <b data-t="h">'+fmtH(t)+' h</b> · <b data-t="cost">'+fmtR(cost)+'</b></div>';
+      var pct = s.price ? Math.round(cost/s.price*100) : 0;
+      return '<div class="o2-pop-tot">Total <b data-t="h">'+fmtH(t)+' h</b> · <b data-t="pct">'+pct+'%</b> of price</div>';
+    }
+    function place(btn){
+      var r = btn.getBoundingClientRect(), rr = root.getBoundingClientRect();
+      pop.style.visibility='hidden'; pop.hidden=false;
+      var pw = pop.offsetWidth, ph = pop.offsetHeight;
+      var left = Math.max(8, Math.min(r.right-rr.left-pw, rr.width-pw-8));
+      var top = r.bottom-rr.top+6;
+      if(window.innerHeight - r.bottom < ph+24 && r.top > ph+24) top = r.top-rr.top-ph-6;
+      pop.style.left=left+'px'; pop.style.top=top+'px'; pop.style.visibility='';
+    }
+    function openPop(i){
+      if(popIdx>-1) closePop();
+      var s=S[i]; popIdx=i;
+      if(s.kind==='editable' && !s.pending){
+        s.pending={}; DEPTS.forEach(function(d){ s.pending[d.k]=s.hours[d.k]||0; });
+      }
+      pop.innerHTML = popHTML(s,i);
+      var btn = tbody.querySelector('tr[data-i="'+i+'"] .o2-alloc');
+      if(btn){ place(btn); btn.setAttribute('aria-expanded','true'); }
+      updateAlloc(i); updateStatus(i);
+      document.addEventListener('pointerdown', onDocDown, true);
+      document.addEventListener('keydown', onDocKey, true);
+      var first = pop.querySelector('.o2-step-in');
+      if(first){ try{ first.focus({preventScroll:true}); first.select(); }catch(e){} }
+    }
+    function closePop(){
+      if(popIdx<0) return;
+      var i=popIdx, s=S[i];
+      popIdx=-1; pop.hidden=true;
+      if(s.pending && !DEPTS.some(function(d){ return (s.pending[d.k]||0)!==(s.hours[d.k]||0); })) s.pending=null;
+      updateAlloc(i); updateStatus(i);
+      document.removeEventListener('pointerdown', onDocDown, true);
+      document.removeEventListener('keydown', onDocKey, true);
+    }
+    function onDocDown(e){
+      if(pop.contains(e.target)) return;
+      var a = e.target.closest ? e.target.closest('.o2-alloc') : null;
+      if(a && +a.dataset.i===popIdx) return; /* let the click toggle it */
+      closePop();
+    }
+    function onDocKey(e){ if(e.key==='Escape') closePop(); }
+
+    function syncEdit(skipInputs){
+      if(popIdx<0) return;
+      var s=S[popIdx]; if(s.kind!=='editable'||!s.pending) return;
+      var m=s.pending;
+      DEPTS.forEach(function(d){
+        var v=m[d.k]||0;
+        var inp=pop.querySelector('.o2-step-in[data-k="'+d.k+'"]');
+        if(inp){
+          if(!skipInputs) inp.value=fmtH(v);
+          inp.classList.toggle('o2-inh', s.inherited && v===(s.hours[d.k]||0));
+          inp.classList.toggle('o2-zero', !v);
+        }
+        var c=pop.querySelector('[data-cost="'+d.k+'"]');
+        if(c){ c.textContent = v?fmtR(v*d.rate):'—'; c.classList.toggle('o2-zero',!v); }
+      });
+      var t=totH(m), cost=totCost(m);
+      var eh=pop.querySelector('[data-t="h"]'); if(eh) eh.textContent=fmtH(t)+' h';
+      var ec=pop.querySelector('[data-t="cost"]'); if(ec) ec.textContent=fmtR(cost);
+      var ep=pop.querySelector('[data-t="pct"]'); if(ep) ep.textContent=(s.price?Math.round(cost/s.price*100):0)+'%';
+      updateAlloc(popIdx); updateStatus(popIdx);
+    }
+
+    /* ---------- actions ---------- */
+    function commit(i){
+      var s=S[i];
+      if(!isDirty(s)){ s.pending=null; if(popIdx===i) closePop(); rerenderRow(i); return; }
+      s.hours={}; DEPTS.forEach(function(d){ if(s.pending[d.k]) s.hours[d.k]=s.pending[d.k]; });
+      s.pending=null; s.kind='checklist'; s.inherited=false;
+      if(popIdx===i) closePop();
+      rerenderRow(i);
+      snack('Saved as checklist for '+s.name);
+    }
+    function discard(i){
+      S[i].pending=null;
+      if(popIdx===i) closePop();
+      rerenderRow(i);
+    }
+    function revert(i){
+      var s=S[i];
+      s.kind='editable'; s.inherited=true; s.pending=null;
+      rerenderRow(i);
+      if(popIdx===i){
+        s.pending={}; DEPTS.forEach(function(d){ s.pending[d.k]=s.hours[d.k]||0; });
+        pop.innerHTML=popHTML(s,i);
+        var btn=tbody.querySelector('tr[data-i="'+i+'"] .o2-alloc');
+        if(btn){ place(btn); btn.setAttribute('aria-expanded','true'); }
+        updateAlloc(i);
+      }
+      snack('Reverted to rule hours — '+s.name);
+    }
+
+    var snackT;
+    function snack(msg){
+      var el=root.querySelector('#o2-snack');
+      el.textContent=msg; el.classList.add('o2-show');
+      clearTimeout(snackT);
+      snackT=setTimeout(function(){ el.classList.remove('o2-show'); },2600);
+    }
+
+    /* ---------- events ---------- */
+    tbody.addEventListener('click', function(e){
+      var a=e.target.closest('.o2-alloc');
+      if(a){ var i=+a.dataset.i; if(popIdx===i){ closePop(); } else { openPop(i); } return; }
+      var sv=e.target.closest('.o2-mini-save'); if(sv){ commit(+sv.dataset.i); return; }
+      var cn=e.target.closest('.o2-mini-cancel'); if(cn){ discard(+cn.dataset.i); return; }
+      var nl=e.target.closest('.o2-name a'); if(nl){ e.preventDefault(); snack('Opens service detail (mock)'); }
+    });
+
+    pop.addEventListener('click', function(e){
+      if(popIdx<0) return;
+      var s=S[popIdx];
+      var st=e.target.closest('.o2-step-btn');
+      if(st){ var k=st.dataset.k, v=Math.max(0,(s.pending[k]||0)+(+st.dataset.dir)*0.25); s.pending[k]=Math.round(v*4)/4; syncEdit(); return; }
+      var act=e.target.closest('[data-act]');
+      if(act){
+        var a=act.dataset.act;
+        if(a==='save'){ commit(popIdx); }
+        else if(a==='cancel'){ discard(popIdx); }
+        else if(a==='revert'){
+          if(!act.classList.contains('o2-arm')){ act.classList.add('o2-arm'); act.textContent='Confirm revert?'; }
+          else revert(popIdx);
+        }
+        return;
+      }
+      var dl=e.target.closest('.o2-pop-detail');
+      if(dl){ e.preventDefault(); snack('Opens service detail (mock)'); }
+    });
+    pop.addEventListener('input', function(e){
+      var inp=e.target.closest('.o2-step-in'); if(!inp||popIdx<0) return;
+      var s=S[popIdx]; if(!s.pending) return;
+      var v=parseFloat(String(inp.value).replace(',','.'));
+      s.pending[inp.dataset.k]=(isFinite(v)&&v>0)?v:0;
+      syncEdit(true);
+    });
+    pop.addEventListener('change', function(e){
+      var inp=e.target.closest('.o2-step-in'); if(!inp||popIdx<0) return;
+      var s=S[popIdx]; if(!s.pending) return;
+      var v=parseFloat(String(inp.value).replace(',','.'))||0;
+      s.pending[inp.dataset.k]=Math.max(0,Math.round(v*4)/4);
+      syncEdit();
+    });
+    pop.addEventListener('keydown', function(e){
+      var inp=e.target.closest('.o2-step-in'); if(!inp||popIdx<0) return;
+      var s=S[popIdx]; if(!s.pending) return;
+      if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+        e.preventDefault();
+        var k=inp.dataset.k, v=Math.max(0,(s.pending[k]||0)+(e.key==='ArrowUp'?0.25:-0.25));
+        s.pending[k]=Math.round(v*4)/4; syncEdit();
+      } else if(e.key==='Enter'){ e.preventDefault(); commit(popIdx); }
+    });
+
+    /* ---------- search ---------- */
+    var q=root.querySelector('#o2-q'), clearBtn=root.querySelector('#o2-clear'), countEl=root.querySelector('#o2-count');
+    function applySearch(){
+      var v=q.value.trim().toLowerCase(), n=0;
+      S.forEach(function(s,i){
+        var hit=!v || s.name.toLowerCase().indexOf(v)>-1 || s.code.toLowerCase().indexOf(v)>-1;
+        var tr=tbody.querySelector('tr[data-i="'+i+'"]');
+        if(tr) tr.style.display = hit?'':'none';
+        if(hit) n++;
+      });
+      countEl.textContent = v ? (n+' of 139 shown') : '16 of 139 shown — sample data';
+      clearBtn.hidden=!v;
+      if(popIdx>-1) closePop();
+    }
+    q.addEventListener('input', applySearch);
+    clearBtn.addEventListener('click', function(){ q.value=''; applySearch(); q.focus(); });
+
+    root.querySelector('#o2-new').addEventListener('click', function(){ snack('New service form (mock)'); });
+
+    /* ---------- initial render ---------- */
+    root.querySelector('#o2-legend').innerHTML = DEPTS.map(function(d){
+      return '<span><i style="background:'+d.c+'"></i>'+esc(d.short)+'</span>';
+    }).join('');
+    tbody.innerHTML = S.map(function(s,i){
+      return '<tr class="o2-tr" data-i="'+i+'" style="animation-delay:'+(i*24)+'ms">'+rowHTML(s,i)+'</tr>';
+    }).join('');
+    /* one-shot reveal: neutralise the animation afterwards so display toggles
+       (live search) never re-stagger the rows */
+    setTimeout(function(){
+      tbody.querySelectorAll('.o2-tr').forEach(function(tr){ tr.style.animation='none'; });
+    }, 16*24+420);
+  })();</script>
+</article>

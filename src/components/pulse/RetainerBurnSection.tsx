@@ -14,29 +14,19 @@ const barColor: Record<RetainerBurnRow['rag'], string> = {
 
 interface RetainerBurnSectionProps {
   rows: RetainerBurnRow[]
-  /** 'YYYY-MM' month being shown; defaults to the current month. */
+  /** 'YYYY-MM' month being shown; defaults to the current month. Drives the heading label. */
   month?: string
-  onMonthChange?: (month: string) => void
 }
 
-export function RetainerBurnSection({ rows, month, onMonthChange }: RetainerBurnSectionProps) {
+export function RetainerBurnSection({ rows, month }: RetainerBurnSectionProps) {
   const monthLabel = (month ? new Date(`${month}-01T00:00:00`) : new Date())
     .toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <h2 className="text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">
           Retainer Burn — {monthLabel}
         </h2>
-        {month && onMonthChange && (
-          <input
-            type="month"
-            aria-label="Select month"
-            value={month}
-            onChange={e => e.target.value && onMonthChange(e.target.value)}
-            className="rounded-md border border-m-outline-variant bg-transparent px-2 py-0.5 text-label-small text-m-on-surface-variant"
-          />
-        )}
       </div>
       {rows.length === 0 ? (
         <p className="text-body-small text-m-on-surface-variant">No retainer clients configured.</p>

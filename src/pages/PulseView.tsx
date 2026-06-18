@@ -33,11 +33,23 @@ export function PulseView() {
 
   return (
     <div className="flex flex-col gap-6 overflow-auto p-6">
-      <div>
-        <h1 className="text-headline-medium text-m-on-surface">Business Pulse</h1>
-        <p className="text-body-small text-m-on-surface-variant">
-          {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-headline-medium text-m-on-surface">Business Pulse</h1>
+          <p className="text-body-small text-m-on-surface-variant">
+            {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+        <label className="flex flex-col gap-1 text-label-small font-medium text-m-on-surface-variant">
+          Month
+          <input
+            type="month"
+            aria-label="Select month"
+            value={burnMonth}
+            onChange={e => e.target.value && setBurnMonth(e.target.value)}
+            className="rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small font-normal text-m-on-surface"
+          />
+        </label>
       </div>
 
       <PulseScoreboard arBands={arAging} retainers={currentBurn} clientHealth={clientHealth} wip={wipWithCycle} />
@@ -46,7 +58,7 @@ export function PulseView() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-xl border border-m-outline-variant bg-m-surface p-5">
-          <RetainerBurnSection rows={retainerBurn} month={burnMonth} onMonthChange={setBurnMonth} />
+          <RetainerBurnSection rows={retainerBurn} month={burnMonth} />
         </div>
         <div className="rounded-xl border border-m-outline-variant bg-m-surface p-5">
           <WipFunnelSection data={wipWithCycle} />

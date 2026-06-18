@@ -1,0 +1,413 @@
+<article class="opt" id="opt2">
+  <div class="opt-head"><span class="opt-num">OPTION 2</span><h2>Bento grid — everything above the fold in sized tiles</h2></div>
+  <p class="opt-tagline">Every signal is a tile and tile size encodes importance — the whole operation reads at a glance, nothing critical needs scrolling.</p>
+  <div class="frame">
+    <section class="o2-root">
+      <style>
+        .o2-root{
+          --o2-shadow-rest:0 1px 2px rgba(0,0,0,.04);
+          --o2-shadow-hover:0 8px 24px rgba(76,29,149,.12);
+          font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);
+          display:flex;min-height:660px;background:var(--surface-container-low);
+          border-radius:14px;overflow:hidden;border:1px solid var(--outline-variant);
+          font-variant-numeric:tabular-nums;
+        }
+        .o2-root *{box-sizing:border-box;}
+        /* ---- icon rail ---- */
+        .o2-rail{width:56px;flex:0 0 56px;background:var(--surface);border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px;}
+        .o2-rail-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:8px;}
+        .o2-rail-btn{width:38px;height:38px;border-radius:10px;border:0;background:transparent;cursor:pointer;
+          display:grid;place-items:center;color:var(--on-surface-variant);transition:background .15s,color .15s;}
+        .o2-rail-btn:hover{background:var(--surface-container-high);color:var(--primary);}
+        .o2-rail-btn.o2-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o2-rail-btn svg{width:19px;height:19px;}
+        .o2-rail-sp{flex:1;}
+        /* ---- thin project tree ---- */
+        .o2-tree{width:210px;flex:0 0 210px;background:var(--surface);border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;}
+        .o2-tree-h{padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between;}
+        .o2-tree-h h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em;}
+        .o2-tree-toggle{font-size:10.5px;color:var(--on-surface-variant);display:flex;align-items:center;gap:5px;cursor:pointer;}
+        .o2-tree-toggle .o2-sw{width:24px;height:14px;border-radius:8px;background:var(--surface-container-highest);position:relative;}
+        .o2-tree-toggle .o2-sw::after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;top:2px;left:2px;box-shadow:0 1px 1px rgba(0,0,0,.2);}
+        .o2-tree-filter{margin:0 12px 8px;padding:7px 9px;border:1px solid var(--outline-variant);border-radius:9px;
+          font-size:11.5px;color:var(--on-surface-variant);background:var(--surface-container-low);display:flex;align-items:center;gap:6px;}
+        .o2-tree-scroll{flex:1;overflow-y:auto;padding:0 8px 12px;}
+        .o2-cg{margin-bottom:2px;}
+        .o2-cg-h{display:flex;align-items:center;gap:6px;padding:6px 6px;font-size:11.5px;font-weight:600;color:var(--on-surface-variant);
+          cursor:pointer;border-radius:8px;}
+        .o2-cg-h:hover{background:var(--surface-container);}
+        .o2-cg-h .o2-caret{width:9px;height:9px;transition:transform .15s;color:var(--outline);}
+        .o2-cg.o2-collapsed .o2-caret{transform:rotate(-90deg);}
+        .o2-cg.o2-collapsed .o2-cg-rows{display:none;}
+        .o2-cg-rows{padding-left:4px;}
+        .o2-pr{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:8px;font-size:11.5px;cursor:pointer;color:var(--on-surface);}
+        .o2-pr:hover{background:var(--surface-container-high);}
+        .o2-pr .o2-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o2-pr .o2-pr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-dot.o2-on_track{background:var(--tertiary);}
+        .o2-dot.o2-needs_attention{background:var(--amber);}
+        .o2-dot.o2-overdue{background:var(--error);}
+        /* ---- main ---- */
+        .o2-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+        .o2-topbar{padding:16px 22px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+        .o2-topbar h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em;}
+        .o2-topbar .o2-sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:3px;}
+        .o2-ai-btn{border:1px solid var(--outline);background:var(--surface);color:var(--primary);font-weight:600;font-size:12px;
+          padding:8px 14px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:box-shadow .15s,background .15s;}
+        .o2-ai-btn:hover{background:var(--surface-container-high);box-shadow:var(--o2-shadow-hover);}
+        .o2-ai-btn .o2-spk{width:14px;height:14px;border-radius:5px;background:var(--gradient-brand);}
+        /* ---- bento grid ---- */
+        .o2-grid{flex:1;overflow-y:auto;padding:4px 22px 22px;
+          display:grid;gap:14px;grid-template-columns:repeat(4,1fr);
+          grid-auto-rows:minmax(96px,auto);
+          grid-template-areas:
+            "hero hero attn margin"
+            "hero hero attn margin"
+            "ontrack overdue attn margin"
+            "recent recent recent margin";}
+        @media(max-width:1080px){.o2-grid{grid-template-columns:repeat(2,1fr);
+          grid-template-areas:"hero hero" "attn margin" "ontrack overdue" "recent recent";}}
+        .o2-tile{background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;
+          box-shadow:var(--o2-shadow-rest);transition:box-shadow .18s ease,transform .18s ease,border-color .18s;
+          position:relative;overflow:hidden;display:flex;flex-direction:column;padding:15px 16px;}
+        .o2-tile:hover{box-shadow:var(--o2-shadow-hover);transform:translateY(-2px);}
+        .o2-tile-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;}
+        .o2-tile-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--on-surface-variant);}
+        /* hero */
+        .o2-hero{grid-area:hero;}
+        .o2-hero::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--gradient-brand);}
+        .o2-hero-stats{display:flex;gap:8px;margin-top:10px;flex:1;flex-wrap:wrap;}
+        .o2-hstat{flex:1;min-width:130px;background:var(--surface-container-low);border:1px solid var(--outline-variant);
+          border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;justify-content:space-between;}
+        .o2-hstat .o2-big{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;line-height:1;letter-spacing:-.02em;}
+        .o2-hstat .o2-big small{font-size:14px;font-weight:600;color:var(--on-surface-variant);}
+        .o2-hstat .o2-lbl{font-size:11px;color:var(--on-surface-variant);margin-top:7px;line-height:1.3;}
+        .o2-spark{display:flex;align-items:flex-end;gap:3px;height:30px;margin-top:9px;}
+        .o2-spark span{flex:1;background:var(--primary-container);border-radius:3px 3px 0 0;min-height:4px;}
+        .o2-spark span.o2-hi{background:var(--gradient-brand);}
+        .o2-ring{position:relative;width:52px;height:52px;margin-top:6px;border-radius:50%;
+          background:conic-gradient(var(--tertiary) 0 86%, var(--surface-container-highest) 86% 100%);}
+        .o2-ring::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--surface);}
+        .o2-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--on-tertiary-container);}
+        .o2-dft-bar{display:flex;align-items:center;gap:6px;margin-top:9px;}
+        .o2-dft-track{flex:1;height:7px;border-radius:4px;background:var(--surface-container-highest);position:relative;overflow:hidden;}
+        .o2-dft-fill{position:absolute;inset:0;width:60%;background:linear-gradient(90deg,var(--tertiary),var(--primary));border-radius:4px;}
+        /* KPI squares */
+        .o2-kpi{cursor:pointer;justify-content:center;}
+        .o2-ontrack{grid-area:ontrack;}
+        .o2-overdue{grid-area:overdue;}
+        .o2-kpi .o2-kpi-num{font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:700;line-height:1;}
+        .o2-kpi .o2-kpi-lbl{font-size:11.5px;font-weight:600;color:var(--on-surface-variant);margin-top:5px;display:flex;align-items:center;gap:6px;}
+        .o2-kpi .o2-kpi-lbl .o2-d{width:9px;height:9px;border-radius:50%;}
+        .o2-ontrack .o2-kpi-num{color:var(--green-deep);}
+        .o2-overdue .o2-kpi-num{color:var(--on-error-container);}
+        .o2-kpi.o2-active{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-container),var(--o2-shadow-rest);}
+        .o2-kpi.o2-active::after{content:"●";position:absolute;top:10px;right:12px;font-size:9px;color:var(--primary);}
+        /* attention tall tile */
+        .o2-attn{grid-area:attn;cursor:pointer;}
+        .o2-attn.o2-active{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-container),var(--o2-shadow-rest);}
+        .o2-attn .o2-badge{background:var(--amber-soft);color:var(--amber-deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
+        .o2-list{margin-top:9px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px;}
+        .o2-item{border:1px solid var(--outline-variant);border-radius:10px;padding:9px 10px;cursor:pointer;background:var(--surface-container-low);
+          transition:border-color .15s,box-shadow .15s,background .15s;}
+        .o2-item:hover{border-color:var(--outline);box-shadow:var(--o2-shadow-rest);background:var(--surface);}
+        .o2-item.o2-sel{border-color:var(--primary);background:var(--surface-container);}
+        .o2-item-top{display:flex;align-items:center;gap:7px;}
+        .o2-item-top .o2-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
+        .o2-item-name{font-size:12.5px;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-item-reason{font-size:11px;font-style:italic;color:var(--on-surface-variant);margin-top:4px;line-height:1.3;}
+        .o2-item-meta{display:flex;align-items:center;gap:6px;margin-top:6px;}
+        .o2-sbadge{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.02em;}
+        .o2-sbadge.o2-on_track{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o2-sbadge.o2-needs_attention{background:var(--amber-soft);color:var(--amber-deep);}
+        .o2-sbadge.o2-overdue{background:var(--error-container);color:var(--on-error-container);}
+        .o2-eng{font-size:9.5px;font-weight:600;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;
+          border:1px solid var(--outline-variant);padding:1px 6px;border-radius:6px;}
+        /* margin tile */
+        .o2-margin{grid-area:margin;}
+        .o2-mlist{margin-top:11px;flex:1;display:flex;flex-direction:column;gap:11px;overflow-y:auto;}
+        .o2-mrow .o2-mrow-top{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;margin-bottom:5px;}
+        .o2-mrow-top .o2-ml{display:flex;align-items:center;gap:6px;font-weight:600;}
+        .o2-mrow-top .o2-ml .o2-rag{width:8px;height:8px;border-radius:50%;}
+        .o2-mrow-top .o2-mr{font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);font-size:10.5px;}
+        .o2-mbar{height:9px;border-radius:5px;background:var(--surface-container-highest);position:relative;overflow:hidden;}
+        .o2-mfill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;}
+        .o2-mtarget{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--on-surface);opacity:.55;border-radius:2px;}
+        .o2-mpct{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;}
+        .o2-rag.o2-green,.o2-mfill.o2-green{background:var(--green);} .o2-mpct.o2-green{color:var(--green-deep);}
+        .o2-rag.o2-amber,.o2-mfill.o2-amber{background:var(--amber);} .o2-mpct.o2-amber{color:var(--amber-deep);}
+        .o2-rag.o2-red,.o2-mfill.o2-red{background:var(--error);} .o2-mpct.o2-red{color:var(--on-error-container);}
+        .o2-vs{font-size:10px;color:var(--on-surface-variant);margin-left:5px;}
+        /* recent tile */
+        .o2-recent{grid-area:recent;}
+        .o2-rgrid{margin-top:10px;flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:9px;overflow-y:auto;align-content:start;}
+        .o2-empty{font-size:11.5px;color:var(--on-surface-variant);padding:14px;text-align:center;font-style:italic;}
+        .o2-clearbtn{font-size:10.5px;color:var(--primary);font-weight:600;cursor:pointer;border:0;background:none;padding:0;}
+        /* snackbar */
+        .o2-snack{position:absolute;left:50%;bottom:18px;transform:translateX(-50%) translateY(14px);
+          background:var(--on-surface);color:#fff;font-size:12.5px;font-weight:500;padding:10px 18px;border-radius:10px;
+          box-shadow:var(--o2-shadow-hover);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;white-space:nowrap;}
+        .o2-snack.o2-show{opacity:1;transform:translateX(-50%) translateY(0);}
+        .o2-filterchip{display:none;align-items:center;gap:7px;background:var(--primary-container);color:var(--on-primary-container);
+          font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:999px;}
+        .o2-filterchip.o2-on{display:inline-flex;}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o2-rail" aria-label="App navigation">
+        <div class="o2-rail-logo">C</div>
+        <button class="o2-rail-btn o2-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button class="o2-rail-btn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg></button>
+        <button class="o2-rail-btn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 1 0-1-5.8M21 20a6 6 0 0 0-5-5.9"/></svg></button>
+        <button class="o2-rail-btn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+        <button class="o2-rail-btn" title="Pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></button>
+        <div class="o2-rail-sp"></div>
+        <button class="o2-rail-btn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o2-tree" aria-label="Projects">
+        <div class="o2-tree-h">
+          <h3>Projects</h3>
+          <span class="o2-tree-toggle">Completed<span class="o2-sw"></span></span>
+        </div>
+        <div class="o2-tree-filter">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+          Filter projects…
+        </div>
+        <div class="o2-tree-scroll" id="o2-tree-scroll"></div>
+      </aside>
+
+      <!-- main pane -->
+      <div class="o2-main">
+        <div class="o2-topbar">
+          <div>
+            <h1>Operations overview</h1>
+            <div class="o2-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="o2-filterchip" id="o2-chip"><span id="o2-chip-txt"></span><button class="o2-clearbtn" id="o2-chip-clear" style="color:var(--on-primary-container)">clear ✕</button></span>
+            <button class="o2-ai-btn" id="o2-ai"><span class="o2-spk"></span>Generate health narrative</button>
+          </div>
+        </div>
+
+        <div class="o2-grid">
+          <!-- HERO -->
+          <div class="o2-tile o2-hero">
+            <div class="o2-tile-head"><span class="o2-tile-title">Capacity &amp; delivery health</span><span style="font-size:10.5px;color:var(--on-surface-variant)">this month</span></div>
+            <div class="o2-hero-stats">
+              <div class="o2-hstat">
+                <div class="o2-big">642<small>h</small></div>
+                <div class="o2-spark">
+                  <span style="height:40%"></span><span style="height:55%"></span><span style="height:48%"></span><span style="height:70%"></span><span style="height:62%"></span><span style="height:85%"></span><span class="o2-hi" style="height:100%"></span>
+                </div>
+                <div class="o2-lbl">Burned this month</div>
+              </div>
+              <div class="o2-hstat">
+                <div class="o2-big">86<small>%</small></div>
+                <div class="o2-ring"><b>86%</b></div>
+                <div class="o2-lbl">On-time delivery · 32 / 37</div>
+              </div>
+              <div class="o2-hstat">
+                <div class="o2-big">4.2<small>d</small></div>
+                <div class="o2-dft-bar"><div class="o2-dft-track"><div class="o2-dft-fill"></div></div></div>
+                <div class="o2-lbl">Avg brief → DFT · 18 projects</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ATTENTION (tall) -->
+          <div class="o2-tile o2-attn" id="o2-attn-tile" data-filter="attention">
+            <div class="o2-tile-head"><span class="o2-tile-title">Needs attention</span><span class="o2-badge">5</span></div>
+            <div class="o2-list" id="o2-attn-list"></div>
+          </div>
+
+          <!-- MARGIN (tall) -->
+          <div class="o2-tile o2-margin">
+            <div class="o2-tile-head"><span class="o2-tile-title">Margin · 30 days</span><span style="font-size:10px;color:var(--on-surface-variant)">target 35%</span></div>
+            <div class="o2-mlist" id="o2-mlist"></div>
+          </div>
+
+          <!-- ON TRACK kpi -->
+          <div class="o2-tile o2-kpi o2-ontrack" id="o2-ontrack" data-filter="on_track">
+            <div class="o2-kpi-num">14</div>
+            <div class="o2-kpi-lbl"><span class="o2-d" style="background:var(--tertiary)"></span>On track</div>
+          </div>
+
+          <!-- OVERDUE kpi -->
+          <div class="o2-tile o2-kpi o2-overdue" id="o2-overdue" data-filter="overdue">
+            <div class="o2-kpi-num">2</div>
+            <div class="o2-kpi-lbl"><span class="o2-d" style="background:var(--error)"></span>Overdue</div>
+          </div>
+
+          <!-- RECENT -->
+          <div class="o2-tile o2-recent">
+            <div class="o2-tile-head"><span class="o2-tile-title" id="o2-recent-title">Recent activity</span><span style="font-size:10px;color:var(--on-surface-variant)">last 5 updates</span></div>
+            <div class="o2-rgrid" id="o2-rgrid"></div>
+          </div>
+        </div>
+
+        <div class="o2-snack" id="o2-snack"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>Tile size is the hierarchy: the biggest tile is delivery health, the tall tiles are the two things you actually watch (what needs attention, where margin is bleeding), and the small squares are the at-a-glance counts. The two semantics that were conflated in the old card row are now visually distinct — interactive KPI/filter squares versus passive signal tiles — and everything lives above the fold with no long scroll.</p></div>
+    <div><h3>Trade-offs</h3><p>A fixed bento layout is less elastic than a stacked scroll: on very narrow widths it must reflow to fewer columns, and adding a brand-new signal means finding it a slot rather than appending a section. Dense tiles also cap how much detail each can show, so deep drill-downs still live one click away in the project view.</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt2');
+    if(!root)return;
+
+    var attention=[
+      {client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',status:'needs_attention',reason:'3 briefs awaiting scope · oldest 6 days'},
+      {client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',status:'overdue',reason:'DFT 6 days past due'},
+      {client:'Discovery',project:'Vitality Always-On',eng:'retainer',status:'needs_attention',reason:'burn 92% · 2 weeks left in cycle'},
+      {client:"Nando's",project:'Winter Menu Push',eng:'project',status:'overdue',reason:'milestone slipped twice'},
+      {client:'Capitec',project:'Always-On Social',eng:'retainer',status:'needs_attention',reason:'no activity in 9 days'}
+    ];
+    var recent=[
+      {client:'Takealot',project:'Black Friday Creative',eng:'project',status:'on_track',reason:'DFT approved today'},
+      {client:'MTN',project:'5G Awareness',eng:'retainer',status:'on_track',reason:'brief scoped 2h ago'},
+      {client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',status:'on_track',reason:'quote accepted yesterday'},
+      {client:'Clicks',project:'Health Content Hub',eng:'retainer',status:'on_track',reason:'12 tasks completed this week'},
+      {client:'Tiger Brands',project:'Packaging Refresh',eng:'project',status:'on_track',reason:'kickoff Monday'}
+    ];
+    var margin=[
+      {client:'Takealot',rev:'R 510 000',pct:40.0,vs:'+5.0pp',rag:'green'},
+      {client:'Sasol',rev:'R 388 500',pct:40.0,vs:'+5.0pp',rag:'green'},
+      {client:'Discovery',rev:'R 412 000',pct:30.6,vs:'−4.4pp',rag:'amber'},
+      {client:'MTN',rev:'R 264 000',pct:35.0,vs:'0.0pp',rag:'green'},
+      {client:'Capitec',rev:'R 198 000',pct:25.0,vs:'−10.0pp',rag:'red'},
+      {client:'Woolworths',rev:'R 295 000',pct:24.0,vs:'−11.0pp',rag:'red'}
+    ];
+    var tree=[
+      {client:'Sasol',projects:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',projects:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',projects:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",projects:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',projects:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',projects:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',projects:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',projects:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',projects:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',projects:[['Packaging Refresh','on_track']]}
+    ];
+
+    function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+    var snackEl=root.querySelector('#o2-snack'),snackT;
+    function snack(name){
+      snackEl.textContent='Opening '+name+'…';
+      snackEl.classList.add('o2-show');
+      clearTimeout(snackT);snackT=setTimeout(function(){snackEl.classList.remove('o2-show');},2200);
+    }
+
+    // ---- project tree ----
+    var ts=root.querySelector('#o2-tree-scroll');
+    ts.innerHTML=tree.map(function(g){
+      var rows=g.projects.map(function(p){
+        return '<div class="o2-pr" data-name="'+esc(g.client+' — '+p[0])+'"><span class="o2-dot o2-'+p[1]+'"></span><span class="o2-pr-name">'+esc(p[0])+'</span></div>';
+      }).join('');
+      return '<div class="o2-cg"><div class="o2-cg-h"><svg class="o2-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>'+esc(g.client)+'</div><div class="o2-cg-rows">'+rows+'</div></div>';
+    }).join('');
+    ts.querySelectorAll('.o2-cg-h').forEach(function(h){
+      h.addEventListener('click',function(){h.parentNode.classList.toggle('o2-collapsed');});
+    });
+
+    // ---- margin tile ----
+    function maxRag(p){return Math.min(100,(p/50)*100);} // scale 50% margin -> full bar
+    root.querySelector('#o2-mlist').innerHTML=margin.map(function(m){
+      var w=maxRag(m.pct);
+      return '<div class="o2-mrow"><div class="o2-mrow-top"><span class="o2-ml"><span class="o2-rag o2-'+m.rag+'"></span>'+esc(m.client)+'</span><span class="o2-mr">'+esc(m.rev)+'</span></div>'+
+        '<div class="o2-mbar"><div class="o2-mfill o2-'+m.rag+'" style="width:'+w.toFixed(0)+'%"></div><div class="o2-mtarget" style="left:'+maxRag(35).toFixed(0)+'%"></div></div>'+
+        '<div style="margin-top:5px;display:flex;align-items:baseline;"><span class="o2-mpct o2-'+m.rag+'">'+m.pct.toFixed(1)+'%</span><span class="o2-vs">vs target '+esc(m.vs)+'</span></div></div>';
+    }).join('');
+
+    // ---- item renderer ----
+    function itemHTML(p){
+      return '<div class="o2-item" data-name="'+esc(p.client+' — '+p.project)+'" data-status="'+p.status+'">'+
+        '<div class="o2-item-top"><span class="o2-dot o2-'+p.status+'"></span><span class="o2-item-name">'+esc(p.client)+' — '+esc(p.project)+'</span></div>'+
+        '<div class="o2-item-reason">'+esc(p.reason)+'</div>'+
+        '<div class="o2-item-meta"><span class="o2-sbadge o2-'+p.status+'">'+p.status.replace('_',' ')+'</span><span class="o2-eng">'+esc(p.eng)+'</span></div></div>';
+    }
+
+    var attnList=root.querySelector('#o2-attn-list');
+    var rgrid=root.querySelector('#o2-rgrid');
+    var recentTitle=root.querySelector('#o2-recent-title');
+
+    // active cross-filter state: null | 'on_track' | 'needs_attention' | 'overdue'
+    var activeFilter=null;
+    var kpiTiles={on_track:root.querySelector('#o2-ontrack'),overdue:root.querySelector('#o2-overdue'),attention:root.querySelector('#o2-attn-tile')};
+    var chip=root.querySelector('#o2-chip'),chipTxt=root.querySelector('#o2-chip-txt');
+
+    function matches(p){
+      if(!activeFilter)return true;
+      if(activeFilter==='attention')return p.status==='needs_attention'||p.status==='overdue';
+      return p.status===activeFilter;
+    }
+
+    function render(){
+      // attention tile always shows attention set, but highlights matches when filtering
+      attnList.innerHTML=attention.map(itemHTML).join('');
+      // recent tile is the cross-filter target: show union pool filtered
+      var pool=attention.concat(recent);
+      // de-dupe by name
+      var seen={},uniq=[];
+      pool.forEach(function(p){var k=p.client+'|'+p.project;if(!seen[k]){seen[k]=1;uniq.push(p);}});
+      var shown=activeFilter?uniq.filter(matches):recent;
+      if(shown.length===0){
+        rgrid.innerHTML='<div class="o2-empty">No projects match this filter.</div>';
+      }else{
+        rgrid.innerHTML=shown.map(itemHTML).join('');
+      }
+      recentTitle.textContent=activeFilter?('Filtered · '+labelFor(activeFilter)):'Recent activity';
+
+      // KPI active styling
+      ['on_track','overdue','attention'].forEach(function(k){
+        kpiTiles[k].classList.toggle('o2-active',activeFilter===k);
+      });
+      if(activeFilter){
+        chip.classList.add('o2-on');chipTxt.textContent='Filter: '+labelFor(activeFilter);
+      }else{chip.classList.remove('o2-on');}
+      bindItems();
+    }
+
+    function labelFor(f){return f==='on_track'?'On track':f==='overdue'?'Overdue':'Needs attention';}
+
+    function bindItems(){
+      root.querySelectorAll('.o2-item').forEach(function(el){
+        el.addEventListener('click',function(){
+          root.querySelectorAll('.o2-item.o2-sel').forEach(function(s){s.classList.remove('o2-sel');});
+          el.classList.add('o2-sel');
+          snack(el.getAttribute('data-name'));
+        });
+      });
+    }
+
+    function setFilter(f){
+      activeFilter=(activeFilter===f)?null:f; // toggle
+      render();
+    }
+
+    kpiTiles.on_track.addEventListener('click',function(){setFilter('on_track');});
+    kpiTiles.overdue.addEventListener('click',function(){setFilter('overdue');});
+    kpiTiles.attention.addEventListener('click',function(){setFilter('attention');});
+    root.querySelector('#o2-chip-clear').addEventListener('click',function(e){e.stopPropagation();activeFilter=null;render();});
+
+    // project tree rows -> snackbar
+    ts.querySelectorAll('.o2-pr').forEach(function(el){
+      el.addEventListener('click',function(){snack(el.getAttribute('data-name'));});
+    });
+
+    // AI button
+    root.querySelector('#o2-ai').addEventListener('click',function(){snack('Generating health narrative');});
+
+    render();
+  })();</script>
+</article>

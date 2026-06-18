@@ -1,0 +1,467 @@
+<article class="opt" id="opt4">
+  <div class="opt-head"><span class="opt-num">OPTION 4</span><h2>Segmented control plane — one KPI ribbon, one swappable body</h2></div>
+  <p class="opt-tagline">A persistent KPI ribbon over a single segmented control that swaps the body — exactly one focus at a time, almost no scrolling.</p>
+  <div class="frame">
+    <section class="o4-root">
+      <style>
+        .o4-root{
+          --o4-h-rail:56px; --o4-w-tree:240px;
+          font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          background:var(--surface-container-low);
+          display:flex; min-height:640px; border-radius:14px; overflow:hidden;
+          border:1px solid var(--outline-variant);
+          font-variant-numeric:tabular-nums;
+        }
+        .o4-root *{box-sizing:border-box;}
+
+        /* ---- icon rail ---- */
+        .o4-rail{width:var(--o4-h-rail); flex:0 0 var(--o4-h-rail); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column;
+          align-items:center; padding:12px 0; gap:6px;}
+        .o4-logo{width:32px;height:32px;border-radius:9px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:8px;}
+        .o4-railbtn{width:38px;height:38px;border-radius:10px;border:none;background:transparent;
+          color:var(--on-surface-variant);display:grid;place-items:center;cursor:pointer;transition:.15s;}
+        .o4-railbtn:hover{background:var(--surface-container-high);color:var(--on-surface);}
+        .o4-railbtn.o4-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o4-railbtn svg{width:20px;height:20px;}
+        .o4-railsp{flex:1;}
+
+        /* ---- project tree ---- */
+        .o4-tree{width:var(--o4-w-tree);flex:0 0 var(--o4-w-tree);background:var(--surface);
+          border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;min-height:0;}
+        .o4-treehead{padding:14px 14px 10px;}
+        .o4-treetitle{display:flex;align-items:center;justify-content:space-between;}
+        .o4-treetitle h3{margin:0;font-size:14px;font-weight:700;}
+        .o4-comp{font-size:11px;color:var(--on-surface-variant);display:flex;align-items:center;gap:5px;cursor:pointer;}
+        .o4-comp i{width:26px;height:15px;border-radius:8px;background:var(--surface-container-highest);position:relative;transition:.15s;}
+        .o4-comp i::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#fff;transition:.15s;}
+        .o4-comp.o4-comp-on i{background:var(--primary);}
+        .o4-comp.o4-comp-on i::after{left:13px;}
+        .o4-filter{margin-top:10px;width:100%;border:1px solid var(--outline-variant);border-radius:9px;
+          padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface-container-low);color:var(--on-surface);}
+        .o4-filter:focus{outline:2px solid var(--outline);outline-offset:-1px;}
+        .o4-pills{display:flex;gap:6px;margin-top:10px;}
+        .o4-pill{flex:1;border:1px solid var(--outline-variant);background:var(--surface-container-low);
+          border-radius:999px;padding:5px 4px;font-size:10.5px;font-weight:600;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:4px;color:var(--on-surface-variant);transition:.15s;}
+        .o4-pill:hover{border-color:var(--outline);}
+        .o4-pill.o4-on{background:var(--primary-container);border-color:var(--primary);color:var(--on-primary-container);}
+        .o4-pill b{font-family:'JetBrains Mono',monospace;}
+        .o4-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o4-d-ok{background:var(--tertiary);} .o4-d-at{background:var(--amber);} .o4-d-ov{background:var(--error);}
+
+        .o4-treelist{flex:1;overflow-y:auto;padding:6px 8px 14px;}
+        .o4-grp{margin-bottom:4px;}
+        .o4-grphd{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11.5px;font-weight:700;
+          color:var(--on-surface-variant);cursor:pointer;border-radius:8px;}
+        .o4-grphd:hover{background:var(--surface-container);}
+        .o4-grphd .o4-caret{margin-left:auto;transition:.15s;font-size:10px;}
+        .o4-grp.o4-closed .o4-caret{transform:rotate(-90deg);}
+        .o4-grp.o4-closed .o4-grpkids{display:none;}
+        .o4-prow{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 22px;font-size:12px;
+          border-radius:8px;cursor:pointer;color:var(--on-surface);}
+        .o4-prow:hover{background:var(--surface-container);}
+        .o4-prow.o4-sel{background:var(--primary-container);color:var(--on-primary-container);}
+        .o4-prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+        /* ---- main pane ---- */
+        .o4-main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--surface-container-low);}
+        .o4-top{padding:16px 20px 0;}
+        .o4-tline{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+        .o4-tline h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em;}
+        .o4-tsub{font-size:12.5px;color:var(--on-surface-variant);}
+        .o4-aibtn{margin-left:auto;border:1px solid var(--outline);background:var(--surface);
+          border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:600;cursor:pointer;
+          color:var(--on-primary-container);display:flex;align-items:center;gap:6px;}
+        .o4-aibtn:hover{background:var(--surface-container-high);}
+        .o4-aibtn .o4-spark{width:13px;height:13px;}
+
+        /* ---- KPI ribbon ---- */
+        .o4-ribbon{display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin:14px 0 2px;
+          background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;position:relative;}
+        .o4-ribbon::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--gradient-brand);}
+        .o4-cell{padding:13px 14px 14px;border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;gap:3px;position:relative;}
+        .o4-cell:last-child{border-right:none;}
+        .o4-cell.o4-clk{cursor:pointer;transition:.15s;}
+        .o4-cell.o4-clk:hover{background:var(--surface-container);}
+        .o4-cell.o4-clk::after{content:"filter";position:absolute;top:11px;right:12px;font-size:8.5px;
+          letter-spacing:.05em;text-transform:uppercase;color:var(--on-surface-variant);opacity:0;transition:.15s;}
+        .o4-cell.o4-clk:hover::after{opacity:.7;}
+        .o4-cklab{font-size:11px;color:var(--on-surface-variant);font-weight:600;display:flex;align-items:center;gap:6px;}
+        .o4-ckval{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;line-height:1;letter-spacing:-.02em;}
+        .o4-ckval small{font-size:12px;font-weight:600;color:var(--on-surface-variant);margin-left:3px;}
+        .o4-ckmeta{font-size:10.5px;color:var(--on-surface-variant);}
+        .o4-cell.o4-at .o4-ckval{color:var(--amber-deep);} .o4-cell.o4-ov .o4-ckval{color:var(--error);}
+        .o4-cell.o4-ok .o4-ckval{color:var(--green-deep);}
+
+        /* ---- segmented control ---- */
+        .o4-seg{display:flex;gap:4px;padding:4px;margin:14px 0 0;background:var(--surface-container);
+          border:1px solid var(--outline-variant);border-radius:999px;width:fit-content;max-width:100%;flex-wrap:wrap;}
+        .o4-segbtn{border:none;background:transparent;border-radius:999px;padding:7px 15px;font-size:12.5px;
+          font-weight:600;font-family:inherit;cursor:pointer;color:var(--on-surface-variant);display:flex;
+          align-items:center;gap:7px;transition:.15s;white-space:nowrap;}
+        .o4-segbtn:hover{color:var(--on-surface);}
+        .o4-segbtn.o4-on{background:var(--surface);color:var(--on-primary-container);
+          box-shadow:0 1px 2px rgba(76,29,149,.12);}
+        .o4-segcount{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+          background:var(--amber-soft);color:var(--amber-deep);border-radius:999px;padding:1px 7px;}
+        .o4-segbtn.o4-on .o4-segcount{background:var(--primary-container);color:var(--on-primary-container);}
+
+        /* ---- body ---- */
+        .o4-body{flex:1;overflow-y:auto;padding:14px 20px 20px;min-height:0;}
+        .o4-panel{display:none;animation:o4-fade .22s ease;}
+        .o4-panel.o4-on{display:block;}
+        @keyframes o4-fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+        /* attention rich rows */
+        .o4-arow{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface);
+          border:1px solid var(--outline-variant);border-radius:12px;margin-bottom:8px;cursor:pointer;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);transition:.15s;}
+        .o4-arow:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);border-color:var(--outline);}
+        .o4-arow.o4-hot{outline:2px solid var(--primary);outline-offset:1px;}
+        .o4-abar{width:4px;align-self:stretch;border-radius:4px;flex:0 0 4px;}
+        .o4-abar.o4-at{background:var(--amber);} .o4-abar.o4-ov{background:var(--error);}
+        .o4-amid{flex:1;min-width:0;}
+        .o4-aname{font-size:14px;font-weight:700;}
+        .o4-aname b{color:var(--on-surface-variant);font-weight:600;}
+        .o4-areason{font-size:12px;font-style:italic;color:var(--on-surface-variant);margin-top:2px;}
+        .o4-aright{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:0 0 auto;}
+        .o4-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          border-radius:999px;padding:3px 9px;}
+        .o4-b-at{background:var(--amber-soft);color:var(--amber-deep);}
+        .o4-b-ov{background:var(--error-container);color:var(--on-error-container);}
+        .o4-b-ok{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o4-eng{font-size:10.5px;color:var(--on-surface-variant);text-transform:capitalize;}
+
+        /* compact all-projects list */
+        .o4-clist{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-crow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--outline-variant);
+          cursor:pointer;font-size:13px;}
+        .o4-crow:first-child{border-top:none;}
+        .o4-crow:hover{background:var(--surface-container);}
+        .o4-cclient{font-weight:600;min-width:96px;flex:0 0 96px;}
+        .o4-cproj{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--on-surface-variant);}
+        .o4-ceng{font-size:10.5px;color:var(--on-surface-variant);text-transform:capitalize;min-width:60px;text-align:right;}
+        .o4-cbadge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          border-radius:999px;padding:2px 8px;min-width:78px;text-align:center;}
+        .o4-listhd{display:flex;align-items:center;gap:12px;padding:9px 14px;font-size:10.5px;font-weight:700;
+          text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant);background:var(--surface-container);
+          border-bottom:1px solid var(--outline-variant);}
+
+        /* margin table */
+        .o4-mwrap{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-mtab{width:100%;border-collapse:collapse;font-size:13px;}
+        .o4-mtab th{text-align:left;padding:11px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+          letter-spacing:.05em;color:var(--on-surface-variant);background:var(--surface-container);border-bottom:1px solid var(--outline-variant);}
+        .o4-mtab th.o4-num,.o4-mtab td.o4-num{text-align:right;font-family:'JetBrains Mono',monospace;}
+        .o4-mtab td{padding:12px 16px;border-top:1px solid var(--outline-variant);}
+        .o4-mtab tr:hover td{background:var(--surface-container-low);}
+        .o4-mclient{display:flex;align-items:center;gap:9px;font-weight:600;}
+        .o4-rag{width:9px;height:9px;border-radius:50%;flex:0 0 9px;}
+        .o4-rag.green{background:var(--green);} .o4-rag.amber{background:var(--amber);} .o4-rag.red{background:var(--error);}
+        .o4-vs{font-weight:600;} .o4-vs.green{color:var(--green-deep);} .o4-vs.amber{color:var(--amber-deep);} .o4-vs.red{color:var(--error);}
+
+        /* activity feed */
+        .o4-feed{position:relative;padding-left:8px;}
+        .o4-frow{display:flex;gap:14px;padding:11px 14px 11px 0;cursor:pointer;position:relative;}
+        .o4-fline{position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--outline-variant);}
+        .o4-fdot{width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);background:var(--tertiary);
+          flex:0 0 12px;margin-left:-1px;z-index:1;box-shadow:0 0 0 1px var(--outline-variant);}
+        .o4-fcard{flex:1;background:var(--surface);border:1px solid var(--outline-variant);border-radius:10px;
+          padding:9px 13px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-frow:hover .o4-fcard{border-color:var(--outline);box-shadow:0 8px 24px rgba(76,29,149,.12);}
+        .o4-fname{font-size:13px;font-weight:700;}
+        .o4-fname b{color:var(--on-surface-variant);font-weight:600;}
+        .o4-fmeta{font-size:11.5px;color:var(--on-surface-variant);margin-top:2px;display:flex;gap:8px;align-items:center;}
+        .o4-feng{text-transform:capitalize;background:var(--surface-container);border-radius:999px;padding:1px 8px;font-size:10px;}
+
+        .o4-filterbar{display:none;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;
+          color:var(--on-primary-container);background:var(--primary-container);border-radius:10px;padding:8px 12px;}
+        .o4-filterbar.o4-show{display:flex;}
+        .o4-filterbar button{margin-left:auto;border:none;background:var(--surface);border-radius:999px;
+          padding:3px 11px;font-size:11px;font-weight:600;cursor:pointer;color:var(--on-primary-container);font-family:inherit;}
+
+        /* snackbar */
+        .o4-snack{position:absolute;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);
+          background:var(--on-surface);color:#fff;padding:10px 18px;border-radius:10px;font-size:12.5px;font-weight:500;
+          box-shadow:0 8px 24px rgba(76,29,149,.24);opacity:0;pointer-events:none;transition:.2s;z-index:30;}
+        .o4-snack.o4-show{opacity:1;transform:translateX(-50%) translateY(0);}
+        .o4-main{position:relative;}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o4-rail">
+        <div class="o4-logo">C</div>
+        <button class="o4-railbtn o4-on" title="Overview" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button class="o4-railbtn" title="Clients" aria-label="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M18 20a5 5 0 0 0-3-4.6"/></svg></button>
+        <button class="o4-railbtn" title="Briefs" aria-label="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg></button>
+        <button class="o4-railbtn" title="Services" aria-label="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M4.2 7l2.6 1.5M17.2 15.5L19.8 17M4.2 17l2.6-1.5M17.2 8.5L19.8 7"/><circle cx="12" cy="12" r="3.2"/></svg></button>
+        <div class="o4-railsp"></div>
+        <button class="o4-railbtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o4-tree">
+        <div class="o4-treehead">
+          <div class="o4-treetitle">
+            <h3>Projects</h3>
+            <label class="o4-comp"><span>Completed</span><i></i></label>
+          </div>
+          <input class="o4-filter" placeholder="Filter projects…" aria-label="Filter projects">
+          <div class="o4-pills">
+            <button class="o4-pill" data-scope="on_track"><span class="o4-dot o4-d-ok"></span><b>14</b></button>
+            <button class="o4-pill" data-scope="needs_attention"><span class="o4-dot o4-d-at"></span><b>5</b></button>
+            <button class="o4-pill" data-scope="overdue"><span class="o4-dot o4-d-ov"></span><b>2</b></button>
+          </div>
+        </div>
+        <div class="o4-treelist" id="o4-treelist"></div>
+      </aside>
+
+      <!-- main pane -->
+      <main class="o4-main">
+        <div class="o4-top">
+          <div class="o4-tline">
+            <h1>Operations overview</h1>
+            <span class="o4-tsub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</span>
+            <button class="o4-aibtn" id="o4-ai"><svg class="o4-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/></svg>Health narrative</button>
+          </div>
+
+          <!-- KPI ribbon -->
+          <div class="o4-ribbon">
+            <div class="o4-cell o4-clk o4-ok" data-scope="on_track" data-seg="all">
+              <div class="o4-cklab"><span class="o4-dot o4-d-ok"></span>On track</div>
+              <div class="o4-ckval">14</div><div class="o4-ckmeta">of 21 active</div>
+            </div>
+            <div class="o4-cell o4-clk o4-at" data-scope="needs_attention" data-seg="attn">
+              <div class="o4-cklab"><span class="o4-dot o4-d-at"></span>Needs attention</div>
+              <div class="o4-ckval">5</div><div class="o4-ckmeta">action required</div>
+            </div>
+            <div class="o4-cell o4-clk o4-ov" data-scope="overdue" data-seg="attn">
+              <div class="o4-cklab"><span class="o4-dot o4-d-ov"></span>Overdue</div>
+              <div class="o4-ckval">2</div><div class="o4-ckmeta">past due date</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">Burned this month</div>
+              <div class="o4-ckval">642<small>h</small></div><div class="o4-ckmeta">across all clients</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">On-time delivery</div>
+              <div class="o4-ckval">86<small>%</small></div><div class="o4-ckmeta">32 / 37 DFTs</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">Avg brief → DFT</div>
+              <div class="o4-ckval">4.2<small>d</small></div><div class="o4-ckmeta">18 projects</div>
+            </div>
+          </div>
+
+          <!-- segmented control -->
+          <div class="o4-seg" role="tablist">
+            <button class="o4-segbtn o4-on" data-seg="attn" role="tab">Needs attention<span class="o4-segcount">5</span></button>
+            <button class="o4-segbtn" data-seg="all" role="tab">All projects</button>
+            <button class="o4-segbtn" data-seg="margin" role="tab">Margin</button>
+            <button class="o4-segbtn" data-seg="activity" role="tab">Activity</button>
+          </div>
+        </div>
+
+        <div class="o4-body">
+          <!-- ATTENTION -->
+          <div class="o4-panel o4-on" data-panel="attn" id="o4-p-attn">
+            <div class="o4-filterbar" id="o4-fb-attn"><span id="o4-fb-attn-txt"></span><button data-clear="attn">Clear filter</button></div>
+            <div id="o4-attn-rows"></div>
+          </div>
+
+          <!-- ALL PROJECTS -->
+          <div class="o4-panel" data-panel="all" id="o4-p-all">
+            <div class="o4-filterbar" id="o4-fb-all"><span id="o4-fb-all-txt"></span><button data-clear="all">Clear filter</button></div>
+            <div class="o4-clist">
+              <div class="o4-listhd"><span style="min-width:96px;flex:0 0 96px">Client</span><span style="flex:1">Project</span><span style="min-width:60px;text-align:right">Engagement</span><span style="min-width:78px;text-align:center">Status</span></div>
+              <div id="o4-all-rows"></div>
+            </div>
+          </div>
+
+          <!-- MARGIN -->
+          <div class="o4-panel" data-panel="margin" id="o4-p-margin">
+            <div class="o4-mwrap">
+              <table class="o4-mtab">
+                <thead><tr><th>Client</th><th class="o4-num">Revenue</th><th class="o4-num">Cost</th><th class="o4-num">Margin</th><th class="o4-num">vs 35% target</th></tr></thead>
+                <tbody id="o4-margin-rows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ACTIVITY -->
+          <div class="o4-panel" data-panel="activity" id="o4-p-activity">
+            <div class="o4-feed"><div class="o4-fline"></div><div id="o4-act-rows"></div></div>
+          </div>
+        </div>
+
+        <div class="o4-snack" id="o4-snack"></div>
+      </main>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>One persistent KPI ribbon answers "how are we doing" at a glance, while a single segmented control means the body shows exactly one thing at a time — no endless scroll, no two near-identical lists competing for the eye. The default segment is <em>Needs attention</em>, so the screen opens on the only question that matters: what do I act on now. The ribbon's interactive scope counts are visually distinct (hover "filter" hint) from the passive KPIs, resolving the conflated-semantics problem, and clicking one deep-links straight into the relevant segment, pre-filtered. Margin is one click away as a first-class, full-width table rather than buried below the fold.</p></div>
+    <div><h3>Trade-offs</h3><p>Only one body panel is visible at a time, so cross-referencing (e.g. an attention item against its margin row) needs a tab switch rather than a glance — the cost of enforced single-focus. The segmented control is a learned affordance: a first-time user must discover that the body swaps. Density per panel is high but breadth is hidden, so power users who liked seeing everything at once on a wide monitor lose the "whole picture" scroll. The ribbon fixes six cells horizontally, which gets tight below ~1100px and would need to wrap or scroll on narrow screens.</p></div>
+  </div>
+  <script>(function(){
+    var root=document.getElementById('opt4');
+    if(!root)return;
+    var $=function(s,c){return (c||root).querySelector(s);};
+    var $$=function(s,c){return Array.prototype.slice.call((c||root).querySelectorAll(s));};
+
+    // ---- data (verbatim from spec) ----
+    var attn=[
+      {client:'Sasol',proj:'Q3 Brand Refresh',eng:'retainer',st:'needs_attention',reason:'3 briefs awaiting scope · oldest 6 days'},
+      {client:'Woolworths',proj:'Loyalty App Launch',eng:'fixed',st:'overdue',reason:'DFT 6 days past due'},
+      {client:'Discovery',proj:'Vitality Always-On',eng:'retainer',st:'needs_attention',reason:'burn 92% · 2 weeks left in cycle'},
+      {client:"Nando's",proj:'Winter Menu Push',eng:'project',st:'overdue',reason:'milestone slipped twice'},
+      {client:'Capitec',proj:'Always-On Social',eng:'retainer',st:'needs_attention',reason:'no activity in 9 days'}
+    ];
+    var recent=[
+      {client:'Takealot',proj:'Black Friday Creative',eng:'project',st:'on_track',reason:'DFT approved today'},
+      {client:'MTN',proj:'5G Awareness',eng:'retainer',st:'on_track',reason:'brief scoped 2h ago'},
+      {client:'Standard Bank',proj:'Wealth Microsite',eng:'fixed',st:'on_track',reason:'quote accepted yesterday'},
+      {client:'Clicks',proj:'Health Content Hub',eng:'retainer',st:'on_track',reason:'12 tasks completed this week'},
+      {client:'Tiger Brands',proj:'Packaging Refresh',eng:'project',st:'on_track',reason:'kickoff Monday'}
+    ];
+    var margin=[
+      {client:'Takealot',rev:'R 510 000',cost:'R 306 000',pct:'40.0%',vs:'+5.0pp',rag:'green'},
+      {client:'Sasol',rev:'R 388 500',cost:'R 233 100',pct:'40.0%',vs:'+5.0pp',rag:'green'},
+      {client:'Discovery',rev:'R 412 000',cost:'R 286 000',pct:'30.6%',vs:'−4.4pp',rag:'amber'},
+      {client:'MTN',rev:'R 264 000',cost:'R 171 600',pct:'35.0%',vs:'0.0pp',rag:'green'},
+      {client:'Capitec',rev:'R 198 000',cost:'R 148 500',pct:'25.0%',vs:'−10.0pp',rag:'red'},
+      {client:'Woolworths',rev:'R 295 000',cost:'R 224 200',pct:'24.0%',vs:'−11.0pp',rag:'red'}
+    ];
+    var tree=[
+      {client:'Sasol',kids:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',kids:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',kids:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",kids:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',kids:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',kids:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',kids:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',kids:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',kids:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',kids:[['Packaging Refresh','on_track']]}
+    ];
+    var stMap={on_track:{cls:'ok',lab:'On track'},needs_attention:{cls:'at',lab:'Attention'},overdue:{cls:'ov',lab:'Overdue'}};
+    var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+
+    // ---- snackbar ----
+    var snack=$('#o4-snack'),snackT;
+    function toast(msg){snack.textContent=msg;snack.classList.add('o4-show');clearTimeout(snackT);snackT=setTimeout(function(){snack.classList.remove('o4-show');},1900);}
+    function open(name){toast('Opening '+name+'…');}
+
+    // ---- tree ----
+    var treelist=$('#o4-treelist');
+    tree.forEach(function(g){
+      var grp=document.createElement('div');grp.className='o4-grp';
+      var n=g.kids.length;
+      grp.innerHTML='<div class="o4-grphd"><span>'+esc(g.client)+'</span><span style="font-weight:600;opacity:.6;font-family:\'JetBrains Mono\',monospace">'+n+'</span><span class="o4-caret">▾</span></div><div class="o4-grpkids"></div>';
+      var kidwrap=$('.o4-grpkids',grp);
+      g.kids.forEach(function(k){
+        var label=g.client+' — '+k[0];
+        var row=document.createElement('div');row.className='o4-prow';row.setAttribute('data-scope',k[1]);row.setAttribute('data-name',label);
+        row.innerHTML='<span class="o4-dot o4-d-'+stMap[k[1]].cls+'"></span><span>'+esc(k[0])+'</span>';
+        row.addEventListener('click',function(){$$('.o4-prow').forEach(function(r){r.classList.remove('o4-sel');});row.classList.add('o4-sel');open(label);});
+        kidwrap.appendChild(row);
+      });
+      $('.o4-grphd',grp).addEventListener('click',function(){grp.classList.toggle('o4-closed');});
+      treelist.appendChild(grp);
+    });
+
+    // ---- attention rich rows ----
+    var attnWrap=$('#o4-attn-rows');
+    attn.forEach(function(p){
+      var label=p.client+' — '+p.proj,sc=stMap[p.st].cls;
+      var el=document.createElement('div');el.className='o4-arow';el.setAttribute('data-scope',p.st);el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-abar o4-'+sc+'"></span><div class="o4-amid"><div class="o4-aname"><b>'+esc(p.client)+' — </b>'+esc(p.proj)+'</div><div class="o4-areason">'+esc(p.reason)+'</div></div><div class="o4-aright"><span class="o4-badge o4-b-'+sc+'">'+stMap[p.st].lab+'</span><span class="o4-eng">'+esc(p.eng)+'</span></div>';
+      el.addEventListener('click',function(){open(label);});
+      attnWrap.appendChild(el);
+    });
+
+    // ---- all projects compact list (attn + recent) ----
+    var allWrap=$('#o4-all-rows');
+    var allData=attn.concat(recent);
+    allData.forEach(function(p){
+      var label=p.client+' — '+p.proj,sc=stMap[p.st].cls;
+      var el=document.createElement('div');el.className='o4-crow';el.setAttribute('data-scope',p.st);el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-dot o4-d-'+sc+'"></span><span class="o4-cclient">'+esc(p.client)+'</span><span class="o4-cproj">'+esc(p.proj)+'</span><span class="o4-ceng">'+esc(p.eng)+'</span><span class="o4-cbadge o4-b-'+sc+'">'+stMap[p.st].lab+'</span>';
+      el.addEventListener('click',function(){open(label);});
+      allWrap.appendChild(el);
+    });
+
+    // ---- margin ----
+    var mWrap=$('#o4-margin-rows');
+    margin.forEach(function(m){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td><span class="o4-mclient"><span class="o4-rag '+m.rag+'"></span>'+esc(m.client)+'</span></td><td class="o4-num">'+esc(m.rev)+'</td><td class="o4-num">'+esc(m.cost)+'</td><td class="o4-num">'+esc(m.pct)+'</td><td class="o4-num"><span class="o4-vs '+m.rag+'">'+esc(m.vs)+'</span></td>';
+      mWrap.appendChild(tr);
+    });
+
+    // ---- activity feed ----
+    var actWrap=$('#o4-act-rows');
+    recent.forEach(function(p){
+      var label=p.client+' — '+p.proj;
+      var el=document.createElement('div');el.className='o4-frow';el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-fdot"></span><div class="o4-fcard"><div class="o4-fname"><b>'+esc(p.client)+' — </b>'+esc(p.proj)+'</div><div class="o4-fmeta">'+esc(p.reason)+'<span class="o4-feng">'+esc(p.eng)+'</span></div></div>';
+      el.addEventListener('click',function(){open(label);});
+      actWrap.appendChild(el);
+    });
+
+    // ---- segmented control ----
+    var segBtns=$$('.o4-segbtn'),panels=$$('.o4-panel');
+    function showSeg(seg){
+      segBtns.forEach(function(b){b.classList.toggle('o4-on',b.getAttribute('data-seg')===seg);});
+      panels.forEach(function(p){p.classList.toggle('o4-on',p.getAttribute('data-panel')===seg);});
+    }
+    segBtns.forEach(function(b){b.addEventListener('click',function(){showSeg(b.getAttribute('data-seg'));if(activeScope)applyFilter(activeScope);});});
+
+    // ---- scope filtering (within attn + all panels) ----
+    var scopeLab={on_track:'On track',needs_attention:'Needs attention',overdue:'Overdue'};
+    function applyFilter(scope){
+      // attn panel
+      var aShown=0;
+      $$('#o4-attn-rows .o4-arow').forEach(function(r){var hit=!scope||r.getAttribute('data-scope')===scope;r.style.display=hit?'':'none';if(hit)aShown++;});
+      var fbA=$('#o4-fb-attn');
+      if(scope&&$('#o4-p-attn').classList.contains('o4-on')){fbA.classList.add('o4-show');$('#o4-fb-attn-txt').textContent='Filtered to '+scopeLab[scope]+' · '+aShown+' shown';}else{fbA.classList.remove('o4-show');}
+      // all panel
+      var cShown=0;
+      $$('#o4-all-rows .o4-crow').forEach(function(r){var hit=!scope||r.getAttribute('data-scope')===scope;r.style.display=hit?'':'none';if(hit)cShown++;});
+      var fbAll=$('#o4-fb-all');
+      if(scope&&$('#o4-p-all').classList.contains('o4-on')){fbAll.classList.add('o4-show');$('#o4-fb-all-txt').textContent='Filtered to '+scopeLab[scope]+' · '+cShown+' shown';}else{fbAll.classList.remove('o4-show');}
+      // tree pills
+      $$('.o4-pill').forEach(function(p){p.classList.toggle('o4-on',p.getAttribute('data-scope')===scope);});
+      // tree rows dim
+      $$('.o4-prow').forEach(function(r){r.style.opacity=(!scope||r.getAttribute('data-scope')===scope)?'1':'.32';});
+      activeScope=scope;
+    }
+    var activeScope=null;
+
+    // clear-filter buttons
+    $$('.o4-filterbar button').forEach(function(btn){btn.addEventListener('click',function(e){e.stopPropagation();applyFilter(null);activeScope=null;});});
+
+    // tree scope pills
+    $$('.o4-pill').forEach(function(p){p.addEventListener('click',function(){var sc=p.getAttribute('data-scope');var next=(activeScope===sc)?null:sc;applyFilter(next);activeScope=next;});});
+
+    // ---- ribbon clickable cells: deep-link to segment + filter ----
+    $$('.o4-cell.o4-clk').forEach(function(c){
+      c.addEventListener('click',function(){
+        var seg=c.getAttribute('data-seg'),scope=c.getAttribute('data-scope');
+        showSeg(seg);
+        applyFilter(scope);activeScope=scope;
+      });
+    });
+
+    // ---- AI button ----
+    $('#o4-ai').addEventListener('click',function(){toast('Generating health narrative…');});
+
+    // completed toggle (chrome)
+    $('.o4-comp').addEventListener('click',function(){$('.o4-comp').classList.toggle('o4-comp-on');});
+  })();</script>
+</article>

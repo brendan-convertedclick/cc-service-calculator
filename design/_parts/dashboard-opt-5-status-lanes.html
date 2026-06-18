@@ -1,0 +1,406 @@
+<article class="opt" id="opt5">
+  <div class="opt-head"><span class="opt-num">OPTION 5</span><h2>Status lanes — projects as cards in scope-status columns</h2></div>
+  <p class="opt-tagline">A Kanban board where every project is a card in a scope-status lane, so you see the shape of the portfolio at a glance instead of scrolling two flat lists.</p>
+  <div class="frame">
+    <section class="o5-root">
+      <style>
+        .o5-root{--o5-rail:56px;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);background:var(--surface-container-low);display:flex;min-height:640px;position:relative;overflow:hidden}
+        .o5-root *{box-sizing:border-box}
+        /* icon rail */
+        .o5-rail{width:var(--o5-rail);flex:0 0 var(--o5-rail);background:var(--surface);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;z-index:3}
+        .o5-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:10px;box-shadow:0 4px 12px rgba(124,58,237,.32)}
+        .o5-railbtn{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--on-surface-variant);cursor:pointer;border:none;background:none;transition:background .15s,color .15s}
+        .o5-railbtn:hover{background:var(--surface-container-high);color:var(--on-surface)}
+        .o5-railbtn.o5-on{background:var(--primary-container);color:var(--on-primary-container)}
+        .o5-railbtn svg{width:20px;height:20px}
+        .o5-rail-sp{flex:1}
+        /* main column */
+        .o5-main{flex:1;min-width:0;display:flex;flex-direction:column}
+        /* kpi strip */
+        .o5-kpi{display:flex;align-items:center;gap:14px;padding:13px 20px;background:var(--surface);border-bottom:1px solid var(--outline-variant);flex-wrap:wrap}
+        .o5-kpi-title{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:2px}
+        .o5-kpi-sub{font-size:11.5px;color:var(--on-surface-variant);font-weight:500}
+        .o5-kpi-spacer{flex:1;min-width:8px}
+        .o5-clientsel{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--on-surface-variant);background:var(--surface-container);border:1px solid var(--outline-variant);border-radius:8px;padding:6px 10px;cursor:pointer}
+        .o5-clientsel svg{width:13px;height:13px;opacity:.7}
+        .o5-stat{display:flex;flex-direction:column;line-height:1.15;padding-left:14px;border-left:1px solid var(--outline-variant)}
+        .o5-stat:first-of-type{border-left:none;padding-left:0}
+        .o5-stat-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .o5-stat-l{font-size:10px;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-top:1px}
+        .o5-ai{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--on-primary-container);background:var(--primary-container);border:none;border-radius:999px;padding:7px 13px;cursor:pointer}
+        .o5-ai svg{width:13px;height:13px}
+        .o5-ai:hover{box-shadow:0 4px 12px rgba(124,58,237,.22)}
+        /* board */
+        .o5-board{flex:1;display:flex;gap:14px;padding:16px 20px 20px;overflow-x:auto;overflow-y:hidden;align-items:stretch}
+        .o5-lane{flex:0 0 272px;display:flex;flex-direction:column;min-height:0;background:var(--surface-container);border:1px solid var(--outline-variant);border-radius:14px;transition:flex-basis .25s ease}
+        .o5-lane.o5-collapsed{flex-basis:54px}
+        .o5-lane.o5-collapsed .o5-lane-body,.o5-lane.o5-collapsed .o5-lane-hint{display:none}
+        .o5-lane.o5-dim{opacity:.4}
+        .o5-lane-head{display:flex;align-items:center;gap:9px;padding:12px 13px;cursor:pointer;border-radius:14px 14px 0 0;border-bottom:1px solid var(--outline-variant);user-select:none;position:relative}
+        .o5-lane.o5-collapsed .o5-lane-head{border-bottom:none;writing-mode:vertical-rl;text-orientation:mixed;flex-direction:column;height:100%;border-radius:14px;padding:13px 0}
+        .o5-lane-tick{position:absolute;top:0;left:13px;right:13px;height:3px;border-radius:0 0 3px 3px}
+        .o5-lane.o5-collapsed .o5-lane-tick{top:13px;bottom:13px;left:0;width:3px;height:auto;right:auto;border-radius:0 3px 3px 0}
+        .o5-lane-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+        .o5-lane-name{font-size:12.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+        .o5-lane-count{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;background:var(--surface);border:1px solid var(--outline-variant);border-radius:999px;min-width:24px;height:21px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px}
+        .o5-lane.o5-collapsed .o5-lane-count{margin-top:6px}
+        .o5-lane-chev{margin-left:auto;color:var(--on-surface-variant);display:flex;transition:transform .2s}
+        .o5-lane.o5-collapsed .o5-lane-chev{transform:rotate(-90deg);margin:6px 0 0}
+        .o5-lane-chev svg{width:15px;height:15px}
+        /* lane colour roles */
+        .o5-lane[data-lane="overdue"] .o5-lane-tick{background:var(--error)}
+        .o5-lane[data-lane="overdue"] .o5-lane-dot{background:var(--error)}
+        .o5-lane[data-lane="overdue"] .o5-lane-head{background:var(--error-container)}
+        .o5-lane[data-lane="attention"] .o5-lane-tick{background:var(--amber)}
+        .o5-lane[data-lane="attention"] .o5-lane-dot{background:var(--amber)}
+        .o5-lane[data-lane="attention"] .o5-lane-head{background:var(--amber-soft)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-tick{background:var(--tertiary)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-dot{background:var(--tertiary)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-head{background:var(--tertiary-container)}
+        .o5-lane[data-lane="delivered"] .o5-lane-tick{background:var(--green)}
+        .o5-lane[data-lane="delivered"] .o5-lane-dot{background:var(--green)}
+        .o5-lane[data-lane="delivered"] .o5-lane-head{background:var(--green-soft)}
+        .o5-lane-hint{font-size:10px;color:var(--on-surface-variant);font-weight:500;padding:7px 13px 2px}
+        .o5-lane-body{flex:1;overflow-y:auto;padding:9px 11px 12px;display:flex;flex-direction:column;gap:9px}
+        .o5-lane-body::-webkit-scrollbar{width:7px}
+        .o5-lane-body::-webkit-scrollbar-thumb{background:var(--outline);border-radius:99px}
+        /* card */
+        .o5-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:11px;padding:10px 11px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04);transition:box-shadow .15s,transform .12s,border-color .15s;position:relative}
+        .o5-card:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);transform:translateY(-1px);border-color:var(--outline)}
+        .o5-card:active{transform:translateY(0)}
+        .o5-card-top{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+        .o5-card-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+        .o5-card-dot.o5-s-overdue{background:var(--error)}
+        .o5-card-dot.o5-s-attention{background:var(--amber)}
+        .o5-card-dot.o5-s-ontrack{background:var(--tertiary)}
+        .o5-card-dot.o5-s-delivered{background:var(--green)}
+        .o5-card-client{font-size:10.5px;color:var(--on-surface-variant);font-weight:600;letter-spacing:.01em}
+        .o5-card-chip{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:999px;background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o5-card-name{font-size:13px;font-weight:700;letter-spacing:-.01em;line-height:1.25;margin-bottom:4px}
+        .o5-card-reason{font-size:11px;color:var(--on-surface-variant);font-style:italic;line-height:1.35}
+        .o5-card-foot{display:flex;align-items:center;gap:5px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--outline-variant);font-size:10px;color:var(--on-surface-variant);font-weight:500}
+        .o5-card-foot svg{width:11px;height:11px;opacity:.7}
+        .o5-card-foot .o5-foot-v{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--on-surface)}
+        .o5-more{text-align:center;font-size:11px;font-weight:600;color:var(--on-primary-container);background:var(--surface-container-high);border:1px dashed var(--outline);border-radius:9px;padding:8px;cursor:pointer}
+        .o5-more:hover{background:var(--surface-container-highest)}
+        /* margin rail (right, the headline business signal pulled up to be visible) */
+        .o5-lane[data-lane="margin"]{flex-basis:248px;background:var(--surface-container-low)}
+        .o5-lane[data-lane="margin"] .o5-lane-head{background:var(--surface-container-high);border-radius:14px 14px 0 0}
+        .o5-lane[data-lane="margin"] .o5-lane-tick{background:var(--gradient-brand)}
+        .o5-lane[data-lane="margin"] .o5-lane-dot{background:var(--primary)}
+        .o5-mrow{display:flex;align-items:center;gap:8px;padding:8px 9px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:10px}
+        .o5-mrag{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+        .o5-mrag.o5-rag-green{background:var(--green)}
+        .o5-mrag.o5-rag-amber{background:var(--amber)}
+        .o5-mrag.o5-rag-red{background:var(--error)}
+        .o5-m-mid{flex:1;min-width:0}
+        .o5-m-client{font-size:12px;font-weight:700;letter-spacing:-.01em}
+        .o5-m-rev{font-size:10px;color:var(--on-surface-variant);font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;margin-top:1px}
+        .o5-m-right{text-align:right;flex:0 0 auto}
+        .o5-m-pct{font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .o5-m-vs{font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;margin-top:1px}
+        .o5-m-vs.o5-up{color:var(--green-deep)}
+        .o5-m-vs.o5-down{color:var(--on-error-container)}
+        .o5-m-vs.o5-flat{color:var(--on-surface-variant)}
+        /* snackbar */
+        .o5-snack{position:absolute;left:50%;bottom:18px;transform:translateX(-50%) translateY(14px);background:var(--on-surface);color:var(--surface);font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(76,29,149,.28);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10;display:flex;align-items:center;gap:8px}
+        .o5-snack.o5-show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .o5-snack-dot{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px rgba(168,85,247,.3)}
+      </style>
+
+      <!-- ICON RAIL -->
+      <nav class="o5-rail" aria-label="App navigation">
+        <div class="o5-logo">C</div>
+        <button class="o5-railbtn o5-on" title="Board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="9" rx="1"/></svg></button>
+        <button class="o5-railbtn" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h7l2 2h9v11H3z"/></svg></button>
+        <button class="o5-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M21 20a5 5 0 0 0-4-5"/></svg></button>
+        <button class="o5-railbtn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg></button>
+        <button class="o5-railbtn" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l4-5 3 3 4-6"/></svg></button>
+        <div class="o5-rail-sp"></div>
+        <button class="o5-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+      </nav>
+
+      <!-- MAIN -->
+      <div class="o5-main">
+        <!-- KPI strip -->
+        <header class="o5-kpi">
+          <div>
+            <div class="o5-kpi-title">Operations board</div>
+            <div class="o5-kpi-sub">Tue, 10 Jun 2026 · 21 active projects · 9 clients</div>
+          </div>
+          <button class="o5-clientsel" title="Filter by client (chrome)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+            All clients
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="o5-kpi-spacer"></div>
+          <div class="o5-stat"><span class="o5-stat-v">642h</span><span class="o5-stat-l">Burned · MTD</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">86%</span><span class="o5-stat-l">On-time · 32/37</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">4.2d</span><span class="o5-stat-l">Brief→DFT · 18</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">21</span><span class="o5-stat-l">Active total</span></div>
+          <button class="o5-ai" id="o5-ai">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
+            Health narrative
+          </button>
+        </header>
+
+        <!-- BOARD -->
+        <main class="o5-board" id="o5-board">
+
+          <!-- OVERDUE -->
+          <section class="o5-lane" data-lane="overdue">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Overdue</span>
+              <span class="o5-lane-count" data-count>2</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Past due — act today</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Woolworths — Loyalty App Launch">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-overdue"></span><span class="o5-card-client">Woolworths</span><span class="o5-card-chip">fixed</span></div>
+                <div class="o5-card-name">Loyalty App Launch</div>
+                <div class="o5-card-reason">DFT 6 days past due</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Due <span class="o5-foot-v">−6d</span></div>
+              </article>
+              <article class="o5-card" data-name="Nando's — Winter Menu Push">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-overdue"></span><span class="o5-card-client">Nando's</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Winter Menu Push</div>
+                <div class="o5-card-reason">milestone slipped twice</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Due <span class="o5-foot-v">−2d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- NEEDS ATTENTION -->
+          <section class="o5-lane" data-lane="attention">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Needs attention</span>
+              <span class="o5-lane-count" data-count>3</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Watch this week</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Sasol — Q3 Brand Refresh">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Sasol</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Q3 Brand Refresh</div>
+                <div class="o5-card-reason">3 briefs awaiting scope · oldest 6 days</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H7l-3 3z"/></svg>Last activity <span class="o5-foot-v">6d</span></div>
+              </article>
+              <article class="o5-card" data-name="Discovery — Vitality Always-On">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Discovery</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Vitality Always-On</div>
+                <div class="o5-card-reason">burn 92% · 2 weeks left in cycle</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 1 9 9"/><path d="M12 7v5l3 2"/></svg>Burn <span class="o5-foot-v">92%</span></div>
+              </article>
+              <article class="o5-card" data-name="Capitec — Always-On Social">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Capitec</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Always-On Social</div>
+                <div class="o5-card-reason">no activity in 9 days</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H7l-3 3z"/></svg>Last activity <span class="o5-foot-v">9d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- ON TRACK -->
+          <section class="o5-lane" data-lane="ontrack">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">On track</span>
+              <span class="o5-lane-count" data-count>14</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Healthy — no action needed</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Sasol — Retail POS Toolkit">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Sasol</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Retail POS Toolkit</div>
+                <div class="o5-card-reason">on schedule</div>
+              </article>
+              <article class="o5-card" data-name="Woolworths — Festive Catalogue">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Woolworths</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Festive Catalogue</div>
+                <div class="o5-card-reason">in production</div>
+              </article>
+              <article class="o5-card" data-name="Discovery — Health Rewards Email">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Discovery</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Health Rewards Email</div>
+                <div class="o5-card-reason">awaiting client copy</div>
+              </article>
+              <article class="o5-card" data-name="Nando's — Peri Social">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Nando's</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Peri Social</div>
+                <div class="o5-card-reason">scheduled through July</div>
+              </article>
+              <article class="o5-card" data-name="Takealot — Marketplace SEO">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Takealot</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Marketplace SEO</div>
+                <div class="o5-card-reason">monthly cadence on track</div>
+              </article>
+              <article class="o5-card" data-name="MTN — 5G Awareness">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">MTN</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">5G Awareness</div>
+                <div class="o5-card-reason">brief scoped 2h ago</div>
+              </article>
+              <div class="o5-more" id="o5-more">+8 more on track</div>
+            </div>
+          </section>
+
+          <!-- RECENTLY DELIVERED -->
+          <section class="o5-lane" data-lane="delivered">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Recently delivered</span>
+              <span class="o5-lane-count" data-count>5</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Closed in the last few days</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Takealot — Black Friday Creative">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Takealot</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Black Friday Creative</div>
+                <div class="o5-card-reason">DFT approved today</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">today</span></div>
+              </article>
+              <article class="o5-card" data-name="Standard Bank — Wealth Microsite">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Standard Bank</span><span class="o5-card-chip">fixed</span></div>
+                <div class="o5-card-name">Wealth Microsite</div>
+                <div class="o5-card-reason">quote accepted yesterday</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">1d</span></div>
+              </article>
+              <article class="o5-card" data-name="Clicks — Health Content Hub">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Clicks</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Health Content Hub</div>
+                <div class="o5-card-reason">12 tasks completed this week</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">2d</span></div>
+              </article>
+              <article class="o5-card" data-name="Tiger Brands — Packaging Refresh">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Tiger Brands</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Packaging Refresh</div>
+                <div class="o5-card-reason">kickoff Monday</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">3d</span></div>
+              </article>
+              <article class="o5-card" data-name="MTN — Brand Sprint">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">MTN</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Brand Sprint</div>
+                <div class="o5-card-reason">signed off &amp; invoiced</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">4d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- CLIENT MARGIN (pulled up beside the lanes so it isn't buried) -->
+          <section class="o5-lane" data-lane="margin">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Margin · 30d</span>
+              <span class="o5-lane-count" data-count>6</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Target 35% · rolling</div>
+            <div class="o5-lane-body" data-body>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">Takealot</div><div class="o5-m-rev">R 510 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">40.0%</div><div class="o5-m-vs o5-up">+5.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">Sasol</div><div class="o5-m-rev">R 388 500 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">40.0%</div><div class="o5-m-vs o5-up">+5.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-amber"></span><div class="o5-m-mid"><div class="o5-m-client">Discovery</div><div class="o5-m-rev">R 412 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">30.6%</div><div class="o5-m-vs o5-down">−4.4pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">MTN</div><div class="o5-m-rev">R 264 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">35.0%</div><div class="o5-m-vs o5-flat">0.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-red"></span><div class="o5-m-mid"><div class="o5-m-client">Capitec</div><div class="o5-m-rev">R 198 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">25.0%</div><div class="o5-m-vs o5-down">−10.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-red"></span><div class="o5-m-mid"><div class="o5-m-client">Woolworths</div><div class="o5-m-rev">R 295 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">24.0%</div><div class="o5-m-vs o5-down">−11.0pp</div></div></div>
+            </div>
+          </section>
+
+        </main>
+
+        <div class="o5-snack" id="o5-snack"><span class="o5-snack-dot"></span><span id="o5-snack-text">Opening…</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>The portfolio's shape is legible in one glance: the red and amber lanes on the left are short and demand action, the long teal lane reassures, and "recently delivered" gives a sense of momentum — replacing two near-identical flat lists with one spatial mental model. Collapsing a lane lets you mute the noise (e.g. fold "on track" to focus on what's burning), and pulling the margin table up beside the lanes means the headline business signal is never buried below the fold.</p></div>
+    <div><h3>Trade-offs</h3><p>A board trades vertical scanability for horizontal space — on a narrow screen the later lanes scroll off-canvas, and the fixed-height columns cap how many cards are visible before they scroll internally. Cards carry less detail than full rows (no inline scope badge text), and the icon-only rail removes the always-visible client tree, so client-centric navigation now lives behind the filter dropdown rather than in a persistent sidebar.</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt5');if(!root)return;
+    var board=root.querySelector('#o5-board');
+    var snack=root.querySelector('#o5-snack');
+    var snackText=root.querySelector('#o5-snack-text');
+    var snackTimer=null;
+    function toast(msg){
+      snackText.textContent=msg;
+      snack.classList.add('o5-show');
+      if(snackTimer)clearTimeout(snackTimer);
+      snackTimer=setTimeout(function(){snack.classList.remove('o5-show');},1900);
+    }
+    // live lane counts (counts real cards, excludes the +more chip)
+    function refreshCounts(){
+      root.querySelectorAll('.o5-lane').forEach(function(lane){
+        var ln=lane.getAttribute('data-lane');
+        if(ln==='margin')return; // static count
+        var cnt=lane.querySelector('[data-count]');
+        if(!cnt)return;
+        var cards=lane.querySelectorAll('.o5-lane-body .o5-card').length;
+        if(ln==='ontrack'){
+          var hidden=lane.querySelector('#o5-more')?8:0;
+          cnt.textContent=cards+hidden;
+        }else{
+          cnt.textContent=cards;
+        }
+      });
+    }
+    // lane collapse/expand
+    root.querySelectorAll('.o5-lane-head[data-toggle]').forEach(function(head){
+      head.addEventListener('click',function(){
+        var lane=head.closest('.o5-lane');
+        lane.classList.toggle('o5-collapsed');
+        var nm=lane.querySelector('.o5-lane-name').textContent;
+        toast(lane.classList.contains('o5-collapsed')?('Collapsed '+nm):('Expanded '+nm));
+      });
+    });
+    // card click -> snackbar
+    board.addEventListener('click',function(e){
+      var card=e.target.closest('.o5-card');
+      if(card){ toast('Opening '+card.getAttribute('data-name')+'…'); return; }
+    });
+    // +more chip reveals the remaining on-track cards
+    var more=root.querySelector('#o5-more');
+    if(more){
+      more.addEventListener('click',function(e){
+        e.stopPropagation();
+        var body=more.parentNode;
+        var extra=[
+          ['Standard Bank','Wealth Microsite Phase 2','fixed','quote accepted yesterday'],
+          ['Clicks','Loyalty Mailer','retainer','12 tasks completed this week'],
+          ['Tiger Brands','Seasonal OOH','project','kickoff Monday'],
+          ['Capitec','App Store Creative','project','in design review'],
+          ['Sasol','Internal Comms Pack','retainer','on schedule'],
+          ['Discovery','Member Onboarding','retainer','drafting flows'],
+          ['MTN','Retail Activation','project','asset round 2'],
+          ['Woolworths','Loyalty Emails','retainer','queued for send']
+        ];
+        var frag=document.createDocumentFragment();
+        extra.forEach(function(r){
+          var c=document.createElement('article');
+          c.className='o5-card';
+          c.setAttribute('data-name',r[0]+' — '+r[1]);
+          c.innerHTML='<div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">'+r[0]+'</span><span class="o5-card-chip">'+r[2]+'</span></div><div class="o5-card-name">'+r[1]+'</div><div class="o5-card-reason">'+r[3]+'</div>';
+          frag.appendChild(c);
+        });
+        body.appendChild(frag);
+        more.remove();
+        refreshCounts();
+        toast('Showing all on-track projects');
+      });
+    }
+    // AI affordance (chrome)
+    var ai=root.querySelector('#o5-ai');
+    if(ai)ai.addEventListener('click',function(){toast('Generating health narrative…');});
+    refreshCounts();
+  })();</script>
+</article>

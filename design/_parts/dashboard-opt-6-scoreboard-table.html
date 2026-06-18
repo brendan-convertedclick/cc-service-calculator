@@ -1,0 +1,278 @@
+<article class="opt" id="opt6">
+  <div class="opt-head"><span class="opt-num">OPTION 6</span><h2>Scoreboard + unified table — hero KPIs over one sortable index</h2></div>
+  <p class="opt-tagline">A bold portfolio-health scoreboard answers "are we healthy?" in one glance, then a single sortable, filterable table replaces both flat lists and the tree as the project index.</p>
+  <div class="frame">
+    <section class="o6-root">
+      <style>
+        .o6-root{display:flex;min-height:660px;background:var(--surface-container-low);color:var(--on-surface);font-family:'Inter',system-ui,sans-serif;border-radius:14px;overflow:hidden}
+        .o6-root *{box-sizing:border-box}
+        /* icon rail */
+        .o6-rail{width:56px;flex:0 0 56px;background:var(--surface);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px}
+        .o6-logo{width:32px;height:32px;border-radius:9px;background:var(--gradient-brand);margin-bottom:10px}
+        .o6-ric{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--on-surface-variant);cursor:pointer;transition:.15s}
+        .o6-ric:hover{background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o6-ric.o6-on{background:var(--primary-container);color:var(--on-primary-container)}
+        .o6-ric svg{width:20px;height:20px}
+        .o6-spacer{flex:1}
+        .o6-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface-container-highest);color:var(--on-primary-container);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+        /* main */
+        .o6-main{flex:1;min-width:0;overflow-y:auto;padding:22px 26px 30px}
+        .o6-top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+        .o6-h1{font-size:21px;font-weight:700;letter-spacing:-.01em}
+        .o6-sub{font-size:13px;color:var(--on-surface-variant);margin-top:3px}
+        .o6-ai{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--on-primary-container);background:var(--surface-container-high);border:1px solid var(--outline);padding:8px 13px;border-radius:999px;cursor:pointer;transition:.15s}
+        .o6-ai:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);transform:translateY(-1px)}
+        .o6-ai svg{width:14px;height:14px}
+        /* scoreboard hero */
+        .o6-hero{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;margin-bottom:20px}
+        .o6-hero-grad{height:4px;background:var(--gradient-brand)}
+        .o6-hero-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:0}
+        @media(max-width:880px){.o6-hero-grid{grid-template-columns:1fr}}
+        .o6-hero-l{padding:22px 24px}
+        .o6-hero-headline{display:flex;align-items:baseline;gap:12px;margin-bottom:4px}
+        .o6-big{font-size:42px;font-weight:800;letter-spacing:-.025em;line-height:1;font-family:'JetBrains Mono',monospace}
+        .o6-big-sub{font-size:14px;color:var(--on-surface-variant);font-weight:600}
+        .o6-pct{font-size:15px;font-weight:700;color:var(--tertiary)}
+        .o6-bar{display:flex;height:18px;border-radius:999px;overflow:hidden;margin:16px 0 11px;background:var(--surface-container);box-shadow:inset 0 0 0 1px var(--outline-variant)}
+        .o6-seg{height:100%;transition:.2s}
+        .o6-seg-g{background:var(--tertiary)}
+        .o6-seg-a{background:var(--amber)}
+        .o6-seg-r{background:var(--error)}
+        .o6-legend{display:flex;gap:18px;flex-wrap:wrap}
+        .o6-leg{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--on-surface-variant)}
+        .o6-leg b{color:var(--on-surface);font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+        .o6-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+        .o6-d-g{background:var(--tertiary)}.o6-d-a{background:var(--amber)}.o6-d-r{background:var(--error)}
+        /* hero right: KPI stat row */
+        .o6-hero-r{border-left:1px solid var(--outline-variant);background:var(--surface-container-low);display:grid;grid-template-columns:1fr 1fr;gap:1px;background-color:var(--outline-variant)}
+        @media(max-width:880px){.o6-hero-r{border-left:none;border-top:1px solid var(--outline-variant)}}
+        .o6-kpi{background:var(--surface);padding:14px 18px;display:flex;flex-direction:column;gap:2px}
+        .o6-kpi-v{font-size:22px;font-weight:800;letter-spacing:-.02em;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+        .o6-kpi-l{font-size:11.5px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+        .o6-kpi-m{font-size:11px;color:var(--on-surface-variant);margin-top:1px}
+        .o6-kpi-m.o6-warn{color:var(--amber-deep);font-weight:600}
+        /* filter bar */
+        .o6-filterbar{display:flex;align-items:center;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+        .o6-fb-label{font-size:12px;font-weight:700;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+        .o6-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--on-surface-variant);background:var(--surface);border:1px solid var(--outline-variant);padding:6px 12px;border-radius:999px;cursor:pointer;transition:.13s;user-select:none}
+        .o6-chip:hover{border-color:var(--outline);background:var(--surface-container-low)}
+        .o6-chip.o6-on{background:var(--primary-container);border-color:var(--primary);color:var(--on-primary-container);box-shadow:0 1px 2px rgba(76,29,149,.12)}
+        .o6-chip .o6-ct{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:11.5px;background:var(--surface-container);border-radius:999px;padding:1px 7px}
+        .o6-chip.o6-on .o6-ct{background:rgba(255,255,255,.6)}
+        .o6-chip .o6-dot{width:8px;height:8px}
+        /* table */
+        .o6-tablewrap{background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden}
+        .o6-tbl{width:100%;border-collapse:collapse;font-size:13px}
+        .o6-tbl thead th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant);padding:11px 16px;border-bottom:1px solid var(--outline-variant);background:var(--surface-container-low);cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0}
+        .o6-tbl thead th:hover{color:var(--on-primary-container)}
+        .o6-tbl th.o6-num,.o6-tbl td.o6-num{text-align:right}
+        .o6-th-in{display:inline-flex;align-items:center;gap:5px}
+        .o6-caret{width:0;height:0;opacity:0;transition:.15s;border-left:4px solid transparent;border-right:4px solid transparent}
+        th.o6-sorted-asc .o6-caret{opacity:1;border-bottom:5px solid var(--primary)}
+        th.o6-sorted-desc .o6-caret{opacity:1;border-top:5px solid var(--primary)}
+        th.o6-sorted-asc,th.o6-sorted-desc{color:var(--on-primary-container)}
+        .o6-tbl tbody tr{border-bottom:1px solid var(--outline-variant);cursor:pointer;transition:background .12s}
+        .o6-tbl tbody tr:last-child{border-bottom:none}
+        .o6-tbl tbody tr:hover{background:var(--surface-container-low)}
+        .o6-tbl tbody tr.o6-sel{background:var(--surface-container-high)}
+        .o6-tbl td{padding:11px 16px;vertical-align:middle}
+        .o6-stat{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+        .o6-stat-lab{font-size:12px;font-weight:600}
+        .o6-st-g{color:var(--tertiary)}.o6-st-a{color:var(--amber-deep)}.o6-st-r{color:var(--error)}
+        .o6-cp{display:flex;flex-direction:column;gap:1px}
+        .o6-cp-c{font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+        .o6-cp-p{font-size:13.5px;font-weight:600;color:var(--on-surface);letter-spacing:-.005em}
+        .o6-eng{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o6-note{font-size:12px;color:var(--on-surface-variant);font-style:italic;max-width:260px}
+        .o6-last{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--on-surface);white-space:nowrap}
+        .o6-margin-pill{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;padding:2px 9px;border-radius:8px}
+        .o6-mp-g{background:var(--green-soft);color:var(--green-deep)}
+        .o6-mp-a{background:var(--amber-soft);color:var(--amber-deep)}
+        .o6-mp-r{background:var(--error-container);color:var(--on-error-container)}
+        .o6-empty{padding:30px;text-align:center;color:var(--on-surface-variant);font-size:13px}
+        .o6-count{font-size:12px;color:var(--on-surface-variant);padding:9px 16px;border-top:1px solid var(--outline-variant);background:var(--surface-container-low);font-variant-numeric:tabular-nums}
+        /* snackbar */
+        .o6-snack{position:absolute;left:50%;bottom:22px;transform:translateX(-50%) translateY(16px);background:var(--on-surface);color:var(--surface);font-size:13px;font-weight:600;padding:11px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(76,29,149,.28);opacity:0;pointer-events:none;transition:.22s;z-index:20;white-space:nowrap}
+        .o6-snack.o6-show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .o6-root{position:relative}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o6-rail" aria-label="App navigation">
+        <div class="o6-logo"></div>
+        <div class="o6-ric o6-on" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></div>
+        <div class="o6-ric" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div>
+        <div class="o6-ric" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M19 20a5 5 0 0 0-3-4.6"/></svg></div>
+        <div class="o6-ric" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <div class="o6-ric" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+        <div class="o6-spacer"></div>
+        <div class="o6-avatar">CC</div>
+      </nav>
+
+      <!-- main pane -->
+      <main class="o6-main">
+        <div class="o6-top">
+          <div>
+            <div class="o6-h1">Operations overview</div>
+            <div class="o6-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <button class="o6-ai" type="button" data-o6-ai><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Generate health narrative</button>
+        </div>
+
+        <!-- HERO SCOREBOARD -->
+        <div class="o6-hero">
+          <div class="o6-hero-grad"></div>
+          <div class="o6-hero-grid">
+            <div class="o6-hero-l">
+              <div class="o6-hero-headline">
+                <span class="o6-big">21</span>
+                <span class="o6-big-sub">active projects · <span class="o6-pct">67% on track</span></span>
+              </div>
+              <div class="o6-bar" role="img" aria-label="14 on track, 5 need attention, 2 overdue">
+                <div class="o6-seg o6-seg-g" style="width:66.7%"></div>
+                <div class="o6-seg o6-seg-a" style="width:23.8%"></div>
+                <div class="o6-seg o6-seg-r" style="width:9.5%"></div>
+              </div>
+              <div class="o6-legend">
+                <span class="o6-leg"><span class="o6-dot o6-d-g"></span>On track <b>14</b></span>
+                <span class="o6-leg"><span class="o6-dot o6-d-a"></span>Needs attention <b>5</b></span>
+                <span class="o6-leg"><span class="o6-dot o6-d-r"></span>Overdue <b>2</b></span>
+              </div>
+            </div>
+            <div class="o6-hero-r">
+              <div class="o6-kpi"><span class="o6-kpi-v">642h</span><span class="o6-kpi-l">Burned this month</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">86%</span><span class="o6-kpi-l">On-time delivery</span><span class="o6-kpi-m">32 of 37 milestones</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">4.2d</span><span class="o6-kpi-l">Avg brief → DFT</span><span class="o6-kpi-m">across 18 projects</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">34%</span><span class="o6-kpi-l">Avg margin</span><span class="o6-kpi-m o6-warn">1pp below 35% target</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="o6-filterbar" data-o6-filters>
+          <span class="o6-fb-label">Show</span>
+          <span class="o6-chip o6-on" data-o6-filter="all">All <span class="o6-ct">21</span></span>
+          <span class="o6-chip" data-o6-filter="on_track"><span class="o6-dot o6-d-g"></span>On track <span class="o6-ct">14</span></span>
+          <span class="o6-chip" data-o6-filter="needs_attention"><span class="o6-dot o6-d-a"></span>Needs attention <span class="o6-ct">5</span></span>
+          <span class="o6-chip" data-o6-filter="overdue"><span class="o6-dot o6-d-r"></span>Overdue <span class="o6-ct">2</span></span>
+        </div>
+
+        <!-- UNIFIED TABLE -->
+        <div class="o6-tablewrap">
+          <table class="o6-tbl">
+            <thead>
+              <tr>
+                <th data-o6-sort="status"><span class="o6-th-in">Status<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="name"><span class="o6-th-in">Client / Project<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="eng"><span class="o6-th-in">Engagement<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="note"><span class="o6-th-in">Note<span class="o6-caret"></span></span></th>
+                <th class="o6-num" data-o6-sort="last"><span class="o6-th-in">Last activity / margin<span class="o6-caret"></span></span></th>
+              </tr>
+            </thead>
+            <tbody data-o6-body></tbody>
+          </table>
+          <div class="o6-count" data-o6-count></div>
+        </div>
+      </main>
+
+      <div class="o6-snack" data-o6-snack></div>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>The scoreboard hero gives an instant portfolio verdict — the segmented bar and "21 active · 67% on track" headline make health legible before you read a single row, with the four supporting KPIs (including margin, surfaced from its buried table) tidied beside it. One unified, sortable, filterable table then replaces the two near-identical flat lists <em>and</em> the tree: attention, recent and on-track projects live in a single dense index you can re-rank by status, name, engagement or activity. Far less scroll, far more answer-per-pixel.</p></div>
+    <div><h3>Trade-offs</h3><p>Dropping the project tree removes the always-on client grouping and the per-client expand/collapse muscle memory; heavy multi-client users lose that spatial map (a Clients view in the rail compensates). The single table mixes "needs action" and "all good" rows, so urgency depends on the user actually filtering or sorting rather than it being pre-segmented. The margin signal shares a column with last-activity, so it reads as a secondary cell rather than its own RAG table.</p></div>
+  </div>
+  <script>(function(){
+    var root=document.getElementById('opt6');if(!root)return;
+    var body=root.querySelector('[data-o6-body]');
+    var countEl=root.querySelector('[data-o6-count]');
+    var snack=root.querySelector('[data-o6-snack]');
+    var statusOrder={overdue:0,needs_attention:1,on_track:2};
+    var rows=[
+      // 5 needs attention
+      {status:'needs_attention',client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',note:'3 briefs awaiting scope · oldest 6 days',last:'2h ago',lastV:2,margin:40.0,rag:'g'},
+      {status:'overdue',client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',note:'DFT 6 days past due',last:'6d ago',lastV:144,margin:24.0,rag:'r'},
+      {status:'needs_attention',client:'Discovery',project:'Vitality Always-On',eng:'retainer',note:'burn 92% · 2 weeks left in cycle',last:'1d ago',lastV:24,margin:30.6,rag:'a'},
+      {status:'overdue',client:"Nando's",project:'Winter Menu Push',eng:'project',note:'milestone slipped twice',last:'3d ago',lastV:72,margin:null,rag:null},
+      {status:'needs_attention',client:'Capitec',project:'Always-On Social',eng:'retainer',note:'no activity in 9 days',last:'9d ago',lastV:216,margin:25.0,rag:'r'},
+      // 5 recent (on track)
+      {status:'on_track',client:'Takealot',project:'Black Friday Creative',eng:'project',note:'DFT approved today',last:'1h ago',lastV:1,margin:40.0,rag:'g'},
+      {status:'on_track',client:'MTN',project:'5G Awareness',eng:'retainer',note:'brief scoped 2h ago',last:'2h ago',lastV:2,margin:35.0,rag:'g'},
+      {status:'on_track',client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',note:'quote accepted yesterday',last:'1d ago',lastV:24,margin:null,rag:null},
+      {status:'on_track',client:'Clicks',project:'Health Content Hub',eng:'retainer',note:'12 tasks completed this week',last:'5h ago',lastV:5,margin:null,rag:null},
+      {status:'on_track',client:'Tiger Brands',project:'Packaging Refresh',eng:'project',note:'kickoff Monday',last:'4d ago',lastV:96,margin:null,rag:null},
+      // extra on-track from the tree
+      {status:'on_track',client:'Sasol',project:'Retail POS Toolkit',eng:'retainer',note:'on schedule',last:'1d ago',lastV:24,margin:40.0,rag:'g'},
+      {status:'on_track',client:'Takealot',project:'Marketplace SEO',eng:'retainer',note:'sprint on track',last:'6h ago',lastV:6,margin:40.0,rag:'g'}
+    ];
+    var stClass={on_track:'o6-st-g',needs_attention:'o6-st-a',overdue:'o6-st-r'};
+    var stDot={on_track:'o6-d-g',needs_attention:'o6-d-a',overdue:'o6-d-r'};
+    var stLabel={on_track:'On track',needs_attention:'Attention',overdue:'Overdue'};
+    var ragClass={g:'o6-mp-g',a:'o6-mp-a',r:'o6-mp-r'};
+    var filter='all',sortKey=null,sortDir=1;
+
+    function snackbar(msg){snack.textContent=msg;snack.classList.add('o6-show');clearTimeout(snack._t);snack._t=setTimeout(function(){snack.classList.remove('o6-show');},2200);}
+
+    function compare(a,b){
+      var av,bv;
+      if(sortKey==='status'){av=statusOrder[a.status];bv=statusOrder[b.status];}
+      else if(sortKey==='name'){av=(a.client+a.project).toLowerCase();bv=(b.client+b.project).toLowerCase();}
+      else if(sortKey==='eng'){av=a.eng;bv=b.eng;}
+      else if(sortKey==='note'){av=a.note.toLowerCase();bv=b.note.toLowerCase();}
+      else if(sortKey==='last'){av=a.lastV;bv=b.lastV;}
+      if(av<bv)return -1*sortDir;if(av>bv)return 1*sortDir;return 0;
+    }
+
+    function render(){
+      var list=rows.filter(function(r){return filter==='all'||r.status===filter;});
+      if(sortKey)list=list.slice().sort(compare);
+      body.innerHTML='';
+      if(!list.length){var er=document.createElement('tr');er.innerHTML='<td colspan="5" class="o6-empty">No projects match this filter.</td>';body.appendChild(er);}
+      list.forEach(function(r){
+        var tr=document.createElement('tr');
+        var rightCell;
+        if(r.margin!=null){rightCell='<span class="o6-margin-pill '+ragClass[r.rag]+'">'+r.margin.toFixed(1)+'%</span>';}
+        else{rightCell='<span class="o6-last">'+r.last+'</span>';}
+        tr.innerHTML=
+          '<td><span class="o6-stat"><span class="o6-dot '+stDot[r.status]+'"></span><span class="o6-stat-lab '+stClass[r.status]+'">'+stLabel[r.status]+'</span></span></td>'+
+          '<td><span class="o6-cp"><span class="o6-cp-c">'+r.client+'</span><span class="o6-cp-p">'+r.project+'</span></span></td>'+
+          '<td><span class="o6-eng">'+r.eng+'</span></td>'+
+          '<td><span class="o6-note">'+r.note+'</span></td>'+
+          '<td class="o6-num">'+rightCell+'</td>';
+        tr.addEventListener('click',function(){
+          body.querySelectorAll('tr').forEach(function(x){x.classList.remove('o6-sel');});
+          tr.classList.add('o6-sel');
+          snackbar('Opening '+r.client+' — '+r.project+'…');
+        });
+        body.appendChild(tr);
+      });
+      var total=rows.length;
+      countEl.textContent='Showing '+list.length+' of '+total+' projects'+(filter!=='all'?' · filtered':'')+(sortKey?' · sorted by '+sortKey:'');
+    }
+
+    // filter chips
+    root.querySelectorAll('[data-o6-filter]').forEach(function(chip){
+      chip.addEventListener('click',function(){
+        var f=chip.getAttribute('data-o6-filter');
+        if(filter===f&&f!=='all'){filter='all';}else{filter=f;}
+        root.querySelectorAll('[data-o6-filter]').forEach(function(c){c.classList.toggle('o6-on',c.getAttribute('data-o6-filter')===filter);});
+        render();
+      });
+    });
+
+    // sortable headers
+    root.querySelectorAll('[data-o6-sort]').forEach(function(th){
+      th.addEventListener('click',function(){
+        var k=th.getAttribute('data-o6-sort');
+        if(sortKey===k){sortDir=-sortDir;}else{sortKey=k;sortDir=1;}
+        root.querySelectorAll('[data-o6-sort]').forEach(function(t){t.classList.remove('o6-sorted-asc','o6-sorted-desc');});
+        th.classList.add(sortDir===1?'o6-sorted-asc':'o6-sorted-desc');
+        render();
+      });
+    });
+
+    root.querySelector('[data-o6-ai]').addEventListener('click',function(){snackbar('Generating health narrative…');});
+
+    render();
+  })();</script>
+</article>

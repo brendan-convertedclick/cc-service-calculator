@@ -1,0 +1,430 @@
+<article class="opt" id="opt5">
+  <div class="opt-head"><span class="opt-num">OPTION 5</span><h2>The disciplined spreadsheet</h2></div>
+  <p class="opt-tagline">Exactly the table people already trust — same fourteen columns — with every source of noise fixed: one-line chips, ditto-marked rules, dotted zeros, uniform 36px rows, sticky identity columns and hideable departments.</p>
+  <div class="frame">
+    <section class="o5-root">
+      <style>
+        .o5-root{position:relative;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);background:var(--surface);font-size:13px;line-height:1.45;padding-bottom:4px}
+        .o5-root *,.o5-root *::before,.o5-root *::after{box-sizing:border-box}
+        .o5-root [hidden]{display:none!important}
+        .o5-root button:focus-visible,.o5-root a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+        @keyframes o5-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        @keyframes o5-rowin{from{opacity:0}to{opacity:1}}
+
+        /* ---------- header ---------- */
+        .o5-root .o5-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 20px 12px;animation:o5-rise .4s cubic-bezier(.22,.7,.3,1) backwards}
+        .o5-root .o5-h{font-size:18px;font-weight:650;letter-spacing:-.01em}
+        .o5-root .o5-count{margin-top:3px;font-size:12.5px;font-weight:500;color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+        .o5-root .o5-hint{margin-top:1px;font-size:11.5px;color:var(--on-surface-variant);opacity:.75}
+        .o5-root .o5-new{flex:none;height:34px;padding:0 15px;border:none;border-radius:999px;background:var(--primary);color:var(--on-primary);font:600 12.5px 'Inter',sans-serif;cursor:pointer;transition:box-shadow .15s}
+        .o5-root .o5-new:hover{box-shadow:0 2px 8px rgba(124,58,237,.32)}
+
+        /* ---------- toolbar ---------- */
+        .o5-root .o5-toolbar{display:flex;align-items:center;gap:8px;padding:0 20px 12px;flex-wrap:wrap;animation:o5-rise .4s cubic-bezier(.22,.7,.3,1) .05s backwards}
+        .o5-root .o5-search{position:relative;display:inline-flex;align-items:center}
+        .o5-root .o5-search svg{position:absolute;left:9px;color:var(--on-surface-variant);opacity:.65;pointer-events:none}
+        .o5-root .o5-search input{height:32px;width:216px;padding:0 10px 0 28px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:12.5px 'Inter',sans-serif;color:var(--on-surface);outline:none;transition:border-color .15s,box-shadow .15s}
+        .o5-root .o5-search input::placeholder{color:var(--on-surface-variant);opacity:.55}
+        .o5-root .o5-search input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-container)}
+        .o5-root .o5-sel{height:32px;padding:0 9px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:500 12px 'Inter',sans-serif;color:var(--on-surface-variant);cursor:pointer}
+        .o5-root .o5-selbtn{display:inline-flex;align-items:center;gap:6px}
+        .o5-root .o5-clearbtn{display:none;height:32px;padding:0 9px;border:none;border-radius:8px;background:none;color:var(--primary);font:600 12px 'Inter',sans-serif;cursor:pointer}
+        .o5-root .o5-clearbtn.o5-vis{display:inline-flex;align-items:center}
+        .o5-root .o5-clearbtn:hover{background:var(--surface-container)}
+        .o5-root .o5-spacer{flex:1}
+
+        /* ---------- columns menu ---------- */
+        .o5-root .o5-colwrap{position:relative}
+        .o5-root .o5-colbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid transparent;border-radius:8px;background:none;color:var(--on-surface-variant);font:600 12px 'Inter',sans-serif;cursor:pointer;transition:background .15s}
+        .o5-root .o5-colbtn:hover{background:var(--surface-container)}
+        .o5-root .o5-colbadge{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:999px;background:var(--primary-container);color:var(--on-primary-container);font:700 10px 'JetBrains Mono',monospace}
+        .o5-root .o5-colbadge[hidden]{display:none}
+        .o5-root .o5-colmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:232px;padding:6px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:10px;box-shadow:0 12px 32px rgba(28,25,45,.14);display:none}
+        .o5-root .o5-colmenu.o5-open{display:block;animation:o5-rise .18s ease backwards}
+        .o5-root .o5-colmenu-t{padding:6px 8px 4px;font:700 10px 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant)}
+        .o5-root .o5-colitem{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12.5px}
+        .o5-root .o5-colitem:hover{background:var(--surface-container)}
+        .o5-root .o5-colitem input{accent-color:var(--primary);margin:0;flex:none}
+        .o5-root .o5-colitem-n{font-weight:600;min-width:60px}
+        .o5-root .o5-colitem-f{color:var(--on-surface-variant);font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .o5-root .o5-colall{display:block;width:100%;margin-top:4px;padding:7px 8px 5px;border:none;border-top:1px solid var(--outline-variant);background:none;color:var(--primary);font:600 12px 'Inter',sans-serif;cursor:pointer;text-align:left}
+        .o5-root .o5-colall:hover{background:var(--surface-container)}
+
+        /* ---------- table chrome ---------- */
+        .o5-root .o5-scroller{overflow-x:auto;border-top:1px solid var(--outline-variant);animation:o5-rise .5s cubic-bezier(.22,.7,.3,1) .08s backwards}
+        .o5-root .o5-scroller::-webkit-scrollbar{height:10px}
+        .o5-root .o5-scroller::-webkit-scrollbar-thumb{background:var(--surface-container-highest);border-radius:999px;border:2px solid var(--surface)}
+        .o5-root .o5-scroller::-webkit-scrollbar-track{background:var(--surface)}
+        .o5-root .o5-tbl{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-variant-numeric:tabular-nums}
+        .o5-root .o5-tbl th{height:46px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--outline-variant);font:600 11px/1.25 'Inter',sans-serif;color:var(--on-surface-variant);text-align:left;white-space:nowrap;vertical-align:middle}
+        .o5-root .o5-th-sub{display:block;margin-top:1px;font:500 10px/1.2 'JetBrains Mono',monospace;color:var(--on-surface-variant);opacity:.6}
+        .o5-root .o5-num{text-align:right}
+        .o5-root .o5-tbl td{height:36px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--outline-variant);white-space:nowrap;vertical-align:middle}
+        .o5-root .o5-tbl tbody tr{animation:o5-rowin .45s ease backwards}
+        .o5-root .o5-tbl tbody tr:hover td{background:#FBFAFE}
+        .o5-root .o5-tbl tbody tr.o5-dirty td{background:#FFFBEB}
+
+        /* sticky identity columns (Group · Code · Name) */
+        .o5-root .o5-tbl .o5-st{position:sticky;z-index:2}
+        .o5-root .o5-tbl th.o5-st{z-index:3}
+        .o5-root .o5-st-g{left:0;width:112px;min-width:112px;max-width:112px}
+        .o5-root .o5-st-c{left:112px;width:72px;min-width:72px;max-width:72px}
+        .o5-root .o5-st-n{left:184px;width:236px;min-width:236px;max-width:236px}
+        .o5-root .o5-st-n::after{content:"";position:absolute;top:0;bottom:-1px;right:-14px;width:14px;pointer-events:none;background:linear-gradient(90deg,rgba(28,25,45,.10),rgba(28,25,45,0));opacity:0;transition:opacity .18s ease}
+        .o5-root .o5-scrolled .o5-st-n::after{opacity:1}
+        /* Total + actions pinned right, mirrored shadow while more columns remain */
+        .o5-root .o5-st-t{right:104px;width:96px;min-width:96px;max-width:96px}
+        .o5-root .o5-st-a{right:0;width:104px;min-width:104px;max-width:104px}
+        .o5-root .o5-st-t::before{content:"";position:absolute;top:0;bottom:-1px;left:-14px;width:14px;pointer-events:none;background:linear-gradient(270deg,rgba(28,25,45,.10),rgba(28,25,45,0));opacity:0;transition:opacity .18s ease}
+        .o5-root .o5-more .o5-st-t::before{opacity:1}
+
+        /* group cell: 3px keel keyed to group + one-line chip */
+        .o5-root .o5-td-group{box-shadow:inset 3px 0 0 var(--o5-g,transparent);padding-left:13px}
+        .o5-root .o5-chip{display:inline-flex;align-items:center;gap:6px;max-width:110px;height:20px;padding:0 8px;border-radius:999px;background:var(--surface-container);background:color-mix(in srgb,var(--o5-g) 9%,var(--surface));overflow:hidden}
+        .o5-root .o5-chip::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--o5-g)}
+        .o5-root .o5-chip-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 11px 'Inter',sans-serif;color:var(--on-surface-variant);color:color-mix(in srgb,var(--o5-g) 60%,var(--on-surface))}
+
+        .o5-root .o5-code{font:500 12px 'JetBrains Mono',monospace;color:var(--on-surface);opacity:.78}
+        .o5-root .o5-namewrap{display:flex;align-items:center;gap:6px;min-width:0}
+        .o5-root .o5-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--on-surface);text-decoration:none}
+        .o5-root .o5-name:hover{color:var(--primary);text-decoration:underline;text-underline-offset:2px}
+        .o5-root .o5-b{flex:none;display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:999px;font:600 10px 'Inter',sans-serif}
+        .o5-root .o5-b-bundle{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+        .o5-root .o5-b-check{background:var(--primary-container);color:var(--on-primary-container)}
+        .o5-root .o5-b-custom{background:var(--surface-container-high);color:var(--on-surface-variant)}
+
+        /* rule column: 12px muted, ellipsis, ditto when = group */
+        .o5-root .o5-th-rule{width:148px;min-width:148px;max-width:148px}
+        .o5-root .o5-rulecell{max-width:148px;overflow:hidden;text-overflow:ellipsis}
+        .o5-root .o5-rule{font-size:12px;color:var(--on-surface-variant)}
+        .o5-root .o5-ditto{font-size:12px;color:var(--outline);cursor:default}
+        .o5-root .o5-fb{font-size:10.5px;color:var(--amber-deep);opacity:.85}
+        .o5-root .o5-ruledash{font-size:12px;color:var(--outline);cursor:default}
+
+        .o5-root .o5-th-price{width:92px;min-width:92px}
+        .o5-root .o5-price{font:500 12px 'JetBrains Mono',monospace;color:var(--on-surface)}
+
+        /* dept hour cells */
+        .o5-root .o5-cdep{width:68px;min-width:68px;max-width:68px}
+        .o5-root .o5-tbl th.o5-cdep{padding:0 8px}
+        .o5-root .o5-tbl td.o5-cdep{padding:0 4px}
+        .o5-root .o5-in{width:100%;height:26px;padding:0 6px;border:1px solid transparent;border-radius:6px;background:transparent;text-align:right;font:500 12px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--on-surface);outline:none;transition:border-color .12s,background .12s,box-shadow .12s;appearance:textfield;-moz-appearance:textfield}
+        .o5-root .o5-in::-webkit-inner-spin-button,.o5-root .o5-in::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+        .o5-root .o5-in::placeholder{color:#DCD8EA;font-style:normal;font-weight:400}
+        .o5-root .o5-cell:hover .o5-in{border-color:var(--outline-variant);background:var(--surface)}
+        .o5-root .o5-in:focus{border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--primary-container)}
+        .o5-root .o5-in.o5-inh{font-style:italic;font-weight:400;color:var(--on-surface-variant)}
+        .o5-root .o5-ro{display:inline-block;width:100%;padding:0 6px;text-align:right;font:500 12px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--on-surface);text-decoration:none}
+        .o5-root .o5-ro.o5-inh{font-style:italic;font-weight:400;color:var(--on-surface-variant)}
+        .o5-root .o5-ro:hover{color:var(--primary)}
+        .o5-root .o5-dot{color:#DCD8EA;font-style:normal;font-weight:400}
+
+        /* total + actions */
+        .o5-root .o5-tot{font:500 12px 'JetBrains Mono',monospace;color:var(--on-surface-variant)}
+        .o5-root .o5-tot-d{color:var(--amber-deep);font-weight:700}
+        .o5-root .o5-pct{margin-left:5px;font:600 10.5px 'JetBrains Mono',monospace;color:var(--amber-deep);opacity:.85;cursor:help}
+        .o5-root .o5-action{text-align:right}
+        .o5-root .o5-save{height:24px;padding:0 12px;border:none;border-radius:6px;background:var(--primary);color:var(--on-primary);font:600 11.5px 'Inter',sans-serif;cursor:pointer}
+        .o5-root .o5-save:hover{background:#6D28D9}
+        .o5-root .o5-cancel{width:24px;height:24px;margin-left:4px;border:none;border-radius:6px;background:transparent;color:var(--on-surface-variant);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;vertical-align:top}
+        .o5-root .o5-cancel:hover{background:var(--surface-container-high);color:var(--on-surface)}
+        .o5-root .o5-revert{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--on-surface-variant);font:600 11px 'Inter',sans-serif;cursor:pointer;transition:border-color .12s,color .12s}
+        .o5-root .o5-revert:hover{border-color:var(--outline-variant);color:var(--on-surface)}
+        .o5-root .o5-status{display:inline-flex;align-items:center;height:18px;padding:0 8px;border-radius:999px;font:600 10.5px 'Inter',sans-serif}
+        .o5-root .o5-status-active{background:var(--green-soft);color:var(--green-deep)}
+        .o5-root .o5-status-draft{background:var(--surface-container-high);color:var(--on-surface-variant)}
+
+        /* column visibility (toggled on the table element) */
+        .o5-root .o5-no-d0 .o5-c-d0{display:none}
+        .o5-root .o5-no-d1 .o5-c-d1{display:none}
+        .o5-root .o5-no-d2 .o5-c-d2{display:none}
+        .o5-root .o5-no-d3 .o5-c-d3{display:none}
+        .o5-root .o5-no-d4 .o5-c-d4{display:none}
+        .o5-root .o5-no-d5 .o5-c-d5{display:none}
+        .o5-root .o5-no-d6 .o5-c-d6{display:none}
+        .o5-root .o5-no-d7 .o5-c-d7{display:none}
+
+        /* snackbar */
+        .o5-root .o5-snack{position:absolute;left:50%;bottom:18px;z-index:50;transform:translateX(-50%) translateY(8px);display:flex;align-items:center;gap:12px;max-width:88%;padding:9px 14px;border-radius:10px;background:#1C1827;color:#fff;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 12px 28px rgba(28,25,45,.28);opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+        .o5-root .o5-snack.o5-show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+        .o5-root .o5-snack button{border:none;background:transparent;color:var(--outline);color:#C4B5FD;font:600 12px 'Inter',sans-serif;cursor:pointer;padding:2px 4px;border-radius:4px}
+        .o5-root .o5-snack button:hover{background:rgba(255,255,255,.08)}
+        .o5-root .o5-snack .o5-sn-mut{color:rgba(255,255,255,.55)}
+
+        @media (prefers-reduced-motion:reduce){.o5-root *{animation:none!important;transition:none!important}}
+      </style>
+
+      <header class="o5-head">
+        <div>
+          <div class="o5-h">Services</div>
+          <div class="o5-count" id="o5-count">16 of 139 shown — sample data</div>
+          <div class="o5-hint">Hover any hours cell to type · 0.25 steps · saving creates a checklist override</div>
+        </div>
+        <button class="o5-new" id="o5-new" type="button">+ New service</button>
+      </header>
+
+      <div class="o5-toolbar">
+        <label class="o5-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="o5-search" type="text" placeholder="Search name or code…" autocomplete="off">
+        </label>
+        <select class="o5-sel" aria-label="Filter by rule">
+          <option>Rule · All</option><option>Video / 3D / Motion Production</option><option>SEO</option><option>Paid Media</option><option>Development</option>
+        </select>
+        <select class="o5-sel" aria-label="Filter by status">
+          <option>Status · Active</option><option>Status · Draft</option><option>Status · Archived</option><option>Status · All</option>
+        </select>
+        <button class="o5-sel o5-selbtn" type="button" aria-label="Filter by group">Group · All
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="o5-clearbtn" id="o5-clear" type="button">Clear filters</button>
+        <span class="o5-spacer"></span>
+        <div class="o5-colwrap" id="o5-colwrap">
+          <button class="o5-colbtn" id="o5-colbtn" type="button" aria-haspopup="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="16" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg>
+            Columns
+            <span class="o5-colbadge" id="o5-colbadge" hidden></span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="o5-colmenu" id="o5-colmenu">
+            <div class="o5-colmenu-t">Department columns</div>
+            <div id="o5-colitems"></div>
+            <button class="o5-colall" id="o5-colall" type="button">Show all departments</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="o5-scroller" id="o5-scroller">
+        <table class="o5-tbl" id="o5-tbl">
+          <thead id="o5-thead"></thead>
+          <tbody id="o5-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="o5-snack" id="o5-snack" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's calmer</h3><p>Nothing moves for people who live in this grid — same columns, same order — but every noise source is silenced: chips never wrap so every row is exactly 36px; the 3px keel color groups rows pre-attentively without reading a single chip; the ditto mark erases the Rule column's duplicate taxonomy; zeros collapse into faint dots so real hours pop; rates live in the header instead of repeating per row; Total and Save/Cancel stay pinned on the right so editing feedback never scrolls away; and departments you never staff can be switched off entirely from the Columns menu.</p></div>
+    <div><h3>Trade-offs</h3><p>It is still a wide horizontally-scrolling grid — the sticky Group/Code/Name rail and edge shadow mitigate but don't remove that. The ditto mark needs a one-time learning moment (title tooltip helps), ellipsized chips hide the full taxonomy until hover, and 13px/36px density is keyboard-and-mouse territory — touch users would want Option-style row editors. Column visibility is per-session unless persisted.</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.querySelector('#opt5');if(!root)return;
+    function $(s){return root.querySelector(s)}
+    var esc=function(t){return String(t).replace(/[&<>"']/g,function(m){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]})};
+    var fmtH=function(v){return (+v).toFixed(2).replace(/\.?0+$/,'')};
+    var fmtR=function(n){return 'R '+String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')};
+
+    var D=[['Project Management','PM',850],['Strategy','Strat',1100],['Development','Dev',1075],['SEO','SEO',650],['Paid Media','Media',700],['Creative Production','Creative',750],['Social Media','Social',600],['Video / 3D / Motion Production','Video/3D',900]];
+    var GC=['#64748B','#8B5CF6','#2563EB','#059669','#D97706','#DB2777','#0891B2','#E11D48'];
+    var UNCAT='#94A3B8';
+
+    var S=[
+      {c:'046',n:'3D Configurator',r:'Video / 3D / Motion Production',rs:'fallback',p:16500,k:'checklist',st:'active',h:[0.25,0,0,0,0,0,0,12]},
+      {c:'3D0102',n:'3D Rendering — High Res Still',r:'Video / 3D / Motion Production',rs:'normal',p:280,k:'edit',st:'active',h:[0,0,0,0,0,0,0,0.25]},
+      {c:'3D0101',n:'3D Rendering — High Res Video',r:'Video / 3D / Motion Production',rs:'normal',p:660,k:'edit',st:'active',h:[0,0,0,0,0,0,0,0]},
+      {c:'3D002',n:'4K High Res Rendering',r:'Video / 3D / Motion Production',rs:'normal',p:1200,k:'edit',st:'active',h:[0,0,0,0,0,0,0,0]},
+      {c:'013',n:'Ad Account Creation',r:'Paid Media',rs:'normal',p:1980,k:'edit',st:'active',h:[0.5,0,0,0,2,0,0,0]},
+      {c:'10111',n:'Annual Website Hosting',r:'Software / Spend / Pass-Through / Non-Delivery',rs:'normal',p:1960,k:'edit',st:'active',h:[0,0,0,0,0,0,0,0]},
+      {c:'026',n:'SEO Competitor Audit',r:'SEO',rs:'normal',p:27500,k:'edit',st:'active',h:[2,4,0,16,0,0,0,0]},
+      {c:'002',n:'Full Website Build Page — Development, No SEO',r:'Development',rs:'normal',p:5500,k:'edit',st:'active',h:[0.5,0,4,0,0,1,0,0]},
+      {c:'038',n:'Social Media Plan (3 month)',r:'Social Media',rs:'normal',p:13200,k:'edit',st:'active',h:[1.5,6,0,0,0,0,12,0]},
+      {c:'044',n:'Campaign Strategy',r:'Creative Production',rs:'normal',p:7200,k:'edit',st:'active',h:[0.75,5.5,0,0,0,0,0,0]},
+      {c:'100',n:'Paid Media',r:'Paid Media',rs:'normal',p:null,pl:'10%',k:'edit',st:'active',h:[0,0,0,0,1,0,0,0]},
+      {c:'1003',n:'Campaign Creation & Complete Creative Solutions',r:null,rs:'derived',p:65100,k:'bundle',bn:6,st:'active',h:[3,4,0,0,8,14,0,0]},
+      {c:'007',n:'Emailer — Creative only',r:'Creative Production',rs:'normal',p:3300,k:'edit',st:'active',h:[0.25,0,0,0,0,3,0,0]},
+      {c:'062',n:'SEO:Services',r:null,rs:'custom',p:1075,k:'edit',st:'active',h:[0,0,0,1,0,0,0,0]},
+      {c:'031',n:'SEO Reporting',r:'SEO',rs:'normal',p:495,k:'edit',st:'draft',h:[0,0,0,0.5,0,0,0,0]},
+      {c:'10',n:'Chatbot Set Up',r:'Development',rs:'normal',p:1150,k:'edit',st:'active',h:[0,0,1,0,0,0,0,0]}
+    ];
+
+    function regroup(s){
+      var max=Math.max.apply(null,s.cur||s.h);
+      if(max<=0){s.g='Uncategorized';s.gc=UNCAT;}
+      else{var gi=(s.cur||s.h).indexOf(max);s.g=D[gi][0];s.gc=GC[gi];}
+    }
+    S.forEach(function(s,i){
+      s.i=i;s.orig=s.h.slice();s.cur=s.h.slice();s.dirty=false;
+      var inh=(s.k==='bundle')||(s.k==='edit'&&s.rs==='normal');
+      s.inh0=s.h.map(function(){return inh});s.inh=s.inh0.slice();
+      regroup(s);
+    });
+
+    var XI='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+    var RC='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+
+    /* ----- head ----- */
+    var hh='<tr><th class="o5-st o5-st-g">Group</th><th class="o5-st o5-st-c">Code</th><th class="o5-st o5-st-n">Name</th><th class="o5-th-rule">Rule</th><th class="o5-num o5-th-price">Price</th>';
+    D.forEach(function(d,i){hh+='<th class="o5-num o5-cdep o5-c-d'+i+'" title="'+esc(d[0])+' · '+fmtR(d[2])+'/h">'+esc(d[1])+'<span class="o5-th-sub">'+fmtR(d[2])+'</span></th>'});
+    hh+='<th class="o5-num o5-st o5-st-t">Total<span class="o5-th-sub">hours</span></th><th class="o5-st o5-st-a"></th></tr>';
+    $('#o5-thead').innerHTML=hh;
+
+    /* ----- row pieces ----- */
+    function ruleHTML(s){
+      if(s.rs==='derived')return '<span class="o5-ruledash" title="Pricing derived from bundle children">—</span>';
+      if(s.rs==='custom')return '<span class="o5-b o5-b-custom" title="No rule — hours set directly on this service">custom</span>';
+      var fb=s.rs==='fallback'?' <span class="o5-fb" title="A checklist overrides this rule">(fallback)</span>':'';
+      if(s.r===s.g)return '<span class="o5-ditto" title="Rule: '+esc(s.r)+' — same as group">〃</span>'+fb;
+      return '<span class="o5-rule" title="Rule: '+esc(s.r)+'">'+esc(s.r)+'</span>'+fb;
+    }
+    function deptHTML(s,i){
+      var v=s.cur[i];
+      if(s.k==='edit'){
+        return '<td class="o5-cdep o5-cell o5-num o5-c-d'+i+'"><input class="o5-in'+(s.inh[i]?' o5-inh':'')+'" data-i="'+i+'" type="number" min="0" step="0.25" inputmode="decimal" placeholder="·" value="'+(v>0?fmtH(v):'')+'" aria-label="'+esc(D[i][0])+' hours for '+esc(s.n)+'"></td>';
+      }
+      var t=s.k==='bundle'?'Derived from '+s.bn+' bundle children — edit on the detail page':'Checklist hours — edit on the detail page';
+      return '<td class="o5-cdep o5-num o5-c-d'+i+'"><a href="#" class="o5-ro'+(s.inh[i]?' o5-inh':'')+'" title="'+t+'">'+(v>0?fmtH(v):'<span class="o5-dot">·</span>')+'</a></td>';
+    }
+    function totalHTML(s){
+      var t=s.cur.reduce(function(a,b){return a+b},0);
+      if(s.dirty){
+        var pct='';
+        if(s.p){var cost=s.cur.reduce(function(a,v,i){return a+v*D[i][2]},0);var p=Math.round(cost/s.p*100);
+          pct='<span class="o5-pct" title="Capacity cost '+fmtR(cost)+' = '+p+'% of price">'+p+'%</span>';}
+        return '<span class="o5-tot o5-tot-d">'+fmtH(t)+'h</span>'+pct;
+      }
+      return t>0?'<span class="o5-tot">'+fmtH(t)+'h</span>':'<span class="o5-dot">·</span>';
+    }
+    function actionHTML(s){
+      if(s.dirty)return '<button class="o5-save" type="button">Save</button><button class="o5-cancel" type="button" title="Discard changes" aria-label="Cancel">'+XI+'</button>';
+      if(s.k==='checklist')return '<button class="o5-revert" type="button" title="Remove the checklist override and fall back to the rule">'+RC+'Revert</button>';
+      return '<span class="o5-status o5-status-'+s.st+'">'+s.st+'</span>';
+    }
+    function buildRow(s,noAnim){
+      var tr=document.createElement('tr');
+      tr.dataset.i=s.i;
+      tr.style.setProperty('--o5-g',s.gc);
+      if(noAnim)tr.style.animation='none';else tr.style.animationDelay=(60+s.i*26)+'ms';
+      var badges='';
+      if(s.k==='bundle')badges+='<span class="o5-b o5-b-bundle" title="Compound service with '+s.bn+' children">bundle · '+s.bn+'</span>';
+      if(s.k==='checklist')badges+='<span class="o5-b o5-b-check" title="Hours defined by a checklist override">checklist</span>';
+      var html='<td class="o5-st o5-st-g o5-td-group"><span class="o5-chip" title="'+esc(s.g)+'"><span class="o5-chip-t">'+esc(s.g)+'</span></span></td>'
+        +'<td class="o5-st o5-st-c o5-code">'+esc(s.c)+'</td>'
+        +'<td class="o5-st o5-st-n"><div class="o5-namewrap"><a href="#" class="o5-name" title="'+esc(s.n)+'">'+esc(s.n)+'</a>'+badges+'</div></td>'
+        +'<td class="o5-rulecell">'+ruleHTML(s)+'</td>'
+        +'<td class="o5-num"><span class="o5-price"'+(s.p?'':' title="Percentage pricing — 10% of media spend"')+'>'+(s.p?fmtR(s.p):s.pl)+'</span></td>';
+      D.forEach(function(_,i){html+=deptHTML(s,i)});
+      html+='<td class="o5-num o5-total o5-st o5-st-t">'+totalHTML(s)+'</td><td class="o5-action o5-st o5-st-a">'+actionHTML(s)+'</td>';
+      tr.innerHTML=html;
+      return tr;
+    }
+    var tbody=$('#o5-tbody');
+    S.forEach(function(s){tbody.appendChild(buildRow(s,false))});
+    function rowOf(s){return tbody.querySelector('tr[data-i="'+s.i+'"]')}
+    function replaceRow(s){var old=rowOf(s),nt=buildRow(s,true);nt.style.display=old.style.display;old.replaceWith(nt)}
+
+    /* ----- snackbar ----- */
+    var snackEl=$('#o5-snack'),snackT;
+    function snackShow(html){snackEl.innerHTML=html;snackEl.classList.add('o5-show')}
+    function snackHide(){snackEl.classList.remove('o5-show')}
+    function snack(msg){clearTimeout(snackT);snackShow('<span>'+esc(msg)+'</span>');snackT=setTimeout(snackHide,3400)}
+    function snackConfirm(msg,yes){clearTimeout(snackT);
+      snackShow('<span>'+esc(msg)+'</span><button type="button" id="o5-sn-y">Revert</button><button type="button" id="o5-sn-n" class="o5-sn-mut">Keep</button>');
+      $('#o5-sn-y').addEventListener('click',function(){snackHide();yes()});
+      $('#o5-sn-n').addEventListener('click',snackHide);
+    }
+
+    /* ----- editing ----- */
+    function readVal(inp){var v=parseFloat(inp.value);return (isNaN(v)||v<0)?0:v}
+    function syncDirty(s,tr){
+      s.dirty=s.cur.some(function(v,i){return v!==s.orig[i]});
+      tr.classList.toggle('o5-dirty',s.dirty);
+      tr.querySelector('.o5-total').innerHTML=totalHTML(s);
+      tr.querySelector('.o5-action').innerHTML=actionHTML(s);
+    }
+    tbody.addEventListener('input',function(e){
+      var inp=e.target.closest('.o5-in');if(!inp)return;
+      var tr=e.target.closest('tr'),s=S[+tr.dataset.i],i=+inp.dataset.i;
+      s.cur[i]=readVal(inp);
+      inp.classList.toggle('o5-inh',s.inh[i]&&s.cur[i]===s.orig[i]);
+      syncDirty(s,tr);
+    });
+    tbody.addEventListener('change',function(e){
+      var inp=e.target.closest('.o5-in');if(!inp)return;
+      var tr=e.target.closest('tr'),s=S[+tr.dataset.i],i=+inp.dataset.i;
+      var v=Math.round(readVal(inp)*4)/4;
+      s.cur[i]=v;inp.value=v>0?fmtH(v):'';
+      inp.classList.toggle('o5-inh',s.inh[i]&&v===s.orig[i]);
+      syncDirty(s,tr);
+    });
+    tbody.addEventListener('click',function(e){
+      var tr=e.target.closest('tr');if(!tr)return;
+      var s=S[+tr.dataset.i];
+      if(e.target.closest('.o5-save')){
+        s.orig=s.cur.slice();s.dirty=false;s.k='checklist';
+        if(s.rs==='normal')s.rs='fallback';
+        s.inh=s.cur.map(function(){return false});s.inh0=s.inh.slice();
+        regroup(s);replaceRow(s);
+        snack('Saved as checklist for '+s.n);
+      }else if(e.target.closest('.o5-cancel')){
+        s.cur=s.orig.slice();s.inh=s.inh0.slice();s.dirty=false;
+        replaceRow(s);
+      }else if(e.target.closest('.o5-revert')){
+        snackConfirm('Revert “'+s.n+'” to its rule? The checklist override will be removed.',function(){
+          s.k='edit';if(s.rs==='fallback')s.rs='normal';
+          s.orig=s.cur.slice();s.dirty=false;
+          s.inh=s.cur.map(function(){return true});s.inh0=s.inh.slice();
+          regroup(s);replaceRow(s);
+          snack(s.c+' · '+s.n+' now inherits hours from its rule');
+        });
+      }else if(e.target.closest('.o5-ro')){
+        e.preventDefault();
+        snack(s.k==='bundle'?'Bundle hours are derived from '+s.bn+' child services — manage them on the detail page':'Checklist hours are edited on the service detail page');
+      }else if(e.target.closest('.o5-name')){
+        e.preventDefault();
+        snack('Opens “'+s.n+'” — service detail');
+      }
+    });
+
+    /* ----- live search ----- */
+    var si=$('#o5-search'),clearBtn=$('#o5-clear'),countEl=$('#o5-count');
+    function applyFilter(){
+      var q=si.value.trim().toLowerCase(),n=0;
+      S.forEach(function(s){
+        var m=!q||s.n.toLowerCase().indexOf(q)>-1||s.c.toLowerCase().indexOf(q)>-1;
+        rowOf(s).style.display=m?'':'none';if(m)n++;
+      });
+      countEl.textContent=q?(n+' of 139 shown — filtered'):'16 of 139 shown — sample data';
+      clearBtn.classList.toggle('o5-vis',!!q);
+    }
+    si.addEventListener('input',applyFilter);
+    clearBtn.addEventListener('click',function(){si.value='';applyFilter();si.focus()});
+
+    /* ----- column visibility ----- */
+    var tbl=$('#o5-tbl'),menu=$('#o5-colmenu'),colbtn=$('#o5-colbtn'),items=$('#o5-colitems'),badge=$('#o5-colbadge'),wrap=$('#o5-colwrap');
+    items.innerHTML=D.map(function(d,i){
+      return '<label class="o5-colitem"><input type="checkbox" data-i="'+i+'" checked><span class="o5-colitem-n">'+esc(d[1])+'</span><span class="o5-colitem-f">'+esc(d[0])+'</span></label>';
+    }).join('');
+    function updateBadge(){
+      var boxes=items.querySelectorAll('input'),vis=0;
+      boxes.forEach(function(b){if(b.checked)vis++});
+      badge.hidden=vis===boxes.length;
+      badge.textContent=vis+'/'+boxes.length;
+    }
+    items.addEventListener('change',function(e){
+      var cb=e.target.closest('input');if(!cb)return;
+      tbl.classList.toggle('o5-no-d'+cb.dataset.i,!cb.checked);
+      updateBadge();updateScroll();
+    });
+    $('#o5-colall').addEventListener('click',function(){
+      items.querySelectorAll('input').forEach(function(cb){cb.checked=true;tbl.classList.remove('o5-no-d'+cb.dataset.i)});
+      updateBadge();updateScroll();
+    });
+    colbtn.addEventListener('click',function(){menu.classList.toggle('o5-open')});
+    document.addEventListener('click',function(e){if(!wrap.contains(e.target))menu.classList.remove('o5-open')});
+
+    /* ----- sticky-column shadows on horizontal scroll ----- */
+    var sc=$('#o5-scroller');
+    function updateScroll(){
+      sc.classList.toggle('o5-scrolled',sc.scrollLeft>2);
+      sc.classList.toggle('o5-more',sc.scrollWidth-sc.clientWidth-sc.scrollLeft>2);
+    }
+    sc.addEventListener('scroll',updateScroll,{passive:true});
+    updateScroll();
+
+    /* ----- chrome ----- */
+    $('#o5-new').addEventListener('click',function(){snack('New service — opens the create form (not part of this mockup)')});
+  })();</script>
+</article>

@@ -1,0 +1,498 @@
+<article class="opt" id="opt1">
+  <div class="opt-head"><span class="opt-num">OPTION 1</span><h2>Grouped sections, quiet grid</h2></div>
+  <p class="opt-tagline">Delete the Group column: services nest under slim sticky department headers, zeros fade to dots, and the rule column whispers instead of repeating the group out loud.</p>
+  <div class="frame">
+    <section class="o1-root">
+      <style>
+        .o1-root{position:relative;background:var(--surface);padding:22px 22px 26px;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);font-size:13px;line-height:1.45;}
+        .o1-root *{box-sizing:border-box;}
+        .o1-root button{font-family:inherit;cursor:pointer;}
+        .o1-root :focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px;}
+
+        /* ---------- header ---------- */
+        .o1-root .o1-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:0 0 14px;}
+        .o1-root .o1-title{margin:0;font-size:18px;font-weight:650;letter-spacing:-.01em;}
+        .o1-root .o1-sub{margin:3px 0 0;font-size:12px;color:var(--on-surface-variant);}
+        .o1-root .o1-sub strong{font-weight:600;color:var(--on-surface);}
+        .o1-root .o1-new{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:none;border-radius:999px;background:var(--primary);color:var(--on-primary);font-size:12.5px;font-weight:600;transition:background .15s ease;}
+        .o1-root .o1-new:hover{background:color-mix(in srgb,var(--primary) 88%,#000);}
+        .o1-root .o1-new svg{flex:none;}
+
+        /* ---------- toolbar ---------- */
+        .o1-root .o1-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+        .o1-root .o1-searchwrap{position:relative;flex:0 1 260px;min-width:190px;}
+        .o1-root .o1-searchwrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--on-surface-variant);pointer-events:none;}
+        .o1-root .o1-searchwrap input{width:100%;height:32px;padding:0 10px 0 31px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:500 12.5px 'Inter',system-ui,sans-serif;color:var(--on-surface);}
+        .o1-root .o1-searchwrap input::placeholder{color:var(--on-surface-variant);opacity:.7;font-weight:400;}
+        .o1-root .o1-searchwrap input:focus{outline:none;border-color:var(--outline);box-shadow:0 0 0 3px var(--primary-container);}
+        .o1-root .o1-select{height:32px;padding:0 26px 0 10px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface) url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%235B5273' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center;font:500 12px 'Inter',system-ui,sans-serif;color:var(--on-surface);appearance:none;-webkit-appearance:none;}
+        .o1-root .o1-select:hover{border-color:var(--outline);}
+        .o1-root .o1-clear{display:none;border:none;background:none;padding:4px 6px;font-size:12px;font-weight:600;color:var(--primary);}
+        .o1-root .o1-clear.o1-show{display:inline-block;}
+        .o1-root .o1-clear:hover{text-decoration:underline;}
+
+        /* ---------- table shell ---------- */
+        .o1-root .o1-scroll{border:1px solid var(--outline-variant);border-radius:12px;max-height:560px;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--outline) transparent;}
+        .o1-root .o1-tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:1020px;table-layout:fixed;font-size:12.5px;}
+        .o1-root .o1-tbl thead th{position:sticky;top:0;z-index:6;height:40px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--outline-variant);font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--on-surface-variant);text-align:left;white-space:nowrap;}
+        .o1-root .o1-tbl thead th.o1-cth{text-align:center;padding:0 2px;font-size:9.5px;letter-spacing:.04em;}
+        .o1-root .o1-tbl thead th.o1-num{text-align:right;}
+        .o1-root .o1-bl{border-left:1px solid var(--outline-variant);}
+
+        /* ---------- group header rows ---------- */
+        .o1-root .o1-ghead td{position:sticky;top:40px;z-index:5;height:40px;padding:0 12px;background:var(--surface-container);border-bottom:1px solid var(--outline-variant);cursor:pointer;}
+        .o1-root .o1-ghead:hover td{background:var(--surface-container-high);}
+        .o1-root .o1-ghead-in{display:flex;align-items:center;gap:9px;width:max-content;position:sticky;left:12px;}
+        .o1-root .o1-chev{flex:none;color:var(--on-surface-variant);transition:transform .18s ease;}
+        .o1-root .o1-collapsed .o1-chev{transform:rotate(-90deg);}
+        .o1-root .o1-gname{font-size:12px;font-weight:650;letter-spacing:-.005em;color:var(--on-surface);white-space:nowrap;}
+        .o1-root .o1-gmeta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;white-space:nowrap;}
+        .o1-root .o1-collapsed .o1-row{display:none;}
+        .o1-root.o1-searching .o1-group.o1-collapsed .o1-row{display:table-row;}
+
+        /* ---------- data rows ---------- */
+        .o1-root .o1-row td{height:40px;padding:0 10px;border-bottom:1px solid var(--outline-variant);vertical-align:middle;background:var(--surface);transition:background .12s ease;}
+        .o1-root .o1-row:hover td{background:#FBFAFE;background:color-mix(in srgb,var(--surface-container) 50%,var(--surface));}
+        .o1-root .o1-row.o1-dirty td,.o1-root .o1-row.o1-dirty:hover td{background:#FFFBEB;background:color-mix(in srgb,var(--amber-soft) 38%,#fff);}
+        .o1-root .o1-row.o1-dirty td:first-child{box-shadow:inset 2px 0 0 var(--amber);}
+
+        .o1-root .o1-code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .o1-root .o1-name{overflow:hidden;}
+        .o1-root .o1-name-in{display:flex;align-items:center;gap:7px;min-width:0;}
+        .o1-root .o1-name a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--on-surface);font-weight:500;text-decoration:none;}
+        .o1-root .o1-name a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:2px;}
+        .o1-root .o1-bdg{flex:none;display:inline-block;padding:1.5px 7px;border-radius:999px;font-size:9.5px;font-weight:600;letter-spacing:.03em;line-height:1.5;}
+        .o1-root .o1-bdg-cl{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o1-root .o1-bdg-bn{background:var(--primary-container);color:var(--on-primary-container);}
+        .o1-root .o1-bdg-cu{background:var(--surface-container-high);color:var(--on-surface-variant);}
+        .o1-root .o1-reverted .o1-bdg-cl{display:none;}
+
+        .o1-root .o1-rule{font-size:11px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .o1-root .o1-rule-same{opacity:.5;}
+        .o1-root .o1-fallback{font-style:italic;opacity:.85;}
+        .o1-root .o1-reverted .o1-fallback{display:none;}
+        .o1-root .o1-rule-dash{opacity:.5;}
+
+        .o1-root .o1-price{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--on-surface);}
+
+        /* ---------- hour cells ---------- */
+        .o1-root .o1-hcell{padding:0 3px;text-align:center;}
+        .o1-root .o1-hin{display:block;width:46px;height:26px;margin:0 auto;padding:0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;font-style:italic;color:var(--on-surface-variant);background:transparent;border:1px solid transparent;border-radius:6px;appearance:textfield;-moz-appearance:textfield;transition:border-color .12s ease,background .12s ease,box-shadow .12s ease;}
+        .o1-root .o1-hin::-webkit-outer-spin-button,.o1-root .o1-hin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+        .o1-root .o1-hin::placeholder{color:var(--outline);font-style:normal;opacity:.85;}
+        .o1-root .o1-hcell:hover .o1-hin{border-color:var(--outline);background:var(--surface);}
+        .o1-root .o1-hin:focus{outline:none;border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--primary-container);font-style:normal;color:var(--on-surface);}
+        .o1-root .o1-hin.o1-touched,.o1-root .o1-hin.o1-ovr{font-style:normal;font-weight:600;color:var(--on-surface);}
+        .o1-root .o1-zero{color:var(--outline);opacity:.85;font-family:'JetBrains Mono',monospace;font-size:11.5px;}
+        .o1-root .o1-hlink{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;font-weight:600;color:var(--on-surface);text-decoration:none;border-bottom:1px dotted var(--outline);padding-bottom:1px;}
+        .o1-root .o1-hlink:hover{color:var(--primary);border-bottom-color:var(--primary);}
+        .o1-root .o1-bundle .o1-hlink{font-weight:400;font-style:italic;color:var(--on-surface-variant);}
+        .o1-root .o1-reverted .o1-hlink{font-weight:400;font-style:italic;color:var(--on-surface-variant);}
+
+        /* ---------- total + actions ---------- */
+        .o1-root .o1-total{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+        .o1-root .o1-tval{display:block;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;line-height:1.2;color:var(--on-surface);}
+        .o1-root .o1-tval.o1-zero{font-weight:400;color:var(--outline);}
+        .o1-root .o1-tpct{display:none;font-size:9px;font-weight:600;line-height:1.2;color:var(--amber-deep);}
+        .o1-root .o1-row.o1-dirty .o1-tpct{display:block;}
+
+        .o1-root .o1-act{text-align:right;padding-right:12px;white-space:nowrap;}
+        .o1-root .o1-status{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:550;color:var(--on-surface-variant);}
+        .o1-root .o1-status i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--outline);}
+        .o1-root .o1-st-active i{background:var(--green);}
+        .o1-root .o1-row.o1-dirty .o1-status{display:none;}
+        .o1-root .o1-editbtns{display:none;align-items:center;gap:6px;}
+        .o1-root .o1-row.o1-dirty .o1-editbtns{display:inline-flex;}
+        .o1-root .o1-save{height:24px;padding:0 11px;border:none;border-radius:999px;background:var(--primary);color:var(--on-primary);font-size:11px;font-weight:600;}
+        .o1-root .o1-save:hover{background:color-mix(in srgb,var(--primary) 88%,#000);}
+        .o1-root .o1-cancel{height:24px;padding:0 9px;border:none;border-radius:999px;background:transparent;color:var(--on-surface-variant);font-size:11px;font-weight:550;}
+        .o1-root .o1-cancel:hover{background:var(--surface-container-high);}
+        .o1-root .o1-revert{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border:1px solid var(--outline-variant);border-radius:999px;background:var(--surface);color:var(--on-surface-variant);font-size:10.5px;font-weight:550;transition:border-color .12s ease,color .12s ease;}
+        .o1-root .o1-revert:hover{border-color:var(--outline);color:var(--on-surface);}
+        .o1-root .o1-confirmrow{display:none;align-items:center;gap:5px;}
+        .o1-root .o1-confirming .o1-confirmrow{display:inline-flex;}
+        .o1-root .o1-confirming .o1-revert{display:none;}
+        .o1-root .o1-yes{height:24px;padding:0 10px;border:none;border-radius:999px;background:var(--amber-deep);color:#fff;font-size:10.5px;font-weight:600;}
+        .o1-root .o1-no{height:24px;width:24px;border:none;border-radius:999px;background:var(--surface-container-high);color:var(--on-surface-variant);font-size:11px;line-height:1;}
+        .o1-root .o1-cl .o1-status{display:none;}
+        .o1-root .o1-cl.o1-reverted .o1-status{display:inline-flex;}
+        .o1-root .o1-cl.o1-reverted .o1-revert,.o1-root .o1-cl.o1-reverted .o1-confirmrow{display:none;}
+
+        /* ---------- snackbar ---------- */
+        .o1-root .o1-snack{position:absolute;left:50%;bottom:18px;transform:translate(-50%,8px);max-width:82%;padding:9px 16px;border-radius:10px;background:#1C1530;color:#fff;font-size:12px;box-shadow:0 8px 24px rgba(28,21,48,.28);opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-index:20;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .o1-root .o1-snack.o1-on{opacity:1;transform:translate(-50%,0);}
+
+        /* ---------- load-in ---------- */
+        @keyframes o1-rise{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+        .o1-root .o1-head,.o1-root .o1-toolbar{animation:o1-rise .35s cubic-bezier(.2,.7,.3,1) both;}
+        .o1-root .o1-toolbar{animation-delay:40ms;}
+        .o1-root .o1-tbl tbody tr{animation:o1-rise .4s cubic-bezier(.2,.7,.3,1) both;animation-delay:calc(80ms + var(--o1-i,0)*20ms);}
+        @media (prefers-reduced-motion:reduce){.o1-root .o1-head,.o1-root .o1-toolbar,.o1-root .o1-tbl tbody tr{animation:none;}}
+      </style>
+
+      <header class="o1-head">
+        <div>
+          <h1 class="o1-title">Services</h1>
+          <p class="o1-sub"><strong id="o1-count">16 of 139 shown — sample</strong> &nbsp;·&nbsp; hover any hours cell to edit; saving stores a checklist override</p>
+        </div>
+        <button class="o1-new" type="button">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          New service
+        </button>
+      </header>
+
+      <div class="o1-toolbar">
+        <div class="o1-searchwrap">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.4" stroke="currentColor" stroke-width="1.5"/><path d="M10.4 10.4L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input id="o1-search" type="search" placeholder="Search name or code…" autocomplete="off">
+        </div>
+        <select class="o1-select" aria-label="Filter by rule"><option>All rules</option><option>SEO</option><option>Development</option><option>Paid Media</option><option>Creative Production</option><option>Social Media</option><option>Video / 3D / Motion Production</option></select>
+        <select class="o1-select" aria-label="Filter by status"><option selected>Active</option><option>Draft</option><option>Archived</option><option>All statuses</option></select>
+        <select class="o1-select" aria-label="Filter by group" multiple size="1" style="overflow:hidden;height:32px;padding-top:6px;"><option selected>All groups</option></select>
+        <button class="o1-clear" id="o1-clear" type="button">Clear filters</button>
+      </div>
+
+      <div class="o1-scroll">
+        <table class="o1-tbl">
+          <colgroup>
+            <col style="width:68px"><col><col style="width:128px"><col style="width:84px">
+            <col style="width:54px"><col style="width:54px"><col style="width:54px"><col style="width:54px">
+            <col style="width:54px"><col style="width:54px"><col style="width:54px"><col style="width:54px">
+            <col style="width:78px"><col style="width:108px">
+          </colgroup>
+          <thead><tr>
+            <th>Code</th><th>Name</th><th>Rule</th><th class="o1-num">Price</th>
+            <th class="o1-cth o1-bl" title="Project Management — R 850/h">PM</th>
+            <th class="o1-cth" title="Strategy — R 1 100/h">Strat</th>
+            <th class="o1-cth" title="Development — R 1 075/h">Dev</th>
+            <th class="o1-cth" title="SEO — R 650/h">SEO</th>
+            <th class="o1-cth" title="Paid Media — R 700/h">Media</th>
+            <th class="o1-cth" title="Creative Production — R 750/h">Creative</th>
+            <th class="o1-cth" title="Social Media — R 600/h">Social</th>
+            <th class="o1-cth" title="Video / 3D / Motion Production — R 900/h">Video/3D</th>
+            <th class="o1-num o1-bl">Total</th><th></th>
+          </tr></thead>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Video / 3D / Motion Production</span>
+              <span class="o1-gmeta"><span class="o1-gcount">2 services</span> · <span class="o1-ghours">12.5 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row o1-cl" data-kind="cl" data-status="active" data-h="0.25,0,0,0,0,0,0,12" data-price="16500" data-ptype="zar">
+              <td class="o1-code">046</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="3D Configurator">3D Configurator</a><span class="o1-bdg o1-bdg-cl">checklist</span></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Video / 3D / Motion Production — same as group">Video / 3D / Motion Production</span><span class="o1-fallback" title="Checklist overrides this rule"> (fallback)</span></td>
+              <td class="o1-price">R 16 500</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,0,0,0,0,0.25" data-price="280" data-ptype="zar">
+              <td class="o1-code">3D0102</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="3D Rendering — High Res Still">3D Rendering — High Res Still</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Video / 3D / Motion Production — same as group">Video / 3D / Motion Production</span></td>
+              <td class="o1-price">R 280</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">SEO</span>
+              <span class="o1-gmeta"><span class="o1-gcount">3 services</span> · <span class="o1-ghours">23.5 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="2,4,0,16,0,0,0,0" data-price="27500" data-ptype="zar">
+              <td class="o1-code">026</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="SEO Competitor Audit">SEO Competitor Audit</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: SEO — same as group">SEO</span></td>
+              <td class="o1-price">R 27 500</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,1,0,0,0,0" data-price="1075" data-ptype="zar">
+              <td class="o1-code">062</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="SEO:Services">SEO:Services</a></div></td>
+              <td class="o1-rule"><span class="o1-bdg o1-bdg-cu" title="No rule assigned — hours are set directly">custom</span></td>
+              <td class="o1-price">R 1 075</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="draft" data-h="0,0,0,0.5,0,0,0,0" data-price="495" data-ptype="zar">
+              <td class="o1-code">031</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="SEO Reporting">SEO Reporting</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: SEO — same as group">SEO</span></td>
+              <td class="o1-price">R 495</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Development</span>
+              <span class="o1-gmeta"><span class="o1-gcount">2 services</span> · <span class="o1-ghours">6.5 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0.5,0,4,0,0,1,0,0" data-price="5500" data-ptype="zar">
+              <td class="o1-code">002</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Full Website Build Page — Development, No SEO">Full Website Build Page — Development, No SEO</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Development — same as group">Development</span></td>
+              <td class="o1-price">R 5 500</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,1,0,0,0,0,0" data-price="1150" data-ptype="zar">
+              <td class="o1-code">10</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Chatbot Set Up">Chatbot Set Up</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Development — same as group">Development</span></td>
+              <td class="o1-price">R 1 150</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Paid Media</span>
+              <span class="o1-gmeta"><span class="o1-gcount">2 services</span> · <span class="o1-ghours">3.5 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0.5,0,0,0,2,0,0,0" data-price="1980" data-ptype="zar">
+              <td class="o1-code">013</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Ad Account Creation">Ad Account Creation</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Paid Media — same as group">Paid Media</span></td>
+              <td class="o1-price">R 1 980</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,0,1,0,0,0" data-price="0" data-ptype="pct">
+              <td class="o1-code">100</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Paid Media">Paid Media</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Paid Media — same as group">Paid Media</span></td>
+              <td class="o1-price" title="Percentage pricing — 10% of media spend">10%</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Strategy</span>
+              <span class="o1-gmeta"><span class="o1-gcount">1 service</span> · <span class="o1-ghours">6.25 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0.75,5.5,0,0,0,0,0,0" data-price="7200" data-ptype="zar">
+              <td class="o1-code">044</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Campaign Strategy">Campaign Strategy</a></div></td>
+              <td class="o1-rule"><span title="Rule: Creative Production">Creative Production</span></td>
+              <td class="o1-price">R 7 200</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Creative Production</span>
+              <span class="o1-gmeta"><span class="o1-gcount">2 services</span> · <span class="o1-ghours">32.25 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row o1-bundle" data-kind="bundle" data-status="active" data-h="3,4,0,0,8,14,0,0" data-price="65100" data-ptype="zar">
+              <td class="o1-code">1003</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Campaign Creation &amp; Complete Creative Solutions">Campaign Creation &amp; Complete Creative Solutions</a><span class="o1-bdg o1-bdg-bn">bundle · 6</span></div></td>
+              <td class="o1-rule"><span class="o1-rule-dash" title="Derived from bundle children">—</span></td>
+              <td class="o1-price">R 65 100</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0.25,0,0,0,0,3,0,0" data-price="3300" data-ptype="zar">
+              <td class="o1-code">007</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Emailer — Creative only">Emailer — Creative only</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Creative Production — same as group">Creative Production</span></td>
+              <td class="o1-price">R 3 300</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Social Media</span>
+              <span class="o1-gmeta"><span class="o1-gcount">1 service</span> · <span class="o1-ghours">19.5 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="1.5,6,0,0,0,0,12,0" data-price="13200" data-ptype="zar">
+              <td class="o1-code">038</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Social Media Plan (3 month)">Social Media Plan (3 month)</a></div></td>
+              <td class="o1-rule"><span class="o1-rule-same" title="Rule: Social Media — same as group">Social Media</span></td>
+              <td class="o1-price">R 13 200</td>
+            </tr>
+          </tbody>
+
+          <tbody class="o1-group">
+            <tr class="o1-ghead"><td colspan="14"><div class="o1-ghead-in">
+              <svg class="o1-chev" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="o1-gname">Uncategorized</span>
+              <span class="o1-gmeta"><span class="o1-gcount">3 services</span> · <span class="o1-ghours">0 h</span></span>
+            </div></td></tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,0,0,0,0,0" data-price="660" data-ptype="zar">
+              <td class="o1-code">3D0101</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="3D Rendering — High Res Video">3D Rendering — High Res Video</a></div></td>
+              <td class="o1-rule"><span title="Rule: Video / 3D / Motion Production">Video / 3D / Motion Production</span></td>
+              <td class="o1-price">R 660</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,0,0,0,0,0" data-price="1200" data-ptype="zar">
+              <td class="o1-code">3D002</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="4K High Res Rendering">4K High Res Rendering</a></div></td>
+              <td class="o1-rule"><span title="Rule: Video / 3D / Motion Production">Video / 3D / Motion Production</span></td>
+              <td class="o1-price">R 1 200</td>
+            </tr>
+            <tr class="o1-row" data-kind="edit" data-status="active" data-h="0,0,0,0,0,0,0,0" data-price="1960" data-ptype="zar">
+              <td class="o1-code">10111</td>
+              <td class="o1-name"><div class="o1-name-in"><a href="#" title="Annual Website Hosting">Annual Website Hosting</a></div></td>
+              <td class="o1-rule"><span title="Rule: Software / Spend / Pass-Through / Non-Delivery">Software / Spend / Pass-Through / Non-Delivery</span></td>
+              <td class="o1-price">R 1 960</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="o1-snack" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's calmer</h3><p>The Group column — the single biggest source of chaos — is deleted; each taxonomy name appears exactly once, in a slim sticky section header that doubles as a collapse control and a running count/hours summary. Rows lock to a uniform 40&nbsp;px. Zeros become faint dots so the few cells that carry hours are the only things your eye lands on, and the rule column is demoted to a dim single line (extra-dim when it merely echoes the group). Inputs are invisible until you hover, so the resting state reads as a document, not a form.</p></div>
+    <div><h3>Trade-offs</h3><p>Eight section headers spend vertical space, and scanning or sorting a single column (e.g. price) across all groups is harder than in one flat list. The grouping is derived from hours, so a service can hop sections after an edit, which may surprise. Two stacked sticky layers (column header + section header) need a tall enough viewport to stay useful, and percentage-priced rows can't show a meaningful %-of-price readout.</p></div>
+  </div>
+  <script>(function(){
+    var root=document.querySelector('#opt1 .o1-root'); if(!root)return;
+    var DEPTS=[["Project Management",850],["Strategy",1100],["Development",1075],["SEO",650],["Paid Media",700],["Creative Production",750],["Social Media",600],["Video / 3D / Motion Production",900]];
+    var fmt=function(n){return String(Math.round(n*100)/100);};
+    var snack=root.querySelector('.o1-snack'),snackT;
+    function toast(m){snack.textContent=m;snack.classList.add('o1-on');clearTimeout(snackT);snackT=setTimeout(function(){snack.classList.remove('o1-on');},2600);}
+
+    var rows=Array.prototype.slice.call(root.querySelectorAll('.o1-row'));
+    var RSVG='<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.8v2.4h2.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    /* build hour cells, total and action cell from data attributes */
+    rows.forEach(function(row){
+      var kind=row.dataset.kind;
+      var hs=row.dataset.h.split(',').map(Number);
+      var html='';
+      hs.forEach(function(v,i){
+        var bl=i===0?' o1-bl':'';
+        if(kind==='edit'){
+          html+='<td class="o1-hcell'+bl+'"><input class="o1-hin" type="number" min="0" step="0.25" inputmode="decimal" placeholder="·" aria-label="'+DEPTS[i][0]+' hours" value="'+(v?fmt(v):'')+'" data-base="'+v+'"></td>';
+        }else{
+          var t=kind==='bundle'?'Derived from 6 child services — open detail to edit':'Checklist hours — edit on the service detail page';
+          html+=v?'<td class="o1-hcell o1-ro'+bl+'"><a class="o1-hlink" href="#" title="'+t+'">'+fmt(v)+'</a></td>'
+                :'<td class="o1-hcell o1-ro'+bl+'"><span class="o1-zero">·</span></td>';
+        }
+      });
+      var total=hs.reduce(function(a,b){return a+b;},0);
+      row.dataset.total=total;
+      html+='<td class="o1-total o1-bl"><span class="o1-tval'+(total?'':' o1-zero')+'">'+(total?fmt(total):'·')+'</span><span class="o1-tpct"></span></td>';
+      var st=row.dataset.status||'active';
+      var badge='<span class="o1-status o1-st-'+st+'"><i></i>'+(st==='draft'?'Draft':'Active')+'</span>';
+      if(kind==='cl'){
+        html+='<td class="o1-act">'+badge+'<button class="o1-revert" type="button" title="Revert checklist — fall back to rule hours">'+RSVG+'Revert</button><span class="o1-confirmrow"><button class="o1-yes" type="button">Confirm</button><button class="o1-no" type="button" aria-label="Keep checklist">✕</button></span></td>';
+      }else if(kind==='bundle'){
+        html+='<td class="o1-act">'+badge+'</td>';
+      }else{
+        html+='<td class="o1-act">'+badge+'<span class="o1-editbtns"><button class="o1-save" type="button">Save</button><button class="o1-cancel" type="button">Cancel</button></span></td>';
+      }
+      row.insertAdjacentHTML('beforeend',html);
+    });
+
+    /* staggered load-in */
+    Array.prototype.forEach.call(root.querySelectorAll('.o1-tbl tbody tr'),function(tr,i){tr.style.setProperty('--o1-i',i);});
+
+    var search=root.querySelector('#o1-search');
+    var clearB=root.querySelector('#o1-clear');
+    var countEl=root.querySelector('#o1-count');
+
+    function recompute(row){
+      var inputs=Array.prototype.slice.call(row.querySelectorAll('.o1-hin'));
+      if(!inputs.length)return;
+      var total=0,cost=0,dirty=false;
+      inputs.forEach(function(inp,i){
+        var v=parseFloat(inp.value)||0,b=parseFloat(inp.dataset.base)||0;
+        total+=v;cost+=v*DEPTS[i][1];
+        var t=Math.abs(v-b)>1e-9;
+        inp.classList.toggle('o1-touched',t);
+        if(t)dirty=true;
+      });
+      row.classList.toggle('o1-dirty',dirty);
+      row.dataset.total=total;
+      var tv=row.querySelector('.o1-tval');
+      tv.textContent=total?fmt(total):'·';
+      tv.classList.toggle('o1-zero',!total);
+      var price=parseFloat(row.dataset.price)||0;
+      row.querySelector('.o1-tpct').textContent=(row.dataset.ptype==='zar'&&price>0&&total>0)?Math.round(cost/price*100)+'% of price':'';
+    }
+
+    function refresh(){
+      var shown=0;
+      Array.prototype.forEach.call(root.querySelectorAll('.o1-group'),function(g){
+        var vis=Array.prototype.filter.call(g.querySelectorAll('.o1-row'),function(r){return r.style.display!=='none';});
+        g.style.display=vis.length?'':'none';
+        shown+=vis.length;
+        var sum=0;vis.forEach(function(r){sum+=parseFloat(r.dataset.total)||0;});
+        g.querySelector('.o1-gcount').textContent=vis.length+(vis.length===1?' service':' services');
+        g.querySelector('.o1-ghours').textContent=fmt(sum)+' h';
+      });
+      countEl.textContent=search.value.trim()?(shown+' of 139 shown — filtered'):'16 of 139 shown — sample';
+    }
+
+    function cancelRow(row){
+      Array.prototype.forEach.call(row.querySelectorAll('.o1-hin'),function(inp){
+        var b=parseFloat(inp.dataset.base)||0;
+        inp.value=b?fmt(b):'';
+      });
+      recompute(row);refresh();
+    }
+
+    rows.forEach(function(row){
+      Array.prototype.forEach.call(row.querySelectorAll('.o1-hin'),function(inp){
+        inp.addEventListener('input',function(){recompute(row);refresh();});
+        inp.addEventListener('keydown',function(e){if(e.key==='Escape'){cancelRow(row);inp.blur();}});
+      });
+      var save=row.querySelector('.o1-save');
+      if(save){
+        save.addEventListener('click',function(){
+          Array.prototype.forEach.call(row.querySelectorAll('.o1-hin'),function(inp){
+            var v=parseFloat(inp.value)||0,b=parseFloat(inp.dataset.base)||0;
+            if(Math.abs(v-b)>1e-9)inp.classList.add('o1-ovr');
+            inp.dataset.base=v;inp.value=v?fmt(v):'';
+          });
+          recompute(row);refresh();
+          toast('Saved as checklist for “'+row.querySelector('.o1-name a').textContent.trim()+'”');
+        });
+        row.querySelector('.o1-cancel').addEventListener('click',function(){cancelRow(row);});
+      }
+      var rev=row.querySelector('.o1-revert');
+      if(rev){
+        rev.addEventListener('click',function(){row.classList.add('o1-confirming');});
+        row.querySelector('.o1-no').addEventListener('click',function(){row.classList.remove('o1-confirming');});
+        row.querySelector('.o1-yes').addEventListener('click',function(){
+          row.classList.remove('o1-confirming');row.classList.add('o1-reverted');
+          toast('Checklist reverted — “'+row.querySelector('.o1-name a').textContent.trim()+'” now follows its rule');
+        });
+      }
+    });
+
+    /* collapse / expand sections */
+    Array.prototype.forEach.call(root.querySelectorAll('.o1-group'),function(g){
+      var gh=g.querySelector('.o1-ghead');
+      gh.setAttribute('tabindex','0');
+      gh.setAttribute('role','button');
+      gh.setAttribute('aria-expanded','true');
+      gh.addEventListener('click',function(){
+        g.classList.toggle('o1-collapsed');
+        gh.setAttribute('aria-expanded',String(!g.classList.contains('o1-collapsed')));
+      });
+      gh.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();gh.click();}});
+    });
+
+    /* live search */
+    search.addEventListener('input',function(){
+      var q=search.value.trim().toLowerCase();
+      root.classList.toggle('o1-searching',!!q);
+      clearB.classList.toggle('o1-show',!!q);
+      rows.forEach(function(r){
+        var hay=(r.querySelector('.o1-code').textContent+' '+r.querySelector('.o1-name a').textContent).toLowerCase();
+        r.style.display=(!q||hay.indexOf(q)>-1)?'':'none';
+      });
+      refresh();
+    });
+    clearB.addEventListener('click',function(){search.value='';search.dispatchEvent(new Event('input'));search.focus();});
+
+    /* mock link + new-service handlers */
+    root.addEventListener('click',function(e){
+      var a=e.target.closest&&e.target.closest('a[href="#"]');
+      if(a)e.preventDefault();
+    });
+    root.querySelector('.o1-new').addEventListener('click',function(){toast('New service — opens the create form (mock)');});
+
+    rows.forEach(function(r){recompute(r);});
+    refresh();
+  })();</script>
+</article>

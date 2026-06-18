@@ -1,0 +1,432 @@
+<article class="opt" id="opt3">
+  <div class="opt-head"><span class="opt-num">OPTION 3</span><h2>State &amp; stream — business state on the left, live activity on the right</h2></div>
+  <p class="opt-tagline">Split the main pane into the unchanging <em>state</em> of the business and the chronological <em>stream</em> of what just happened.</p>
+  <div class="frame">
+    <section class="o3-root">
+      <style>
+        .o3-root{
+          --o3-rail:56px; --o3-tree:236px;
+          font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          background:var(--surface-container-low); display:flex; min-height:640px;
+          border-radius:14px; overflow:hidden; position:relative;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);
+        }
+        .o3-root *{box-sizing:border-box;}
+        .o3-num{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+
+        /* ---------- icon rail ---------- */
+        .o3-rail{width:var(--o3-rail); flex:0 0 var(--o3-rail); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column;
+          align-items:center; padding:10px 0; gap:4px;}
+        .o3-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:10px;}
+        .o3-railbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+          color:var(--on-surface-variant);cursor:pointer;border:none;background:transparent;}
+        .o3-railbtn:hover{background:var(--surface-container-high);color:var(--on-primary-container);}
+        .o3-railbtn.o3-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o3-railbtn svg{width:20px;height:20px;}
+        .o3-railsp{flex:1;}
+
+        /* ---------- project tree ---------- */
+        .o3-tree{width:var(--o3-tree); flex:0 0 var(--o3-tree); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column; min-height:0;}
+        .o3-tree-h{padding:14px 14px 8px;}
+        .o3-tree-t{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--on-surface-variant);display:flex;justify-content:space-between;align-items:center;}
+        .o3-comp{font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0;}
+        .o3-filter{margin:8px 14px 6px;padding:7px 10px;border:1px solid var(--outline-variant);
+          border-radius:8px;font-size:12px;color:var(--on-surface-variant);background:var(--surface-container-low);}
+        .o3-pills{display:flex;gap:5px;padding:2px 14px 10px;flex-wrap:wrap;}
+        .o3-pill{font-size:10.5px;font-family:'JetBrains Mono',monospace;padding:3px 7px;border-radius:999px;
+          border:1px solid var(--outline-variant);background:var(--surface);color:var(--on-surface-variant);cursor:default;}
+        .o3-pill .o3-d{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+        .o3-tree-scroll{overflow-y:auto;flex:1;padding-bottom:10px;}
+        .o3-grp{padding:0 8px;}
+        .o3-grp-h{display:flex;align-items:center;gap:6px;padding:7px 6px;font-size:11.5px;font-weight:700;
+          color:var(--on-surface);cursor:pointer;border-radius:7px;}
+        .o3-grp-h:hover{background:var(--surface-container);}
+        .o3-grp-h .o3-cnt{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;
+          color:var(--on-surface-variant);font-weight:600;}
+        .o3-prj{display:flex;align-items:center;gap:7px;padding:5px 6px 5px 20px;font-size:11.5px;
+          color:var(--on-surface-variant);cursor:pointer;border-radius:7px;}
+        .o3-prj:hover{background:var(--surface-container);color:var(--on-surface);}
+        .o3-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o3-dot.o3-on_track{background:var(--tertiary);}
+        .o3-dot.o3-needs_attention{background:var(--amber);}
+        .o3-dot.o3-overdue{background:var(--error);}
+
+        /* ---------- main pane ---------- */
+        .o3-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+        .o3-top{padding:16px 22px 12px;border-bottom:1px solid var(--outline-variant);background:var(--surface);}
+        .o3-top h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em;}
+        .o3-top .o3-sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:3px;}
+        .o3-top .o3-sub b{color:var(--on-surface);font-weight:700;}
+        .o3-ai{margin-left:auto;border:1px solid var(--outline);background:var(--surface);
+          color:var(--on-primary-container);font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;
+          cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+        .o3-ai:hover{background:var(--primary-container);}
+        .o3-ai svg{width:13px;height:13px;}
+        .o3-toprow{display:flex;align-items:flex-start;gap:14px;}
+
+        .o3-split{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0;}
+        @media(max-width:1080px){.o3-split{grid-template-columns:300px 1fr;}}
+
+        /* ---------- LEFT: state ---------- */
+        .o3-state{border-right:1px solid var(--outline-variant);background:var(--surface-container-low);
+          overflow-y:auto;padding:16px 16px 22px;}
+        .o3-colh{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--on-surface-variant);margin:2px 0 12px;display:flex;align-items:center;gap:7px;}
+        .o3-colh::after{content:"";flex:1;height:1px;background:var(--outline-variant);}
+
+        .o3-scope{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);margin-bottom:14px;}
+        .o3-scope-t{font-size:12px;font-weight:700;margin-bottom:2px;}
+        .o3-scope-s{font-size:11px;color:var(--on-surface-variant);margin-bottom:10px;}
+        .o3-bar{display:flex;height:30px;border-radius:8px;overflow:hidden;gap:2px;}
+        .o3-seg{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;
+          color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
+          transition:filter .15s,outline .15s;outline:2px solid transparent;outline-offset:-2px;}
+        .o3-seg:hover{filter:brightness(1.06);}
+        .o3-seg.o3-segact{outline-color:rgba(0,0,0,.28);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}
+        .o3-seg.o3-s-on{background:var(--tertiary);flex:14;}
+        .o3-seg.o3-s-attn{background:var(--amber);flex:5;}
+        .o3-seg.o3-s-over{background:var(--error);flex:2;}
+        .o3-legend{display:flex;gap:14px;margin-top:9px;font-size:10.5px;color:var(--on-surface-variant);flex-wrap:wrap;}
+        .o3-legend span{display:flex;align-items:center;gap:5px;}
+        .o3-legend i{width:8px;height:8px;border-radius:2px;display:inline-block;}
+
+        .o3-kpis{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+        .o3-kpi{background:var(--surface);border:1px solid var(--outline-variant);border-radius:11px;
+          padding:11px 13px;display:flex;align-items:baseline;gap:10px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o3-kpi .o3-big{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;
+          font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1;}
+        .o3-kpi .o3-meta{display:flex;flex-direction:column;gap:1px;}
+        .o3-kpi .o3-lab{font-size:11.5px;font-weight:600;}
+        .o3-kpi .o3-note{font-size:10.5px;color:var(--on-surface-variant);}
+
+        .o3-mtable{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o3-mt-h{padding:11px 13px 9px;font-size:12px;font-weight:700;border-bottom:1px solid var(--outline-variant);
+          display:flex;align-items:center;gap:7px;}
+        .o3-mrow{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:8px 13px;
+          font-size:11.5px;border-bottom:1px solid var(--outline-variant);}
+        .o3-mrow:last-child{border-bottom:none;}
+        .o3-mrow .o3-cl{display:flex;align-items:center;gap:7px;font-weight:600;}
+        .o3-mrow .o3-mg{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-weight:700;}
+        .o3-mrow .o3-vs{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-align:right;min-width:54px;}
+        .o3-rag{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
+        .o3-rag.o3-green{background:var(--green);}
+        .o3-rag.o3-amber{background:var(--amber);}
+        .o3-rag.o3-red{background:var(--error);}
+        .o3-vs.o3-pos{color:var(--green-deep);} .o3-vs.o3-neg{color:var(--error);} .o3-vs.o3-zero{color:var(--on-surface-variant);}
+
+        /* ---------- RIGHT: stream ---------- */
+        .o3-stream{display:flex;flex-direction:column;min-height:0;background:var(--surface);}
+        .o3-streamh{padding:14px 18px 10px;border-bottom:1px solid var(--outline-variant);}
+        .o3-streamh .o3-colh{margin:0 0 10px;}
+        .o3-chips{display:flex;gap:7px;flex-wrap:wrap;}
+        .o3-chip{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;cursor:pointer;
+          border:1px solid var(--outline-variant);background:var(--surface);color:var(--on-surface-variant);
+          display:inline-flex;align-items:center;gap:6px;}
+        .o3-chip:hover{background:var(--surface-container);}
+        .o3-chip.o3-chipon{background:var(--primary);border-color:var(--primary);color:var(--on-primary);}
+        .o3-chip .o3-cc{font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.85;}
+        .o3-clearwrap{padding:7px 18px 0;min-height:0;}
+        .o3-clear{display:none;font-size:11px;color:var(--primary);cursor:pointer;font-weight:600;align-items:center;gap:5px;}
+        .o3-clear.o3-show{display:inline-flex;}
+
+        .o3-feed{overflow-y:auto;flex:1;padding:6px 18px 18px;}
+        .o3-item{display:grid;grid-template-columns:32px 1fr auto;gap:11px;align-items:start;
+          padding:11px 11px 11px 0;border-radius:10px;cursor:pointer;position:relative;
+          border-bottom:1px solid var(--outline-variant);}
+        .o3-item:last-child{border-bottom:none;}
+        .o3-item::before{content:"";position:absolute;left:-18px;top:0;bottom:0;width:3px;background:var(--outline-variant);}
+        .o3-item.o3-rail-amber::before{background:var(--amber);}
+        .o3-item.o3-rail-red::before{background:var(--error);}
+        .o3-item.o3-rail-green::before{background:var(--green);}
+        .o3-item.o3-rail-info::before{background:var(--primary);}
+        .o3-item:hover{background:var(--surface-container-low);}
+        .o3-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 32px;margin-top:1px;}
+        .o3-ic svg{width:16px;height:16px;}
+        .o3-ic.o3-amber{background:var(--amber-soft);color:var(--amber-deep);}
+        .o3-ic.o3-red{background:var(--error-container);color:var(--on-error-container);}
+        .o3-ic.o3-green{background:var(--green-soft);color:var(--green-deep);}
+        .o3-ic.o3-info{background:var(--primary-container);color:var(--on-primary-container);}
+        .o3-body{min-width:0;}
+        .o3-desc{font-size:12.5px;font-weight:600;line-height:1.35;}
+        .o3-where{font-size:11px;color:var(--on-surface-variant);margin-top:2px;}
+        .o3-where b{color:var(--on-primary-container);font-weight:600;}
+        .o3-when{font-size:10.5px;color:var(--on-surface-variant);font-family:'JetBrains Mono',monospace;
+          white-space:nowrap;margin-top:2px;}
+        .o3-eng{display:inline-block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          padding:1px 6px;border-radius:5px;margin-left:6px;background:var(--surface-container-high);
+          color:var(--on-primary-container);vertical-align:1px;}
+        .o3-empty{display:none;text-align:center;color:var(--on-surface-variant);font-size:12.5px;padding:40px 10px;}
+        .o3-empty.o3-show{display:block;}
+
+        /* ---------- snackbar ---------- */
+        .o3-snack{position:absolute;left:50%;bottom:16px;transform:translate(-50%,140%);
+          background:var(--on-surface);color:#fff;font-size:12.5px;font-weight:500;padding:9px 16px;border-radius:9px;
+          box-shadow:0 8px 24px rgba(76,29,149,.28);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+          z-index:20;white-space:nowrap;pointer-events:none;}
+        .o3-snack.o3-snackon{transform:translate(-50%,0);}
+      </style>
+
+      <!-- ICON RAIL -->
+      <nav class="o3-rail" aria-label="App">
+        <div class="o3-logo">C</div>
+        <button class="o3-railbtn o3-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></button>
+        <button class="o3-railbtn" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg></button>
+        <button class="o3-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/></svg></button>
+        <button class="o3-railbtn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+        <button class="o3-railbtn" title="Pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></button>
+        <div class="o3-railsp"></div>
+        <button class="o3-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.2 2.5a7 7 0 0 0-2.2 1.3l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.3l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.2 1.3L10 22h4l.2-2.5a7 7 0 0 0 2.2-1.3l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></button>
+      </nav>
+
+      <!-- PROJECT TREE -->
+      <aside class="o3-tree" aria-label="Projects">
+        <div class="o3-tree-h"><div class="o3-tree-t">Projects <span class="o3-comp">Completed</span></div></div>
+        <div class="o3-filter">Filter projects…</div>
+        <div class="o3-pills">
+          <span class="o3-pill"><span class="o3-d" style="background:var(--tertiary)"></span>14 on track</span>
+          <span class="o3-pill"><span class="o3-d" style="background:var(--amber)"></span>5 attention</span>
+          <span class="o3-pill"><span class="o3-d" style="background:var(--error)"></span>2 overdue</span>
+        </div>
+        <div class="o3-tree-scroll" id="o3-tree-scroll"></div>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="o3-main">
+        <header class="o3-top">
+          <div class="o3-toprow">
+            <div>
+              <h1>Operations overview</h1>
+              <div class="o3-sub">Tuesday, 10 June 2026 · <b>21 active projects</b> across <b>9 clients</b></div>
+            </div>
+            <button class="o3-ai" id="o3-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>Generate health narrative</button>
+          </div>
+        </header>
+
+        <div class="o3-split">
+          <!-- LEFT: STATE -->
+          <section class="o3-state" aria-label="State of the business">
+            <div class="o3-colh">State of the business</div>
+
+            <div class="o3-scope">
+              <div class="o3-scope-t">Portfolio scope</div>
+              <div class="o3-scope-s">21 active projects by status — click a band to filter the stream</div>
+              <div class="o3-bar" id="o3-bar">
+                <div class="o3-seg o3-s-on" data-scope="delivered" title="14 on track">14</div>
+                <div class="o3-seg o3-s-attn" data-scope="attention" title="5 need attention">5</div>
+                <div class="o3-seg o3-s-over" data-scope="attention" title="2 overdue">2</div>
+              </div>
+              <div class="o3-legend">
+                <span><i style="background:var(--tertiary)"></i>On track 14</span>
+                <span><i style="background:var(--amber)"></i>Attention 5</span>
+                <span><i style="background:var(--error)"></i>Overdue 2</span>
+              </div>
+            </div>
+
+            <div class="o3-kpis">
+              <div class="o3-kpi"><span class="o3-big">642<span style="font-size:13px">h</span></span><span class="o3-meta"><span class="o3-lab">Burned this month</span><span class="o3-note">across active retainers &amp; fixed bids</span></span></div>
+              <div class="o3-kpi"><span class="o3-big">86<span style="font-size:13px">%</span></span><span class="o3-meta"><span class="o3-lab">On-time delivery</span><span class="o3-note">32 / 37 milestones hit</span></span></div>
+              <div class="o3-kpi"><span class="o3-big">4.2<span style="font-size:13px">d</span></span><span class="o3-meta"><span class="o3-lab">Avg brief → DFT</span><span class="o3-note">18 projects measured</span></span></div>
+            </div>
+
+            <div class="o3-mtable">
+              <div class="o3-mt-h">Client margin <span style="font-weight:500;color:var(--on-surface-variant);font-size:11px">· rolling 30d · target 35%</span></div>
+              <div id="o3-margin"></div>
+            </div>
+          </section>
+
+          <!-- RIGHT: STREAM -->
+          <section class="o3-stream" aria-label="Live stream">
+            <div class="o3-streamh">
+              <div class="o3-colh">Live stream</div>
+              <div class="o3-chips" id="o3-chips">
+                <button class="o3-chip o3-chipon" data-filter="all">All <span class="o3-cc" data-cc="all"></span></button>
+                <button class="o3-chip" data-filter="attention">Needs attention <span class="o3-cc" data-cc="attention"></span></button>
+                <button class="o3-chip" data-filter="delivered">Delivered <span class="o3-cc" data-cc="delivered"></span></button>
+                <button class="o3-chip" data-filter="briefs">Briefs <span class="o3-cc" data-cc="briefs"></span></button>
+              </div>
+            </div>
+            <div class="o3-clearwrap"><span class="o3-clear" id="o3-clear">✕ Clear scope filter</span></div>
+            <div class="o3-feed" id="o3-feed"></div>
+            <div class="o3-empty" id="o3-empty">No activity for this filter.</div>
+          </section>
+        </div>
+      </div>
+
+      <div class="o3-snack" id="o3-snack"></div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>It answers two different questions in two purpose-built places instead of one flat scroll: the left column is the steady <em>state</em> (scope mix, the three KPIs, margin) you glance at once, while the right column is the chronological <em>stream</em> of what actually moved — so "how are we doing" and "what just happened" never compete for the same row. Margin is promoted out of the basement into the always-visible state column, and the two old near-identical flat lists (Attention + Recent) collapse into a single typed, time-ordered feed where colored rails make the urgent entries obvious.</p></div>
+    <div><h3>Trade-offs</h3><p>A synthesised activity feed implies an event log the product doesn't fully emit yet — entries here are derived from project state, so real wiring needs timestamped events. The fixed two-column split is comfortable on wide monitors but gets cramped below ~1000px and would need to stack. And a stream rewards recency: a quietly-rotting project with no recent events can sink down the feed, so the state column and tree pills remain the safety net for "nothing happened in 9 days".</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt3'); if(!root) return;
+
+    /* ---------- data ---------- */
+    var tree=[
+      {client:'Sasol',projects:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',projects:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',projects:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",projects:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',projects:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',projects:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',projects:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',projects:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',projects:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',projects:[['Packaging Refresh','on_track']]}
+    ];
+    var margin=[
+      ['Takealot','40.0%','+5.0pp','green','pos'],
+      ['Sasol','40.0%','+5.0pp','green','pos'],
+      ['Discovery','30.6%','−4.4pp','amber','neg'],
+      ['MTN','35.0%','0.0pp','green','zero'],
+      ['Capitec','25.0%','−10.0pp','red','neg'],
+      ['Woolworths','24.0%','−11.0pp','red','neg']
+    ];
+    // bucket: attention | delivered | briefs ; rail: amber|red|green|info ; ic same
+    var feed=[
+      {desc:'DFT approved',client:'Takealot',project:'Black Friday Creative',eng:'project',when:'today',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'Milestone slipped twice',client:"Nando's",project:'Winter Menu Push',eng:'project',when:'1h',bucket:'attention',rail:'red',ic:'red',icon:'alert'},
+      {desc:'Brief scoped',client:'MTN',project:'5G Awareness',eng:'retainer',when:'2h',bucket:'briefs',rail:'info',ic:'info',icon:'doc'},
+      {desc:'DFT 6 days past due',client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',when:'3h',bucket:'attention',rail:'red',ic:'red',icon:'clock'},
+      {desc:'3 briefs awaiting scope · oldest 6 days',client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',when:'5h',bucket:'briefs',rail:'amber',ic:'amber',icon:'doc'},
+      {desc:'Burn at 92% · 2 weeks left in cycle',client:'Discovery',project:'Vitality Always-On',eng:'retainer',when:'6h',bucket:'attention',rail:'amber',ic:'amber',icon:'flame'},
+      {desc:'Quote accepted',client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',when:'yesterday',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'No activity in 9 days',client:'Capitec',project:'Always-On Social',eng:'retainer',when:'yesterday',bucket:'attention',rail:'amber',ic:'amber',icon:'pause'},
+      {desc:'12 tasks completed this week',client:'Clicks',project:'Health Content Hub',eng:'retainer',when:'2d',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'Kickoff scheduled Monday',client:'Tiger Brands',project:'Packaging Refresh',eng:'project',when:'2d',bucket:'briefs',rail:'info',ic:'info',icon:'flag'}
+    ];
+
+    var ICONS={
+      check:'<path d="M20 6 9 17l-5-5"/>',
+      alert:'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+      doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 14h6M9 17h6"/>',
+      clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      flame:'<path d="M12 2c1 3-2 4-2 7a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 3-6 5-13Z"/>',
+      pause:'<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>',
+      flag:'<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>'
+    };
+    function svg(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||'')+'</svg>';}
+    function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+    /* ---------- snackbar ---------- */
+    var snack=root.querySelector('#o3-snack'),snackT;
+    function toast(msg){snack.textContent=msg;snack.classList.add('o3-snackon');
+      clearTimeout(snackT);snackT=setTimeout(function(){snack.classList.remove('o3-snackon');},1900);}
+
+    /* ---------- render tree ---------- */
+    var ts=root.querySelector('#o3-tree-scroll'),th='';
+    tree.forEach(function(g,i){
+      th+='<div class="o3-grp"><div class="o3-grp-h">'+
+        '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>'+
+        esc(g.client)+'<span class="o3-cnt">'+g.projects.length+'</span></div>';
+      g.projects.forEach(function(p){
+        th+='<div class="o3-prj" data-name="'+esc(g.client+' — '+p[0])+'"><span class="o3-dot o3-'+p[1]+'"></span>'+esc(p[0])+'</div>';
+      });
+      th+='</div>';
+    });
+    ts.innerHTML=th;
+    ts.querySelectorAll('.o3-prj').forEach(function(el){
+      el.addEventListener('click',function(){toast('Opening '+el.getAttribute('data-name')+'…');});
+    });
+
+    /* ---------- render margin ---------- */
+    var mw=root.querySelector('#o3-margin'),mh='';
+    margin.forEach(function(m){
+      mh+='<div class="o3-mrow"><span class="o3-cl"><span class="o3-rag o3-'+m[3]+'"></span>'+esc(m[0])+'</span>'+
+        '<span class="o3-mg">'+m[1]+'</span><span class="o3-vs o3-'+m[4]+'">'+m[2]+'</span></div>';
+    });
+    mw.innerHTML=mh;
+
+    /* ---------- render feed ---------- */
+    var feedEl=root.querySelector('#o3-feed'),emptyEl=root.querySelector('#o3-empty');
+    var chipFilter='all',scopeFilter=null;
+
+    function buildFeed(){
+      var html='';
+      feed.forEach(function(f,i){
+        html+='<div class="o3-item o3-rail-'+f.rail+'" data-bucket="'+f.bucket+'" data-i="'+i+'">'+
+          '<span class="o3-ic o3-'+f.ic+'">'+svg(f.icon)+'</span>'+
+          '<span class="o3-body"><span class="o3-desc">'+esc(f.desc)+'<span class="o3-eng">'+f.eng+'</span></span>'+
+          '<span class="o3-where"><b>'+esc(f.client)+'</b> · '+esc(f.project)+'</span></span>'+
+          '<span class="o3-when">'+esc(f.when)+'</span></div>';
+      });
+      feedEl.innerHTML=html;
+      feedEl.querySelectorAll('.o3-item').forEach(function(el){
+        var f=feed[+el.getAttribute('data-i')];
+        el.addEventListener('click',function(){toast('Opening '+f.client+' / '+f.project+'…');});
+      });
+    }
+    buildFeed();
+
+    function applyFilters(){
+      var shown=0;
+      feedEl.querySelectorAll('.o3-item').forEach(function(el){
+        var b=el.getAttribute('data-bucket');
+        var okChip=(chipFilter==='all')||(b===chipFilter);
+        var okScope=(!scopeFilter)||(b===scopeFilter);
+        var vis=okChip&&okScope;
+        el.style.display=vis?'':'none';
+        if(vis)shown++;
+      });
+      emptyEl.classList.toggle('o3-show',shown===0);
+    }
+
+    /* ---------- chip counts ---------- */
+    var counts={all:feed.length,attention:0,delivered:0,briefs:0};
+    feed.forEach(function(f){counts[f.bucket]++;});
+    root.querySelectorAll('.o3-cc').forEach(function(el){el.textContent=counts[el.getAttribute('data-cc')];});
+
+    /* ---------- chip interaction ---------- */
+    var chips=root.querySelectorAll('#o3-chips .o3-chip');
+    chips.forEach(function(c){
+      c.addEventListener('click',function(){
+        chips.forEach(function(x){x.classList.remove('o3-chipon');});
+        c.classList.add('o3-chipon');
+        chipFilter=c.getAttribute('data-filter');
+        applyFilters();
+      });
+    });
+
+    /* ---------- scope band interaction ---------- */
+    var bar=root.querySelector('#o3-bar'),clearBtn=root.querySelector('#o3-clear');
+    var segs=bar.querySelectorAll('.o3-seg');
+    function setScope(sc,segEl){
+      if(scopeFilter===sc){ // toggle off
+        scopeFilter=null;segs.forEach(function(s){s.classList.remove('o3-segact');});
+        clearBtn.classList.remove('o3-show');
+      }else{
+        scopeFilter=sc;
+        segs.forEach(function(s){s.classList.toggle('o3-segact',s.getAttribute('data-scope')===sc);});
+        clearBtn.classList.add('o3-show');
+      }
+      applyFilters();
+    }
+    segs.forEach(function(s){
+      s.addEventListener('click',function(){setScope(s.getAttribute('data-scope'),s);});
+    });
+    clearBtn.addEventListener('click',function(){
+      scopeFilter=null;segs.forEach(function(s){s.classList.remove('o3-segact');});
+      clearBtn.classList.remove('o3-show');applyFilters();
+    });
+
+    /* ---------- AI button ---------- */
+    root.querySelector('#o3-ai').addEventListener('click',function(){toast('Generating health narrative…');});
+
+    /* ---------- rail nav (chrome) ---------- */
+    root.querySelectorAll('.o3-railbtn').forEach(function(b){
+      b.addEventListener('click',function(){
+        root.querySelectorAll('.o3-railbtn').forEach(function(x){x.classList.remove('o3-on');});
+        b.classList.add('o3-on');
+      });
+    });
+  })();</script>
+</article>

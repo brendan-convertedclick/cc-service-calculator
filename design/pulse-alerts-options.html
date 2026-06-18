@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Pulse — alert display options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#7C3AED; --on-primary:#fff; --primary-container:#EDE9FE; --on-primary-container:#4C1D95;
+  --surface:#fff; --on-surface:#0A0A0B; --on-surface-variant:#5B5273;
+  --surface-container:#F6F4FF; --surface-container-high:#EDE9FE; --surface-container-highest:#E4DEFC;
+  --outline:#C4B5FD; --outline-variant:#EDE9FE;
+  --error:#DC2626; --on-error:#fff; --error-container:#FEE2E2; --on-error-container:#991B1B;
+  --tertiary:#0891B2; --tertiary-container:#CFFAFE; --on-tertiary-container:#164E63;
+  --amber:#F59E0B; --amber-soft:#FEF3C7; --amber-deep:#B45309;
+  --green:#22C55E; --green-soft:#F0FDF4; --green-deep:#15803D;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:#FBFAFF;color:var(--on-surface);}
+.shell{max-width:1160px;margin:0 auto;padding:40px 40px 120px;}
+.shell-header{margin-bottom:8px;}
+.shell-header h1{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;}
+.shell-header p{font-size:14px;color:var(--on-surface-variant);margin:0;max-width:760px;line-height:1.6;}
+.jumpnav{position:sticky;top:0;z-index:50;display:flex;gap:8px;flex-wrap:wrap;padding:14px 0;background:rgba(251,250,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--outline-variant);margin:20px 0 36px;}
+.jumpnav a{font-size:12px;font-weight:600;color:var(--on-primary-container);background:var(--primary-container);border-radius:999px;padding:6px 13px;text-decoration:none;transition:background .15s;}
+.jumpnav a:hover{background:var(--surface-container-highest);}
+.jumpnav a.cur{background:var(--error-container);color:var(--on-error-container);}
+.opt{margin-bottom:72px;scroll-margin-top:80px;}
+.opt-head{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;}
+.opt-num{font-size:12px;font-weight:700;color:var(--primary);background:var(--primary-container);border-radius:8px;padding:3px 9px;letter-spacing:.04em;}
+.opt-head h2{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:0;}
+.opt-tagline{font-size:14px;color:var(--on-surface-variant);margin:0 0 16px;}
+.frame{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;padding:28px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.opt-notes{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px;}
+.opt-notes h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--on-surface-variant);margin:0 0 4px;}
+.opt-notes p{font-size:13px;line-height:1.6;color:var(--on-surface-variant);margin:0;}
+.divider-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--on-surface-variant);margin:0 0 14px;}
+/* current-state recreation */
+.cur-wall{border-radius:10px;overflow:hidden;border:1px solid var(--error-container);}
+.cur-wall-head{background:var(--error);color:#fff;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:9px 16px;}
+.cur-wall-body{background:var(--error-container);padding:12px;display:flex;flex-direction:column;gap:8px;}
+.cur-row{display:flex;align-items:center;gap:12px;background:#fff;border-left:4px solid var(--error);border-radius:6px;padding:10px 14px;font-size:13px;}
+.cur-row span{flex:1;}
+.cur-badge{background:var(--error);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:3px 12px;}
+.cur-more{font-size:13px;font-weight:600;color:var(--on-error-container);padding:2px 4px;}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="shell-header">
+  <h1>Business Pulse — alert display options</h1>
+  <p>Six ways to replace the red alert wall. Same underlying data in every mockup: <strong>2 overdue invoices (R60,950)</strong>, <strong>3 retainers running hot</strong>, <strong>25 routine client follow-ups</strong>. The design principle: red ink is a budget — spend it only on money that's actually late. Interactive elements (accordions, toggles) work — click around.</p>
+</header>
+<nav class="jumpnav">
+  <a class="cur" href="#current">Current</a>
+  <a href="#opt1">1. Triage chips strip</a>
+  <a href="#opt2">2. Morning digest card</a>
+  <a href="#opt3">3. Pulse Meter</a>
+  <a href="#opt4">4. Top 3 + the rest</a>
+  <a href="#opt5">5. Badges Where the Data Lives</a>
+  <a href="#opt6">6. Executive Scoreboard Header</a>
+</nav>
+
+<article class="opt" id="current">
+  <p class="divider-label">For comparison — current state</p>
+  <div class="cur-wall">
+    <div class="cur-wall-head">&#9888; 30 items need your attention</div>
+    <div class="cur-wall-body">
+      <div class="cur-row"><span>Pebble — No contact recorded yet. Account manager should follow up.</span><span class="cur-badge">OVERDUE</span></div>
+      <div class="cur-row"><span>AeT — No contact recorded yet. Account manager should follow up.</span><span class="cur-badge">OVERDUE</span></div>
+      <div class="cur-row"><span>Black Magic Communications — No contact recorded yet. Account manager should follow up.</span><span class="cur-badge">OVERDUE</span></div>
+      <div class="cur-more">+27 more</div>
+    </div>
+  </div>
+</article>
+
+<article class="opt" id="opt1">
+  <div class="opt-head"><span class="opt-num">OPTION 1</span><h2>Triage chips strip</h2></div>
+  <p class="opt-tagline">Three calm counts replace thirty red rows; detail one click away.</p>
+  <div class="frame">
+<section class="tri-root">
+<style>
+.tri-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);max-width:1080px;}
+.tri-root *,.tri-root *::before,.tri-root *::after{box-sizing:border-box;margin:0;padding:0;}
+.tri-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;animation:tri-rise .4s cubic-bezier(.2,.7,.3,1) both;}
+.tri-eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+.tri-stamp{font-size:12px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+.tri-strip{display:flex;gap:12px;}
+.tri-chip{flex:1;display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;padding:12px 16px;cursor:pointer;text-align:left;font:inherit;color:inherit;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease;animation:tri-rise .45s cubic-bezier(.2,.7,.3,1) both;}
+.tri-chip:nth-child(2){animation-delay:.07s;}
+.tri-chip:nth-child(3){animation-delay:.14s;}
+.tri-chip:hover{border-color:var(--outline);box-shadow:0 1px 2px rgba(0,0,0,.05);}
+.tri-chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+.tri-chip.tri-open{background:var(--surface-container);border-color:var(--outline);}
+.tri-dot{width:8px;height:8px;border-radius:999px;flex:none;}
+.tri-dot--error{background:var(--error);}
+.tri-dot--amber{background:var(--amber);}
+.tri-dot--tertiary{background:var(--tertiary);}
+.tri-count{font-size:26px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+.tri-chipbody{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.tri-chiplabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);white-space:nowrap;}
+.tri-chipmeta{font-size:13px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.tri-chipmeta--error{color:var(--on-error-container);font-weight:600;}
+.tri-chipmeta--amber{color:var(--amber-deep);}
+.tri-chev{margin-left:auto;color:var(--on-surface-variant);flex:none;transition:transform .2s ease;}
+.tri-chip.tri-open .tri-chev{transform:rotate(180deg);}
+.tri-panel{margin-top:12px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;overflow:hidden;animation:tri-rise .25s ease both;}
+.tri-row{display:flex;align-items:center;gap:12px;padding:11px 16px;font-size:13px;border-top:1px solid var(--outline-variant);}
+.tri-row:first-child{border-top:none;}
+.tri-row--link{text-decoration:none;color:inherit;transition:background .12s ease;}
+.tri-row--link:hover{background:var(--surface-container);}
+.tri-rowname{font-weight:600;min-width:230px;}
+.tri-rowsub{color:var(--on-surface-variant);}
+.tri-rowend{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.tri-pill{font-size:11px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.tri-pill--error{background:var(--error-container);color:var(--on-error-container);}
+.tri-amount{font-weight:600;font-variant-numeric:tabular-nums;min-width:72px;text-align:right;}
+.tri-bar{flex:1;max-width:260px;height:4px;border-radius:999px;background:var(--surface-container-high);overflow:hidden;}
+.tri-barfill{display:block;height:100%;border-radius:999px;background:var(--amber);}
+.tri-rowmeta{color:var(--on-surface-variant);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.tri-rowmeta b{color:var(--amber-deep);font-weight:600;}
+.tri-note{padding:12px 16px 4px;font-size:13px;color:var(--on-surface-variant);line-height:1.5;}
+.tri-names{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 14px;}
+.tri-name{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface-container);color:var(--on-surface-variant);}
+.tri-name--more{background:transparent;border:1px dashed var(--outline);}
+.tri-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface-container);border-top:1px solid var(--outline-variant);}
+.tri-foottext{font-size:12px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+.tri-foottext b{color:var(--on-surface);font-weight:600;}
+.tri-link{font-size:13px;font-weight:600;color:var(--primary);text-decoration:none;}
+.tri-link:hover{text-decoration:underline;}
+.tri-divider{display:flex;align-items:center;gap:10px;margin:28px 0 12px;animation:tri-rise .45s .2s cubic-bezier(.2,.7,.3,1) both;}
+.tri-divider::before,.tri-divider::after{content:"";flex:1;height:1px;background:var(--outline-variant);}
+.tri-divider span{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+.tri-allclear{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;padding:14px 16px;animation:tri-rise .45s .26s cubic-bezier(.2,.7,.3,1) both;}
+.tri-checkpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green-deep);background:var(--green-soft);border:1px solid var(--green);border-radius:999px;padding:4px 11px;}
+.tri-allcleartext{font-size:13px;color:var(--on-surface-variant);}
+@keyframes tri-rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion:reduce){.tri-root *{animation:none!important;transition:none!important;}}
+</style>
+
+<header class="tri-head">
+  <span class="tri-eyebrow">Needs attention</span>
+  <span class="tri-stamp">Wed 10 Jun · updated 07:42</span>
+</header>
+
+<div class="tri-strip">
+  <button type="button" class="tri-chip" data-tri-panel="tri-panel-overdue" aria-expanded="false" aria-controls="tri-panel-overdue">
+    <span class="tri-dot tri-dot--error"></span>
+    <span class="tri-count">2</span>
+    <span class="tri-chipbody">
+      <span class="tri-chiplabel">Overdue invoices</span>
+      <span class="tri-chipmeta tri-chipmeta--error">R60,950 outstanding</span>
+    </span>
+    <svg class="tri-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button type="button" class="tri-chip" data-tri-panel="tri-panel-watch" aria-expanded="false" aria-controls="tri-panel-watch">
+    <span class="tri-dot tri-dot--amber"></span>
+    <span class="tri-count">3</span>
+    <span class="tri-chipbody">
+      <span class="tri-chiplabel">Retainers to watch</span>
+      <span class="tri-chipmeta tri-chipmeta--amber">highest burn 91% · 12 days left</span>
+    </span>
+    <svg class="tri-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button type="button" class="tri-chip" data-tri-panel="tri-panel-follow" aria-expanded="false" aria-controls="tri-panel-follow">
+    <span class="tri-dot tri-dot--tertiary"></span>
+    <span class="tri-count">25</span>
+    <span class="tri-chipbody">
+      <span class="tri-chiplabel">Follow-ups due</span>
+      <span class="tri-chipmeta">routine · no contact in 21+ days</span>
+    </span>
+    <svg class="tri-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<div class="tri-panels">
+  <div class="tri-panel" id="tri-panel-overdue" hidden>
+    <a class="tri-row tri-row--link" href="/reconciliation">
+      <span class="tri-rowname">Eva-Last</span>
+      <span class="tri-rowsub">Invoice INV-0231</span>
+      <span class="tri-rowend"><span class="tri-pill tri-pill--error">42 days overdue</span><span class="tri-amount">R48,300</span></span>
+    </a>
+    <a class="tri-row tri-row--link" href="/reconciliation">
+      <span class="tri-rowname">Pebble</span>
+      <span class="tri-rowsub">Invoice INV-0198</span>
+      <span class="tri-rowend"><span class="tri-pill tri-pill--error">35 days overdue</span><span class="tri-amount">R12,650</span></span>
+    </a>
+    <div class="tri-foot">
+      <span class="tri-foottext">Total outstanding · <b>R60,950</b></span>
+      <a class="tri-link" href="/reconciliation">Open Reconciliation →</a>
+    </div>
+  </div>
+
+  <div class="tri-panel" id="tri-panel-watch" hidden>
+    <a class="tri-row tri-row--link" href="/projects">
+      <span class="tri-rowname">AeT retainer</span>
+      <span class="tri-bar"><span class="tri-barfill" style="width:91%"></span></span>
+      <span class="tri-rowend"><span class="tri-rowmeta"><b>91%</b> of hours burned · 12 days left</span></span>
+    </a>
+    <a class="tri-row tri-row--link" href="/projects">
+      <span class="tri-rowname">Black Magic Communications retainer</span>
+      <span class="tri-bar"><span class="tri-barfill" style="width:88%"></span></span>
+      <span class="tri-rowend"><span class="tri-rowmeta"><b>88%</b> of hours burned · 12 days left</span></span>
+    </a>
+    <a class="tri-row tri-row--link" href="/projects">
+      <span class="tri-rowname">Pebble retainer</span>
+      <span class="tri-bar"><span class="tri-barfill" style="width:86%"></span></span>
+      <span class="tri-rowend"><span class="tri-rowmeta"><b>86%</b> of hours burned · 12 days left</span></span>
+    </a>
+    <div class="tri-foot">
+      <span class="tri-foottext">Cycle ends 22 Jun</span>
+      <a class="tri-link" href="/projects">Open Projects →</a>
+    </div>
+  </div>
+
+  <div class="tri-panel" id="tri-panel-follow" hidden>
+    <p class="tri-note">25 clients with no contact logged in 21+ days — most read “No contact recorded yet. Account manager should follow up.” Routine work, not a fire; log touches from Client Relationship Health below.</p>
+    <div class="tri-names">
+      <span class="tri-name">Pebble</span>
+      <span class="tri-name">AeT</span>
+      <span class="tri-name">Black Magic Communications</span>
+      <span class="tri-name">Eva-Last</span>
+      <span class="tri-name">Children as Urban Citizens</span>
+      <span class="tri-name">Houers Co-op</span>
+      <span class="tri-name">Mojo Lab</span>
+      <span class="tri-name">SA Corporate</span>
+      <span class="tri-name tri-name--more">+17 more</span>
+    </div>
+    <div class="tri-foot">
+      <span class="tri-foottext">Oldest gap · 21+ days</span>
+      <a class="tri-link" href="/clients">Open Clients →</a>
+    </div>
+  </div>
+</div>
+
+<div class="tri-divider"><span>All-clear variant</span></div>
+<div class="tri-allclear">
+  <span class="tri-checkpill"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>All clear</span>
+  <span class="tri-allcleartext">No overdue invoices, retainer risks, or follow-ups due. Enjoy the coffee.</span>
+</div>
+
+<script>
+(function () {
+  var chips = document.querySelectorAll('.tri-chip[data-tri-panel]');
+  var panels = document.querySelectorAll('.tri-panel');
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var panel = document.getElementById(chip.getAttribute('data-tri-panel'));
+      var wasOpen = !panel.hidden;
+      panels.forEach(function (p) { p.hidden = true; });
+      chips.forEach(function (c) {
+        c.classList.remove('tri-open');
+        c.setAttribute('aria-expanded', 'false');
+      });
+      if (!wasOpen) {
+        panel.hidden = false;
+        chip.classList.add('tri-open');
+        chip.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
+})();
+</script>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>The strip compresses 30 alerts into the three numbers the owner actually needs over coffee — 2 urgent (with the rand total), 3 watching, 25 routine — so severity is encoded in hierarchy and hue instead of repetition. Red ink is spent only on the money items; follow-ups read as a neutral work queue with a tertiary dot. Because the detail cards below already carry the underlying data, the expand panels stay shallow and every path deep-links to Reconciliation, Projects, or Clients rather than duplicating rows.</p></div>
+    <div><h3>Trade-offs</h3><p>Individual alert lines are one click away rather than scannable at a glance, so a genuinely new overdue invoice is a number changing from 2 to 3, not a new visible row. The accordion shows only one category&#x27;s detail at a time, and the 25-name pill cloud truncates at 8 names + &quot;+17 more&quot;.</p></div>
+  </div>
+</article>
+<article class="opt" id="opt2">
+  <div class="opt-head"><span class="opt-num">OPTION 2</span><h2>Morning digest card</h2></div>
+  <p class="opt-tagline">One calm briefing card: urgent open, routine folded away.</p>
+  <div class="frame">
+<section class="dig-root">
+  <style>
+    .dig-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);-webkit-font-smoothing:antialiased;}
+    .dig-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);overflow:hidden;animation:dig-rise .45s ease both;}
+    .dig-cardhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:24px 28px 18px;}
+    .dig-eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);margin:0 0 7px;}
+    .dig-title{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0 0 5px;color:var(--on-surface);}
+    .dig-sub{font-size:13px;color:var(--on-surface-variant);margin:0;font-variant-numeric:tabular-nums;}
+    .dig-group{border-top:1px solid var(--outline-variant);animation:dig-rise .45s ease both;}
+    .dig-groups .dig-group:nth-child(1){animation-delay:.06s;}
+    .dig-groups .dig-group:nth-child(2){animation-delay:.12s;}
+    .dig-groups .dig-group:nth-child(3){animation-delay:.18s;}
+    .dig-head{display:flex;align-items:center;gap:12px;width:100%;padding:15px 28px;margin:0;background:transparent;border:0;cursor:pointer;font:inherit;text-align:left;transition:background .15s ease;}
+    .dig-head:hover{background:var(--surface-container);}
+    .dig-head:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;}
+    .dig-dot{width:8px;height:8px;border-radius:999px;flex:none;}
+    .dig-dot--red{background:var(--error);box-shadow:0 0 0 3px var(--error-container);}
+    .dig-dot--amber{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft);}
+    .dig-dot--cyan{background:var(--tertiary);box-shadow:0 0 0 3px var(--tertiary-container);}
+    .dig-glabel{font-size:14px;font-weight:600;color:var(--on-surface);}
+    .dig-gcount{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;background:var(--surface-container-high);color:var(--on-surface-variant);border-radius:999px;padding:2px 9px;line-height:1.4;}
+    .dig-gmeta{font-size:13px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+    .dig-gmeta--red{color:var(--on-error-container);font-weight:600;}
+    .dig-gspacer{flex:1;}
+    .dig-chev{flex:none;color:var(--on-surface-variant);transition:transform .25s ease;}
+    .dig-open .dig-chev{transform:rotate(180deg);}
+    .dig-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease;}
+    .dig-open .dig-panel{grid-template-rows:1fr;}
+    .dig-panelin{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s linear .28s;}
+    .dig-open .dig-panelin{visibility:visible;transition-delay:0s;}
+    .dig-panelbody{padding:0 16px 14px 36px;}
+    .dig-items{display:flex;flex-direction:column;gap:2px;}
+    .dig-item{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:10px;text-decoration:none;color:inherit;transition:background .15s ease;}
+    .dig-item:hover{background:var(--surface-container);}
+    .dig-iname{font-size:13px;font-weight:600;flex:none;width:240px;color:var(--on-surface);}
+    .dig-idetail{font-size:13px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+    .dig-iamount{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--on-error-container);margin-left:auto;}
+    .dig-bar{flex:none;width:140px;height:5px;border-radius:999px;background:var(--surface-container-high);overflow:hidden;}
+    .dig-barfill{display:block;height:100%;border-radius:999px;background:var(--amber);}
+    .dig-ipct{flex:none;width:38px;text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--amber-deep);}
+    .dig-fugrid{display:grid;grid-template-columns:1fr 1fr;gap:1px 20px;}
+    .dig-furow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 12px;border-radius:10px;text-decoration:none;color:inherit;transition:background .15s ease;}
+    .dig-furow:hover{background:var(--surface-container);}
+    .dig-funame{font-size:13px;font-weight:500;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .dig-fudetail{font-size:12px;color:var(--on-surface-variant);flex:none;}
+    .dig-actrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 12px 0;}
+    .dig-actnote{font-size:12.5px;color:var(--on-surface-variant);}
+    .dig-action{font-size:13px;font-weight:600;color:var(--primary);text-decoration:none;margin-left:auto;}
+    .dig-action:hover{color:var(--on-primary-container);text-decoration:underline;text-underline-offset:3px;}
+    .dig-foot{display:flex;align-items:center;gap:9px;padding:13px 28px;border-top:1px solid var(--outline-variant);background:var(--surface-container);font-size:12.5px;color:var(--on-surface-variant);}
+    .dig-foot svg{flex:none;}
+    @keyframes dig-rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+    @media (prefers-reduced-motion:reduce){
+      .dig-card,.dig-group{animation:none;}
+      .dig-panel,.dig-chev,.dig-head,.dig-item,.dig-furow{transition:none;}
+    }
+  </style>
+
+  <div class="dig-card">
+    <header class="dig-cardhead">
+      <div>
+        <p class="dig-eyebrow">Morning briefing</p>
+        <h2 class="dig-title">Today&rsquo;s focus &mdash; Wednesday, 10 June</h2>
+        <p class="dig-sub">2 need action &middot; 3 worth watching &middot; 25 routine follow-ups</p>
+      </div>
+    </header>
+
+    <div class="dig-groups">
+
+      <div class="dig-group dig-open" data-count="2">
+        <button class="dig-head" type="button" aria-expanded="true" aria-controls="dig-panel-overdue">
+          <span class="dig-dot dig-dot--red"></span>
+          <span class="dig-glabel">Overdue invoices</span>
+          <span class="dig-gcount">2</span>
+          <span class="dig-gmeta dig-gmeta--red">R60,950 outstanding</span>
+          <span class="dig-gspacer"></span>
+          <svg class="dig-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dig-panel" id="dig-panel-overdue" role="region" aria-label="Overdue invoices">
+          <div class="dig-panelin">
+            <div class="dig-panelbody">
+              <div class="dig-items">
+                <a class="dig-item" href="/reconciliation">
+                  <span class="dig-iname">Eva-Last</span>
+                  <span class="dig-idetail">Invoice INV-0231 &middot; overdue 42 days</span>
+                  <span class="dig-iamount">R48,300</span>
+                </a>
+                <a class="dig-item" href="/reconciliation">
+                  <span class="dig-iname">Pebble</span>
+                  <span class="dig-idetail">Invoice INV-0198 &middot; overdue 35 days</span>
+                  <span class="dig-iamount">R12,650</span>
+                </a>
+              </div>
+              <div class="dig-actrow">
+                <a class="dig-action" href="/reconciliation">Reconcile &rarr;</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dig-group" data-count="3" data-routine="true">
+        <button class="dig-head" type="button" aria-expanded="false" aria-controls="dig-panel-watch">
+          <span class="dig-dot dig-dot--amber"></span>
+          <span class="dig-glabel">Retainers running hot</span>
+          <span class="dig-gcount">3</span>
+          <span class="dig-gmeta">highest burn 91%</span>
+          <span class="dig-gspacer"></span>
+          <svg class="dig-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dig-panel" id="dig-panel-watch" role="region" aria-label="Retainers running hot">
+          <div class="dig-panelin">
+            <div class="dig-panelbody">
+              <div class="dig-items">
+                <a class="dig-item" href="/projects">
+                  <span class="dig-iname">AeT retainer</span>
+                  <span class="dig-bar"><span class="dig-barfill" style="width:91%"></span></span>
+                  <span class="dig-ipct">91%</span>
+                  <span class="dig-idetail">of hours burned &middot; 12 days left</span>
+                </a>
+                <a class="dig-item" href="/projects">
+                  <span class="dig-iname">Black Magic Communications retainer</span>
+                  <span class="dig-bar"><span class="dig-barfill" style="width:88%"></span></span>
+                  <span class="dig-ipct">88%</span>
+                  <span class="dig-idetail">of hours burned &middot; 12 days left</span>
+                </a>
+                <a class="dig-item" href="/projects">
+                  <span class="dig-iname">Pebble retainer</span>
+                  <span class="dig-bar"><span class="dig-barfill" style="width:86%"></span></span>
+                  <span class="dig-ipct">86%</span>
+                  <span class="dig-idetail">of hours burned &middot; 12 days left</span>
+                </a>
+              </div>
+              <div class="dig-actrow">
+                <a class="dig-action" href="/projects">View retainers &rarr;</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dig-group" data-count="25" data-routine="true">
+        <button class="dig-head" type="button" aria-expanded="false" aria-controls="dig-panel-follow">
+          <span class="dig-dot dig-dot--cyan"></span>
+          <span class="dig-glabel">Client follow-ups</span>
+          <span class="dig-gcount">25</span>
+          <span class="dig-gmeta">no contact in 21+ days</span>
+          <span class="dig-gspacer"></span>
+          <svg class="dig-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dig-panel" id="dig-panel-follow" role="region" aria-label="Client follow-ups">
+          <div class="dig-panelin">
+            <div class="dig-panelbody">
+              <div class="dig-fugrid">
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Pebble</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">AeT</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Black Magic Communications</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Eva-Last</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Children as Urban Citizens</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Houers Co-op</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">Mojo Lab</span><span class="dig-fudetail">No contact recorded yet</span></a>
+                <a class="dig-furow" href="/clients"><span class="dig-funame">SA Corporate</span><span class="dig-fudetail">No contact recorded yet</span></a>
+              </div>
+              <div class="dig-actrow">
+                <span class="dig-actnote">+ 17 more clients awaiting a first touch</span>
+                <a class="dig-action" href="/clients">Open clients &rarr;</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <footer class="dig-foot">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="var(--green-soft)"/><path d="M4.5 8.3 7 10.7l4.5-5.2" stroke="var(--green-deep)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="dig-foot-text">28 routine items collapsed &mdash; nothing else needs you right now.</span>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.querySelector('.dig-root');
+      var foot = root.querySelector('#dig-foot-text');
+      function refreshFooter() {
+        var hidden = 0;
+        root.querySelectorAll('.dig-group[data-routine]:not(.dig-open)').forEach(function (g) {
+          hidden += parseInt(g.getAttribute('data-count'), 10);
+        });
+        if (hidden > 0) {
+          foot.textContent = hidden + ' routine item' + (hidden === 1 ? '' : 's') + ' collapsed — nothing else needs you right now.';
+        } else {
+          foot.textContent = 'Everything is expanded — nothing hidden today.';
+        }
+      }
+      root.querySelectorAll('.dig-head').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var group = btn.closest('.dig-group');
+          var open = group.classList.toggle('dig-open');
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          refreshFooter();
+        });
+      });
+      refreshFooter();
+    })();
+  </script>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>It reframes 30 alerts as a three-line briefing ranked by severity, so the owner&#x27;s first glance lands on the only two items that cost money — already expanded — while 28 routine items collapse into counts with one-click deep links to the detail cards that already exist below. Red ink is spent exclusively on the two overdue invoices (dot, total, amounts); retainers read amber-with-mini-burn-bars and follow-ups read as quiet cyan housekeeping, so the page stops crying wolf. The footer&#x27;s green check plus live &quot;N routine items collapsed&quot; line gives explicit permission to stop reading.</p></div>
+    <div><h3>Trade-offs</h3><p>Retainer and follow-up specifics are one click away rather than instantly visible, and a flat accordion has no mechanism to promote a single follow-up that quietly becomes critical (e.g. 60+ days of silence) — that would need an escalation rule. Note the footer count is computed as 28 (3 watch + 25 follow-ups), correcting the off-by-one in the spec&#x27;s sample copy.</p></div>
+  </div>
+</article>
+<article class="opt" id="opt3">
+  <div class="opt-head"><span class="opt-num">OPTION 3</span><h2>Pulse Meter</h2></div>
+  <p class="opt-tagline">One calm bar, thirty signals, red only where money is</p>
+  <div class="frame">
+<section class="seg-root">
+<style>
+.seg-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);}
+.seg-root *,.seg-root *::before,.seg-root *::after{box-sizing:border-box;margin:0;padding:0;}
+.seg-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;padding:11px 20px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+.seg-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;animation:seg-rise .45s ease both;}
+.seg-headline{font-size:15px;line-height:20px;font-weight:400;letter-spacing:-.01em;color:var(--on-surface);}
+.seg-headline strong{font-weight:600;}
+.seg-kicker{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--on-surface-variant);margin-right:10px;}
+.seg-meta{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.seg-bar{display:flex;gap:2px;height:10px;margin:9px 0 8px;animation:seg-rise .45s .06s ease both;}
+.seg-seg{appearance:none;border:0;cursor:pointer;min-width:24px;border-radius:4px;background-image:linear-gradient(rgba(255,255,255,.3),rgba(255,255,255,0) 60%);transition:filter .15s ease;transform-origin:left;animation:seg-grow .7s cubic-bezier(.22,1,.36,1) both;}
+.seg-seg:hover{filter:brightness(1.08) saturate(1.05);}
+.seg-seg:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+.seg-seg:first-child{border-radius:999px 4px 4px 999px;}
+.seg-seg:last-child{border-radius:4px 999px 999px 4px;}
+.seg-seg-overdue{background-color:var(--error);flex-grow:2;animation-delay:.05s;}
+.seg-seg-watch{background-color:var(--amber);flex-grow:3;animation-delay:.18s;}
+.seg-seg-routine{background-color:var(--tertiary);flex-grow:25;animation-delay:.3s;}
+.seg-legend{display:flex;align-items:center;gap:6px;margin:0 -10px;animation:seg-rise .45s .12s ease both;}
+.seg-key{appearance:none;border:1px solid transparent;background:none;font:inherit;display:inline-flex;align-items:center;gap:7px;padding:2px 10px;border-radius:999px;cursor:pointer;color:var(--on-surface);transition:background .15s ease,border-color .15s ease;}
+.seg-key:hover{background:var(--surface-container);}
+.seg-key.seg-active{background:var(--surface-container-high);border-color:var(--outline-variant);}
+.seg-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.seg-dot-error{background:var(--error);}
+.seg-dot-amber{background:var(--amber);}
+.seg-dot-cyan{background:var(--tertiary);}
+.seg-count{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;line-height:20px;}
+.seg-lab{font-size:13px;color:var(--on-surface-variant);line-height:20px;}
+.seg-amt{font-size:12.5px;font-weight:600;color:var(--on-error-container);font-variant-numeric:tabular-nums;}
+.seg-chev{width:12px;height:12px;color:var(--on-surface-variant);transition:transform .2s ease;flex:none;}
+.seg-key.seg-active .seg-chev{transform:rotate(180deg);}
+.seg-panel{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .28s ease,opacity .22s ease;}
+.seg-panel.seg-open{grid-template-rows:1fr;opacity:1;}
+.seg-clip{overflow:hidden;min-height:0;}
+.seg-panel-inner{margin-top:10px;padding-top:12px;border-top:1px solid var(--outline-variant);}
+.seg-panel-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding:0 6px;}
+.seg-panel-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+.seg-panel-link{font-size:12px;font-weight:500;color:var(--primary);text-decoration:none;white-space:nowrap;}
+.seg-panel-link:hover{text-decoration:underline;}
+.seg-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;text-decoration:none;color:inherit;transition:background .12s ease;}
+.seg-row:hover{background:var(--surface-container);}
+.seg-row-name{font-size:13.5px;font-weight:500;white-space:nowrap;}
+.seg-row-sub{font-size:13px;color:var(--on-surface-variant);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.seg-row-val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}
+.seg-val-error{color:var(--error);}
+.seg-track{width:64px;height:5px;border-radius:999px;background:var(--surface-container-high);overflow:hidden;flex:none;}
+.seg-fill{height:100%;border-radius:999px;background:var(--amber);}
+.seg-pct{font-size:13px;font-weight:600;color:var(--amber-deep);font-variant-numeric:tabular-nums;width:36px;text-align:right;}
+.seg-arrow{width:14px;height:14px;color:var(--on-surface-variant);opacity:0;transform:translateX(-2px);transition:opacity .12s ease,transform .12s ease;flex:none;}
+.seg-row:hover .seg-arrow{opacity:1;transform:none;}
+.seg-lead{font-size:13px;line-height:18px;color:var(--on-surface-variant);padding:0 6px 10px;}
+.seg-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 6px 2px;}
+.seg-chip{font-size:12.5px;font-weight:500;line-height:16px;color:var(--on-surface);text-decoration:none;padding:4px 11px;border-radius:999px;background:var(--surface-container);border:1px solid var(--outline-variant);transition:background .12s ease;}
+.seg-chip:hover{background:var(--surface-container-high);}
+.seg-chip-more{background:var(--tertiary-container);border-color:transparent;color:var(--on-tertiary-container);font-weight:600;}
+.seg-chip-more:hover{background:var(--tertiary-container);filter:brightness(.97);}
+@keyframes seg-rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+@keyframes seg-grow{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+@media (prefers-reduced-motion:reduce){.seg-root *{animation:none!important;transition:none!important;}}
+</style>
+<div class="seg-card">
+  <header class="seg-head">
+    <p class="seg-headline"><span class="seg-kicker">Pulse</span>Mostly routine today — <strong>2 invoices need chasing.</strong></p>
+    <span class="seg-meta">30 signals · updated 07:42</span>
+  </header>
+  <div class="seg-bar" role="group" aria-label="Signal mix: 2 overdue invoices, 3 retainers to watch, 25 routine follow-ups">
+    <button class="seg-seg seg-seg-overdue" type="button" data-seg-target="overdue" title="2 overdue invoices · R60,950" aria-label="2 overdue invoices, R60,950 — show detail"></button>
+    <button class="seg-seg seg-seg-watch" type="button" data-seg-target="watch" title="3 retainers to watch" aria-label="3 retainers to watch — show detail"></button>
+    <button class="seg-seg seg-seg-routine" type="button" data-seg-target="routine" title="25 routine follow-ups" aria-label="25 routine follow-ups — show detail"></button>
+  </div>
+  <div class="seg-legend">
+    <button class="seg-key" type="button" data-seg-target="overdue" aria-expanded="false">
+      <span class="seg-dot seg-dot-error"></span><span class="seg-count">2</span><span class="seg-lab">overdue invoices</span><span class="seg-amt">R60,950</span>
+      <svg class="seg-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <button class="seg-key" type="button" data-seg-target="watch" aria-expanded="false">
+      <span class="seg-dot seg-dot-amber"></span><span class="seg-count">3</span><span class="seg-lab">retainers to watch</span>
+      <svg class="seg-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <button class="seg-key" type="button" data-seg-target="routine" aria-expanded="false">
+      <span class="seg-dot seg-dot-cyan"></span><span class="seg-count">25</span><span class="seg-lab">routine follow-ups</span>
+      <svg class="seg-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+  </div>
+
+  <div class="seg-panel" data-seg-panel="overdue">
+    <div class="seg-clip"><div class="seg-panel-inner">
+      <div class="seg-panel-head"><span class="seg-panel-title">Invoices 30+ days overdue · R60,950 outstanding</span><a class="seg-panel-link" href="/reconciliation">Open Reconciliation →</a></div>
+      <a class="seg-row" href="/reconciliation">
+        <span class="seg-dot seg-dot-error"></span><span class="seg-row-name">Eva-Last</span><span class="seg-row-sub">Invoice INV-0231 · overdue 42 days</span><span class="seg-row-val seg-val-error">R48,300</span>
+        <svg class="seg-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+      </a>
+      <a class="seg-row" href="/reconciliation">
+        <span class="seg-dot seg-dot-error"></span><span class="seg-row-name">Pebble</span><span class="seg-row-sub">Invoice INV-0198 · overdue 35 days</span><span class="seg-row-val seg-val-error">R12,650</span>
+        <svg class="seg-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+      </a>
+    </div></div>
+  </div>
+
+  <div class="seg-panel" data-seg-panel="watch">
+    <div class="seg-clip"><div class="seg-panel-inner">
+      <div class="seg-panel-head"><span class="seg-panel-title">Retainer burn risk · 12 days left in cycle</span><a class="seg-panel-link" href="/projects">Open Projects →</a></div>
+      <a class="seg-row" href="/projects">
+        <span class="seg-dot seg-dot-amber"></span><span class="seg-row-name">AeT</span><span class="seg-row-sub">Retainer · 91% of hours burned</span>
+        <span class="seg-track"><span class="seg-fill" style="width:91%"></span></span><span class="seg-pct">91%</span>
+        <svg class="seg-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+      </a>
+      <a class="seg-row" href="/projects">
+        <span class="seg-dot seg-dot-amber"></span><span class="seg-row-name">Black Magic Communications</span><span class="seg-row-sub">Retainer · 88% of hours burned</span>
+        <span class="seg-track"><span class="seg-fill" style="width:88%"></span></span><span class="seg-pct">88%</span>
+        <svg class="seg-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+      </a>
+      <a class="seg-row" href="/projects">
+        <span class="seg-dot seg-dot-amber"></span><span class="seg-row-name">Pebble</span><span class="seg-row-sub">Retainer · 86% of hours burned</span>
+        <span class="seg-track"><span class="seg-fill" style="width:86%"></span></span><span class="seg-pct">86%</span>
+        <svg class="seg-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+      </a>
+    </div></div>
+  </div>
+
+  <div class="seg-panel" data-seg-panel="routine">
+    <div class="seg-clip"><div class="seg-panel-inner">
+      <div class="seg-panel-head"><span class="seg-panel-title">Not contacted in 21+ days · 25 clients</span><a class="seg-panel-link" href="/clients">Open Clients →</a></div>
+      <p class="seg-lead">Same routine signal for all 25 — no contact recorded yet; account manager to follow up. Each client also appears in Relationship Health below with a Log button.</p>
+      <div class="seg-chips">
+        <a class="seg-chip" href="/clients">Pebble</a>
+        <a class="seg-chip" href="/clients">AeT</a>
+        <a class="seg-chip" href="/clients">Black Magic Communications</a>
+        <a class="seg-chip" href="/clients">Eva-Last</a>
+        <a class="seg-chip" href="/clients">Children as Urban Citizens</a>
+        <a class="seg-chip" href="/clients">Houers Co-op</a>
+        <a class="seg-chip" href="/clients">Mojo Lab</a>
+        <a class="seg-chip" href="/clients">SA Corporate</a>
+        <a class="seg-chip seg-chip-more" href="/clients">+17 more →</a>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script>
+(function(){
+  var root=document.querySelector('.seg-root');
+  if(!root)return;
+  var triggers=root.querySelectorAll('[data-seg-target]');
+  var panels=root.querySelectorAll('[data-seg-panel]');
+  function setOpen(key){
+    panels.forEach(function(p){p.classList.toggle('seg-open',p.getAttribute('data-seg-panel')===key);});
+    triggers.forEach(function(t){
+      var on=t.getAttribute('data-seg-target')===key;
+      if(t.classList.contains('seg-key')){
+        t.classList.toggle('seg-active',on);
+        t.setAttribute('aria-expanded',on?'true':'false');
+      }
+    });
+  }
+  triggers.forEach(function(t){
+    t.addEventListener('click',function(){
+      var key=t.getAttribute('data-seg-target');
+      var panel=root.querySelector('[data-seg-panel="'+key+'"]');
+      setOpen(panel&&panel.classList.contains('seg-open')?null:key);
+    });
+  });
+})();
+</script>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>A proportional segmented meter compresses 30 alert rows into a single ~90px strip topped by one human sentence, so severity is read at a glance instead of row-by-row. The red ink budget is enforced structurally: red exists only in the 2-item invoice segment and its R60,950 figure, while the 25 follow-ups become a wide calm cyan band that visually says &quot;routine bulk, not fire.&quot; Because the detail cards below already hold the same data, each group panel stays shallow — two invoice rows, three mini burn bars, a chip cloud — and deep-links to Reconciliation, Projects and Clients rather than duplicating lists.</p></div>
+    <div><h3>Trade-offs</h3><p>Proportional encoding makes the least-important category (25 routine items) the most visually dominant segment, which a skim-reader could misread as the big story. Specific invoice names need one click (or the headline) — nothing actionable is visible row-level by default.</p></div>
+  </div>
+</article>
+<article class="opt" id="opt4">
+  <div class="opt-head"><span class="opt-num">OPTION 4</span><h2>Top 3 + the rest</h2></div>
+  <p class="opt-tagline">Three rows of signal, one quiet line for everything else.</p>
+  <div class="frame">
+<section class="top-root">
+  <style>
+    .top-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);}
+    .top-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:0 2px 16px;}
+    .top-eyebrow{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+    .top-headline{margin:0;font-size:22px;line-height:1.25;font-weight:600;letter-spacing:-.01em;color:var(--on-surface);}
+    .top-sub{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--on-surface-variant);}
+    .top-sub strong{font-weight:600;color:var(--on-surface);font-variant-numeric:tabular-nums;}
+    .top-meta{display:flex;align-items:center;gap:7px;margin:0 0 5px;font-size:11px;letter-spacing:.02em;color:var(--on-surface-variant);white-space:nowrap;}
+    .top-meta-dot{width:6px;height:6px;border-radius:50%;background:var(--green, #16A34A);flex:none;}
+    .top-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);overflow:hidden;}
+    .top-list{list-style:none;margin:0;padding:0;}
+    .top-row{position:relative;display:flex;align-items:center;gap:16px;padding:15px 20px 15px 27px;border-bottom:1px solid var(--outline-variant);transition:background .15s ease;}
+    .top-row:hover{background:var(--surface-container);}
+    .top-accent{position:absolute;left:13px;top:16px;bottom:16px;width:3px;border-radius:2px;}
+    .top-row--overdue .top-accent{background:var(--error);}
+    .top-row--watch .top-accent{background:var(--amber);}
+    .top-main{flex:1;min-width:0;}
+    .top-client{margin:0;font-size:14px;font-weight:600;color:var(--on-surface);}
+    .top-detail{margin:2px 0 0;font-size:13px;color:var(--on-surface-variant);}
+    .top-num{margin:0;min-width:104px;text-align:right;font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;line-height:1.3;}
+    .top-row--overdue .top-num{color:var(--on-error-container);}
+    .top-row--watch .top-num{color:var(--amber-deep, #B45309);}
+    .top-numsub{display:block;font-size:11px;font-weight:500;letter-spacing:.01em;color:var(--on-surface-variant);}
+    .top-chip{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:8px;padding:6px 12px;border:1px solid var(--outline-variant);border-radius:999px;background:var(--surface);font-size:12px;font-weight:600;color:var(--on-surface);text-decoration:none;transition:background .15s ease,border-color .15s ease;}
+    .top-chip:hover{background:var(--surface-container-high);border-color:var(--outline);}
+    .top-chip svg,.top-restlink svg{flex:none;}
+    .top-rest{display:flex;align-items:center;gap:14px;padding:13px 20px 13px 27px;background:var(--surface);text-decoration:none;transition:background .15s ease;}
+    .top-rest:hover{background:var(--surface-container);}
+    .top-rest:hover .top-restlink{color:var(--on-primary-container);}
+    .top-avatars{display:flex;flex:none;}
+    .top-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:var(--tertiary-container);color:var(--on-tertiary-container);box-shadow:0 0 0 2px var(--surface);}
+    .top-av + .top-av{margin-left:-8px;}
+    .top-av--more{background:var(--surface-container-high);color:var(--on-surface-variant);font-size:10px;letter-spacing:-.01em;}
+    .top-resttext{flex:1;min-width:0;font-size:13px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;}
+    .top-resttext strong{font-weight:600;color:var(--on-surface);}
+    .top-restlink{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:12px;font-weight:600;color:var(--primary);transition:color .15s ease;}
+    .top-chip:focus-visible,.top-rest:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+    @keyframes top-fadeup{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+    .top-head,.top-row,.top-rest{animation:top-fadeup .45s cubic-bezier(.22,.61,.36,1) backwards;}
+    .top-row:nth-child(1){animation-delay:.06s;}
+    .top-row:nth-child(2){animation-delay:.12s;}
+    .top-row:nth-child(3){animation-delay:.18s;}
+    .top-rest{animation-delay:.24s;}
+    @media (prefers-reduced-motion:reduce){.top-head,.top-row,.top-rest{animation:none;}}
+  </style>
+
+  <header class="top-head">
+    <div>
+      <p class="top-eyebrow">Business pulse · Wednesday 10 June</p>
+      <h2 class="top-headline">3 things worth your attention</h2>
+      <p class="top-sub"><strong>R60,950</strong> sitting in two overdue invoices and one retainer running hot — everything else is routine.</p>
+    </div>
+    <p class="top-meta"><span class="top-meta-dot" aria-hidden="true"></span>07:42 · 30 signals triaged</p>
+  </header>
+
+  <div class="top-card">
+    <ul class="top-list">
+      <li class="top-row top-row--overdue">
+        <span class="top-accent" aria-hidden="true"></span>
+        <div class="top-main">
+          <p class="top-client">Eva-Last</p>
+          <p class="top-detail">Invoice INV-0231 unpaid — oldest receivable on the book</p>
+        </div>
+        <p class="top-num">R48,300<span class="top-numsub">42 days overdue</span></p>
+        <a class="top-chip" href="/reconciliation">Reconcile
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </li>
+      <li class="top-row top-row--overdue">
+        <span class="top-accent" aria-hidden="true"></span>
+        <div class="top-main">
+          <p class="top-client">Pebble</p>
+          <p class="top-detail">Invoice INV-0198 unpaid — second reminder went out last week</p>
+        </div>
+        <p class="top-num">R12,650<span class="top-numsub">35 days overdue</span></p>
+        <a class="top-chip" href="/reconciliation">Reconcile
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </li>
+      <li class="top-row top-row--watch">
+        <span class="top-accent" aria-hidden="true"></span>
+        <div class="top-main">
+          <p class="top-client">AeT retainer</p>
+          <p class="top-detail">Hours burning ahead of pace — on track to run out before renewal</p>
+        </div>
+        <p class="top-num">91%<span class="top-numsub">12 days left</span></p>
+        <a class="top-chip" href="/projects">View burn
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </li>
+    </ul>
+    <a class="top-rest" href="/clients">
+      <span class="top-avatars" aria-hidden="true">
+        <span class="top-av">P</span><span class="top-av">A</span><span class="top-av">B</span><span class="top-av top-av--more">+22</span>
+      </span>
+      <span class="top-resttext"><strong>27 quieter items</strong> — 25 routine follow-ups (no contact logged in 21+ days) · 2 retainers to watch at 88% &amp; 86%</span>
+      <span class="top-restlink">Handle in Clients
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </a>
+  </div>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>It ranks by impact instead of listing by type: the owner&#x27;s first glance lands on R60,950 of cash risk and the one retainer about to tip, each with a direct action chip. The other 27 items collapse into a single calm sentence with an avatar stack and one deep-link, which works because the alerts are derived from the cards below — the detail already exists one scroll or one click away. The red ink budget is exactly two items, so red regains its meaning as &quot;money problem&quot;.</p></div>
+    <div><h3>Trade-offs</h3><p>Individual follow-up client names aren&#x27;t scannable from the summary — the owner must click into Clients (or scroll to Relationship Health) to see who&#x27;s waiting. The &quot;top 3&quot; cut needs server-side ranking logic, and on a genuinely bad day item #4 could be material yet folded into the quiet row.</p></div>
+  </div>
+</article>
+<article class="opt" id="opt5">
+  <div class="opt-head"><span class="opt-num">OPTION 5</span><h2>Badges Where the Data Lives</h2></div>
+  <p class="opt-tagline">Delete the strip; counts live on the section cards themselves.</p>
+  <div class="frame">
+<section class="bdg-root">
+<style>
+  .bdg-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);padding:8px 0;}
+  .bdg-root *{box-sizing:border-box;margin:0;}
+  @keyframes bdg-up{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  @keyframes bdg-ring{0%{box-shadow:0 0 0 0 rgba(124,58,237,.35),0 1px 2px rgba(0,0,0,.05);}100%{box-shadow:0 0 0 10px rgba(124,58,237,0),0 1px 2px rgba(0,0,0,.05);}}
+  .bdg-pagehead{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;animation:bdg-up .4s ease both;}
+  .bdg-titlewrap{display:flex;align-items:baseline;gap:12px;}
+  .bdg-title{font-size:18px;font-weight:600;letter-spacing:-0.01em;}
+  .bdg-date{font-size:13px;color:var(--on-surface-variant);}
+  .bdg-pulse{display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:999px;padding:3px 6px 3px 14px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .bdg-pulse-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--on-surface-variant);margin-right:6px;}
+  .bdg-seg{appearance:none;background:none;border:0;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--on-surface);padding:5px 10px;border-radius:999px;transition:background .15s ease;font-variant-numeric:tabular-nums;}
+  .bdg-seg:hover{background:var(--surface-container-high);}
+  .bdg-sep{color:var(--outline);font-size:13px;}
+  .bdg-dot{width:7px;height:7px;border-radius:999px;display:inline-block;flex:none;}
+  .bdg-dot-red{background:var(--error);}
+  .bdg-dot-amber{background:var(--amber);}
+  .bdg-dot-cyan{background:var(--tertiary);}
+  .bdg-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  .bdg-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,.05);animation:bdg-up .4s ease both;}
+  .bdg-card:nth-child(1){animation-delay:.06s;}
+  .bdg-card:nth-child(2){animation-delay:.12s;}
+  .bdg-flash{animation:bdg-ring .8s ease-out;}
+  .bdg-cardhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .bdg-cardlabel{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--on-surface-variant);}
+  .bdg-badge{font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .bdg-badge-red{background:var(--error-container);color:var(--on-error-container);}
+  .bdg-badge-neutral{background:var(--surface-container-high);color:var(--on-surface-variant);}
+  .bdg-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .bdg-tile{background:var(--surface-container);border-radius:12px;padding:13px 14px;display:flex;flex-direction:column;gap:3px;}
+  .bdg-tile-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--on-surface-variant);}
+  .bdg-tile-num{font-size:21px;font-weight:600;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;}
+  .bdg-num-red{color:var(--error);}
+  .bdg-tile-sub{font-size:12px;color:var(--on-surface-variant);}
+  .bdg-invoices{list-style:none;padding:0;margin-top:14px;border-top:1px solid var(--outline-variant);}
+  .bdg-inv-row{display:flex;align-items:center;gap:10px;padding:11px 8px;border-bottom:1px solid var(--outline-variant);border-radius:8px;transition:background .15s ease;font-size:13px;}
+  .bdg-inv-row:last-child{border-bottom:0;}
+  .bdg-inv-row:hover{background:var(--surface-container);}
+  .bdg-inv-client{font-weight:500;flex:none;}
+  .bdg-inv-meta{color:var(--on-surface-variant);flex:1;font-variant-numeric:tabular-nums;}
+  .bdg-inv-days{color:var(--on-error-container);font-weight:500;}
+  .bdg-inv-amt{font-weight:600;font-variant-numeric:tabular-nums;}
+  .bdg-clients{list-style:none;padding:0;}
+  .bdg-client-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--outline-variant);border-radius:8px;transition:background .15s ease;}
+  .bdg-client-row:last-child{border-bottom:0;}
+  .bdg-client-row:hover{background:var(--surface-container);}
+  .bdg-rag{width:8px;height:8px;border-radius:999px;flex:none;}
+  .bdg-rag-amber{background:var(--amber);}
+  .bdg-rag-cyan{background:var(--tertiary);}
+  .bdg-client-info{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .bdg-client-name{font-size:13.5px;font-weight:500;}
+  .bdg-client-sub{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bdg-logbtn{appearance:none;background:none;font:inherit;cursor:pointer;font-size:12px;font-weight:600;color:var(--primary);border:1px solid var(--outline);border-radius:999px;padding:4px 14px;flex:none;transition:background .15s ease,border-color .15s ease;}
+  .bdg-logbtn:hover{background:var(--primary-container);border-color:var(--primary-container);}
+  .bdg-cardfoot{margin-top:12px;padding-top:13px;border-top:1px solid var(--outline-variant);display:flex;align-items:center;justify-content:space-between;}
+  .bdg-link{font-size:13px;font-weight:500;color:var(--primary);text-decoration:none;}
+  .bdg-link:hover{text-decoration:underline;}
+  .bdg-foot-note{font-size:12px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+</style>
+
+<header class="bdg-pagehead">
+  <div class="bdg-titlewrap">
+    <h1 class="bdg-title">Business Pulse</h1>
+    <span class="bdg-date">Tuesday, 10 June</span>
+  </div>
+  <div class="bdg-pulse" role="status" aria-label="Pulse: 2 urgent, 3 watch, 25 routine">
+    <span class="bdg-pulse-label">Pulse</span>
+    <button class="bdg-seg" type="button" data-bdg-target="bdg-card-ar" title="Eva-Last — INV-0231 overdue 42 days (R48,300)&#10;Pebble — INV-0198 overdue 35 days (R12,650)">
+      <i class="bdg-dot bdg-dot-red"></i>2 urgent
+    </button>
+    <span class="bdg-sep">&middot;</span>
+    <button class="bdg-seg" type="button" title="AeT retainer — 91% burned, 12 days left&#10;Black Magic Communications — 88% burned, 12 days left&#10;Pebble retainer — 86% burned, 12 days left">
+      <i class="bdg-dot bdg-dot-amber"></i>3 watch
+    </button>
+    <span class="bdg-sep">&middot;</span>
+    <button class="bdg-seg" type="button" data-bdg-target="bdg-card-health" title="25 clients not contacted in 21+ days">
+      <i class="bdg-dot bdg-dot-cyan"></i>25 routine
+    </button>
+  </div>
+</header>
+
+<div class="bdg-grid">
+  <article class="bdg-card" id="bdg-card-ar">
+    <header class="bdg-cardhead">
+      <h2 class="bdg-cardlabel">AR Aging</h2>
+      <span class="bdg-badge bdg-badge-red">2 overdue</span>
+    </header>
+    <div class="bdg-tiles">
+      <div class="bdg-tile">
+        <span class="bdg-tile-label">Current</span>
+        <span class="bdg-tile-num">R182,400</span>
+        <span class="bdg-tile-sub">6 invoices</span>
+      </div>
+      <div class="bdg-tile">
+        <span class="bdg-tile-label">1&ndash;30 days</span>
+        <span class="bdg-tile-num">R74,100</span>
+        <span class="bdg-tile-sub">3 invoices</span>
+      </div>
+      <div class="bdg-tile">
+        <span class="bdg-tile-label">30+ days</span>
+        <span class="bdg-tile-num bdg-num-red">R60,950</span>
+        <span class="bdg-tile-sub">2 invoices</span>
+      </div>
+    </div>
+    <ul class="bdg-invoices">
+      <li class="bdg-inv-row">
+        <span class="bdg-inv-client">Eva-Last</span>
+        <span class="bdg-inv-meta">INV-0231 &middot; <span class="bdg-inv-days">overdue 42 days</span></span>
+        <span class="bdg-inv-amt">R48,300</span>
+      </li>
+      <li class="bdg-inv-row">
+        <span class="bdg-inv-client">Pebble</span>
+        <span class="bdg-inv-meta">INV-0198 &middot; <span class="bdg-inv-days">overdue 35 days</span></span>
+        <span class="bdg-inv-amt">R12,650</span>
+      </li>
+    </ul>
+    <footer class="bdg-cardfoot">
+      <a class="bdg-link" href="/reconciliation">Open reconciliation &rarr;</a>
+      <span class="bdg-foot-note">R317,450 total receivable</span>
+    </footer>
+  </article>
+
+  <article class="bdg-card" id="bdg-card-health">
+    <header class="bdg-cardhead">
+      <h2 class="bdg-cardlabel">Client Relationship Health</h2>
+      <span class="bdg-badge bdg-badge-neutral">25 to contact</span>
+    </header>
+    <ul class="bdg-clients">
+      <li class="bdg-client-row">
+        <i class="bdg-rag bdg-rag-amber"></i>
+        <div class="bdg-client-info">
+          <span class="bdg-client-name">AeT</span>
+          <span class="bdg-client-sub">No contact recorded yet &middot; retainer 91% burned</span>
+        </div>
+        <button class="bdg-logbtn" type="button">Log</button>
+      </li>
+      <li class="bdg-client-row">
+        <i class="bdg-rag bdg-rag-amber"></i>
+        <div class="bdg-client-info">
+          <span class="bdg-client-name">Eva-Last</span>
+          <span class="bdg-client-sub">No contact recorded yet &middot; INV-0231 overdue</span>
+        </div>
+        <button class="bdg-logbtn" type="button">Log</button>
+      </li>
+      <li class="bdg-client-row">
+        <i class="bdg-rag bdg-rag-cyan"></i>
+        <div class="bdg-client-info">
+          <span class="bdg-client-name">Children as Urban Citizens</span>
+          <span class="bdg-client-sub">No contact recorded yet</span>
+        </div>
+        <button class="bdg-logbtn" type="button">Log</button>
+      </li>
+      <li class="bdg-client-row">
+        <i class="bdg-rag bdg-rag-cyan"></i>
+        <div class="bdg-client-info">
+          <span class="bdg-client-name">Mojo Lab</span>
+          <span class="bdg-client-sub">No contact recorded yet</span>
+        </div>
+        <button class="bdg-logbtn" type="button">Log</button>
+      </li>
+    </ul>
+    <footer class="bdg-cardfoot">
+      <a class="bdg-link" href="/clients">Open clients &rarr;</a>
+      <span class="bdg-foot-note">+21 more flagged, incl. Pebble, Black Magic, Houers Co-op, SA Corporate</span>
+    </footer>
+  </article>
+</div>
+
+<script>
+(function () {
+  var root = document.querySelector('.bdg-root');
+  if (!root) return;
+  root.querySelectorAll('.bdg-seg[data-bdg-target]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var card = document.getElementById(btn.getAttribute('data-bdg-target'));
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.classList.remove('bdg-flash');
+      void card.offsetWidth;
+      card.classList.add('bdg-flash');
+    });
+  });
+})();
+</script>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>The alert strip was a derived duplicate of the cards below it, so removing it eliminates the redundancy and the daily false alarm in one move. Severity is still legible in under a second: a whisper-weight header pill gives the 2/3/25 triage counts (clickable, deep-linking to the owning card), and each section card wears its own count badge right next to the data you would act on. Red ink is spent only on the two genuine money items — the AR badge, the 30+ tile numeral, and the overdue day counts — so 25 routine follow-ups read as a quiet to-do, not a fire.</p></div>
+    <div><h3>Trade-offs</h3><p>There is no single consolidated list to triage from, so an owner who wants &quot;all 30 in one place&quot; must visit each card — and badges on cards below the fold can be missed. Watch-level retainer items only surface in the header pill (tooltip) here, since the Retainer Burn card isn&#x27;t part of this two-card mock.</p></div>
+  </div>
+</article>
+<article class="opt" id="opt6">
+  <div class="opt-head"><span class="opt-num">OPTION 6</span><h2>Executive Scoreboard Header</h2></div>
+  <p class="opt-tagline">Alerts become four business numbers; red ink only where money is.</p>
+  <div class="frame">
+<section class="kpi-root">
+  <style>
+    .kpi-root{font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);padding:2px 0 6px;}
+    .kpi-root *,.kpi-root *::before,.kpi-root *::after{box-sizing:border-box;margin:0;padding:0;}
+    .kpi-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;animation:kpi-rise .45s cubic-bezier(.22,1,.36,1) both;}
+    .kpi-eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+    .kpi-date{margin-top:4px;font-size:13px;color:var(--on-surface-variant);}
+    .kpi-legend{display:flex;gap:16px;font-size:12px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+    .kpi-legend b{font-weight:600;color:var(--on-surface);}
+    .kpi-dot{display:inline-block;width:7px;height:7px;border-radius:999px;margin-right:6px;vertical-align:1px;}
+    .kpi-dot--r{background:var(--error);}
+    .kpi-dot--a{background:var(--amber);}
+    .kpi-dot--t{background:var(--tertiary);}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .kpi-tile{display:flex;flex-direction:column;min-width:0;background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;padding:16px 16px 13px;text-decoration:none;color:inherit;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;animation:kpi-rise .45s cubic-bezier(.22,1,.36,1) both;}
+    .kpi-tile:nth-child(1){animation-delay:.04s;}
+    .kpi-tile:nth-child(2){animation-delay:.09s;}
+    .kpi-tile:nth-child(3){animation-delay:.14s;}
+    .kpi-tile:nth-child(4){animation-delay:.19s;}
+    .kpi-tile:hover{transform:translateY(-2px);border-color:var(--outline);box-shadow:0 6px 16px rgba(76,29,149,.09);}
+    .kpi-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant);}
+    .kpi-value{margin-top:9px;display:flex;align-items:baseline;gap:6px;font-size:29px;line-height:1.05;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--on-surface);}
+    .kpi-value small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--on-surface-variant);}
+    .kpi-sub{margin-top:6px;font-size:12.5px;line-height:1.45;}
+    .kpi-sub i{font-style:normal;}
+    .kpi-sub--red{color:var(--error);font-weight:500;}
+    .kpi-sub--amber{color:var(--amber-deep);font-weight:500;}
+    .kpi-sub--cyan{color:var(--tertiary);font-weight:500;}
+    .kpi-sub--green{color:var(--green-deep);font-weight:500;}
+    .kpi-sub--mut{color:var(--on-surface-variant);font-weight:400;}
+    .kpi-detail{margin-top:12px;padding-top:11px;border-top:1px solid var(--outline-variant);display:flex;flex-direction:column;gap:8px;}
+    .kpi-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--on-surface-variant);font-variant-numeric:tabular-nums;}
+    .kpi-row-l{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;}
+    .kpi-row-l b{font-weight:500;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .kpi-inv{font-size:11px;color:var(--on-surface-variant);white-space:nowrap;}
+    .kpi-row-r{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+    .kpi-amt{font-weight:500;color:var(--on-surface);}
+    .kpi-days{font-size:10.5px;font-weight:600;line-height:1;color:var(--on-error-container);background:var(--error-container);border-radius:999px;padding:3px 7px;}
+    .kpi-rname{width:76px;flex-shrink:0;font-weight:500;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .kpi-bar{flex:1;height:4px;border-radius:999px;background:var(--surface-container-high);overflow:hidden;}
+    .kpi-fill{display:block;height:100%;border-radius:999px;background:var(--amber);}
+    .kpi-pct{min-width:32px;text-align:right;font-size:11.5px;font-weight:600;color:var(--amber-deep);}
+    .kpi-note{font-size:11.5px;line-height:1.45;color:var(--on-surface-variant);}
+    .kpi-chips{display:flex;flex-wrap:wrap;gap:5px;}
+    .kpi-chip{font-size:11px;font-weight:500;line-height:1;color:var(--on-surface-variant);background:var(--surface-container);border:1px solid var(--outline-variant);border-radius:999px;padding:4px 9px;white-space:nowrap;}
+    .kpi-chip--more{color:var(--on-tertiary-container);background:var(--tertiary-container);border-color:transparent;}
+    .kpi-spark{display:block;width:100%;height:34px;margin-top:2px;}
+    .kpi-go{margin-top:auto;padding-top:13px;display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;color:var(--primary);opacity:.85;transition:opacity .15s ease,gap .15s ease;}
+    .kpi-tile:hover .kpi-go{opacity:1;gap:7px;}
+    @keyframes kpi-rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+    @media (prefers-reduced-motion:reduce){.kpi-head,.kpi-tile{animation:none;}}
+  </style>
+
+  <header class="kpi-head">
+    <div>
+      <div class="kpi-eyebrow">Today at a glance</div>
+      <div class="kpi-date">Wednesday 10 June 2026</div>
+    </div>
+    <div class="kpi-legend">
+      <span><i class="kpi-dot kpi-dot--r"></i><b>2</b>&nbsp;urgent</span>
+      <span><i class="kpi-dot kpi-dot--a"></i><b>3</b>&nbsp;watching</span>
+      <span><i class="kpi-dot kpi-dot--t"></i><b>25</b>&nbsp;routine</span>
+    </div>
+  </header>
+
+  <div class="kpi-grid">
+
+    <a class="kpi-tile" href="/reconciliation">
+      <span class="kpi-label">Outstanding AR</span>
+      <span class="kpi-value">R60,950</span>
+      <span class="kpi-sub"><i class="kpi-sub--red">2 invoices 30+ days overdue</i></span>
+      <div class="kpi-detail">
+        <div class="kpi-row">
+          <span class="kpi-row-l"><b>Eva-Last</b><span class="kpi-inv">INV-0231</span></span>
+          <span class="kpi-row-r"><span class="kpi-amt">R48,300</span><span class="kpi-days">42d</span></span>
+        </div>
+        <div class="kpi-row">
+          <span class="kpi-row-l"><b>Pebble</b><span class="kpi-inv">INV-0198</span></span>
+          <span class="kpi-row-r"><span class="kpi-amt">R12,650</span><span class="kpi-days">35d</span></span>
+        </div>
+      </div>
+      <span class="kpi-go">Reconciliation <span>&rarr;</span></span>
+    </a>
+
+    <a class="kpi-tile" href="/projects">
+      <span class="kpi-label">Retainer Health</span>
+      <span class="kpi-value">3<small>of 9 running hot</small></span>
+      <span class="kpi-sub"><i class="kpi-sub--amber">86&ndash;91% burned</i> <i class="kpi-sub--mut">&middot; 12 days left in cycle</i></span>
+      <div class="kpi-detail">
+        <div class="kpi-row">
+          <span class="kpi-rname" title="AeT">AeT</span>
+          <span class="kpi-bar"><i class="kpi-fill" style="width:91%"></i></span>
+          <span class="kpi-pct">91%</span>
+        </div>
+        <div class="kpi-row">
+          <span class="kpi-rname" title="Black Magic Communications">Black Magic</span>
+          <span class="kpi-bar"><i class="kpi-fill" style="width:88%"></i></span>
+          <span class="kpi-pct">88%</span>
+        </div>
+        <div class="kpi-row">
+          <span class="kpi-rname" title="Pebble">Pebble</span>
+          <span class="kpi-bar"><i class="kpi-fill" style="width:86%"></i></span>
+          <span class="kpi-pct">86%</span>
+        </div>
+      </div>
+      <span class="kpi-go">Projects <span>&rarr;</span></span>
+    </a>
+
+    <a class="kpi-tile" href="/clients">
+      <span class="kpi-label">Client Touch</span>
+      <span class="kpi-value">25<small>follow-ups due</small></span>
+      <span class="kpi-sub"><i class="kpi-sub--cyan">21+ days quiet</i> <i class="kpi-sub--mut">&middot; 5 contacted this week</i></span>
+      <div class="kpi-detail">
+        <p class="kpi-note">Most have no contact recorded yet &mdash; routine AM follow-up, no emergencies.</p>
+        <div class="kpi-chips">
+          <span class="kpi-chip">Pebble</span>
+          <span class="kpi-chip">AeT</span>
+          <span class="kpi-chip">Eva-Last</span>
+          <span class="kpi-chip">Mojo Lab</span>
+          <span class="kpi-chip">Houers Co-op</span>
+          <span class="kpi-chip kpi-chip--more">+20 more</span>
+        </div>
+      </div>
+      <span class="kpi-go">Clients <span>&rarr;</span></span>
+    </a>
+
+    <a class="kpi-tile" href="#wip-funnel">
+      <span class="kpi-label">Work in Flight</span>
+      <span class="kpi-value">R231k<small>WIP</small></span>
+      <span class="kpi-sub"><i class="kpi-sub--green">&uarr; R18k vs last week</i> <i class="kpi-sub--mut">&middot; 6 projects</i></span>
+      <div class="kpi-detail">
+        <svg class="kpi-spark" viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0,29 L25,27 L50,30 L75,23 L100,25 L125,19 L150,21 L175,14 L200,11 L200,36 L0,36 Z" fill="var(--primary-container)" opacity="0.55"/>
+          <polyline points="0,29 25,27 50,30 75,23 100,25 125,19 150,21 175,14 200,11" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="200" cy="11" r="2.5" fill="var(--primary)"/>
+        </svg>
+        <p class="kpi-note">8-week WIP trend &mdash; billing on pace for month-end.</p>
+      </div>
+      <span class="kpi-go">WIP funnel <span>&darr;</span></span>
+    </a>
+
+  </div>
+</section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it works</h3><p>It converts the 30-row alert wall into the four numbers an owner actually wants over coffee: cash at risk, retainers running hot, relationship upkeep, and work in flight. Severity is carried by one colored sub-stat line per tile — red exists only on the two overdue invoices, amber on three retainers, and the 25 follow-ups collapse into a single neutral &quot;25 due&quot; count. Because every tile deep-links to the detail card or page that already holds the rows, the header stops duplicating the page beneath it.</p></div>
+    <div><h3>Trade-offs</h3><p>Individual follow-up clients aren&#x27;t actionable from the header — logging contact takes one extra click into the Client Health card. The fixed four-tile taxonomy also means a future alert type either gets shoehorned into an existing tile or forces a layout change.</p></div>
+  </div>
+</article>
+</div>
+</body>
+</html>

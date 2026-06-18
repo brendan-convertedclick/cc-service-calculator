@@ -1,0 +1,408 @@
+<article class="opt" id="opt3">
+  <div class="opt-head"><span class="opt-num">OPTION 3</span><h2>Compact rows that expand to edit</h2></div>
+  <p class="opt-tagline">Every service is one fixed 44px line — the hours spreadsheet only materialises beneath the row you are actually editing.</p>
+  <div class="frame">
+    <section class="o3-root">
+      <style>
+        .o3-root{position:relative;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);background:var(--surface);padding:20px 22px 30px;font-size:13px;line-height:1.45}
+        .o3-root *{box-sizing:border-box}
+        .o3-root [hidden]{display:none!important}
+        .o3-root .o3-num{font-variant-numeric:tabular-nums}
+        @keyframes o3-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+        /* ---------- header ---------- */
+        .o3-root .o3-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;animation:o3-rise .4s cubic-bezier(.22,.7,.3,1) backwards}
+        .o3-root .o3-title{margin:0;font-size:18px;font-weight:650;letter-spacing:-.01em}
+        .o3-root .o3-count{margin:3px 0 0;font-size:12.5px;font-weight:500;color:var(--on-surface-variant)}
+        .o3-root .o3-hint{margin:2px 0 0;font-size:12px;color:var(--on-surface-variant);opacity:.78}
+
+        /* ---------- buttons ---------- */
+        .o3-root .o3-btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:600;border-radius:999px;border:1px solid transparent;padding:7px 15px;cursor:pointer;transition:background .15s,box-shadow .15s,opacity .15s;white-space:nowrap}
+        .o3-root .o3-btn:disabled{opacity:.42;cursor:default}
+        .o3-root .o3-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+        .o3-root .o3-btn-primary{background:var(--primary);color:var(--on-primary)}
+        .o3-root .o3-btn-primary:not(:disabled):hover{box-shadow:0 2px 8px rgba(124,58,237,.32)}
+        .o3-root .o3-btn-text{background:transparent;color:var(--on-surface-variant)}
+        .o3-root .o3-btn-text:not(:disabled):hover{background:var(--surface-container-high)}
+        .o3-root .o3-btn-outline{background:var(--surface);border-color:var(--outline);color:var(--on-surface)}
+        .o3-root .o3-btn-outline:hover{background:var(--surface-container-high)}
+
+        /* ---------- toolbar ---------- */
+        .o3-root .o3-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;animation:o3-rise .4s cubic-bezier(.22,.7,.3,1) .05s backwards}
+        .o3-root .o3-searchwrap{position:relative;flex:0 1 260px;min-width:170px}
+        .o3-root .o3-searchwrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--on-surface-variant);pointer-events:none}
+        .o3-root .o3-search{width:100%;height:34px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--on-surface);padding:0 10px 0 31px}
+        .o3-root .o3-search::placeholder{color:var(--on-surface-variant);opacity:.7}
+        .o3-root .o3-search:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-container)}
+        .o3-root .o3-select{height:34px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--on-surface);padding:0 8px;cursor:pointer}
+        .o3-root .o3-select:focus-visible{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-container)}
+        .o3-root .o3-groupbtn{display:inline-flex;align-items:center;gap:6px}
+        .o3-root .o3-groupbtn svg{color:var(--on-surface-variant)}
+        .o3-root .o3-clearbtn{font:inherit;font-size:12px;font-weight:600;color:var(--primary);background:none;border:none;cursor:pointer;padding:6px 8px;border-radius:8px}
+        .o3-root .o3-clearbtn:hover{background:var(--surface-container)}
+
+        /* ---------- list ---------- */
+        .o3-root .o3-list{border:1px solid var(--outline-variant);border-radius:12px;background:var(--surface);overflow:hidden}
+        .o3-root .o3-item{position:relative;animation:o3-rise .45s cubic-bezier(.22,.7,.3,1) backwards}
+        .o3-root .o3-item + .o3-item{border-top:1px solid var(--outline-variant)}
+        .o3-root .o3-item.o3-dirty::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--amber);z-index:2;border-radius:0 2px 2px 0}
+        .o3-root .o3-hidden{display:none}
+
+        /* ---------- row ---------- */
+        .o3-root .o3-row{display:grid;grid-template-columns:22px 56px minmax(160px,1.4fr) minmax(110px,1fr) 136px 58px 86px 8px;gap:10px;align-items:center;height:44px;padding:0 14px 0 10px;cursor:pointer;transition:background .15s}
+        .o3-root .o3-row:hover,.o3-root .o3-item.o3-open .o3-row{background:var(--surface-container)}
+        .o3-root .o3-row:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;border-radius:8px}
+        .o3-root .o3-chev{display:flex;align-items:center;justify-content:center;color:var(--on-surface-variant);opacity:.7;transition:transform .25s cubic-bezier(.3,.7,.3,1),opacity .15s}
+        .o3-root .o3-row:hover .o3-chev{opacity:1}
+        .o3-root .o3-item.o3-open .o3-chev{transform:rotate(90deg);opacity:1}
+        .o3-root .o3-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.02em;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .o3-root .o3-namewrap{display:flex;align-items:center;gap:6px;min-width:0}
+        .o3-root .o3-name{font-size:13px;font-weight:500;color:var(--on-surface);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+        .o3-root .o3-name:hover{text-decoration:underline;text-decoration-color:var(--outline)}
+        .o3-root .o3-badge{flex:none;font-size:10.5px;font-weight:600;line-height:1.4;padding:1.5px 7px;border-radius:999px;white-space:nowrap}
+        .o3-root .o3-badge-bundle{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+        .o3-root .o3-badge-check{background:var(--primary-container);color:var(--on-primary-container)}
+        .o3-root .o3-badge-custom{border:1px dashed var(--outline);color:var(--on-surface-variant)}
+        .o3-root .o3-rulecell{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+        .o3-root .o3-fb{opacity:.65;font-size:11px}
+        .o3-root .o3-rule-dash{opacity:.5}
+        .o3-root .o3-chip{justify-self:start;max-width:136px;display:inline-block;font-size:11px;font-weight:500;line-height:20px;height:20px;padding:0 9px;border-radius:999px;background:var(--surface-container-high);color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .o3-root .o3-chip-unc{background:transparent;border:1px dashed var(--outline-variant);line-height:18px;opacity:.8}
+        .o3-root .o3-hours{font-size:12px;color:var(--on-surface-variant);text-align:right;white-space:nowrap}
+        .o3-root .o3-price{font-size:12.5px;font-weight:600;color:var(--on-surface);text-align:right;white-space:nowrap}
+        .o3-root .o3-dot{width:8px;height:8px;border-radius:999px;justify-self:end}
+        .o3-root .o3-dot-active{background:var(--green)}
+        .o3-root .o3-dot-draft{background:var(--surface-container-highest);border:1px solid var(--outline)}
+        .o3-root .o3-dot-dirty{background:var(--amber)}
+
+        /* ---------- expanding panel ---------- */
+        .o3-root .o3-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.3,.7,.3,1)}
+        .o3-root .o3-item.o3-open .o3-panel{grid-template-rows:1fr}
+        .o3-root .o3-clip{overflow:hidden;min-height:0;visibility:hidden;transition:visibility .3s}
+        .o3-root .o3-item.o3-open .o3-clip{visibility:visible}
+        .o3-root .o3-body{background:var(--surface-container);border-top:1px solid var(--outline-variant);padding:16px 16px 14px 42px;opacity:0;transition:opacity .22s .06s}
+        .o3-root .o3-item.o3-open .o3-body{opacity:1}
+
+        .o3-root .o3-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px 14px}
+        .o3-root .o3-field{display:flex;flex-direction:column;min-width:0}
+        .o3-root .o3-flabel{font-size:11px;font-weight:600;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .o3-root .o3-frate{font-size:10.5px;color:var(--on-surface-variant)}
+        .o3-root .o3-input{margin-top:6px;width:100%;height:32px;border:1px solid var(--outline-variant);border-radius:8px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--on-surface);padding:0 8px;transition:border-color .15s,box-shadow .15s}
+        .o3-root .o3-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-container)}
+        .o3-root .o3-input.o3-inherited{font-style:italic;color:var(--on-surface-variant)}
+        .o3-root .o3-input.o3-touched{font-style:normal;font-weight:500;color:var(--on-surface);border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+        .o3-root .o3-input.o3-touched:focus{box-shadow:inset 0 0 0 1px var(--amber),0 0 0 3px var(--amber-soft)}
+        .o3-root .o3-fvalue{margin-top:6px;height:32px;display:flex;align-items:center;font-size:12.5px;font-weight:500;color:var(--on-surface)}
+        .o3-root .o3-fvalue.o3-fzero{color:var(--on-surface-variant);opacity:.55;font-weight:400}
+
+        .o3-root .o3-pfoot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;flex-wrap:wrap}
+        .o3-root .o3-sum{font-size:12px;color:var(--on-surface-variant)}
+        .o3-root .o3-sum strong{font-weight:600;color:var(--on-surface)}
+        .o3-root .o3-actbar{display:flex;align-items:center;gap:8px;margin-left:auto}
+        .o3-root .o3-note{font-size:12px;font-style:italic;color:var(--on-surface-variant)}
+        .o3-root .o3-confirm{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--amber-deep)}
+        .o3-root .o3-mini{font:inherit;font-size:12px;font-weight:700;color:var(--amber-deep);background:none;border:none;cursor:pointer;text-decoration:underline;padding:2px 3px;border-radius:4px}
+        .o3-root .o3-mini:hover{background:var(--amber-soft)}
+        .o3-root .o3-csep{opacity:.5;font-weight:400}
+
+        .o3-root .o3-bundlebox{display:flex;align-items:center;gap:12px}
+        .o3-root .o3-bundlebox > svg{flex:none;color:var(--tertiary)}
+        .o3-root .o3-btx{display:flex;flex-direction:column;gap:1px;min-width:0}
+        .o3-root .o3-btx strong{font-size:12.5px;font-weight:600;color:var(--on-surface)}
+        .o3-root .o3-btx span{font-size:12px;color:var(--on-surface-variant)}
+        .o3-root .o3-link{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--primary);text-decoration:none;white-space:nowrap}
+        .o3-root .o3-link:hover{text-decoration:underline}
+
+        /* ---------- empty + snackbar ---------- */
+        .o3-root .o3-empty{padding:38px 20px;text-align:center;font-size:13px;color:var(--on-surface-variant)}
+        .o3-root .o3-snack{position:fixed;left:50%;bottom:26px;transform:translate(-50%,10px);background:#241E36;color:#fff;font-size:12.5px;font-weight:500;padding:9px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(28,16,64,.28);opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;z-index:60;max-width:min(92vw,480px)}
+        .o3-root .o3-snack.o3-show{opacity:1;transform:translate(-50%,0)}
+
+        @media (max-width:920px){
+          .o3-root .o3-row{grid-template-columns:22px 56px minmax(140px,1fr) 120px 58px 86px 8px}
+          .o3-root .o3-rulecell{display:none}
+        }
+        @media (prefers-reduced-motion:reduce){
+          .o3-root *{animation:none!important;transition:none!important}
+        }
+      </style>
+
+      <header class="o3-head">
+        <div>
+          <h3 class="o3-title">Services</h3>
+          <p class="o3-count" id="o3-count">16 of 139 shown — sample</p>
+          <p class="o3-hint">Click a row to edit department hours in place. Saving pins the values as a checklist override.</p>
+        </div>
+        <button type="button" class="o3-btn o3-btn-primary" id="o3-new">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New service
+        </button>
+      </header>
+
+      <div class="o3-toolbar">
+        <div class="o3-searchwrap">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input type="search" class="o3-search" id="o3-search" placeholder="Search name or code…" autocomplete="off">
+        </div>
+        <select class="o3-select" aria-label="Filter by rule">
+          <option>All rules</option>
+          <option>Video / 3D / Motion Production</option>
+          <option>Paid Media</option>
+          <option>SEO</option>
+          <option>Development</option>
+          <option>Creative Production</option>
+          <option>Social Media</option>
+          <option>Software / Spend / Pass-Through / Non-Delivery</option>
+        </select>
+        <select class="o3-select" aria-label="Filter by status">
+          <option>Active</option>
+          <option>Draft</option>
+          <option>Archived</option>
+          <option>All statuses</option>
+        </select>
+        <button type="button" class="o3-select o3-groupbtn" title="Filter by group (multi-select)">
+          Group · All
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button type="button" class="o3-clearbtn" id="o3-clear" hidden>Clear filters</button>
+      </div>
+
+      <div class="o3-list" id="o3-list"></div>
+      <div class="o3-empty" id="o3-empty" hidden>No services match your search.</div>
+      <div class="o3-snack" id="o3-snack" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's calmer</h3><p>Every service collapses to a single 44px line, so 139 rows scan like a list, not a spreadsheet. The two noisy taxonomy strings are demoted — rule to a muted ellipsised line, group to a slim single-line chip — so nothing ever wraps. The 8 hour columns (70% zeros) leave the scan path entirely and appear only inside the editor you asked for, with inherited values italic and your touches highlighted amber until saved.</p></div>
+    <div><h3>Trade-offs</h3><p>Hours are not comparable across services at a glance — you must expand a row to see the department split. One-row-at-a-time expansion makes bulk hour edits slower than a true grid, and opening a row reflows the rows beneath it. The status dot is more compact but less explicit than a labelled badge.</p></div>
+  </div>
+  <script>(function(){
+    var opt=document.getElementById('opt3');if(!opt)return;
+    var root=opt.querySelector('.o3-root');
+    var list=root.querySelector('#o3-list');
+
+    var D=[['Project Management','PM',850],['Strategy','Strat',1100],['Development','Dev',1075],['SEO','SEO',650],['Paid Media','Media',700],['Creative Production','Creative',750],['Social Media','Social',600],['Video / 3D / Motion Production','Video/3D',900]];
+
+    /* hours arrays follow D order: [PM,Strat,Dev,SEO,Media,Creative,Social,Video/3D] */
+    var S=[
+      {code:'046',name:'3D Configurator',rule:'Video / 3D / Motion Production',rs:'fallback',price:16500,h:[0.25,0,0,0,0,0,0,12],kind:'checklist',status:'active'},
+      {code:'3D0102',name:'3D Rendering — High Res Still',rule:'Video / 3D / Motion Production',rs:'normal',price:280,h:[0,0,0,0,0,0,0,0.25],kind:'editable',status:'active'},
+      {code:'3D0101',name:'3D Rendering — High Res Video',rule:'Video / 3D / Motion Production',rs:'normal',price:660,h:[0,0,0,0,0,0,0,0],kind:'editable',status:'active'},
+      {code:'3D002',name:'4K High Res Rendering',rule:'Video / 3D / Motion Production',rs:'normal',price:1200,h:[0,0,0,0,0,0,0,0],kind:'editable',status:'active'},
+      {code:'013',name:'Ad Account Creation',rule:'Paid Media',rs:'normal',price:1980,h:[0.5,0,0,0,2,0,0,0],kind:'editable',status:'active'},
+      {code:'10111',name:'Annual Website Hosting',rule:'Software / Spend / Pass-Through / Non-Delivery',rs:'normal',price:1960,h:[0,0,0,0,0,0,0,0],kind:'editable',status:'active'},
+      {code:'026',name:'SEO Competitor Audit',rule:'SEO',rs:'normal',price:27500,h:[2,4,0,16,0,0,0,0],kind:'editable',status:'active'},
+      {code:'002',name:'Full Website Build Page — Development, No SEO',rule:'Development',rs:'normal',price:5500,h:[0.5,0,4,0,0,1,0,0],kind:'editable',status:'active'},
+      {code:'038',name:'Social Media Plan (3 month)',rule:'Social Media',rs:'normal',price:13200,h:[1.5,6,0,0,0,0,12,0],kind:'editable',status:'active'},
+      {code:'044',name:'Campaign Strategy',rule:'Creative Production',rs:'normal',price:7200,h:[0.75,5.5,0,0,0,0,0,0],kind:'editable',status:'active'},
+      {code:'100',name:'Paid Media',rule:'Paid Media',rs:'normal',price:null,pct:'10%',h:[0,0,0,0,1,0,0,0],kind:'editable',status:'active'},
+      {code:'1003',name:'Campaign Creation & Complete Creative Solutions',rule:null,rs:'derived',price:65100,h:[3,4,0,0,8,14,0,0],kind:'bundle',children:6,status:'active'},
+      {code:'007',name:'Emailer — Creative only',rule:'Creative Production',rs:'normal',price:3300,h:[0.25,0,0,0,0,3,0,0],kind:'editable',status:'active'},
+      {code:'062',name:'SEO:Services',rule:null,rs:'custom',price:1075,h:[0,0,0,1,0,0,0,0],kind:'editable',status:'active'},
+      {code:'031',name:'SEO Reporting',rule:'SEO',rs:'normal',price:495,h:[0,0,0,0.5,0,0,0,0],kind:'editable',status:'draft'},
+      {code:'10',name:'Chatbot Set Up',rule:'Development',rs:'normal',price:1150,h:[0,0,1,0,0,0,0,0],kind:'editable',status:'active'}
+    ];
+
+    var icoChev='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+    var icoRevert='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+    var icoLayers='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+
+    function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    function fmtR(n){return 'R '+String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
+    function fmtH(n){return String(Math.round(n*100)/100);}
+    function groupOf(s){var mi=-1,mv=0;s.h.forEach(function(v,i){if(v>mv){mv=v;mi=i;}});return mi<0?null:D[mi][0];}
+    function curVals(s){return s._inputs?s._inputs.map(function(inp){return Math.max(0,parseFloat(inp.value)||0);}):s.h.slice();}
+
+    var snackT;
+    function snack(msg){var sb=root.querySelector('#o3-snack');sb.textContent=msg;sb.classList.add('o3-show');clearTimeout(snackT);snackT=setTimeout(function(){sb.classList.remove('o3-show');},2600);}
+
+    function dotHtml(s){
+      if(s.dirty)return '<span class="o3-dot o3-dot-dirty" title="Unsaved changes"></span>';
+      if(s.status==='draft')return '<span class="o3-dot o3-dot-draft" title="Draft"></span>';
+      return '<span class="o3-dot o3-dot-active" title="Active"></span>';
+    }
+
+    function fillRow(s){
+      var total=s.h.reduce(function(a,b){return a+b;},0);
+      var g=groupOf(s);
+      var badges='';
+      if(s.kind==='bundle')badges+='<span class="o3-badge o3-badge-bundle">bundle · '+s.children+'</span>';
+      if(s.kind==='checklist')badges+='<span class="o3-badge o3-badge-check">checklist</span>';
+      if(s.rs==='custom')badges+='<span class="o3-badge o3-badge-custom">custom</span>';
+      var ruleHtml,ruleTitle;
+      if(s.rs==='derived'){ruleHtml='<span class="o3-rule-dash">—</span>';ruleTitle='Derived from bundle children';}
+      else if(s.rs==='custom'){ruleHtml='<span class="o3-rule-dash">—</span>';ruleTitle='No rule — custom hours';}
+      else{ruleHtml=esc(s.rule)+(s.rs==='fallback'?' <span class="o3-fb">(fallback)</span>':'');ruleTitle=s.rule+(s.rs==='fallback'?' (fallback)':'');}
+      s._row.innerHTML=
+        '<span class="o3-chev" aria-hidden="true">'+icoChev+'</span>'+
+        '<span class="o3-code">'+esc(s.code)+'</span>'+
+        '<span class="o3-namewrap"><a class="o3-name" href="#" title="'+esc(s.name)+'">'+esc(s.name)+'</a>'+badges+'</span>'+
+        '<span class="o3-rulecell" title="'+esc(ruleTitle)+'">'+ruleHtml+'</span>'+
+        '<span class="o3-chip'+(g?'':' o3-chip-unc')+'" title="'+esc(g||'Uncategorized')+'">'+esc(g||'Uncategorized')+'</span>'+
+        '<span class="o3-hours o3-num">'+(total?fmtH(total)+' h':'—')+'</span>'+
+        '<span class="o3-price o3-num">'+(s.pct?s.pct:fmtR(s.price))+'</span>'+
+        dotHtml(s);
+    }
+
+    function setDirty(s,d){
+      s.dirty=d;
+      s._item.classList.toggle('o3-dirty',d);
+      var dot=s._row.querySelector('.o3-dot');if(dot)dot.outerHTML=dotHtml(s);
+      if(s._cancel){s._cancel.disabled=!d;s._save.disabled=!d;}
+    }
+
+    function updateSummary(s){
+      if(!s._sum)return;
+      var vals=curVals(s);
+      var t=vals.reduce(function(a,b){return a+b;},0);
+      var cost=vals.reduce(function(a,v,i){return a+v*D[i][2];},0);
+      var html='<strong>'+fmtH(t)+' h</strong> total · cost <strong>'+fmtR(cost)+'</strong>';
+      if(s.pct)html+=' · price is <strong>'+s.pct+'</strong> of spend';
+      else html+=' · <strong>'+(s.price?Math.round(cost/s.price*100):0)+'%</strong> of '+fmtR(s.price);
+      s._sum.innerHTML=html;
+    }
+
+    function onEdit(s){
+      var dirty=false;
+      s._inputs.forEach(function(inp,i){
+        var v=Math.max(0,parseFloat(inp.value)||0);
+        var touched=Math.abs(v-s.h[i])>1e-9;
+        inp.classList.toggle('o3-touched',touched);
+        inp.classList.toggle('o3-inherited',!touched);
+        if(touched)dirty=true;
+      });
+      setDirty(s,dirty);
+      updateSummary(s);
+    }
+
+    function doCancel(s){
+      s._inputs.forEach(function(inp,i){inp.value=fmtH(s.h[i]);inp.classList.remove('o3-touched');inp.classList.add('o3-inherited');});
+      setDirty(s,false);
+      updateSummary(s);
+    }
+
+    function doSave(s){
+      s.h=curVals(s);
+      s.kind='checklist';
+      if(s.rs==='normal')s.rs='fallback';
+      s.dirty=false;s._item.classList.remove('o3-dirty');
+      fillRow(s);fillPanel(s);close(s);
+      snack('Saved as checklist for '+s.name);
+    }
+
+    function fillPanel(s){
+      var b=s._body;b.innerHTML='';
+      s._inputs=null;s._sum=null;s._cancel=null;s._save=null;
+
+      if(s.kind==='bundle'){
+        b.innerHTML='<div class="o3-bundlebox">'+icoLayers+
+          '<div class="o3-btx"><strong>'+s.children+' included services</strong>'+
+          '<span>Hours and price roll up from the bundle children and are read-only here.</span></div>'+
+          '<a class="o3-link" href="#">Edit in detail page &rarr;</a></div>';
+        b.querySelector('.o3-link').addEventListener('click',function(e){e.preventDefault();snack('Opens the detail page for '+s.code);});
+        return;
+      }
+
+      if(s.kind==='checklist'){
+        var rg=document.createElement('div');rg.className='o3-grid';
+        D.forEach(function(d,i){
+          rg.insertAdjacentHTML('beforeend','<div class="o3-field"><span class="o3-flabel" title="'+esc(d[0])+'">'+esc(d[1])+'</span><span class="o3-frate o3-num">R '+d[2]+'/h</span><span class="o3-fvalue o3-num'+(s.h[i]?'':' o3-fzero')+'">'+(s.h[i]?fmtH(s.h[i]):'—')+'</span></div>');
+        });
+        var rf=document.createElement('div');rf.className='o3-pfoot';
+        rf.innerHTML='<div class="o3-note">Checklist override — hours are pinned and ignore the rule.</div>'+
+          '<div class="o3-actbar">'+
+          '<span class="o3-confirm" hidden>Really revert?&nbsp;<button type="button" class="o3-mini" data-a="yes">Yes</button><span class="o3-csep">/</span><button type="button" class="o3-mini" data-a="no">No</button></span>'+
+          '<button type="button" class="o3-btn o3-btn-outline">'+icoRevert+'Revert to rule</button></div>';
+        b.appendChild(rg);b.appendChild(rf);
+        var rbtn=rf.querySelector('.o3-btn-outline'),conf=rf.querySelector('.o3-confirm');
+        rbtn.addEventListener('click',function(){rbtn.hidden=true;conf.hidden=false;});
+        conf.querySelector('[data-a="no"]').addEventListener('click',function(){conf.hidden=true;rbtn.hidden=false;});
+        conf.querySelector('[data-a="yes"]').addEventListener('click',function(){
+          s.kind='editable';
+          if(s.rs==='fallback')s.rs='normal';
+          fillRow(s);fillPanel(s);
+          snack('Reverted to rule for '+s.name);
+        });
+        return;
+      }
+
+      /* editable */
+      var grid=document.createElement('div');grid.className='o3-grid';
+      s._inputs=[];
+      D.forEach(function(d,i){
+        var f=document.createElement('label');f.className='o3-field';
+        f.innerHTML='<span class="o3-flabel" title="'+esc(d[0])+'">'+esc(d[1])+'</span><span class="o3-frate o3-num">R '+d[2]+'/h</span>';
+        var inp=document.createElement('input');
+        inp.type='number';inp.min='0';inp.step='0.25';inp.value=fmtH(s.h[i]);
+        inp.className='o3-input o3-num o3-inherited';
+        inp.setAttribute('aria-label',d[0]+' hours');
+        inp.addEventListener('input',function(){onEdit(s);});
+        f.appendChild(inp);grid.appendChild(f);s._inputs.push(inp);
+      });
+      var foot=document.createElement('div');foot.className='o3-pfoot';
+      foot.innerHTML='<div class="o3-sum o3-num"></div>'+
+        '<div class="o3-actbar"><button type="button" class="o3-btn o3-btn-text" disabled>Cancel</button>'+
+        '<button type="button" class="o3-btn o3-btn-primary" disabled>Save</button></div>';
+      b.appendChild(grid);b.appendChild(foot);
+      s._sum=foot.querySelector('.o3-sum');
+      var btns=foot.querySelectorAll('.o3-actbar .o3-btn');
+      s._cancel=btns[0];s._save=btns[1];
+      s._cancel.addEventListener('click',function(){doCancel(s);});
+      s._save.addEventListener('click',function(){doSave(s);});
+      updateSummary(s);
+    }
+
+    /* ---------- expansion ---------- */
+    var openSvc=null;
+    function close(s){s._item.classList.remove('o3-open');s._row.setAttribute('aria-expanded','false');if(openSvc===s)openSvc=null;}
+    function toggle(s){
+      if(s._item.classList.contains('o3-open')){close(s);return;}
+      if(openSvc)close(openSvc);
+      s._item.classList.add('o3-open');
+      s._row.setAttribute('aria-expanded','true');
+      openSvc=s;
+    }
+
+    /* ---------- build ---------- */
+    S.forEach(function(s,i){
+      var item=document.createElement('div');item.className='o3-item';
+      item.style.animationDelay=(100+i*28)+'ms';
+      item.addEventListener('animationend',function(){item.style.animation='none';},{once:true});
+      var row=document.createElement('div');row.className='o3-row';row.tabIndex=0;
+      row.setAttribute('role','button');row.setAttribute('aria-expanded','false');
+      var panel=document.createElement('div');panel.className='o3-panel';
+      var clip=document.createElement('div');clip.className='o3-clip';
+      var body=document.createElement('div');body.className='o3-body';
+      clip.appendChild(body);panel.appendChild(clip);
+      item.appendChild(row);item.appendChild(panel);
+      s._item=item;s._row=row;s._body=body;s.dirty=false;
+      fillRow(s);fillPanel(s);
+      row.addEventListener('click',function(e){var a=e.target.closest('a');if(a)e.preventDefault();toggle(s);});
+      row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(s);}});
+      list.appendChild(item);
+    });
+
+    /* ---------- search ---------- */
+    var q=root.querySelector('#o3-search');
+    var count=root.querySelector('#o3-count');
+    var clearBtn=root.querySelector('#o3-clear');
+    var empty=root.querySelector('#o3-empty');
+    function applyFilter(){
+      var v=q.value.trim().toLowerCase();
+      var n=0;
+      S.forEach(function(s){
+        var hit=!v||s.name.toLowerCase().indexOf(v)>-1||s.code.toLowerCase().indexOf(v)>-1;
+        s._item.classList.toggle('o3-hidden',!hit);
+        if(hit)n++;
+      });
+      count.textContent=v?(n+' of 139 shown'):'16 of 139 shown — sample';
+      clearBtn.hidden=!v;
+      empty.hidden=n>0;
+      list.style.display=n>0?'':'none';
+    }
+    q.addEventListener('input',applyFilter);
+    clearBtn.addEventListener('click',function(){q.value='';applyFilter();q.focus();});
+
+    root.querySelector('#o3-new').addEventListener('click',function(){snack('Opens the new service form (not in this mockup)');});
+  })();</script>
+</article>

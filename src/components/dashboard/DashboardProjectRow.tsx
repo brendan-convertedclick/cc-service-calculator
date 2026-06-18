@@ -32,7 +32,7 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
             ? "bg-m-primary-container text-m-on-primary-container"
             : isCompleted
             ? "cursor-default text-m-on-surface-variant"
-            : "text-m-on-surface hover:bg-m-surface-container"
+            : "text-m-on-surface-variant/60 hover:bg-m-surface-container hover:text-m-on-surface"
         )}
       >
         <span

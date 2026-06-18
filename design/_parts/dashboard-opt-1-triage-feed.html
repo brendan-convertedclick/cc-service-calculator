@@ -1,0 +1,453 @@
+<article class="opt" id="opt1">
+  <div class="opt-head"><span class="opt-num">OPTION 1</span><h2>Triage feed — a prioritized "Today" action queue</h2></div>
+  <p class="opt-tagline">The dashboard answers "what do I do right now" first: one prioritized queue is the hero, everything else folds away.</p>
+  <div class="frame">
+    <section class="o1-root">
+      <style>
+        .o1-root{
+          --o1-teal:var(--tertiary); --o1-amber:var(--amber); --o1-red:var(--error);
+          all:revert; font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          display:flex; min-height:640px; background:var(--surface-container-low);
+          border-radius:14px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.04);
+          font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased;
+        }
+        .o1-root *{box-sizing:border-box;}
+        .o1-root :is(button){font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+        .o1-mono{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+
+        /* ---------- icon rail ---------- */
+        .o1-rail{width:56px; flex:0 0 56px; background:var(--surface); border-right:1px solid var(--outline-variant);
+          display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:4px;}
+        .o1-logo{width:34px; height:34px; border-radius:10px; background:var(--gradient-brand);
+          display:grid; place-items:center; color:#fff; font-weight:800; font-size:15px; margin-bottom:10px;}
+        .o1-railbtn{width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+          color:var(--on-surface-variant); transition:background .12s,color .12s;}
+        .o1-railbtn:hover{background:var(--surface-container);}
+        .o1-railbtn.o1-on{background:var(--primary-container); color:var(--on-primary-container);}
+        .o1-railbtn svg{width:20px; height:20px;}
+        .o1-rail .o1-spacer{flex:1;}
+
+        /* ---------- project tree ---------- */
+        .o1-tree{width:236px; flex:0 0 236px; background:var(--surface); border-right:1px solid var(--outline-variant);
+          display:flex; flex-direction:column; overflow:hidden;}
+        .o1-tree-h{padding:14px 14px 10px; display:flex; align-items:center; justify-content:space-between;}
+        .o1-tree-h b{font-size:13px; letter-spacing:.01em;}
+        .o1-comp{font-size:11px; color:var(--on-surface-variant); display:flex; gap:5px; align-items:center;}
+        .o1-comp i{width:24px; height:14px; border-radius:8px; background:var(--surface-container-highest); position:relative; display:inline-block;}
+        .o1-comp i::after{content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#fff; top:2px; left:2px; box-shadow:0 1px 1px rgba(0,0,0,.15);}
+        .o1-filter{margin:0 14px 10px; height:30px; border:1px solid var(--outline-variant); border-radius:8px;
+          background:var(--surface-container-low); display:flex; align-items:center; gap:6px; padding:0 9px; color:var(--on-surface-variant); font-size:12px;}
+        .o1-filter svg{width:14px; height:14px;}
+        .o1-treelist{overflow-y:auto; padding:0 8px 12px; flex:1;}
+        .o1-cgroup{margin-bottom:2px;}
+        .o1-cgh{display:flex; align-items:center; gap:6px; padding:6px 6px; border-radius:7px; font-size:12px; font-weight:600; color:var(--on-surface-variant);}
+        .o1-cgh:hover{background:var(--surface-container-low);}
+        .o1-cgh svg{width:13px; height:13px; transition:transform .15s;}
+        .o1-cgh .o1-cnt{margin-left:auto; font-size:10px; font-weight:600; color:var(--on-surface-variant); background:var(--surface-container); padding:1px 6px; border-radius:20px;}
+        .o1-prow{display:flex; align-items:center; gap:7px; padding:5px 8px 5px 22px; border-radius:7px; font-size:12px; color:var(--on-surface); cursor:pointer;}
+        .o1-prow:hover{background:var(--surface-container-low);}
+        .o1-prow.o1-sel{background:var(--primary-container); color:var(--on-primary-container);}
+        .o1-prow .o1-pn{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-dot{width:8px; height:8px; border-radius:50%; flex:0 0 8px;}
+        .o1-dot.o1-ok{background:var(--o1-teal);}
+        .o1-dot.o1-at{background:var(--o1-amber);}
+        .o1-dot.o1-ov{background:var(--o1-red);}
+
+        /* ---------- main pane ---------- */
+        .o1-main{flex:1; overflow-y:auto; padding:18px 22px 28px; min-width:0;}
+        .o1-top{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px;}
+        .o1-top h1{font-size:21px; font-weight:800; letter-spacing:-.01em; margin:0;}
+        .o1-top .o1-sub{font-size:12.5px; color:var(--on-surface-variant); margin-top:2px;}
+        .o1-ai{display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--on-primary-container);
+          background:var(--surface-container-high); border:1px solid var(--outline-variant); padding:7px 12px; border-radius:20px; white-space:nowrap;}
+        .o1-ai svg{width:15px; height:15px;}
+        .o1-ai:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);}
+
+        /* ---------- KPI ribbon ---------- */
+        .o1-ribbon{display:flex; align-items:stretch; gap:8px; padding:8px; border-radius:14px;
+          background:var(--surface); border:1px solid var(--outline-variant); position:relative; overflow:hidden; margin-bottom:18px;}
+        .o1-ribbon::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--gradient-brand);}
+        .o1-seg{display:flex; gap:6px; padding-right:8px; border-right:1px solid var(--outline-variant);}
+        .o1-segbtn{display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; transition:background .12s,box-shadow .12s;
+          border:1px solid transparent;}
+        .o1-segbtn:hover{background:var(--surface-container-low);}
+        .o1-segbtn.o1-active{background:var(--surface-container-high); border-color:var(--outline);}
+        .o1-segbtn .o1-sd{width:9px; height:9px; border-radius:50%;}
+        .o1-segbtn .o1-num{font-size:18px; font-weight:800; line-height:1;}
+        .o1-segbtn .o1-lbl{font-size:11px; color:var(--on-surface-variant); text-align:left; line-height:1.15;}
+        .o1-stats{display:flex; gap:6px; margin-left:auto; align-items:center;}
+        .o1-chip{display:flex; flex-direction:column; gap:1px; padding:7px 14px; border-radius:10px; background:var(--surface-container-low);}
+        .o1-chip .o1-cv{font-size:15px; font-weight:800; line-height:1.1;}
+        .o1-chip .o1-cl{font-size:10px; color:var(--on-surface-variant); white-space:nowrap;}
+
+        /* ---------- hero queue ---------- */
+        .o1-hero-h{display:flex; align-items:center; gap:9px; margin-bottom:11px;}
+        .o1-hero-h h2{font-size:15px; font-weight:800; margin:0;}
+        .o1-hero-h .o1-pill{font-size:11px; font-weight:700; color:var(--on-primary-container); background:var(--primary-container); padding:2px 9px; border-radius:20px;}
+        .o1-hero-h .o1-clr{margin-left:auto; font-size:11.5px; color:var(--primary); font-weight:600;}
+        .o1-hero-h .o1-clr.o1-hide{display:none;}
+
+        .o1-queue{display:flex; flex-direction:column; gap:9px;}
+        .o1-card{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:14px; background:var(--surface);
+          border:1px solid var(--outline-variant); box-shadow:0 1px 2px rgba(0,0,0,.04); position:relative; overflow:hidden;
+          transition:box-shadow .14s, transform .14s, opacity .2s, max-height .25s, margin .25s, padding .25s; max-height:120px;}
+        .o1-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px;}
+        .o1-card.o1-ov-c::before{background:var(--o1-red);}
+        .o1-card.o1-at-c::before{background:var(--o1-amber);}
+        .o1-card:hover{box-shadow:0 8px 24px rgba(76,29,149,.12); transform:translateY(-1px);}
+        .o1-card.o1-snoozed{opacity:0; max-height:0; margin-top:-9px; padding-top:0; padding-bottom:0; border-width:0; pointer-events:none;}
+        .o1-bigdot{width:13px; height:13px; border-radius:50%; flex:0 0 13px; position:relative;}
+        .o1-bigdot.o1-ov-d{background:var(--o1-red);}
+        .o1-bigdot.o1-at-d{background:var(--o1-amber);}
+        .o1-bigdot::after{content:""; position:absolute; inset:-5px; border-radius:50%; border:2px solid currentColor; opacity:.22;}
+        .o1-ov-d{color:var(--o1-red);} .o1-at-d{color:var(--o1-amber);}
+        .o1-cbody{flex:1; min-width:0; cursor:pointer;}
+        .o1-cttl{font-size:14.5px; font-weight:700; letter-spacing:-.005em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+        .o1-cttl .o1-cl-name{color:var(--on-surface);}
+        .o1-badge{font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em;}
+        .o1-badge.o1-ov-b{background:var(--error-container); color:var(--on-error-container);}
+        .o1-badge.o1-at-b{background:var(--amber-soft); color:var(--amber-deep);}
+        .o1-creason{font-size:12.5px; color:var(--on-surface-variant); font-style:italic; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-eng{font-size:10.5px; font-weight:600; color:var(--on-surface-variant); background:var(--surface-container); padding:3px 9px; border-radius:6px; text-transform:capitalize; white-space:nowrap;}
+        .o1-acts{display:flex; gap:7px; flex:0 0 auto;}
+        .o1-act{display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px; transition:background .12s, box-shadow .12s;}
+        .o1-act svg{width:14px; height:14px;}
+        .o1-open{background:var(--primary); color:var(--on-primary);}
+        .o1-open:hover{box-shadow:0 8px 24px rgba(76,29,149,.22);}
+        .o1-snz{background:var(--surface-container); color:var(--on-surface-variant);}
+        .o1-snz:hover{background:var(--surface-container-high);}
+        .o1-empty{display:none; padding:26px; text-align:center; font-size:13px; color:var(--on-surface-variant);
+          border:1px dashed var(--outline); border-radius:14px; background:var(--surface-container-low);}
+        .o1-empty.o1-show{display:block;}
+
+        /* ---------- disclosure ---------- */
+        .o1-disc{margin-top:22px; border:1px solid var(--outline-variant); border-radius:14px; background:var(--surface); overflow:hidden;}
+        .o1-disc-h{width:100%; display:flex; align-items:center; gap:9px; padding:13px 16px; text-align:left;}
+        .o1-disc-h:hover{background:var(--surface-container-low);}
+        .o1-disc-h .o1-dh-dot{width:8px; height:8px; border-radius:50%; background:var(--o1-teal);}
+        .o1-disc-h b{font-size:13.5px;}
+        .o1-disc-h .o1-dh-c{font-size:11px; color:var(--on-surface-variant);}
+        .o1-disc-h .o1-chev{margin-left:auto; width:16px; height:16px; color:var(--on-surface-variant); transition:transform .18s;}
+        .o1-disc.o1-open-d .o1-chev{transform:rotate(180deg);}
+        .o1-disc-body{display:none; border-top:1px solid var(--outline-variant);}
+        .o1-disc.o1-open-d .o1-disc-body{display:block;}
+        .o1-rrow{display:flex; align-items:center; gap:11px; padding:10px 16px; border-bottom:1px solid var(--outline-variant); cursor:pointer;}
+        .o1-rrow:last-child{border-bottom:none;}
+        .o1-rrow:hover{background:var(--surface-container-low);}
+        .o1-rrow .o1-rn{font-size:13px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-rrow .o1-rr{font-size:11.5px; color:var(--on-surface-variant); font-style:italic; white-space:nowrap;}
+
+        /* ---------- margin card ---------- */
+        .o1-margin{margin-top:18px; border:1px solid var(--outline-variant); border-radius:14px; background:var(--surface); overflow:hidden;}
+        .o1-margin-h{display:flex; align-items:center; gap:8px; padding:12px 16px 8px; font-size:13.5px; font-weight:700;}
+        .o1-margin-h .o1-mh-sub{font-size:11px; font-weight:500; color:var(--on-surface-variant);}
+        .o1-mtable{width:100%; border-collapse:collapse; font-size:12.5px;}
+        .o1-mtable th{text-align:right; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--on-surface-variant); padding:6px 16px; border-bottom:1px solid var(--outline-variant);}
+        .o1-mtable th:first-child{text-align:left;}
+        .o1-mtable td{padding:8px 16px; text-align:right; border-bottom:1px solid var(--outline-variant);}
+        .o1-mtable tr:last-child td{border-bottom:none;}
+        .o1-mtable td:first-child{text-align:left; font-weight:600; display:flex; align-items:center; gap:8px;}
+        .o1-rag{width:8px; height:8px; border-radius:50%;}
+        .o1-rag.o1-g{background:var(--green);} .o1-rag.o1-a{background:var(--amber);} .o1-rag.o1-r{background:var(--error);}
+        .o1-vs{font-weight:600;}
+        .o1-vs.o1-g{color:var(--green-deep);} .o1-vs.o1-a{color:var(--amber-deep);} .o1-vs.o1-r{color:var(--on-error-container);}
+
+        /* ---------- snackbar ---------- */
+        .o1-snack{position:absolute; left:50%; bottom:18px; transform:translate(-50%,16px); background:var(--on-surface); color:#fff;
+          font-size:12.5px; font-weight:500; padding:10px 16px; border-radius:10px; box-shadow:0 8px 24px rgba(76,29,149,.22);
+          opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:30; max-width:80%;}
+        .o1-snack.o1-show{opacity:1; transform:translate(-50%,0);}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o1-rail" aria-label="App">
+        <div class="o1-logo">C</div>
+        <button class="o1-railbtn o1-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></button>
+        <button class="o1-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 3-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17.5" cy="9" r="2.4"/></svg></button>
+        <button class="o1-railbtn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg></button>
+        <button class="o1-railbtn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></button>
+        <button class="o1-railbtn" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
+        <div class="o1-spacer"></div>
+        <button class="o1-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.3-1.3L13.6 2h-3.2l-.4 2.5A7 7 0 0 0 7.7 5.8l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5.3 12c0 .4 0 .9.1 1.3l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.3 1.3l.4 2.5h3.2l.4-2.5a7 7 0 0 0 2.3-1.3l2.3 1 2-3.4-2-1.5c.1-.4.1-.9.1-1.3Z"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o1-tree" aria-label="Projects">
+        <div class="o1-tree-h"><b>Projects</b><span class="o1-comp"><i></i>Completed</span></div>
+        <div class="o1-filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>Filter projects…</div>
+        <div class="o1-treelist" id="o1-tree"></div>
+      </aside>
+
+      <!-- main -->
+      <main class="o1-main">
+        <div class="o1-top">
+          <div>
+            <h1>Today</h1>
+            <div class="o1-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <button class="o1-ai" id="o1-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>Generate health narrative</button>
+        </div>
+
+        <!-- KPI ribbon -->
+        <div class="o1-ribbon">
+          <div class="o1-seg" role="group" aria-label="Filter by status">
+            <button class="o1-segbtn" data-filter="on_track"><span class="o1-sd" style="background:var(--o1-teal)"></span><span class="o1-num o1-mono">14</span><span class="o1-lbl">On<br>track</span></button>
+            <button class="o1-segbtn" data-filter="needs_attention"><span class="o1-sd" style="background:var(--o1-amber)"></span><span class="o1-num o1-mono">5</span><span class="o1-lbl">Needs<br>attention</span></button>
+            <button class="o1-segbtn" data-filter="overdue"><span class="o1-sd" style="background:var(--o1-red)"></span><span class="o1-num o1-mono">2</span><span class="o1-lbl">Over<br>due</span></button>
+          </div>
+          <div class="o1-stats">
+            <div class="o1-chip"><span class="o1-cv o1-mono">642h</span><span class="o1-cl">Burned this month</span></div>
+            <div class="o1-chip"><span class="o1-cv o1-mono">86%</span><span class="o1-cl">On-time (32/37)</span></div>
+            <div class="o1-chip"><span class="o1-cv o1-mono">4.2d</span><span class="o1-cl">Avg brief→DFT</span></div>
+          </div>
+        </div>
+
+        <!-- HERO queue -->
+        <div class="o1-hero-h">
+          <h2>Today — needs you now</h2>
+          <span class="o1-pill" id="o1-count">5</span>
+          <button class="o1-clr o1-hide" id="o1-clr">Clear filter ✕</button>
+        </div>
+        <div class="o1-queue" id="o1-queue"></div>
+        <div class="o1-empty" id="o1-empty">Nothing in this view — you're all caught up. 🎉</div>
+
+        <!-- on-track disclosure -->
+        <div class="o1-disc" id="o1-disc">
+          <button class="o1-disc-h" id="o1-disc-h">
+            <span class="o1-dh-dot"></span><b>All on track</b><span class="o1-dh-c">— 14 projects, no action needed</span>
+            <svg class="o1-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="o1-disc-body" id="o1-disc-body"></div>
+        </div>
+
+        <!-- margin -->
+        <div class="o1-margin">
+          <div class="o1-margin-h">Client margin <span class="o1-mh-sub">rolling 30 days · target 35%</span></div>
+          <table class="o1-mtable">
+            <thead><tr><th>Client</th><th>Revenue</th><th>Cost</th><th>Margin</th><th>vs target</th></tr></thead>
+            <tbody id="o1-mbody"></tbody>
+          </table>
+        </div>
+
+        <div class="o1-snack" id="o1-snack"></div>
+      </main>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>It collapses the old flat top-to-bottom scroll into a single answer to "what do I do right now." The five attention items become a prioritized, overdue-first queue with inline Open/Snooze, so action lives where focus already is. The 14 healthy projects fold into one disclosure instead of a second identical list, and the buried margin table is promoted onto the first screen. The ribbon separates the three interactive status filters from the three passive KPIs that used to look identical.</p></div>
+    <div><h3>Trade-offs</h3><p>The triage framing optimises for the operator-on-shift; a partner who wants a calm at-a-glance health summary has to expand disclosures to see the full portfolio. Snooze is session-only state here (no persistence/undo timer), and the queue intentionally hides the 14 on-track rows by default, which can feel like information is missing until you learn the disclosure pattern.</p></div>
+  </div>
+  <script>(function(){
+    var root = document.getElementById('opt1');
+    if(!root) return;
+    var $ = function(s){ return root.querySelector(s); };
+    var $$ = function(s){ return Array.prototype.slice.call(root.querySelectorAll(s)); };
+
+    // ---- data ----
+    var attention = [
+      {id:'a1', client:'Woolworths', proj:'Loyalty App Launch', eng:'fixed', status:'overdue', reason:'DFT 6 days past due'},
+      {id:'a2', client:"Nando's", proj:'Winter Menu Push', eng:'project', status:'overdue', reason:'milestone slipped twice'},
+      {id:'a3', client:'Sasol', proj:'Q3 Brand Refresh', eng:'retainer', status:'needs_attention', reason:'3 briefs awaiting scope · oldest 6 days'},
+      {id:'a4', client:'Discovery', proj:'Vitality Always-On', eng:'retainer', status:'needs_attention', reason:'burn 92% · 2 weeks left in cycle'},
+      {id:'a5', client:'Capitec', proj:'Always-On Social', eng:'retainer', status:'needs_attention', reason:'no activity in 9 days'}
+    ];
+    var recent = [
+      {client:'Takealot', proj:'Black Friday Creative', eng:'project', reason:'DFT approved today'},
+      {client:'MTN', proj:'5G Awareness', eng:'retainer', reason:'brief scoped 2h ago'},
+      {client:'Standard Bank', proj:'Wealth Microsite', eng:'fixed', reason:'quote accepted yesterday'},
+      {client:'Clicks', proj:'Health Content Hub', eng:'retainer', reason:'12 tasks completed this week'},
+      {client:'Tiger Brands', proj:'Packaging Refresh', eng:'project', reason:'kickoff Monday'}
+    ];
+    var margin = [
+      {c:'Takealot', rev:'R 510 000', cost:'R 306 000', m:'40.0%', vs:'+5.0pp', rag:'g'},
+      {c:'Sasol', rev:'R 388 500', cost:'R 233 100', m:'40.0%', vs:'+5.0pp', rag:'g'},
+      {c:'Discovery', rev:'R 412 000', cost:'R 286 000', m:'30.6%', vs:'−4.4pp', rag:'a'},
+      {c:'MTN', rev:'R 264 000', cost:'R 171 600', m:'35.0%', vs:'0.0pp', rag:'g'},
+      {c:'Capitec', rev:'R 198 000', cost:'R 148 500', m:'25.0%', vs:'−10.0pp', rag:'r'},
+      {c:'Woolworths', rev:'R 295 000', cost:'R 224 200', m:'24.0%', vs:'−11.0pp', rag:'r'}
+    ];
+    var tree = [
+      {c:'Sasol', p:[['Q3 Brand Refresh','at'],['Retail POS Toolkit','ok']]},
+      {c:'Woolworths', p:[['Loyalty App Launch','ov'],['Festive Catalogue','ok']]},
+      {c:'Discovery', p:[['Vitality Always-On','at'],['Health Rewards Email','ok']]},
+      {c:"Nando's", p:[['Winter Menu Push','ov'],['Peri Social','ok']]},
+      {c:'Capitec', p:[['Always-On Social','at']]},
+      {c:'Takealot', p:[['Black Friday Creative','ok'],['Marketplace SEO','ok']]},
+      {c:'MTN', p:[['5G Awareness','ok']]},
+      {c:'Standard Bank', p:[['Wealth Microsite','ok']]},
+      {c:'Clicks', p:[['Health Content Hub','ok']]},
+      {c:'Tiger Brands', p:[['Packaging Refresh','ok']]}
+    ];
+
+    var ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7M9 7h8v8"/></svg>';
+    var ICON_SNZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l2.5 2.5"/></svg>';
+
+    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+    var snackEl = $('#o1-snack'), snackT;
+    function snack(msg){
+      snackEl.textContent = msg;
+      snackEl.classList.add('o1-show');
+      clearTimeout(snackT);
+      snackT = setTimeout(function(){ snackEl.classList.remove('o1-show'); }, 1900);
+    }
+
+    // ---- build tree ----
+    (function(){
+      var html = '';
+      tree.forEach(function(g, i){
+        html += '<div class="o1-cgroup">';
+        html += '<div class="o1-cgh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="transform:rotate(0deg)"><path d="m9 6 6 6-6 6"/></svg>'+esc(g.c)+'<span class="o1-cnt">'+g.p.length+'</span></div>';
+        g.p.forEach(function(p){
+          html += '<div class="o1-prow" data-name="'+esc(g.c+' — '+p[0])+'"><span class="o1-dot o1-'+p[1]+'"></span><span class="o1-pn">'+esc(p[0])+'</span></div>';
+        });
+        html += '</div>';
+      });
+      $('#o1-tree').innerHTML = html;
+    })();
+
+    // ---- build margin ----
+    (function(){
+      var html = '';
+      margin.forEach(function(m){
+        html += '<tr><td><span class="o1-rag o1-'+m.rag+'"></span>'+esc(m.c)+'</td>'+
+          '<td class="o1-mono">'+esc(m.rev)+'</td><td class="o1-mono">'+esc(m.cost)+'</td>'+
+          '<td class="o1-mono">'+esc(m.m)+'</td>'+
+          '<td class="o1-vs o1-'+m.rag+' o1-mono">'+esc(m.vs)+'</td></tr>';
+      });
+      $('#o1-mbody').innerHTML = html;
+    })();
+
+    // ---- build recent (disclosure body) ----
+    (function(){
+      var html = '';
+      recent.forEach(function(r){
+        html += '<div class="o1-rrow" data-name="'+esc(r.client+' — '+r.proj)+'">'+
+          '<span class="o1-dot o1-ok"></span>'+
+          '<span class="o1-rn">'+esc(r.client)+' — '+esc(r.proj)+'</span>'+
+          '<span class="o1-eng">'+esc(r.eng)+'</span>'+
+          '<span class="o1-rr">'+esc(r.reason)+'</span></div>';
+      });
+      $('#o1-disc-body').innerHTML = html;
+    })();
+
+    // ---- build queue ----
+    var queueEl = $('#o1-queue');
+    function statusClass(s){ return s === 'overdue' ? 'ov' : 'at'; }
+    (function(){
+      var html = '';
+      attention.forEach(function(a){
+        var sc = statusClass(a.status);
+        var badge = a.status === 'overdue' ? 'Overdue' : 'Needs attention';
+        html += '<div class="o1-card o1-'+sc+'-c" data-id="'+a.id+'" data-status="'+a.status+'" data-name="'+esc(a.client+' — '+a.proj)+'">'+
+          '<span class="o1-bigdot o1-'+sc+'-d"></span>'+
+          '<div class="o1-cbody">'+
+            '<div class="o1-cttl"><span class="o1-cl-name">'+esc(a.client)+' — '+esc(a.proj)+'</span>'+
+              '<span class="o1-badge o1-'+sc+'-b">'+badge+'</span>'+
+              '<span class="o1-eng">'+esc(a.eng)+'</span></div>'+
+            '<div class="o1-creason">'+esc(a.reason)+'</div>'+
+          '</div>'+
+          '<div class="o1-acts">'+
+            '<button class="o1-act o1-open" data-act="open">'+ICON_OPEN+'Open</button>'+
+            '<button class="o1-act o1-snz" data-act="snooze">'+ICON_SNZ+'Snooze</button>'+
+          '</div></div>';
+      });
+      queueEl.innerHTML = html;
+    })();
+
+    var countEl = $('#o1-count');
+    var emptyEl = $('#o1-empty');
+    var activeFilter = null;
+
+    function liveCards(){
+      return $$('#o1-queue .o1-card').filter(function(c){ return !c.classList.contains('o1-snoozed'); });
+    }
+    function refresh(){
+      var live = liveCards();
+      var shown = 0;
+      live.forEach(function(c){
+        var match = !activeFilter || c.getAttribute('data-status') === activeFilter;
+        c.style.display = match ? '' : 'none';
+        if(match) shown++;
+      });
+      countEl.textContent = shown;
+      emptyEl.classList.toggle('o1-show', shown === 0);
+    }
+
+    // ---- filter segmented control ----
+    $$('.o1-segbtn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var f = btn.getAttribute('data-filter');
+        if(activeFilter === f){
+          activeFilter = null;
+          btn.classList.remove('o1-active');
+        } else {
+          activeFilter = f;
+          $$('.o1-segbtn').forEach(function(b){ b.classList.remove('o1-active'); });
+          btn.classList.add('o1-active');
+        }
+        $('#o1-clr').classList.toggle('o1-hide', !activeFilter);
+        if(activeFilter === 'on_track'){
+          // on-track items live in the disclosure — open it & note
+          $('#o1-disc').classList.add('o1-open-d');
+          snack('Showing on-track projects below');
+        }
+        refresh();
+      });
+    });
+    $('#o1-clr').addEventListener('click', function(){
+      activeFilter = null;
+      $$('.o1-segbtn').forEach(function(b){ b.classList.remove('o1-active'); });
+      this.classList.add('o1-hide');
+      refresh();
+    });
+
+    // ---- queue card interactions ----
+    queueEl.addEventListener('click', function(e){
+      var btn = e.target.closest('[data-act]');
+      var card = e.target.closest('.o1-card');
+      if(!card) return;
+      var name = card.getAttribute('data-name');
+      if(btn && btn.getAttribute('data-act') === 'snooze'){
+        card.classList.add('o1-snoozed');
+        snack('Snoozed ' + name + ' · back tomorrow');
+        setTimeout(refresh, 30);
+        return;
+      }
+      // open button OR card body click
+      if((btn && btn.getAttribute('data-act') === 'open') || e.target.closest('.o1-cbody')){
+        snack('Opening ' + name + '…');
+      }
+    });
+
+    // ---- disclosure toggle ----
+    $('#o1-disc-h').addEventListener('click', function(){
+      $('#o1-disc').classList.toggle('o1-open-d');
+    });
+
+    // ---- row & tree clicks → snackbar + select ----
+    function wireOpen(scope, selClass){
+      scope.addEventListener('click', function(e){
+        var row = e.target.closest('[data-name]');
+        if(!row || !scope.contains(row)) return;
+        if(selClass){
+          $$('.'+selClass).forEach(function(r){ r.classList.remove('o1-sel'); });
+          row.classList.add('o1-sel');
+        }
+        snack('Opening ' + row.getAttribute('data-name') + '…');
+      });
+    }
+    wireOpen($('#o1-tree'), 'o1-prow');
+    $('#o1-disc-body').addEventListener('click', function(e){
+      var row = e.target.closest('.o1-rrow');
+      if(row) snack('Opening ' + row.getAttribute('data-name') + '…');
+    });
+
+    // ---- AI button ----
+    $('#o1-ai').addEventListener('click', function(){
+      snack('Generating health narrative…');
+    });
+
+    refresh();
+  })();</script>
+</article>

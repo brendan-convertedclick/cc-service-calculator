@@ -1,6 +1,16 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+
+// Extra hostnames the dev server should accept (e.g. a cloudflared tunnel
+// fronting localhost:5174) come from DEV_ALLOWED_HOSTS in .env.local, so
+// machine-specific hostnames never ship to the team. Comma-separated.
+const env = loadEnv("development", process.cwd(), "");
+const allowedHosts = (env.DEV_ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((host) => host.trim())
+  .filter(Boolean);
 
 export default defineConfig({
   plugins: [react()],
@@ -12,6 +22,7 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
+    allowedHosts,
   },
   test: {
     environment: "jsdom",

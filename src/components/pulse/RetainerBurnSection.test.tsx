@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { RetainerBurnSection } from './RetainerBurnSection'
 import type { RetainerBurnRow } from '@/types/pulse'
@@ -29,19 +29,12 @@ describe('RetainerBurnSection', () => {
   })
 
   it('renders heading for the selected month', () => {
-    render(<RetainerBurnSection rows={[row]} month="2026-04" onMonthChange={() => {}} />)
+    render(<RetainerBurnSection rows={[row]} month="2026-04" />)
     expect(screen.getByText(/Retainer Burn — April 2026/)).toBeInTheDocument()
   })
 
-  it('fires onMonthChange when a new month is picked', () => {
-    const onMonthChange = vi.fn()
-    render(<RetainerBurnSection rows={[row]} month="2026-06" onMonthChange={onMonthChange} />)
-    fireEvent.change(screen.getByLabelText('Select month'), { target: { value: '2026-05' } })
-    expect(onMonthChange).toHaveBeenCalledWith('2026-05')
-  })
-
-  it('hides the month picker when no handler is provided', () => {
-    render(<RetainerBurnSection rows={[row]} />)
+  it('no longer renders an in-card month picker', () => {
+    render(<RetainerBurnSection rows={[row]} month="2026-06" />)
     expect(screen.queryByLabelText('Select month')).not.toBeInTheDocument()
   })
 

@@ -1,0 +1,2709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — restructure options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#7C3AED; --on-primary:#fff; --primary-container:#EDE9FE; --on-primary-container:#4C1D95;
+  --surface:#fff; --on-surface:#0A0A0B; --on-surface-variant:#5B5273;
+  --surface-container-low:#FBFAFF; --surface-container:#F6F4FF; --surface-container-high:#EDE9FE; --surface-container-highest:#E4DEFC;
+  --outline:#C4B5FD; --outline-variant:#EDE9FE;
+  --error:#DC2626; --on-error:#fff; --error-container:#FEE2E2; --on-error-container:#991B1B;
+  --tertiary:#0891B2; --tertiary-container:#CFFAFE; --on-tertiary-container:#164E63;
+  --amber:#F59E0B; --amber-soft:#FEF3C7; --amber-deep:#B45309;
+  --green:#22C55E; --green-soft:#F0FDF4; --green-deep:#15803D;
+  --gradient-brand: linear-gradient(135deg,#7C3AED 0%,#A855F7 50%,#EC4899 100%);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:#FBFAFF;color:var(--on-surface);-webkit-font-smoothing:antialiased;}
+.shell{max-width:1340px;margin:0 auto;padding:40px 40px 140px;}
+.shell-header{margin-bottom:8px;}
+.shell-header h1{font-size:27px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+.shell-header p{font-size:14px;color:var(--on-surface-variant);margin:0;max-width:880px;line-height:1.65;}
+.shell-header .probs{margin:14px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;max-width:880px;}
+.shell-header .probs li{font-size:12.5px;color:var(--on-surface-variant);line-height:1.5;padding-left:18px;position:relative;}
+.shell-header .probs li::before{content:"";position:absolute;left:2px;top:6px;width:6px;height:6px;border-radius:2px;background:var(--error);opacity:.7;}
+.jumpnav{position:sticky;top:0;z-index:50;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px 0;background:rgba(251,250,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--outline-variant);margin:22px 0 36px;}
+.jumpnav a{font-size:12px;font-weight:600;color:var(--on-primary-container);background:var(--primary-container);border-radius:999px;padding:6px 13px;text-decoration:none;transition:background .15s,color .15s;}
+.jumpnav a:hover{background:var(--surface-container-highest);}
+.jumpnav a.cur{background:var(--error-container);color:var(--on-error-container);}
+.jumpnav a.active{background:var(--primary);color:#fff;}
+.opt{margin-bottom:76px;scroll-margin-top:84px;}
+.opt-head{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;}
+.opt-num{font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-container);border-radius:8px;padding:3px 9px;letter-spacing:.05em;white-space:nowrap;}
+.opt-head h2{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0;}
+.opt-tagline{font-size:14px;color:var(--on-surface-variant);margin:0 0 16px;line-height:1.55;max-width:880px;}
+.frame{background:var(--surface);border:1px solid var(--outline-variant);border-radius:18px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;}
+.opt-notes{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;}
+.opt-notes h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin:0 0 5px;}
+.opt-notes p{font-size:13px;line-height:1.6;color:var(--on-surface-variant);margin:0;}
+.divider-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--on-surface-variant);margin:0 0 14px;}
+
+/* ============ current-state recreation (cur-*) ============ */
+.cur-frame{border:1px solid var(--outline-variant);border-radius:18px;padding:18px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.cur-vp{display:flex;height:660px;border:1px solid var(--outline-variant);border-radius:14px;overflow:hidden;background:var(--surface-container-low);font-size:13px;}
+/* icon rail */
+.cur-rail{width:56px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;}
+.cur-rail .logo{width:30px;height:30px;border-radius:9px;background:var(--gradient-brand);margin-bottom:8px;}
+.cur-rail i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--on-surface-variant);}
+.cur-rail i.on{background:var(--primary-container);color:var(--on-primary-container);}
+.cur-rail svg{width:18px;height:18px;}
+/* project tree */
+.cur-tree{width:236px;flex-shrink:0;background:var(--surface-container-low);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;overflow:hidden;}
+.cur-tree-hd{padding:14px 12px 12px;border-bottom:1px solid var(--outline-variant);}
+.cur-tree-hd .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.cur-tree-hd .lbl{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--on-surface-variant);}
+.cur-comp{font-size:10px;font-weight:500;color:var(--on-surface-variant);border-radius:999px;padding:3px 8px;display:flex;align-items:center;gap:4px;}
+.cur-comp svg{width:11px;height:11px;}
+.cur-filter{width:100%;border:1px solid var(--outline-variant);background:var(--surface);border-radius:8px;padding:6px 9px;font-size:12.5px;color:var(--on-surface-variant);}
+.cur-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;}
+.cur-pill{display:flex;align-items:center;gap:5px;font-size:11px;border-radius:999px;padding:3px 8px;color:var(--on-surface-variant);}
+.cur-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.cur-tree-body{flex:1;overflow-y:auto;padding:8px 6px;}
+.cur-cgroup{margin-bottom:4px;}
+.cur-cg-hd{display:flex;align-items:center;gap:4px;padding:5px 6px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--on-surface-variant);}
+.cur-cg-hd svg{width:11px;height:11px;opacity:.6;}
+.cur-prow{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 18px;border-radius:8px;cursor:pointer;}
+.cur-prow:hover{background:var(--surface-container);}
+.cur-prow .nm{font-size:12.5px;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* main pane */
+.cur-main{flex:1;overflow-y:auto;padding:22px 24px;background:var(--surface);min-width:0;}
+.cur-h1{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0;}
+.cur-sub{font-size:12.5px;color:var(--on-surface-variant);margin:3px 0 0;}
+.cur-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:11px;margin:20px 0 26px;}
+.cur-card{position:relative;border:1px solid var(--outline-variant);border-radius:11px;padding:13px 13px 12px;overflow:hidden;background:#fff;min-height:78px;display:flex;flex-direction:column;justify-content:center;}
+.cur-card::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--gradient-brand);}
+.cur-card .big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+.cur-card .cap{font-size:11px;font-weight:600;margin-top:6px;}
+.cur-card .meta{font-size:10px;color:var(--on-surface-variant);margin-top:2px;}
+.cur-card.green{background:var(--tertiary-container);} .cur-card.green .big,.cur-card.green .cap{color:var(--on-tertiary-container);}
+.cur-card.amber{background:var(--amber-soft);border-color:#FDE68A;} .cur-card.amber .big{color:var(--amber-deep);} .cur-card.amber .cap{color:#92660C;}
+.cur-card.red{background:var(--error-container);} .cur-card.red .big,.cur-card.red .cap{color:var(--on-error-container);}
+.cur-card .grad{background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.cur-sec-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--on-surface-variant);margin:0 0 11px;}
+.cur-list{display:flex;flex-direction:column;gap:8px;margin-bottom:26px;}
+.cur-li{display:flex;align-items:center;gap:11px;border:1px solid var(--outline-variant);border-radius:10px;padding:11px 14px;background:#fff;}
+.cur-li .nm{flex:1;min-width:0;font-size:13px;}
+.cur-li .nm b{font-weight:600;} .cur-li .nm .cl{color:var(--on-surface-variant);} .cur-li .nm .rsn{color:var(--on-surface-variant);font-style:italic;font-size:11.5px;margin-left:6px;}
+.cur-badge{font-size:10.5px;border-radius:6px;padding:2px 8px;white-space:nowrap;}
+.cur-badge.green{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+.cur-badge.amber{background:var(--amber-soft);color:var(--amber-deep);}
+.cur-badge.red{background:var(--error-container);color:var(--on-error-container);}
+.cur-eng{font-size:10.5px;color:var(--on-surface-variant);white-space:nowrap;}
+.cur-mtable{width:100%;border-collapse:collapse;border:1px solid var(--outline-variant);border-radius:10px;overflow:hidden;font-size:12.5px;}
+.cur-mtable th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant);text-align:right;padding:9px 12px;background:var(--surface-container);border-bottom:1px solid var(--outline-variant);font-weight:600;}
+.cur-mtable th:first-child{text-align:left;}
+.cur-mtable td{padding:9px 12px;border-bottom:1px solid var(--outline-variant);text-align:right;font-variant-numeric:tabular-nums;}
+.cur-mtable td:first-child{text-align:left;}
+.cur-mtable tr:last-child td{border-bottom:0;}
+.cur-ai{margin-top:24px;border:1px dashed var(--outline);border-radius:12px;padding:16px;background:var(--surface-container-low);display:flex;align-items:center;gap:12px;}
+.cur-ai .ic{width:34px;height:34px;border-radius:9px;background:var(--gradient-brand);display:grid;place-items:center;color:#fff;flex-shrink:0;}
+.cur-ai .ttl{font-size:13px;font-weight:600;} .cur-ai .ds{font-size:11.5px;color:var(--on-surface-variant);}
+.cur-ai button{margin-left:auto;border:0;background:var(--surface);border:1px solid var(--outline);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:600;color:var(--on-primary-container);}
+@media(max-width:1100px){.cur-cards{grid-template-columns:repeat(3,1fr)}.opt-notes{grid-template-columns:1fr}.shell-header .probs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="shell-header">
+  <h1>Dashboard — six ways to restructure the layout</h1>
+  <p>The current Operations overview is one long top-to-bottom scroll: a row of six identical metric cards, two near-identical project lists, then a margin table and an AI panel. It has no focal point and no hierarchy. Below is a faithful recreation of today's layout, then six restructured directions. Every option keeps the same data and functionality — the three scope counts still filter, projects still open, margin is still there — they just organise it differently. The mockups are interactive: filter, click projects, try each option's signature move.</p>
+  <ul class="probs">
+    <li><b>No focus.</b> Nothing says "do this first" — the 2 that need action look like the 5 that don't.</li>
+    <li><b>Mixed-semantic cards.</b> 3 cards are clickable filters, 3 are passive KPIs, all look identical.</li>
+    <li><b>Duplicate lists.</b> "Needs attention" and "Recent" reuse the same row, hard to tell apart.</li>
+    <li><b>Margin buried</b> below the fold despite being a headline business signal.</li>
+    <li><b>Low density.</b> A narrow stacked column on a wide monitor, big empty gutters.</li>
+  </ul>
+</header>
+<nav class="jumpnav">
+  <a class="cur" href="#current">Current</a>
+  <a href="#opt1">1 · Triage feed</a>
+  <a href="#opt2">2 · Bento grid</a>
+  <a href="#opt3">3 · State &amp; stream</a>
+  <a href="#opt4">4 · Segmented plane</a>
+  <a href="#opt5">5 · Status lanes</a>
+  <a href="#opt6">6 · Scoreboard + table</a>
+</nav>
+
+<article class="opt" id="current">
+  <p class="divider-label">For comparison — current state (recreated from the live app)</p>
+  <div class="cur-frame">
+    <div class="cur-vp">
+      <!-- icon rail -->
+      <nav class="cur-rail">
+        <div class="logo"></div>
+        <i class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></i>
+        <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h12"/></svg></i>
+        <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></i>
+        <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></i>
+        <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg></i>
+      </nav>
+      <!-- project tree -->
+      <aside class="cur-tree">
+        <div class="cur-tree-hd">
+          <div class="row">
+            <span class="lbl">Projects</span>
+            <span class="cur-comp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Completed</span>
+          </div>
+          <input class="cur-filter" placeholder="Filter…">
+          <div class="cur-pills">
+            <span class="cur-pill"><span class="cur-dot" style="background:var(--tertiary)"></span>14 on track</span>
+            <span class="cur-pill"><span class="cur-dot" style="background:var(--amber)"></span>5 attention</span>
+            <span class="cur-pill"><span class="cur-dot" style="background:var(--error)"></span>2 overdue</span>
+          </div>
+        </div>
+        <div class="cur-tree-body" id="curtree"></div>
+      </aside>
+      <!-- main -->
+      <main class="cur-main">
+        <h1 class="cur-h1">Operations overview</h1>
+        <p class="cur-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</p>
+        <div class="cur-cards">
+          <div class="cur-card green"><span class="big">14</span><span class="cap">On track</span></div>
+          <div class="cur-card amber"><span class="big">5</span><span class="cap">Needs attention</span></div>
+          <div class="cur-card red"><span class="big">2</span><span class="cap">Overdue</span></div>
+          <div class="cur-card"><span class="big grad">642h</span><span class="cap">Burned this month</span></div>
+          <div class="cur-card"><span class="big grad">86%</span><span class="cap">On-time delivery</span><span class="meta">32/37 this month</span></div>
+          <div class="cur-card"><span class="big grad">4.2d</span><span class="cap">Avg brief→DFT</span><span class="meta">18 projects</span></div>
+        </div>
+        <h2 class="cur-sec-h">⚡ Needs your attention</h2>
+        <div class="cur-list" id="curattn"></div>
+        <h2 class="cur-sec-h">Recent projects</h2>
+        <div class="cur-list" id="currecent"></div>
+        <h2 class="cur-sec-h">Client margin — rolling 30 days</h2>
+        <table class="cur-mtable">
+          <thead><tr><th>Client</th><th>Revenue</th><th>Cost</th><th>Margin %</th><th>vs Target</th></tr></thead>
+          <tbody id="curmargin"></tbody>
+        </table>
+        <div class="cur-ai">
+          <div class="ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.5L18 9l-4.2 1.5L12 15l-1.8-4.5L6 9l4.2-1.5z"/></svg></div>
+          <div><div class="ttl">Health narrative</div><div class="ds">Generate a plain-English weekly ops summary for standup.</div></div>
+          <button>✨ Generate</button>
+        </div>
+      </main>
+    </div>
+  </div>
+</article>
+<article class="opt" id="opt1">
+  <div class="opt-head"><span class="opt-num">OPTION 1</span><h2>Triage feed — a prioritized "Today" action queue</h2></div>
+  <p class="opt-tagline">The dashboard answers "what do I do right now" first: one prioritized queue is the hero, everything else folds away.</p>
+  <div class="frame">
+    <section class="o1-root">
+      <style>
+        .o1-root{
+          --o1-teal:var(--tertiary); --o1-amber:var(--amber); --o1-red:var(--error);
+          all:revert; font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          display:flex; min-height:640px; background:var(--surface-container-low);
+          border-radius:14px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.04);
+          font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased;
+        }
+        .o1-root *{box-sizing:border-box;}
+        .o1-root :is(button){font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+        .o1-mono{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+
+        /* ---------- icon rail ---------- */
+        .o1-rail{width:56px; flex:0 0 56px; background:var(--surface); border-right:1px solid var(--outline-variant);
+          display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:4px;}
+        .o1-logo{width:34px; height:34px; border-radius:10px; background:var(--gradient-brand);
+          display:grid; place-items:center; color:#fff; font-weight:800; font-size:15px; margin-bottom:10px;}
+        .o1-railbtn{width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+          color:var(--on-surface-variant); transition:background .12s,color .12s;}
+        .o1-railbtn:hover{background:var(--surface-container);}
+        .o1-railbtn.o1-on{background:var(--primary-container); color:var(--on-primary-container);}
+        .o1-railbtn svg{width:20px; height:20px;}
+        .o1-rail .o1-spacer{flex:1;}
+
+        /* ---------- project tree ---------- */
+        .o1-tree{width:236px; flex:0 0 236px; background:var(--surface); border-right:1px solid var(--outline-variant);
+          display:flex; flex-direction:column; overflow:hidden;}
+        .o1-tree-h{padding:14px 14px 10px; display:flex; align-items:center; justify-content:space-between;}
+        .o1-tree-h b{font-size:13px; letter-spacing:.01em;}
+        .o1-comp{font-size:11px; color:var(--on-surface-variant); display:flex; gap:5px; align-items:center;}
+        .o1-comp i{width:24px; height:14px; border-radius:8px; background:var(--surface-container-highest); position:relative; display:inline-block;}
+        .o1-comp i::after{content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#fff; top:2px; left:2px; box-shadow:0 1px 1px rgba(0,0,0,.15);}
+        .o1-filter{margin:0 14px 10px; height:30px; border:1px solid var(--outline-variant); border-radius:8px;
+          background:var(--surface-container-low); display:flex; align-items:center; gap:6px; padding:0 9px; color:var(--on-surface-variant); font-size:12px;}
+        .o1-filter svg{width:14px; height:14px;}
+        .o1-treelist{overflow-y:auto; padding:0 8px 12px; flex:1;}
+        .o1-cgroup{margin-bottom:2px;}
+        .o1-cgh{display:flex; align-items:center; gap:6px; padding:6px 6px; border-radius:7px; font-size:12px; font-weight:600; color:var(--on-surface-variant);}
+        .o1-cgh:hover{background:var(--surface-container-low);}
+        .o1-cgh svg{width:13px; height:13px; transition:transform .15s;}
+        .o1-cgh .o1-cnt{margin-left:auto; font-size:10px; font-weight:600; color:var(--on-surface-variant); background:var(--surface-container); padding:1px 6px; border-radius:20px;}
+        .o1-prow{display:flex; align-items:center; gap:7px; padding:5px 8px 5px 22px; border-radius:7px; font-size:12px; color:var(--on-surface); cursor:pointer;}
+        .o1-prow:hover{background:var(--surface-container-low);}
+        .o1-prow.o1-sel{background:var(--primary-container); color:var(--on-primary-container);}
+        .o1-prow .o1-pn{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-dot{width:8px; height:8px; border-radius:50%; flex:0 0 8px;}
+        .o1-dot.o1-ok{background:var(--o1-teal);}
+        .o1-dot.o1-at{background:var(--o1-amber);}
+        .o1-dot.o1-ov{background:var(--o1-red);}
+
+        /* ---------- main pane ---------- */
+        .o1-main{flex:1; overflow-y:auto; padding:18px 22px 28px; min-width:0;}
+        .o1-top{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px;}
+        .o1-top h1{font-size:21px; font-weight:800; letter-spacing:-.01em; margin:0;}
+        .o1-top .o1-sub{font-size:12.5px; color:var(--on-surface-variant); margin-top:2px;}
+        .o1-ai{display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--on-primary-container);
+          background:var(--surface-container-high); border:1px solid var(--outline-variant); padding:7px 12px; border-radius:20px; white-space:nowrap;}
+        .o1-ai svg{width:15px; height:15px;}
+        .o1-ai:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);}
+
+        /* ---------- KPI ribbon ---------- */
+        .o1-ribbon{display:flex; align-items:stretch; gap:8px; padding:8px; border-radius:14px;
+          background:var(--surface); border:1px solid var(--outline-variant); position:relative; overflow:hidden; margin-bottom:18px;}
+        .o1-ribbon::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--gradient-brand);}
+        .o1-seg{display:flex; gap:6px; padding-right:8px; border-right:1px solid var(--outline-variant);}
+        .o1-segbtn{display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; transition:background .12s,box-shadow .12s;
+          border:1px solid transparent;}
+        .o1-segbtn:hover{background:var(--surface-container-low);}
+        .o1-segbtn.o1-active{background:var(--surface-container-high); border-color:var(--outline);}
+        .o1-segbtn .o1-sd{width:9px; height:9px; border-radius:50%;}
+        .o1-segbtn .o1-num{font-size:18px; font-weight:800; line-height:1;}
+        .o1-segbtn .o1-lbl{font-size:11px; color:var(--on-surface-variant); text-align:left; line-height:1.15;}
+        .o1-stats{display:flex; gap:6px; margin-left:auto; align-items:center;}
+        .o1-chip{display:flex; flex-direction:column; gap:1px; padding:7px 14px; border-radius:10px; background:var(--surface-container-low);}
+        .o1-chip .o1-cv{font-size:15px; font-weight:800; line-height:1.1;}
+        .o1-chip .o1-cl{font-size:10px; color:var(--on-surface-variant); white-space:nowrap;}
+
+        /* ---------- hero queue ---------- */
+        .o1-hero-h{display:flex; align-items:center; gap:9px; margin-bottom:11px;}
+        .o1-hero-h h2{font-size:15px; font-weight:800; margin:0;}
+        .o1-hero-h .o1-pill{font-size:11px; font-weight:700; color:var(--on-primary-container); background:var(--primary-container); padding:2px 9px; border-radius:20px;}
+        .o1-hero-h .o1-clr{margin-left:auto; font-size:11.5px; color:var(--primary); font-weight:600;}
+        .o1-hero-h .o1-clr.o1-hide{display:none;}
+
+        .o1-queue{display:flex; flex-direction:column; gap:9px;}
+        .o1-card{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:14px; background:var(--surface);
+          border:1px solid var(--outline-variant); box-shadow:0 1px 2px rgba(0,0,0,.04); position:relative; overflow:hidden;
+          transition:box-shadow .14s, transform .14s, opacity .2s, max-height .25s, margin .25s, padding .25s; max-height:120px;}
+        .o1-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px;}
+        .o1-card.o1-ov-c::before{background:var(--o1-red);}
+        .o1-card.o1-at-c::before{background:var(--o1-amber);}
+        .o1-card:hover{box-shadow:0 8px 24px rgba(76,29,149,.12); transform:translateY(-1px);}
+        .o1-card.o1-snoozed{opacity:0; max-height:0; margin-top:-9px; padding-top:0; padding-bottom:0; border-width:0; pointer-events:none;}
+        .o1-bigdot{width:13px; height:13px; border-radius:50%; flex:0 0 13px; position:relative;}
+        .o1-bigdot.o1-ov-d{background:var(--o1-red);}
+        .o1-bigdot.o1-at-d{background:var(--o1-amber);}
+        .o1-bigdot::after{content:""; position:absolute; inset:-5px; border-radius:50%; border:2px solid currentColor; opacity:.22;}
+        .o1-ov-d{color:var(--o1-red);} .o1-at-d{color:var(--o1-amber);}
+        .o1-cbody{flex:1; min-width:0; cursor:pointer;}
+        .o1-cttl{font-size:14.5px; font-weight:700; letter-spacing:-.005em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+        .o1-cttl .o1-cl-name{color:var(--on-surface);}
+        .o1-badge{font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em;}
+        .o1-badge.o1-ov-b{background:var(--error-container); color:var(--on-error-container);}
+        .o1-badge.o1-at-b{background:var(--amber-soft); color:var(--amber-deep);}
+        .o1-creason{font-size:12.5px; color:var(--on-surface-variant); font-style:italic; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-eng{font-size:10.5px; font-weight:600; color:var(--on-surface-variant); background:var(--surface-container); padding:3px 9px; border-radius:6px; text-transform:capitalize; white-space:nowrap;}
+        .o1-acts{display:flex; gap:7px; flex:0 0 auto;}
+        .o1-act{display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px; transition:background .12s, box-shadow .12s;}
+        .o1-act svg{width:14px; height:14px;}
+        .o1-open{background:var(--primary); color:var(--on-primary);}
+        .o1-open:hover{box-shadow:0 8px 24px rgba(76,29,149,.22);}
+        .o1-snz{background:var(--surface-container); color:var(--on-surface-variant);}
+        .o1-snz:hover{background:var(--surface-container-high);}
+        .o1-empty{display:none; padding:26px; text-align:center; font-size:13px; color:var(--on-surface-variant);
+          border:1px dashed var(--outline); border-radius:14px; background:var(--surface-container-low);}
+        .o1-empty.o1-show{display:block;}
+
+        /* ---------- disclosure ---------- */
+        .o1-disc{margin-top:22px; border:1px solid var(--outline-variant); border-radius:14px; background:var(--surface); overflow:hidden;}
+        .o1-disc-h{width:100%; display:flex; align-items:center; gap:9px; padding:13px 16px; text-align:left;}
+        .o1-disc-h:hover{background:var(--surface-container-low);}
+        .o1-disc-h .o1-dh-dot{width:8px; height:8px; border-radius:50%; background:var(--o1-teal);}
+        .o1-disc-h b{font-size:13.5px;}
+        .o1-disc-h .o1-dh-c{font-size:11px; color:var(--on-surface-variant);}
+        .o1-disc-h .o1-chev{margin-left:auto; width:16px; height:16px; color:var(--on-surface-variant); transition:transform .18s;}
+        .o1-disc.o1-open-d .o1-chev{transform:rotate(180deg);}
+        .o1-disc-body{display:none; border-top:1px solid var(--outline-variant);}
+        .o1-disc.o1-open-d .o1-disc-body{display:block;}
+        .o1-rrow{display:flex; align-items:center; gap:11px; padding:10px 16px; border-bottom:1px solid var(--outline-variant); cursor:pointer;}
+        .o1-rrow:last-child{border-bottom:none;}
+        .o1-rrow:hover{background:var(--surface-container-low);}
+        .o1-rrow .o1-rn{font-size:13px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+        .o1-rrow .o1-rr{font-size:11.5px; color:var(--on-surface-variant); font-style:italic; white-space:nowrap;}
+
+        /* ---------- margin card ---------- */
+        .o1-margin{margin-top:18px; border:1px solid var(--outline-variant); border-radius:14px; background:var(--surface); overflow:hidden;}
+        .o1-margin-h{display:flex; align-items:center; gap:8px; padding:12px 16px 8px; font-size:13.5px; font-weight:700;}
+        .o1-margin-h .o1-mh-sub{font-size:11px; font-weight:500; color:var(--on-surface-variant);}
+        .o1-mtable{width:100%; border-collapse:collapse; font-size:12.5px;}
+        .o1-mtable th{text-align:right; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--on-surface-variant); padding:6px 16px; border-bottom:1px solid var(--outline-variant);}
+        .o1-mtable th:first-child{text-align:left;}
+        .o1-mtable td{padding:8px 16px; text-align:right; border-bottom:1px solid var(--outline-variant);}
+        .o1-mtable tr:last-child td{border-bottom:none;}
+        .o1-mtable td:first-child{text-align:left; font-weight:600; display:flex; align-items:center; gap:8px;}
+        .o1-rag{width:8px; height:8px; border-radius:50%;}
+        .o1-rag.o1-g{background:var(--green);} .o1-rag.o1-a{background:var(--amber);} .o1-rag.o1-r{background:var(--error);}
+        .o1-vs{font-weight:600;}
+        .o1-vs.o1-g{color:var(--green-deep);} .o1-vs.o1-a{color:var(--amber-deep);} .o1-vs.o1-r{color:var(--on-error-container);}
+
+        /* ---------- snackbar ---------- */
+        .o1-snack{position:absolute; left:50%; bottom:18px; transform:translate(-50%,16px); background:var(--on-surface); color:#fff;
+          font-size:12.5px; font-weight:500; padding:10px 16px; border-radius:10px; box-shadow:0 8px 24px rgba(76,29,149,.22);
+          opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:30; max-width:80%;}
+        .o1-snack.o1-show{opacity:1; transform:translate(-50%,0);}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o1-rail" aria-label="App">
+        <div class="o1-logo">C</div>
+        <button class="o1-railbtn o1-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></button>
+        <button class="o1-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 3-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17.5" cy="9" r="2.4"/></svg></button>
+        <button class="o1-railbtn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg></button>
+        <button class="o1-railbtn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></button>
+        <button class="o1-railbtn" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
+        <div class="o1-spacer"></div>
+        <button class="o1-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.3-1.3L13.6 2h-3.2l-.4 2.5A7 7 0 0 0 7.7 5.8l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5.3 12c0 .4 0 .9.1 1.3l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.3 1.3l.4 2.5h3.2l.4-2.5a7 7 0 0 0 2.3-1.3l2.3 1 2-3.4-2-1.5c.1-.4.1-.9.1-1.3Z"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o1-tree" aria-label="Projects">
+        <div class="o1-tree-h"><b>Projects</b><span class="o1-comp"><i></i>Completed</span></div>
+        <div class="o1-filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>Filter projects…</div>
+        <div class="o1-treelist" id="o1-tree"></div>
+      </aside>
+
+      <!-- main -->
+      <main class="o1-main">
+        <div class="o1-top">
+          <div>
+            <h1>Today</h1>
+            <div class="o1-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <button class="o1-ai" id="o1-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>Generate health narrative</button>
+        </div>
+
+        <!-- KPI ribbon -->
+        <div class="o1-ribbon">
+          <div class="o1-seg" role="group" aria-label="Filter by status">
+            <button class="o1-segbtn" data-filter="on_track"><span class="o1-sd" style="background:var(--o1-teal)"></span><span class="o1-num o1-mono">14</span><span class="o1-lbl">On<br>track</span></button>
+            <button class="o1-segbtn" data-filter="needs_attention"><span class="o1-sd" style="background:var(--o1-amber)"></span><span class="o1-num o1-mono">5</span><span class="o1-lbl">Needs<br>attention</span></button>
+            <button class="o1-segbtn" data-filter="overdue"><span class="o1-sd" style="background:var(--o1-red)"></span><span class="o1-num o1-mono">2</span><span class="o1-lbl">Over<br>due</span></button>
+          </div>
+          <div class="o1-stats">
+            <div class="o1-chip"><span class="o1-cv o1-mono">642h</span><span class="o1-cl">Burned this month</span></div>
+            <div class="o1-chip"><span class="o1-cv o1-mono">86%</span><span class="o1-cl">On-time (32/37)</span></div>
+            <div class="o1-chip"><span class="o1-cv o1-mono">4.2d</span><span class="o1-cl">Avg brief→DFT</span></div>
+          </div>
+        </div>
+
+        <!-- HERO queue -->
+        <div class="o1-hero-h">
+          <h2>Today — needs you now</h2>
+          <span class="o1-pill" id="o1-count">5</span>
+          <button class="o1-clr o1-hide" id="o1-clr">Clear filter ✕</button>
+        </div>
+        <div class="o1-queue" id="o1-queue"></div>
+        <div class="o1-empty" id="o1-empty">Nothing in this view — you're all caught up. 🎉</div>
+
+        <!-- on-track disclosure -->
+        <div class="o1-disc" id="o1-disc">
+          <button class="o1-disc-h" id="o1-disc-h">
+            <span class="o1-dh-dot"></span><b>All on track</b><span class="o1-dh-c">— 14 projects, no action needed</span>
+            <svg class="o1-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="o1-disc-body" id="o1-disc-body"></div>
+        </div>
+
+        <!-- margin -->
+        <div class="o1-margin">
+          <div class="o1-margin-h">Client margin <span class="o1-mh-sub">rolling 30 days · target 35%</span></div>
+          <table class="o1-mtable">
+            <thead><tr><th>Client</th><th>Revenue</th><th>Cost</th><th>Margin</th><th>vs target</th></tr></thead>
+            <tbody id="o1-mbody"></tbody>
+          </table>
+        </div>
+
+        <div class="o1-snack" id="o1-snack"></div>
+      </main>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>It collapses the old flat top-to-bottom scroll into a single answer to "what do I do right now." The five attention items become a prioritized, overdue-first queue with inline Open/Snooze, so action lives where focus already is. The 14 healthy projects fold into one disclosure instead of a second identical list, and the buried margin table is promoted onto the first screen. The ribbon separates the three interactive status filters from the three passive KPIs that used to look identical.</p></div>
+    <div><h3>Trade-offs</h3><p>The triage framing optimises for the operator-on-shift; a partner who wants a calm at-a-glance health summary has to expand disclosures to see the full portfolio. Snooze is session-only state here (no persistence/undo timer), and the queue intentionally hides the 14 on-track rows by default, which can feel like information is missing until you learn the disclosure pattern.</p></div>
+  </div>
+  <script>(function(){
+    var root = document.getElementById('opt1');
+    if(!root) return;
+    var $ = function(s){ return root.querySelector(s); };
+    var $$ = function(s){ return Array.prototype.slice.call(root.querySelectorAll(s)); };
+
+    // ---- data ----
+    var attention = [
+      {id:'a1', client:'Woolworths', proj:'Loyalty App Launch', eng:'fixed', status:'overdue', reason:'DFT 6 days past due'},
+      {id:'a2', client:"Nando's", proj:'Winter Menu Push', eng:'project', status:'overdue', reason:'milestone slipped twice'},
+      {id:'a3', client:'Sasol', proj:'Q3 Brand Refresh', eng:'retainer', status:'needs_attention', reason:'3 briefs awaiting scope · oldest 6 days'},
+      {id:'a4', client:'Discovery', proj:'Vitality Always-On', eng:'retainer', status:'needs_attention', reason:'burn 92% · 2 weeks left in cycle'},
+      {id:'a5', client:'Capitec', proj:'Always-On Social', eng:'retainer', status:'needs_attention', reason:'no activity in 9 days'}
+    ];
+    var recent = [
+      {client:'Takealot', proj:'Black Friday Creative', eng:'project', reason:'DFT approved today'},
+      {client:'MTN', proj:'5G Awareness', eng:'retainer', reason:'brief scoped 2h ago'},
+      {client:'Standard Bank', proj:'Wealth Microsite', eng:'fixed', reason:'quote accepted yesterday'},
+      {client:'Clicks', proj:'Health Content Hub', eng:'retainer', reason:'12 tasks completed this week'},
+      {client:'Tiger Brands', proj:'Packaging Refresh', eng:'project', reason:'kickoff Monday'}
+    ];
+    var margin = [
+      {c:'Takealot', rev:'R 510 000', cost:'R 306 000', m:'40.0%', vs:'+5.0pp', rag:'g'},
+      {c:'Sasol', rev:'R 388 500', cost:'R 233 100', m:'40.0%', vs:'+5.0pp', rag:'g'},
+      {c:'Discovery', rev:'R 412 000', cost:'R 286 000', m:'30.6%', vs:'−4.4pp', rag:'a'},
+      {c:'MTN', rev:'R 264 000', cost:'R 171 600', m:'35.0%', vs:'0.0pp', rag:'g'},
+      {c:'Capitec', rev:'R 198 000', cost:'R 148 500', m:'25.0%', vs:'−10.0pp', rag:'r'},
+      {c:'Woolworths', rev:'R 295 000', cost:'R 224 200', m:'24.0%', vs:'−11.0pp', rag:'r'}
+    ];
+    var tree = [
+      {c:'Sasol', p:[['Q3 Brand Refresh','at'],['Retail POS Toolkit','ok']]},
+      {c:'Woolworths', p:[['Loyalty App Launch','ov'],['Festive Catalogue','ok']]},
+      {c:'Discovery', p:[['Vitality Always-On','at'],['Health Rewards Email','ok']]},
+      {c:"Nando's", p:[['Winter Menu Push','ov'],['Peri Social','ok']]},
+      {c:'Capitec', p:[['Always-On Social','at']]},
+      {c:'Takealot', p:[['Black Friday Creative','ok'],['Marketplace SEO','ok']]},
+      {c:'MTN', p:[['5G Awareness','ok']]},
+      {c:'Standard Bank', p:[['Wealth Microsite','ok']]},
+      {c:'Clicks', p:[['Health Content Hub','ok']]},
+      {c:'Tiger Brands', p:[['Packaging Refresh','ok']]}
+    ];
+
+    var ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7M9 7h8v8"/></svg>';
+    var ICON_SNZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l2.5 2.5"/></svg>';
+
+    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+    var snackEl = $('#o1-snack'), snackT;
+    function snack(msg){
+      snackEl.textContent = msg;
+      snackEl.classList.add('o1-show');
+      clearTimeout(snackT);
+      snackT = setTimeout(function(){ snackEl.classList.remove('o1-show'); }, 1900);
+    }
+
+    // ---- build tree ----
+    (function(){
+      var html = '';
+      tree.forEach(function(g, i){
+        html += '<div class="o1-cgroup">';
+        html += '<div class="o1-cgh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="transform:rotate(0deg)"><path d="m9 6 6 6-6 6"/></svg>'+esc(g.c)+'<span class="o1-cnt">'+g.p.length+'</span></div>';
+        g.p.forEach(function(p){
+          html += '<div class="o1-prow" data-name="'+esc(g.c+' — '+p[0])+'"><span class="o1-dot o1-'+p[1]+'"></span><span class="o1-pn">'+esc(p[0])+'</span></div>';
+        });
+        html += '</div>';
+      });
+      $('#o1-tree').innerHTML = html;
+    })();
+
+    // ---- build margin ----
+    (function(){
+      var html = '';
+      margin.forEach(function(m){
+        html += '<tr><td><span class="o1-rag o1-'+m.rag+'"></span>'+esc(m.c)+'</td>'+
+          '<td class="o1-mono">'+esc(m.rev)+'</td><td class="o1-mono">'+esc(m.cost)+'</td>'+
+          '<td class="o1-mono">'+esc(m.m)+'</td>'+
+          '<td class="o1-vs o1-'+m.rag+' o1-mono">'+esc(m.vs)+'</td></tr>';
+      });
+      $('#o1-mbody').innerHTML = html;
+    })();
+
+    // ---- build recent (disclosure body) ----
+    (function(){
+      var html = '';
+      recent.forEach(function(r){
+        html += '<div class="o1-rrow" data-name="'+esc(r.client+' — '+r.proj)+'">'+
+          '<span class="o1-dot o1-ok"></span>'+
+          '<span class="o1-rn">'+esc(r.client)+' — '+esc(r.proj)+'</span>'+
+          '<span class="o1-eng">'+esc(r.eng)+'</span>'+
+          '<span class="o1-rr">'+esc(r.reason)+'</span></div>';
+      });
+      $('#o1-disc-body').innerHTML = html;
+    })();
+
+    // ---- build queue ----
+    var queueEl = $('#o1-queue');
+    function statusClass(s){ return s === 'overdue' ? 'ov' : 'at'; }
+    (function(){
+      var html = '';
+      attention.forEach(function(a){
+        var sc = statusClass(a.status);
+        var badge = a.status === 'overdue' ? 'Overdue' : 'Needs attention';
+        html += '<div class="o1-card o1-'+sc+'-c" data-id="'+a.id+'" data-status="'+a.status+'" data-name="'+esc(a.client+' — '+a.proj)+'">'+
+          '<span class="o1-bigdot o1-'+sc+'-d"></span>'+
+          '<div class="o1-cbody">'+
+            '<div class="o1-cttl"><span class="o1-cl-name">'+esc(a.client)+' — '+esc(a.proj)+'</span>'+
+              '<span class="o1-badge o1-'+sc+'-b">'+badge+'</span>'+
+              '<span class="o1-eng">'+esc(a.eng)+'</span></div>'+
+            '<div class="o1-creason">'+esc(a.reason)+'</div>'+
+          '</div>'+
+          '<div class="o1-acts">'+
+            '<button class="o1-act o1-open" data-act="open">'+ICON_OPEN+'Open</button>'+
+            '<button class="o1-act o1-snz" data-act="snooze">'+ICON_SNZ+'Snooze</button>'+
+          '</div></div>';
+      });
+      queueEl.innerHTML = html;
+    })();
+
+    var countEl = $('#o1-count');
+    var emptyEl = $('#o1-empty');
+    var activeFilter = null;
+
+    function liveCards(){
+      return $$('#o1-queue .o1-card').filter(function(c){ return !c.classList.contains('o1-snoozed'); });
+    }
+    function refresh(){
+      var live = liveCards();
+      var shown = 0;
+      live.forEach(function(c){
+        var match = !activeFilter || c.getAttribute('data-status') === activeFilter;
+        c.style.display = match ? '' : 'none';
+        if(match) shown++;
+      });
+      countEl.textContent = shown;
+      emptyEl.classList.toggle('o1-show', shown === 0);
+    }
+
+    // ---- filter segmented control ----
+    $$('.o1-segbtn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var f = btn.getAttribute('data-filter');
+        if(activeFilter === f){
+          activeFilter = null;
+          btn.classList.remove('o1-active');
+        } else {
+          activeFilter = f;
+          $$('.o1-segbtn').forEach(function(b){ b.classList.remove('o1-active'); });
+          btn.classList.add('o1-active');
+        }
+        $('#o1-clr').classList.toggle('o1-hide', !activeFilter);
+        if(activeFilter === 'on_track'){
+          // on-track items live in the disclosure — open it & note
+          $('#o1-disc').classList.add('o1-open-d');
+          snack('Showing on-track projects below');
+        }
+        refresh();
+      });
+    });
+    $('#o1-clr').addEventListener('click', function(){
+      activeFilter = null;
+      $$('.o1-segbtn').forEach(function(b){ b.classList.remove('o1-active'); });
+      this.classList.add('o1-hide');
+      refresh();
+    });
+
+    // ---- queue card interactions ----
+    queueEl.addEventListener('click', function(e){
+      var btn = e.target.closest('[data-act]');
+      var card = e.target.closest('.o1-card');
+      if(!card) return;
+      var name = card.getAttribute('data-name');
+      if(btn && btn.getAttribute('data-act') === 'snooze'){
+        card.classList.add('o1-snoozed');
+        snack('Snoozed ' + name + ' · back tomorrow');
+        setTimeout(refresh, 30);
+        return;
+      }
+      // open button OR card body click
+      if((btn && btn.getAttribute('data-act') === 'open') || e.target.closest('.o1-cbody')){
+        snack('Opening ' + name + '…');
+      }
+    });
+
+    // ---- disclosure toggle ----
+    $('#o1-disc-h').addEventListener('click', function(){
+      $('#o1-disc').classList.toggle('o1-open-d');
+    });
+
+    // ---- row & tree clicks → snackbar + select ----
+    function wireOpen(scope, selClass){
+      scope.addEventListener('click', function(e){
+        var row = e.target.closest('[data-name]');
+        if(!row || !scope.contains(row)) return;
+        if(selClass){
+          $$('.'+selClass).forEach(function(r){ r.classList.remove('o1-sel'); });
+          row.classList.add('o1-sel');
+        }
+        snack('Opening ' + row.getAttribute('data-name') + '…');
+      });
+    }
+    wireOpen($('#o1-tree'), 'o1-prow');
+    $('#o1-disc-body').addEventListener('click', function(e){
+      var row = e.target.closest('.o1-rrow');
+      if(row) snack('Opening ' + row.getAttribute('data-name') + '…');
+    });
+
+    // ---- AI button ----
+    $('#o1-ai').addEventListener('click', function(){
+      snack('Generating health narrative…');
+    });
+
+    refresh();
+  })();</script>
+</article>
+<article class="opt" id="opt2">
+  <div class="opt-head"><span class="opt-num">OPTION 2</span><h2>Bento grid — everything above the fold in sized tiles</h2></div>
+  <p class="opt-tagline">Every signal is a tile and tile size encodes importance — the whole operation reads at a glance, nothing critical needs scrolling.</p>
+  <div class="frame">
+    <section class="o2-root">
+      <style>
+        .o2-root{
+          --o2-shadow-rest:0 1px 2px rgba(0,0,0,.04);
+          --o2-shadow-hover:0 8px 24px rgba(76,29,149,.12);
+          font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);
+          display:flex;min-height:660px;background:var(--surface-container-low);
+          border-radius:14px;overflow:hidden;border:1px solid var(--outline-variant);
+          font-variant-numeric:tabular-nums;
+        }
+        .o2-root *{box-sizing:border-box;}
+        /* ---- icon rail ---- */
+        .o2-rail{width:56px;flex:0 0 56px;background:var(--surface);border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px;}
+        .o2-rail-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:8px;}
+        .o2-rail-btn{width:38px;height:38px;border-radius:10px;border:0;background:transparent;cursor:pointer;
+          display:grid;place-items:center;color:var(--on-surface-variant);transition:background .15s,color .15s;}
+        .o2-rail-btn:hover{background:var(--surface-container-high);color:var(--primary);}
+        .o2-rail-btn.o2-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o2-rail-btn svg{width:19px;height:19px;}
+        .o2-rail-sp{flex:1;}
+        /* ---- thin project tree ---- */
+        .o2-tree{width:210px;flex:0 0 210px;background:var(--surface);border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;}
+        .o2-tree-h{padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between;}
+        .o2-tree-h h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em;}
+        .o2-tree-toggle{font-size:10.5px;color:var(--on-surface-variant);display:flex;align-items:center;gap:5px;cursor:pointer;}
+        .o2-tree-toggle .o2-sw{width:24px;height:14px;border-radius:8px;background:var(--surface-container-highest);position:relative;}
+        .o2-tree-toggle .o2-sw::after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;top:2px;left:2px;box-shadow:0 1px 1px rgba(0,0,0,.2);}
+        .o2-tree-filter{margin:0 12px 8px;padding:7px 9px;border:1px solid var(--outline-variant);border-radius:9px;
+          font-size:11.5px;color:var(--on-surface-variant);background:var(--surface-container-low);display:flex;align-items:center;gap:6px;}
+        .o2-tree-scroll{flex:1;overflow-y:auto;padding:0 8px 12px;}
+        .o2-cg{margin-bottom:2px;}
+        .o2-cg-h{display:flex;align-items:center;gap:6px;padding:6px 6px;font-size:11.5px;font-weight:600;color:var(--on-surface-variant);
+          cursor:pointer;border-radius:8px;}
+        .o2-cg-h:hover{background:var(--surface-container);}
+        .o2-cg-h .o2-caret{width:9px;height:9px;transition:transform .15s;color:var(--outline);}
+        .o2-cg.o2-collapsed .o2-caret{transform:rotate(-90deg);}
+        .o2-cg.o2-collapsed .o2-cg-rows{display:none;}
+        .o2-cg-rows{padding-left:4px;}
+        .o2-pr{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:8px;font-size:11.5px;cursor:pointer;color:var(--on-surface);}
+        .o2-pr:hover{background:var(--surface-container-high);}
+        .o2-pr .o2-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o2-pr .o2-pr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-dot.o2-on_track{background:var(--tertiary);}
+        .o2-dot.o2-needs_attention{background:var(--amber);}
+        .o2-dot.o2-overdue{background:var(--error);}
+        /* ---- main ---- */
+        .o2-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+        .o2-topbar{padding:16px 22px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+        .o2-topbar h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em;}
+        .o2-topbar .o2-sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:3px;}
+        .o2-ai-btn{border:1px solid var(--outline);background:var(--surface);color:var(--primary);font-weight:600;font-size:12px;
+          padding:8px 14px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:box-shadow .15s,background .15s;}
+        .o2-ai-btn:hover{background:var(--surface-container-high);box-shadow:var(--o2-shadow-hover);}
+        .o2-ai-btn .o2-spk{width:14px;height:14px;border-radius:5px;background:var(--gradient-brand);}
+        /* ---- bento grid ---- */
+        .o2-grid{flex:1;overflow-y:auto;padding:4px 22px 22px;
+          display:grid;gap:14px;grid-template-columns:repeat(4,1fr);
+          grid-auto-rows:minmax(96px,auto);
+          grid-template-areas:
+            "hero hero attn margin"
+            "hero hero attn margin"
+            "ontrack overdue attn margin"
+            "recent recent recent margin";}
+        @media(max-width:1080px){.o2-grid{grid-template-columns:repeat(2,1fr);
+          grid-template-areas:"hero hero" "attn margin" "ontrack overdue" "recent recent";}}
+        .o2-tile{background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;
+          box-shadow:var(--o2-shadow-rest);transition:box-shadow .18s ease,transform .18s ease,border-color .18s;
+          position:relative;overflow:hidden;display:flex;flex-direction:column;padding:15px 16px;}
+        .o2-tile:hover{box-shadow:var(--o2-shadow-hover);transform:translateY(-2px);}
+        .o2-tile-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;}
+        .o2-tile-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--on-surface-variant);}
+        /* hero */
+        .o2-hero{grid-area:hero;}
+        .o2-hero::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--gradient-brand);}
+        .o2-hero-stats{display:flex;gap:8px;margin-top:10px;flex:1;flex-wrap:wrap;}
+        .o2-hstat{flex:1;min-width:130px;background:var(--surface-container-low);border:1px solid var(--outline-variant);
+          border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;justify-content:space-between;}
+        .o2-hstat .o2-big{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;line-height:1;letter-spacing:-.02em;}
+        .o2-hstat .o2-big small{font-size:14px;font-weight:600;color:var(--on-surface-variant);}
+        .o2-hstat .o2-lbl{font-size:11px;color:var(--on-surface-variant);margin-top:7px;line-height:1.3;}
+        .o2-spark{display:flex;align-items:flex-end;gap:3px;height:30px;margin-top:9px;}
+        .o2-spark span{flex:1;background:var(--primary-container);border-radius:3px 3px 0 0;min-height:4px;}
+        .o2-spark span.o2-hi{background:var(--gradient-brand);}
+        .o2-ring{position:relative;width:52px;height:52px;margin-top:6px;border-radius:50%;
+          background:conic-gradient(var(--tertiary) 0 86%, var(--surface-container-highest) 86% 100%);}
+        .o2-ring::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--surface);}
+        .o2-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--on-tertiary-container);}
+        .o2-dft-bar{display:flex;align-items:center;gap:6px;margin-top:9px;}
+        .o2-dft-track{flex:1;height:7px;border-radius:4px;background:var(--surface-container-highest);position:relative;overflow:hidden;}
+        .o2-dft-fill{position:absolute;inset:0;width:60%;background:linear-gradient(90deg,var(--tertiary),var(--primary));border-radius:4px;}
+        /* KPI squares */
+        .o2-kpi{cursor:pointer;justify-content:center;}
+        .o2-ontrack{grid-area:ontrack;}
+        .o2-overdue{grid-area:overdue;}
+        .o2-kpi .o2-kpi-num{font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:700;line-height:1;}
+        .o2-kpi .o2-kpi-lbl{font-size:11.5px;font-weight:600;color:var(--on-surface-variant);margin-top:5px;display:flex;align-items:center;gap:6px;}
+        .o2-kpi .o2-kpi-lbl .o2-d{width:9px;height:9px;border-radius:50%;}
+        .o2-ontrack .o2-kpi-num{color:var(--green-deep);}
+        .o2-overdue .o2-kpi-num{color:var(--on-error-container);}
+        .o2-kpi.o2-active{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-container),var(--o2-shadow-rest);}
+        .o2-kpi.o2-active::after{content:"●";position:absolute;top:10px;right:12px;font-size:9px;color:var(--primary);}
+        /* attention tall tile */
+        .o2-attn{grid-area:attn;cursor:pointer;}
+        .o2-attn.o2-active{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-container),var(--o2-shadow-rest);}
+        .o2-attn .o2-badge{background:var(--amber-soft);color:var(--amber-deep);font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
+        .o2-list{margin-top:9px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px;}
+        .o2-item{border:1px solid var(--outline-variant);border-radius:10px;padding:9px 10px;cursor:pointer;background:var(--surface-container-low);
+          transition:border-color .15s,box-shadow .15s,background .15s;}
+        .o2-item:hover{border-color:var(--outline);box-shadow:var(--o2-shadow-rest);background:var(--surface);}
+        .o2-item.o2-sel{border-color:var(--primary);background:var(--surface-container);}
+        .o2-item-top{display:flex;align-items:center;gap:7px;}
+        .o2-item-top .o2-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
+        .o2-item-name{font-size:12.5px;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .o2-item-reason{font-size:11px;font-style:italic;color:var(--on-surface-variant);margin-top:4px;line-height:1.3;}
+        .o2-item-meta{display:flex;align-items:center;gap:6px;margin-top:6px;}
+        .o2-sbadge{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.02em;}
+        .o2-sbadge.o2-on_track{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o2-sbadge.o2-needs_attention{background:var(--amber-soft);color:var(--amber-deep);}
+        .o2-sbadge.o2-overdue{background:var(--error-container);color:var(--on-error-container);}
+        .o2-eng{font-size:9.5px;font-weight:600;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;
+          border:1px solid var(--outline-variant);padding:1px 6px;border-radius:6px;}
+        /* margin tile */
+        .o2-margin{grid-area:margin;}
+        .o2-mlist{margin-top:11px;flex:1;display:flex;flex-direction:column;gap:11px;overflow-y:auto;}
+        .o2-mrow .o2-mrow-top{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;margin-bottom:5px;}
+        .o2-mrow-top .o2-ml{display:flex;align-items:center;gap:6px;font-weight:600;}
+        .o2-mrow-top .o2-ml .o2-rag{width:8px;height:8px;border-radius:50%;}
+        .o2-mrow-top .o2-mr{font-family:'JetBrains Mono',monospace;color:var(--on-surface-variant);font-size:10.5px;}
+        .o2-mbar{height:9px;border-radius:5px;background:var(--surface-container-highest);position:relative;overflow:hidden;}
+        .o2-mfill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;}
+        .o2-mtarget{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--on-surface);opacity:.55;border-radius:2px;}
+        .o2-mpct{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;}
+        .o2-rag.o2-green,.o2-mfill.o2-green{background:var(--green);} .o2-mpct.o2-green{color:var(--green-deep);}
+        .o2-rag.o2-amber,.o2-mfill.o2-amber{background:var(--amber);} .o2-mpct.o2-amber{color:var(--amber-deep);}
+        .o2-rag.o2-red,.o2-mfill.o2-red{background:var(--error);} .o2-mpct.o2-red{color:var(--on-error-container);}
+        .o2-vs{font-size:10px;color:var(--on-surface-variant);margin-left:5px;}
+        /* recent tile */
+        .o2-recent{grid-area:recent;}
+        .o2-rgrid{margin-top:10px;flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:9px;overflow-y:auto;align-content:start;}
+        .o2-empty{font-size:11.5px;color:var(--on-surface-variant);padding:14px;text-align:center;font-style:italic;}
+        .o2-clearbtn{font-size:10.5px;color:var(--primary);font-weight:600;cursor:pointer;border:0;background:none;padding:0;}
+        /* snackbar */
+        .o2-snack{position:absolute;left:50%;bottom:18px;transform:translateX(-50%) translateY(14px);
+          background:var(--on-surface);color:#fff;font-size:12.5px;font-weight:500;padding:10px 18px;border-radius:10px;
+          box-shadow:var(--o2-shadow-hover);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;white-space:nowrap;}
+        .o2-snack.o2-show{opacity:1;transform:translateX(-50%) translateY(0);}
+        .o2-filterchip{display:none;align-items:center;gap:7px;background:var(--primary-container);color:var(--on-primary-container);
+          font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:999px;}
+        .o2-filterchip.o2-on{display:inline-flex;}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o2-rail" aria-label="App navigation">
+        <div class="o2-rail-logo">C</div>
+        <button class="o2-rail-btn o2-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button class="o2-rail-btn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg></button>
+        <button class="o2-rail-btn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 1 0-1-5.8M21 20a6 6 0 0 0-5-5.9"/></svg></button>
+        <button class="o2-rail-btn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+        <button class="o2-rail-btn" title="Pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></button>
+        <div class="o2-rail-sp"></div>
+        <button class="o2-rail-btn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o2-tree" aria-label="Projects">
+        <div class="o2-tree-h">
+          <h3>Projects</h3>
+          <span class="o2-tree-toggle">Completed<span class="o2-sw"></span></span>
+        </div>
+        <div class="o2-tree-filter">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+          Filter projects…
+        </div>
+        <div class="o2-tree-scroll" id="o2-tree-scroll"></div>
+      </aside>
+
+      <!-- main pane -->
+      <div class="o2-main">
+        <div class="o2-topbar">
+          <div>
+            <h1>Operations overview</h1>
+            <div class="o2-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="o2-filterchip" id="o2-chip"><span id="o2-chip-txt"></span><button class="o2-clearbtn" id="o2-chip-clear" style="color:var(--on-primary-container)">clear ✕</button></span>
+            <button class="o2-ai-btn" id="o2-ai"><span class="o2-spk"></span>Generate health narrative</button>
+          </div>
+        </div>
+
+        <div class="o2-grid">
+          <!-- HERO -->
+          <div class="o2-tile o2-hero">
+            <div class="o2-tile-head"><span class="o2-tile-title">Capacity &amp; delivery health</span><span style="font-size:10.5px;color:var(--on-surface-variant)">this month</span></div>
+            <div class="o2-hero-stats">
+              <div class="o2-hstat">
+                <div class="o2-big">642<small>h</small></div>
+                <div class="o2-spark">
+                  <span style="height:40%"></span><span style="height:55%"></span><span style="height:48%"></span><span style="height:70%"></span><span style="height:62%"></span><span style="height:85%"></span><span class="o2-hi" style="height:100%"></span>
+                </div>
+                <div class="o2-lbl">Burned this month</div>
+              </div>
+              <div class="o2-hstat">
+                <div class="o2-big">86<small>%</small></div>
+                <div class="o2-ring"><b>86%</b></div>
+                <div class="o2-lbl">On-time delivery · 32 / 37</div>
+              </div>
+              <div class="o2-hstat">
+                <div class="o2-big">4.2<small>d</small></div>
+                <div class="o2-dft-bar"><div class="o2-dft-track"><div class="o2-dft-fill"></div></div></div>
+                <div class="o2-lbl">Avg brief → DFT · 18 projects</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ATTENTION (tall) -->
+          <div class="o2-tile o2-attn" id="o2-attn-tile" data-filter="attention">
+            <div class="o2-tile-head"><span class="o2-tile-title">Needs attention</span><span class="o2-badge">5</span></div>
+            <div class="o2-list" id="o2-attn-list"></div>
+          </div>
+
+          <!-- MARGIN (tall) -->
+          <div class="o2-tile o2-margin">
+            <div class="o2-tile-head"><span class="o2-tile-title">Margin · 30 days</span><span style="font-size:10px;color:var(--on-surface-variant)">target 35%</span></div>
+            <div class="o2-mlist" id="o2-mlist"></div>
+          </div>
+
+          <!-- ON TRACK kpi -->
+          <div class="o2-tile o2-kpi o2-ontrack" id="o2-ontrack" data-filter="on_track">
+            <div class="o2-kpi-num">14</div>
+            <div class="o2-kpi-lbl"><span class="o2-d" style="background:var(--tertiary)"></span>On track</div>
+          </div>
+
+          <!-- OVERDUE kpi -->
+          <div class="o2-tile o2-kpi o2-overdue" id="o2-overdue" data-filter="overdue">
+            <div class="o2-kpi-num">2</div>
+            <div class="o2-kpi-lbl"><span class="o2-d" style="background:var(--error)"></span>Overdue</div>
+          </div>
+
+          <!-- RECENT -->
+          <div class="o2-tile o2-recent">
+            <div class="o2-tile-head"><span class="o2-tile-title" id="o2-recent-title">Recent activity</span><span style="font-size:10px;color:var(--on-surface-variant)">last 5 updates</span></div>
+            <div class="o2-rgrid" id="o2-rgrid"></div>
+          </div>
+        </div>
+
+        <div class="o2-snack" id="o2-snack"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>Tile size is the hierarchy: the biggest tile is delivery health, the tall tiles are the two things you actually watch (what needs attention, where margin is bleeding), and the small squares are the at-a-glance counts. The two semantics that were conflated in the old card row are now visually distinct — interactive KPI/filter squares versus passive signal tiles — and everything lives above the fold with no long scroll.</p></div>
+    <div><h3>Trade-offs</h3><p>A fixed bento layout is less elastic than a stacked scroll: on very narrow widths it must reflow to fewer columns, and adding a brand-new signal means finding it a slot rather than appending a section. Dense tiles also cap how much detail each can show, so deep drill-downs still live one click away in the project view.</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt2');
+    if(!root)return;
+
+    var attention=[
+      {client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',status:'needs_attention',reason:'3 briefs awaiting scope · oldest 6 days'},
+      {client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',status:'overdue',reason:'DFT 6 days past due'},
+      {client:'Discovery',project:'Vitality Always-On',eng:'retainer',status:'needs_attention',reason:'burn 92% · 2 weeks left in cycle'},
+      {client:"Nando's",project:'Winter Menu Push',eng:'project',status:'overdue',reason:'milestone slipped twice'},
+      {client:'Capitec',project:'Always-On Social',eng:'retainer',status:'needs_attention',reason:'no activity in 9 days'}
+    ];
+    var recent=[
+      {client:'Takealot',project:'Black Friday Creative',eng:'project',status:'on_track',reason:'DFT approved today'},
+      {client:'MTN',project:'5G Awareness',eng:'retainer',status:'on_track',reason:'brief scoped 2h ago'},
+      {client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',status:'on_track',reason:'quote accepted yesterday'},
+      {client:'Clicks',project:'Health Content Hub',eng:'retainer',status:'on_track',reason:'12 tasks completed this week'},
+      {client:'Tiger Brands',project:'Packaging Refresh',eng:'project',status:'on_track',reason:'kickoff Monday'}
+    ];
+    var margin=[
+      {client:'Takealot',rev:'R 510 000',pct:40.0,vs:'+5.0pp',rag:'green'},
+      {client:'Sasol',rev:'R 388 500',pct:40.0,vs:'+5.0pp',rag:'green'},
+      {client:'Discovery',rev:'R 412 000',pct:30.6,vs:'−4.4pp',rag:'amber'},
+      {client:'MTN',rev:'R 264 000',pct:35.0,vs:'0.0pp',rag:'green'},
+      {client:'Capitec',rev:'R 198 000',pct:25.0,vs:'−10.0pp',rag:'red'},
+      {client:'Woolworths',rev:'R 295 000',pct:24.0,vs:'−11.0pp',rag:'red'}
+    ];
+    var tree=[
+      {client:'Sasol',projects:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',projects:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',projects:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",projects:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',projects:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',projects:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',projects:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',projects:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',projects:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',projects:[['Packaging Refresh','on_track']]}
+    ];
+
+    function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+    var snackEl=root.querySelector('#o2-snack'),snackT;
+    function snack(name){
+      snackEl.textContent='Opening '+name+'…';
+      snackEl.classList.add('o2-show');
+      clearTimeout(snackT);snackT=setTimeout(function(){snackEl.classList.remove('o2-show');},2200);
+    }
+
+    // ---- project tree ----
+    var ts=root.querySelector('#o2-tree-scroll');
+    ts.innerHTML=tree.map(function(g){
+      var rows=g.projects.map(function(p){
+        return '<div class="o2-pr" data-name="'+esc(g.client+' — '+p[0])+'"><span class="o2-dot o2-'+p[1]+'"></span><span class="o2-pr-name">'+esc(p[0])+'</span></div>';
+      }).join('');
+      return '<div class="o2-cg"><div class="o2-cg-h"><svg class="o2-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>'+esc(g.client)+'</div><div class="o2-cg-rows">'+rows+'</div></div>';
+    }).join('');
+    ts.querySelectorAll('.o2-cg-h').forEach(function(h){
+      h.addEventListener('click',function(){h.parentNode.classList.toggle('o2-collapsed');});
+    });
+
+    // ---- margin tile ----
+    function maxRag(p){return Math.min(100,(p/50)*100);} // scale 50% margin -> full bar
+    root.querySelector('#o2-mlist').innerHTML=margin.map(function(m){
+      var w=maxRag(m.pct);
+      return '<div class="o2-mrow"><div class="o2-mrow-top"><span class="o2-ml"><span class="o2-rag o2-'+m.rag+'"></span>'+esc(m.client)+'</span><span class="o2-mr">'+esc(m.rev)+'</span></div>'+
+        '<div class="o2-mbar"><div class="o2-mfill o2-'+m.rag+'" style="width:'+w.toFixed(0)+'%"></div><div class="o2-mtarget" style="left:'+maxRag(35).toFixed(0)+'%"></div></div>'+
+        '<div style="margin-top:5px;display:flex;align-items:baseline;"><span class="o2-mpct o2-'+m.rag+'">'+m.pct.toFixed(1)+'%</span><span class="o2-vs">vs target '+esc(m.vs)+'</span></div></div>';
+    }).join('');
+
+    // ---- item renderer ----
+    function itemHTML(p){
+      return '<div class="o2-item" data-name="'+esc(p.client+' — '+p.project)+'" data-status="'+p.status+'">'+
+        '<div class="o2-item-top"><span class="o2-dot o2-'+p.status+'"></span><span class="o2-item-name">'+esc(p.client)+' — '+esc(p.project)+'</span></div>'+
+        '<div class="o2-item-reason">'+esc(p.reason)+'</div>'+
+        '<div class="o2-item-meta"><span class="o2-sbadge o2-'+p.status+'">'+p.status.replace('_',' ')+'</span><span class="o2-eng">'+esc(p.eng)+'</span></div></div>';
+    }
+
+    var attnList=root.querySelector('#o2-attn-list');
+    var rgrid=root.querySelector('#o2-rgrid');
+    var recentTitle=root.querySelector('#o2-recent-title');
+
+    // active cross-filter state: null | 'on_track' | 'needs_attention' | 'overdue'
+    var activeFilter=null;
+    var kpiTiles={on_track:root.querySelector('#o2-ontrack'),overdue:root.querySelector('#o2-overdue'),attention:root.querySelector('#o2-attn-tile')};
+    var chip=root.querySelector('#o2-chip'),chipTxt=root.querySelector('#o2-chip-txt');
+
+    function matches(p){
+      if(!activeFilter)return true;
+      if(activeFilter==='attention')return p.status==='needs_attention'||p.status==='overdue';
+      return p.status===activeFilter;
+    }
+
+    function render(){
+      // attention tile always shows attention set, but highlights matches when filtering
+      attnList.innerHTML=attention.map(itemHTML).join('');
+      // recent tile is the cross-filter target: show union pool filtered
+      var pool=attention.concat(recent);
+      // de-dupe by name
+      var seen={},uniq=[];
+      pool.forEach(function(p){var k=p.client+'|'+p.project;if(!seen[k]){seen[k]=1;uniq.push(p);}});
+      var shown=activeFilter?uniq.filter(matches):recent;
+      if(shown.length===0){
+        rgrid.innerHTML='<div class="o2-empty">No projects match this filter.</div>';
+      }else{
+        rgrid.innerHTML=shown.map(itemHTML).join('');
+      }
+      recentTitle.textContent=activeFilter?('Filtered · '+labelFor(activeFilter)):'Recent activity';
+
+      // KPI active styling
+      ['on_track','overdue','attention'].forEach(function(k){
+        kpiTiles[k].classList.toggle('o2-active',activeFilter===k);
+      });
+      if(activeFilter){
+        chip.classList.add('o2-on');chipTxt.textContent='Filter: '+labelFor(activeFilter);
+      }else{chip.classList.remove('o2-on');}
+      bindItems();
+    }
+
+    function labelFor(f){return f==='on_track'?'On track':f==='overdue'?'Overdue':'Needs attention';}
+
+    function bindItems(){
+      root.querySelectorAll('.o2-item').forEach(function(el){
+        el.addEventListener('click',function(){
+          root.querySelectorAll('.o2-item.o2-sel').forEach(function(s){s.classList.remove('o2-sel');});
+          el.classList.add('o2-sel');
+          snack(el.getAttribute('data-name'));
+        });
+      });
+    }
+
+    function setFilter(f){
+      activeFilter=(activeFilter===f)?null:f; // toggle
+      render();
+    }
+
+    kpiTiles.on_track.addEventListener('click',function(){setFilter('on_track');});
+    kpiTiles.overdue.addEventListener('click',function(){setFilter('overdue');});
+    kpiTiles.attention.addEventListener('click',function(){setFilter('attention');});
+    root.querySelector('#o2-chip-clear').addEventListener('click',function(e){e.stopPropagation();activeFilter=null;render();});
+
+    // project tree rows -> snackbar
+    ts.querySelectorAll('.o2-pr').forEach(function(el){
+      el.addEventListener('click',function(){snack(el.getAttribute('data-name'));});
+    });
+
+    // AI button
+    root.querySelector('#o2-ai').addEventListener('click',function(){snack('Generating health narrative');});
+
+    render();
+  })();</script>
+</article>
+<article class="opt" id="opt3">
+  <div class="opt-head"><span class="opt-num">OPTION 3</span><h2>State &amp; stream — business state on the left, live activity on the right</h2></div>
+  <p class="opt-tagline">Split the main pane into the unchanging <em>state</em> of the business and the chronological <em>stream</em> of what just happened.</p>
+  <div class="frame">
+    <section class="o3-root">
+      <style>
+        .o3-root{
+          --o3-rail:56px; --o3-tree:236px;
+          font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          background:var(--surface-container-low); display:flex; min-height:640px;
+          border-radius:14px; overflow:hidden; position:relative;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);
+        }
+        .o3-root *{box-sizing:border-box;}
+        .o3-num{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+
+        /* ---------- icon rail ---------- */
+        .o3-rail{width:var(--o3-rail); flex:0 0 var(--o3-rail); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column;
+          align-items:center; padding:10px 0; gap:4px;}
+        .o3-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:10px;}
+        .o3-railbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+          color:var(--on-surface-variant);cursor:pointer;border:none;background:transparent;}
+        .o3-railbtn:hover{background:var(--surface-container-high);color:var(--on-primary-container);}
+        .o3-railbtn.o3-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o3-railbtn svg{width:20px;height:20px;}
+        .o3-railsp{flex:1;}
+
+        /* ---------- project tree ---------- */
+        .o3-tree{width:var(--o3-tree); flex:0 0 var(--o3-tree); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column; min-height:0;}
+        .o3-tree-h{padding:14px 14px 8px;}
+        .o3-tree-t{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--on-surface-variant);display:flex;justify-content:space-between;align-items:center;}
+        .o3-comp{font-size:10px;color:var(--primary);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0;}
+        .o3-filter{margin:8px 14px 6px;padding:7px 10px;border:1px solid var(--outline-variant);
+          border-radius:8px;font-size:12px;color:var(--on-surface-variant);background:var(--surface-container-low);}
+        .o3-pills{display:flex;gap:5px;padding:2px 14px 10px;flex-wrap:wrap;}
+        .o3-pill{font-size:10.5px;font-family:'JetBrains Mono',monospace;padding:3px 7px;border-radius:999px;
+          border:1px solid var(--outline-variant);background:var(--surface);color:var(--on-surface-variant);cursor:default;}
+        .o3-pill .o3-d{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+        .o3-tree-scroll{overflow-y:auto;flex:1;padding-bottom:10px;}
+        .o3-grp{padding:0 8px;}
+        .o3-grp-h{display:flex;align-items:center;gap:6px;padding:7px 6px;font-size:11.5px;font-weight:700;
+          color:var(--on-surface);cursor:pointer;border-radius:7px;}
+        .o3-grp-h:hover{background:var(--surface-container);}
+        .o3-grp-h .o3-cnt{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;
+          color:var(--on-surface-variant);font-weight:600;}
+        .o3-prj{display:flex;align-items:center;gap:7px;padding:5px 6px 5px 20px;font-size:11.5px;
+          color:var(--on-surface-variant);cursor:pointer;border-radius:7px;}
+        .o3-prj:hover{background:var(--surface-container);color:var(--on-surface);}
+        .o3-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o3-dot.o3-on_track{background:var(--tertiary);}
+        .o3-dot.o3-needs_attention{background:var(--amber);}
+        .o3-dot.o3-overdue{background:var(--error);}
+
+        /* ---------- main pane ---------- */
+        .o3-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+        .o3-top{padding:16px 22px 12px;border-bottom:1px solid var(--outline-variant);background:var(--surface);}
+        .o3-top h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em;}
+        .o3-top .o3-sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:3px;}
+        .o3-top .o3-sub b{color:var(--on-surface);font-weight:700;}
+        .o3-ai{margin-left:auto;border:1px solid var(--outline);background:var(--surface);
+          color:var(--on-primary-container);font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;
+          cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+        .o3-ai:hover{background:var(--primary-container);}
+        .o3-ai svg{width:13px;height:13px;}
+        .o3-toprow{display:flex;align-items:flex-start;gap:14px;}
+
+        .o3-split{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0;}
+        @media(max-width:1080px){.o3-split{grid-template-columns:300px 1fr;}}
+
+        /* ---------- LEFT: state ---------- */
+        .o3-state{border-right:1px solid var(--outline-variant);background:var(--surface-container-low);
+          overflow-y:auto;padding:16px 16px 22px;}
+        .o3-colh{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+          color:var(--on-surface-variant);margin:2px 0 12px;display:flex;align-items:center;gap:7px;}
+        .o3-colh::after{content:"";flex:1;height:1px;background:var(--outline-variant);}
+
+        .o3-scope{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);margin-bottom:14px;}
+        .o3-scope-t{font-size:12px;font-weight:700;margin-bottom:2px;}
+        .o3-scope-s{font-size:11px;color:var(--on-surface-variant);margin-bottom:10px;}
+        .o3-bar{display:flex;height:30px;border-radius:8px;overflow:hidden;gap:2px;}
+        .o3-seg{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;
+          color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
+          transition:filter .15s,outline .15s;outline:2px solid transparent;outline-offset:-2px;}
+        .o3-seg:hover{filter:brightness(1.06);}
+        .o3-seg.o3-segact{outline-color:rgba(0,0,0,.28);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}
+        .o3-seg.o3-s-on{background:var(--tertiary);flex:14;}
+        .o3-seg.o3-s-attn{background:var(--amber);flex:5;}
+        .o3-seg.o3-s-over{background:var(--error);flex:2;}
+        .o3-legend{display:flex;gap:14px;margin-top:9px;font-size:10.5px;color:var(--on-surface-variant);flex-wrap:wrap;}
+        .o3-legend span{display:flex;align-items:center;gap:5px;}
+        .o3-legend i{width:8px;height:8px;border-radius:2px;display:inline-block;}
+
+        .o3-kpis{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+        .o3-kpi{background:var(--surface);border:1px solid var(--outline-variant);border-radius:11px;
+          padding:11px 13px;display:flex;align-items:baseline;gap:10px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o3-kpi .o3-big{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;
+          font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1;}
+        .o3-kpi .o3-meta{display:flex;flex-direction:column;gap:1px;}
+        .o3-kpi .o3-lab{font-size:11.5px;font-weight:600;}
+        .o3-kpi .o3-note{font-size:10.5px;color:var(--on-surface-variant);}
+
+        .o3-mtable{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o3-mt-h{padding:11px 13px 9px;font-size:12px;font-weight:700;border-bottom:1px solid var(--outline-variant);
+          display:flex;align-items:center;gap:7px;}
+        .o3-mrow{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:8px 13px;
+          font-size:11.5px;border-bottom:1px solid var(--outline-variant);}
+        .o3-mrow:last-child{border-bottom:none;}
+        .o3-mrow .o3-cl{display:flex;align-items:center;gap:7px;font-weight:600;}
+        .o3-mrow .o3-mg{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-weight:700;}
+        .o3-mrow .o3-vs{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-align:right;min-width:54px;}
+        .o3-rag{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
+        .o3-rag.o3-green{background:var(--green);}
+        .o3-rag.o3-amber{background:var(--amber);}
+        .o3-rag.o3-red{background:var(--error);}
+        .o3-vs.o3-pos{color:var(--green-deep);} .o3-vs.o3-neg{color:var(--error);} .o3-vs.o3-zero{color:var(--on-surface-variant);}
+
+        /* ---------- RIGHT: stream ---------- */
+        .o3-stream{display:flex;flex-direction:column;min-height:0;background:var(--surface);}
+        .o3-streamh{padding:14px 18px 10px;border-bottom:1px solid var(--outline-variant);}
+        .o3-streamh .o3-colh{margin:0 0 10px;}
+        .o3-chips{display:flex;gap:7px;flex-wrap:wrap;}
+        .o3-chip{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;cursor:pointer;
+          border:1px solid var(--outline-variant);background:var(--surface);color:var(--on-surface-variant);
+          display:inline-flex;align-items:center;gap:6px;}
+        .o3-chip:hover{background:var(--surface-container);}
+        .o3-chip.o3-chipon{background:var(--primary);border-color:var(--primary);color:var(--on-primary);}
+        .o3-chip .o3-cc{font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.85;}
+        .o3-clearwrap{padding:7px 18px 0;min-height:0;}
+        .o3-clear{display:none;font-size:11px;color:var(--primary);cursor:pointer;font-weight:600;align-items:center;gap:5px;}
+        .o3-clear.o3-show{display:inline-flex;}
+
+        .o3-feed{overflow-y:auto;flex:1;padding:6px 18px 18px;}
+        .o3-item{display:grid;grid-template-columns:32px 1fr auto;gap:11px;align-items:start;
+          padding:11px 11px 11px 0;border-radius:10px;cursor:pointer;position:relative;
+          border-bottom:1px solid var(--outline-variant);}
+        .o3-item:last-child{border-bottom:none;}
+        .o3-item::before{content:"";position:absolute;left:-18px;top:0;bottom:0;width:3px;background:var(--outline-variant);}
+        .o3-item.o3-rail-amber::before{background:var(--amber);}
+        .o3-item.o3-rail-red::before{background:var(--error);}
+        .o3-item.o3-rail-green::before{background:var(--green);}
+        .o3-item.o3-rail-info::before{background:var(--primary);}
+        .o3-item:hover{background:var(--surface-container-low);}
+        .o3-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 32px;margin-top:1px;}
+        .o3-ic svg{width:16px;height:16px;}
+        .o3-ic.o3-amber{background:var(--amber-soft);color:var(--amber-deep);}
+        .o3-ic.o3-red{background:var(--error-container);color:var(--on-error-container);}
+        .o3-ic.o3-green{background:var(--green-soft);color:var(--green-deep);}
+        .o3-ic.o3-info{background:var(--primary-container);color:var(--on-primary-container);}
+        .o3-body{min-width:0;}
+        .o3-desc{font-size:12.5px;font-weight:600;line-height:1.35;}
+        .o3-where{font-size:11px;color:var(--on-surface-variant);margin-top:2px;}
+        .o3-where b{color:var(--on-primary-container);font-weight:600;}
+        .o3-when{font-size:10.5px;color:var(--on-surface-variant);font-family:'JetBrains Mono',monospace;
+          white-space:nowrap;margin-top:2px;}
+        .o3-eng{display:inline-block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          padding:1px 6px;border-radius:5px;margin-left:6px;background:var(--surface-container-high);
+          color:var(--on-primary-container);vertical-align:1px;}
+        .o3-empty{display:none;text-align:center;color:var(--on-surface-variant);font-size:12.5px;padding:40px 10px;}
+        .o3-empty.o3-show{display:block;}
+
+        /* ---------- snackbar ---------- */
+        .o3-snack{position:absolute;left:50%;bottom:16px;transform:translate(-50%,140%);
+          background:var(--on-surface);color:#fff;font-size:12.5px;font-weight:500;padding:9px 16px;border-radius:9px;
+          box-shadow:0 8px 24px rgba(76,29,149,.28);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+          z-index:20;white-space:nowrap;pointer-events:none;}
+        .o3-snack.o3-snackon{transform:translate(-50%,0);}
+      </style>
+
+      <!-- ICON RAIL -->
+      <nav class="o3-rail" aria-label="App">
+        <div class="o3-logo">C</div>
+        <button class="o3-railbtn o3-on" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></button>
+        <button class="o3-railbtn" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg></button>
+        <button class="o3-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M21 20a5 5 0 0 0-4-4.9"/></svg></button>
+        <button class="o3-railbtn" title="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+        <button class="o3-railbtn" title="Pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></button>
+        <div class="o3-railsp"></div>
+        <button class="o3-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.2 2.5a7 7 0 0 0-2.2 1.3l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.3l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.2 1.3L10 22h4l.2-2.5a7 7 0 0 0 2.2-1.3l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></button>
+      </nav>
+
+      <!-- PROJECT TREE -->
+      <aside class="o3-tree" aria-label="Projects">
+        <div class="o3-tree-h"><div class="o3-tree-t">Projects <span class="o3-comp">Completed</span></div></div>
+        <div class="o3-filter">Filter projects…</div>
+        <div class="o3-pills">
+          <span class="o3-pill"><span class="o3-d" style="background:var(--tertiary)"></span>14 on track</span>
+          <span class="o3-pill"><span class="o3-d" style="background:var(--amber)"></span>5 attention</span>
+          <span class="o3-pill"><span class="o3-d" style="background:var(--error)"></span>2 overdue</span>
+        </div>
+        <div class="o3-tree-scroll" id="o3-tree-scroll"></div>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="o3-main">
+        <header class="o3-top">
+          <div class="o3-toprow">
+            <div>
+              <h1>Operations overview</h1>
+              <div class="o3-sub">Tuesday, 10 June 2026 · <b>21 active projects</b> across <b>9 clients</b></div>
+            </div>
+            <button class="o3-ai" id="o3-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg>Generate health narrative</button>
+          </div>
+        </header>
+
+        <div class="o3-split">
+          <!-- LEFT: STATE -->
+          <section class="o3-state" aria-label="State of the business">
+            <div class="o3-colh">State of the business</div>
+
+            <div class="o3-scope">
+              <div class="o3-scope-t">Portfolio scope</div>
+              <div class="o3-scope-s">21 active projects by status — click a band to filter the stream</div>
+              <div class="o3-bar" id="o3-bar">
+                <div class="o3-seg o3-s-on" data-scope="delivered" title="14 on track">14</div>
+                <div class="o3-seg o3-s-attn" data-scope="attention" title="5 need attention">5</div>
+                <div class="o3-seg o3-s-over" data-scope="attention" title="2 overdue">2</div>
+              </div>
+              <div class="o3-legend">
+                <span><i style="background:var(--tertiary)"></i>On track 14</span>
+                <span><i style="background:var(--amber)"></i>Attention 5</span>
+                <span><i style="background:var(--error)"></i>Overdue 2</span>
+              </div>
+            </div>
+
+            <div class="o3-kpis">
+              <div class="o3-kpi"><span class="o3-big">642<span style="font-size:13px">h</span></span><span class="o3-meta"><span class="o3-lab">Burned this month</span><span class="o3-note">across active retainers &amp; fixed bids</span></span></div>
+              <div class="o3-kpi"><span class="o3-big">86<span style="font-size:13px">%</span></span><span class="o3-meta"><span class="o3-lab">On-time delivery</span><span class="o3-note">32 / 37 milestones hit</span></span></div>
+              <div class="o3-kpi"><span class="o3-big">4.2<span style="font-size:13px">d</span></span><span class="o3-meta"><span class="o3-lab">Avg brief → DFT</span><span class="o3-note">18 projects measured</span></span></div>
+            </div>
+
+            <div class="o3-mtable">
+              <div class="o3-mt-h">Client margin <span style="font-weight:500;color:var(--on-surface-variant);font-size:11px">· rolling 30d · target 35%</span></div>
+              <div id="o3-margin"></div>
+            </div>
+          </section>
+
+          <!-- RIGHT: STREAM -->
+          <section class="o3-stream" aria-label="Live stream">
+            <div class="o3-streamh">
+              <div class="o3-colh">Live stream</div>
+              <div class="o3-chips" id="o3-chips">
+                <button class="o3-chip o3-chipon" data-filter="all">All <span class="o3-cc" data-cc="all"></span></button>
+                <button class="o3-chip" data-filter="attention">Needs attention <span class="o3-cc" data-cc="attention"></span></button>
+                <button class="o3-chip" data-filter="delivered">Delivered <span class="o3-cc" data-cc="delivered"></span></button>
+                <button class="o3-chip" data-filter="briefs">Briefs <span class="o3-cc" data-cc="briefs"></span></button>
+              </div>
+            </div>
+            <div class="o3-clearwrap"><span class="o3-clear" id="o3-clear">✕ Clear scope filter</span></div>
+            <div class="o3-feed" id="o3-feed"></div>
+            <div class="o3-empty" id="o3-empty">No activity for this filter.</div>
+          </section>
+        </div>
+      </div>
+
+      <div class="o3-snack" id="o3-snack"></div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>It answers two different questions in two purpose-built places instead of one flat scroll: the left column is the steady <em>state</em> (scope mix, the three KPIs, margin) you glance at once, while the right column is the chronological <em>stream</em> of what actually moved — so "how are we doing" and "what just happened" never compete for the same row. Margin is promoted out of the basement into the always-visible state column, and the two old near-identical flat lists (Attention + Recent) collapse into a single typed, time-ordered feed where colored rails make the urgent entries obvious.</p></div>
+    <div><h3>Trade-offs</h3><p>A synthesised activity feed implies an event log the product doesn't fully emit yet — entries here are derived from project state, so real wiring needs timestamped events. The fixed two-column split is comfortable on wide monitors but gets cramped below ~1000px and would need to stack. And a stream rewards recency: a quietly-rotting project with no recent events can sink down the feed, so the state column and tree pills remain the safety net for "nothing happened in 9 days".</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt3'); if(!root) return;
+
+    /* ---------- data ---------- */
+    var tree=[
+      {client:'Sasol',projects:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',projects:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',projects:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",projects:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',projects:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',projects:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',projects:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',projects:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',projects:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',projects:[['Packaging Refresh','on_track']]}
+    ];
+    var margin=[
+      ['Takealot','40.0%','+5.0pp','green','pos'],
+      ['Sasol','40.0%','+5.0pp','green','pos'],
+      ['Discovery','30.6%','−4.4pp','amber','neg'],
+      ['MTN','35.0%','0.0pp','green','zero'],
+      ['Capitec','25.0%','−10.0pp','red','neg'],
+      ['Woolworths','24.0%','−11.0pp','red','neg']
+    ];
+    // bucket: attention | delivered | briefs ; rail: amber|red|green|info ; ic same
+    var feed=[
+      {desc:'DFT approved',client:'Takealot',project:'Black Friday Creative',eng:'project',when:'today',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'Milestone slipped twice',client:"Nando's",project:'Winter Menu Push',eng:'project',when:'1h',bucket:'attention',rail:'red',ic:'red',icon:'alert'},
+      {desc:'Brief scoped',client:'MTN',project:'5G Awareness',eng:'retainer',when:'2h',bucket:'briefs',rail:'info',ic:'info',icon:'doc'},
+      {desc:'DFT 6 days past due',client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',when:'3h',bucket:'attention',rail:'red',ic:'red',icon:'clock'},
+      {desc:'3 briefs awaiting scope · oldest 6 days',client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',when:'5h',bucket:'briefs',rail:'amber',ic:'amber',icon:'doc'},
+      {desc:'Burn at 92% · 2 weeks left in cycle',client:'Discovery',project:'Vitality Always-On',eng:'retainer',when:'6h',bucket:'attention',rail:'amber',ic:'amber',icon:'flame'},
+      {desc:'Quote accepted',client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',when:'yesterday',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'No activity in 9 days',client:'Capitec',project:'Always-On Social',eng:'retainer',when:'yesterday',bucket:'attention',rail:'amber',ic:'amber',icon:'pause'},
+      {desc:'12 tasks completed this week',client:'Clicks',project:'Health Content Hub',eng:'retainer',when:'2d',bucket:'delivered',rail:'green',ic:'green',icon:'check'},
+      {desc:'Kickoff scheduled Monday',client:'Tiger Brands',project:'Packaging Refresh',eng:'project',when:'2d',bucket:'briefs',rail:'info',ic:'info',icon:'flag'}
+    ];
+
+    var ICONS={
+      check:'<path d="M20 6 9 17l-5-5"/>',
+      alert:'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+      doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 14h6M9 17h6"/>',
+      clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      flame:'<path d="M12 2c1 3-2 4-2 7a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 3-6 5-13Z"/>',
+      pause:'<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>',
+      flag:'<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>'
+    };
+    function svg(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||'')+'</svg>';}
+    function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+    /* ---------- snackbar ---------- */
+    var snack=root.querySelector('#o3-snack'),snackT;
+    function toast(msg){snack.textContent=msg;snack.classList.add('o3-snackon');
+      clearTimeout(snackT);snackT=setTimeout(function(){snack.classList.remove('o3-snackon');},1900);}
+
+    /* ---------- render tree ---------- */
+    var ts=root.querySelector('#o3-tree-scroll'),th='';
+    tree.forEach(function(g,i){
+      th+='<div class="o3-grp"><div class="o3-grp-h">'+
+        '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>'+
+        esc(g.client)+'<span class="o3-cnt">'+g.projects.length+'</span></div>';
+      g.projects.forEach(function(p){
+        th+='<div class="o3-prj" data-name="'+esc(g.client+' — '+p[0])+'"><span class="o3-dot o3-'+p[1]+'"></span>'+esc(p[0])+'</div>';
+      });
+      th+='</div>';
+    });
+    ts.innerHTML=th;
+    ts.querySelectorAll('.o3-prj').forEach(function(el){
+      el.addEventListener('click',function(){toast('Opening '+el.getAttribute('data-name')+'…');});
+    });
+
+    /* ---------- render margin ---------- */
+    var mw=root.querySelector('#o3-margin'),mh='';
+    margin.forEach(function(m){
+      mh+='<div class="o3-mrow"><span class="o3-cl"><span class="o3-rag o3-'+m[3]+'"></span>'+esc(m[0])+'</span>'+
+        '<span class="o3-mg">'+m[1]+'</span><span class="o3-vs o3-'+m[4]+'">'+m[2]+'</span></div>';
+    });
+    mw.innerHTML=mh;
+
+    /* ---------- render feed ---------- */
+    var feedEl=root.querySelector('#o3-feed'),emptyEl=root.querySelector('#o3-empty');
+    var chipFilter='all',scopeFilter=null;
+
+    function buildFeed(){
+      var html='';
+      feed.forEach(function(f,i){
+        html+='<div class="o3-item o3-rail-'+f.rail+'" data-bucket="'+f.bucket+'" data-i="'+i+'">'+
+          '<span class="o3-ic o3-'+f.ic+'">'+svg(f.icon)+'</span>'+
+          '<span class="o3-body"><span class="o3-desc">'+esc(f.desc)+'<span class="o3-eng">'+f.eng+'</span></span>'+
+          '<span class="o3-where"><b>'+esc(f.client)+'</b> · '+esc(f.project)+'</span></span>'+
+          '<span class="o3-when">'+esc(f.when)+'</span></div>';
+      });
+      feedEl.innerHTML=html;
+      feedEl.querySelectorAll('.o3-item').forEach(function(el){
+        var f=feed[+el.getAttribute('data-i')];
+        el.addEventListener('click',function(){toast('Opening '+f.client+' / '+f.project+'…');});
+      });
+    }
+    buildFeed();
+
+    function applyFilters(){
+      var shown=0;
+      feedEl.querySelectorAll('.o3-item').forEach(function(el){
+        var b=el.getAttribute('data-bucket');
+        var okChip=(chipFilter==='all')||(b===chipFilter);
+        var okScope=(!scopeFilter)||(b===scopeFilter);
+        var vis=okChip&&okScope;
+        el.style.display=vis?'':'none';
+        if(vis)shown++;
+      });
+      emptyEl.classList.toggle('o3-show',shown===0);
+    }
+
+    /* ---------- chip counts ---------- */
+    var counts={all:feed.length,attention:0,delivered:0,briefs:0};
+    feed.forEach(function(f){counts[f.bucket]++;});
+    root.querySelectorAll('.o3-cc').forEach(function(el){el.textContent=counts[el.getAttribute('data-cc')];});
+
+    /* ---------- chip interaction ---------- */
+    var chips=root.querySelectorAll('#o3-chips .o3-chip');
+    chips.forEach(function(c){
+      c.addEventListener('click',function(){
+        chips.forEach(function(x){x.classList.remove('o3-chipon');});
+        c.classList.add('o3-chipon');
+        chipFilter=c.getAttribute('data-filter');
+        applyFilters();
+      });
+    });
+
+    /* ---------- scope band interaction ---------- */
+    var bar=root.querySelector('#o3-bar'),clearBtn=root.querySelector('#o3-clear');
+    var segs=bar.querySelectorAll('.o3-seg');
+    function setScope(sc,segEl){
+      if(scopeFilter===sc){ // toggle off
+        scopeFilter=null;segs.forEach(function(s){s.classList.remove('o3-segact');});
+        clearBtn.classList.remove('o3-show');
+      }else{
+        scopeFilter=sc;
+        segs.forEach(function(s){s.classList.toggle('o3-segact',s.getAttribute('data-scope')===sc);});
+        clearBtn.classList.add('o3-show');
+      }
+      applyFilters();
+    }
+    segs.forEach(function(s){
+      s.addEventListener('click',function(){setScope(s.getAttribute('data-scope'),s);});
+    });
+    clearBtn.addEventListener('click',function(){
+      scopeFilter=null;segs.forEach(function(s){s.classList.remove('o3-segact');});
+      clearBtn.classList.remove('o3-show');applyFilters();
+    });
+
+    /* ---------- AI button ---------- */
+    root.querySelector('#o3-ai').addEventListener('click',function(){toast('Generating health narrative…');});
+
+    /* ---------- rail nav (chrome) ---------- */
+    root.querySelectorAll('.o3-railbtn').forEach(function(b){
+      b.addEventListener('click',function(){
+        root.querySelectorAll('.o3-railbtn').forEach(function(x){x.classList.remove('o3-on');});
+        b.classList.add('o3-on');
+      });
+    });
+  })();</script>
+</article>
+<article class="opt" id="opt4">
+  <div class="opt-head"><span class="opt-num">OPTION 4</span><h2>Segmented control plane — one KPI ribbon, one swappable body</h2></div>
+  <p class="opt-tagline">A persistent KPI ribbon over a single segmented control that swaps the body — exactly one focus at a time, almost no scrolling.</p>
+  <div class="frame">
+    <section class="o4-root">
+      <style>
+        .o4-root{
+          --o4-h-rail:56px; --o4-w-tree:240px;
+          font-family:'Inter',system-ui,sans-serif; color:var(--on-surface);
+          background:var(--surface-container-low);
+          display:flex; min-height:640px; border-radius:14px; overflow:hidden;
+          border:1px solid var(--outline-variant);
+          font-variant-numeric:tabular-nums;
+        }
+        .o4-root *{box-sizing:border-box;}
+
+        /* ---- icon rail ---- */
+        .o4-rail{width:var(--o4-h-rail); flex:0 0 var(--o4-h-rail); background:var(--surface);
+          border-right:1px solid var(--outline-variant); display:flex; flex-direction:column;
+          align-items:center; padding:12px 0; gap:6px;}
+        .o4-logo{width:32px;height:32px;border-radius:9px;background:var(--gradient-brand);
+          display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:8px;}
+        .o4-railbtn{width:38px;height:38px;border-radius:10px;border:none;background:transparent;
+          color:var(--on-surface-variant);display:grid;place-items:center;cursor:pointer;transition:.15s;}
+        .o4-railbtn:hover{background:var(--surface-container-high);color:var(--on-surface);}
+        .o4-railbtn.o4-on{background:var(--primary-container);color:var(--on-primary-container);}
+        .o4-railbtn svg{width:20px;height:20px;}
+        .o4-railsp{flex:1;}
+
+        /* ---- project tree ---- */
+        .o4-tree{width:var(--o4-w-tree);flex:0 0 var(--o4-w-tree);background:var(--surface);
+          border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;min-height:0;}
+        .o4-treehead{padding:14px 14px 10px;}
+        .o4-treetitle{display:flex;align-items:center;justify-content:space-between;}
+        .o4-treetitle h3{margin:0;font-size:14px;font-weight:700;}
+        .o4-comp{font-size:11px;color:var(--on-surface-variant);display:flex;align-items:center;gap:5px;cursor:pointer;}
+        .o4-comp i{width:26px;height:15px;border-radius:8px;background:var(--surface-container-highest);position:relative;transition:.15s;}
+        .o4-comp i::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#fff;transition:.15s;}
+        .o4-comp.o4-comp-on i{background:var(--primary);}
+        .o4-comp.o4-comp-on i::after{left:13px;}
+        .o4-filter{margin-top:10px;width:100%;border:1px solid var(--outline-variant);border-radius:9px;
+          padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface-container-low);color:var(--on-surface);}
+        .o4-filter:focus{outline:2px solid var(--outline);outline-offset:-1px;}
+        .o4-pills{display:flex;gap:6px;margin-top:10px;}
+        .o4-pill{flex:1;border:1px solid var(--outline-variant);background:var(--surface-container-low);
+          border-radius:999px;padding:5px 4px;font-size:10.5px;font-weight:600;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:4px;color:var(--on-surface-variant);transition:.15s;}
+        .o4-pill:hover{border-color:var(--outline);}
+        .o4-pill.o4-on{background:var(--primary-container);border-color:var(--primary);color:var(--on-primary-container);}
+        .o4-pill b{font-family:'JetBrains Mono',monospace;}
+        .o4-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;}
+        .o4-d-ok{background:var(--tertiary);} .o4-d-at{background:var(--amber);} .o4-d-ov{background:var(--error);}
+
+        .o4-treelist{flex:1;overflow-y:auto;padding:6px 8px 14px;}
+        .o4-grp{margin-bottom:4px;}
+        .o4-grphd{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11.5px;font-weight:700;
+          color:var(--on-surface-variant);cursor:pointer;border-radius:8px;}
+        .o4-grphd:hover{background:var(--surface-container);}
+        .o4-grphd .o4-caret{margin-left:auto;transition:.15s;font-size:10px;}
+        .o4-grp.o4-closed .o4-caret{transform:rotate(-90deg);}
+        .o4-grp.o4-closed .o4-grpkids{display:none;}
+        .o4-prow{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 22px;font-size:12px;
+          border-radius:8px;cursor:pointer;color:var(--on-surface);}
+        .o4-prow:hover{background:var(--surface-container);}
+        .o4-prow.o4-sel{background:var(--primary-container);color:var(--on-primary-container);}
+        .o4-prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+        /* ---- main pane ---- */
+        .o4-main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--surface-container-low);}
+        .o4-top{padding:16px 20px 0;}
+        .o4-tline{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+        .o4-tline h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em;}
+        .o4-tsub{font-size:12.5px;color:var(--on-surface-variant);}
+        .o4-aibtn{margin-left:auto;border:1px solid var(--outline);background:var(--surface);
+          border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:600;cursor:pointer;
+          color:var(--on-primary-container);display:flex;align-items:center;gap:6px;}
+        .o4-aibtn:hover{background:var(--surface-container-high);}
+        .o4-aibtn .o4-spark{width:13px;height:13px;}
+
+        /* ---- KPI ribbon ---- */
+        .o4-ribbon{display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin:14px 0 2px;
+          background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;position:relative;}
+        .o4-ribbon::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--gradient-brand);}
+        .o4-cell{padding:13px 14px 14px;border-right:1px solid var(--outline-variant);
+          display:flex;flex-direction:column;gap:3px;position:relative;}
+        .o4-cell:last-child{border-right:none;}
+        .o4-cell.o4-clk{cursor:pointer;transition:.15s;}
+        .o4-cell.o4-clk:hover{background:var(--surface-container);}
+        .o4-cell.o4-clk::after{content:"filter";position:absolute;top:11px;right:12px;font-size:8.5px;
+          letter-spacing:.05em;text-transform:uppercase;color:var(--on-surface-variant);opacity:0;transition:.15s;}
+        .o4-cell.o4-clk:hover::after{opacity:.7;}
+        .o4-cklab{font-size:11px;color:var(--on-surface-variant);font-weight:600;display:flex;align-items:center;gap:6px;}
+        .o4-ckval{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;line-height:1;letter-spacing:-.02em;}
+        .o4-ckval small{font-size:12px;font-weight:600;color:var(--on-surface-variant);margin-left:3px;}
+        .o4-ckmeta{font-size:10.5px;color:var(--on-surface-variant);}
+        .o4-cell.o4-at .o4-ckval{color:var(--amber-deep);} .o4-cell.o4-ov .o4-ckval{color:var(--error);}
+        .o4-cell.o4-ok .o4-ckval{color:var(--green-deep);}
+
+        /* ---- segmented control ---- */
+        .o4-seg{display:flex;gap:4px;padding:4px;margin:14px 0 0;background:var(--surface-container);
+          border:1px solid var(--outline-variant);border-radius:999px;width:fit-content;max-width:100%;flex-wrap:wrap;}
+        .o4-segbtn{border:none;background:transparent;border-radius:999px;padding:7px 15px;font-size:12.5px;
+          font-weight:600;font-family:inherit;cursor:pointer;color:var(--on-surface-variant);display:flex;
+          align-items:center;gap:7px;transition:.15s;white-space:nowrap;}
+        .o4-segbtn:hover{color:var(--on-surface);}
+        .o4-segbtn.o4-on{background:var(--surface);color:var(--on-primary-container);
+          box-shadow:0 1px 2px rgba(76,29,149,.12);}
+        .o4-segcount{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+          background:var(--amber-soft);color:var(--amber-deep);border-radius:999px;padding:1px 7px;}
+        .o4-segbtn.o4-on .o4-segcount{background:var(--primary-container);color:var(--on-primary-container);}
+
+        /* ---- body ---- */
+        .o4-body{flex:1;overflow-y:auto;padding:14px 20px 20px;min-height:0;}
+        .o4-panel{display:none;animation:o4-fade .22s ease;}
+        .o4-panel.o4-on{display:block;}
+        @keyframes o4-fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+        /* attention rich rows */
+        .o4-arow{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface);
+          border:1px solid var(--outline-variant);border-radius:12px;margin-bottom:8px;cursor:pointer;
+          box-shadow:0 1px 2px rgba(0,0,0,.04);transition:.15s;}
+        .o4-arow:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);border-color:var(--outline);}
+        .o4-arow.o4-hot{outline:2px solid var(--primary);outline-offset:1px;}
+        .o4-abar{width:4px;align-self:stretch;border-radius:4px;flex:0 0 4px;}
+        .o4-abar.o4-at{background:var(--amber);} .o4-abar.o4-ov{background:var(--error);}
+        .o4-amid{flex:1;min-width:0;}
+        .o4-aname{font-size:14px;font-weight:700;}
+        .o4-aname b{color:var(--on-surface-variant);font-weight:600;}
+        .o4-areason{font-size:12px;font-style:italic;color:var(--on-surface-variant);margin-top:2px;}
+        .o4-aright{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:0 0 auto;}
+        .o4-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          border-radius:999px;padding:3px 9px;}
+        .o4-b-at{background:var(--amber-soft);color:var(--amber-deep);}
+        .o4-b-ov{background:var(--error-container);color:var(--on-error-container);}
+        .o4-b-ok{background:var(--tertiary-container);color:var(--on-tertiary-container);}
+        .o4-eng{font-size:10.5px;color:var(--on-surface-variant);text-transform:capitalize;}
+
+        /* compact all-projects list */
+        .o4-clist{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-crow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--outline-variant);
+          cursor:pointer;font-size:13px;}
+        .o4-crow:first-child{border-top:none;}
+        .o4-crow:hover{background:var(--surface-container);}
+        .o4-cclient{font-weight:600;min-width:96px;flex:0 0 96px;}
+        .o4-cproj{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--on-surface-variant);}
+        .o4-ceng{font-size:10.5px;color:var(--on-surface-variant);text-transform:capitalize;min-width:60px;text-align:right;}
+        .o4-cbadge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+          border-radius:999px;padding:2px 8px;min-width:78px;text-align:center;}
+        .o4-listhd{display:flex;align-items:center;gap:12px;padding:9px 14px;font-size:10.5px;font-weight:700;
+          text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant);background:var(--surface-container);
+          border-bottom:1px solid var(--outline-variant);}
+
+        /* margin table */
+        .o4-mwrap{background:var(--surface);border:1px solid var(--outline-variant);border-radius:12px;
+          overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-mtab{width:100%;border-collapse:collapse;font-size:13px;}
+        .o4-mtab th{text-align:left;padding:11px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+          letter-spacing:.05em;color:var(--on-surface-variant);background:var(--surface-container);border-bottom:1px solid var(--outline-variant);}
+        .o4-mtab th.o4-num,.o4-mtab td.o4-num{text-align:right;font-family:'JetBrains Mono',monospace;}
+        .o4-mtab td{padding:12px 16px;border-top:1px solid var(--outline-variant);}
+        .o4-mtab tr:hover td{background:var(--surface-container-low);}
+        .o4-mclient{display:flex;align-items:center;gap:9px;font-weight:600;}
+        .o4-rag{width:9px;height:9px;border-radius:50%;flex:0 0 9px;}
+        .o4-rag.green{background:var(--green);} .o4-rag.amber{background:var(--amber);} .o4-rag.red{background:var(--error);}
+        .o4-vs{font-weight:600;} .o4-vs.green{color:var(--green-deep);} .o4-vs.amber{color:var(--amber-deep);} .o4-vs.red{color:var(--error);}
+
+        /* activity feed */
+        .o4-feed{position:relative;padding-left:8px;}
+        .o4-frow{display:flex;gap:14px;padding:11px 14px 11px 0;cursor:pointer;position:relative;}
+        .o4-fline{position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--outline-variant);}
+        .o4-fdot{width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);background:var(--tertiary);
+          flex:0 0 12px;margin-left:-1px;z-index:1;box-shadow:0 0 0 1px var(--outline-variant);}
+        .o4-fcard{flex:1;background:var(--surface);border:1px solid var(--outline-variant);border-radius:10px;
+          padding:9px 13px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+        .o4-frow:hover .o4-fcard{border-color:var(--outline);box-shadow:0 8px 24px rgba(76,29,149,.12);}
+        .o4-fname{font-size:13px;font-weight:700;}
+        .o4-fname b{color:var(--on-surface-variant);font-weight:600;}
+        .o4-fmeta{font-size:11.5px;color:var(--on-surface-variant);margin-top:2px;display:flex;gap:8px;align-items:center;}
+        .o4-feng{text-transform:capitalize;background:var(--surface-container);border-radius:999px;padding:1px 8px;font-size:10px;}
+
+        .o4-filterbar{display:none;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;
+          color:var(--on-primary-container);background:var(--primary-container);border-radius:10px;padding:8px 12px;}
+        .o4-filterbar.o4-show{display:flex;}
+        .o4-filterbar button{margin-left:auto;border:none;background:var(--surface);border-radius:999px;
+          padding:3px 11px;font-size:11px;font-weight:600;cursor:pointer;color:var(--on-primary-container);font-family:inherit;}
+
+        /* snackbar */
+        .o4-snack{position:absolute;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);
+          background:var(--on-surface);color:#fff;padding:10px 18px;border-radius:10px;font-size:12.5px;font-weight:500;
+          box-shadow:0 8px 24px rgba(76,29,149,.24);opacity:0;pointer-events:none;transition:.2s;z-index:30;}
+        .o4-snack.o4-show{opacity:1;transform:translateX(-50%) translateY(0);}
+        .o4-main{position:relative;}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o4-rail">
+        <div class="o4-logo">C</div>
+        <button class="o4-railbtn o4-on" title="Overview" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+        <button class="o4-railbtn" title="Clients" aria-label="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M18 20a5 5 0 0 0-3-4.6"/></svg></button>
+        <button class="o4-railbtn" title="Briefs" aria-label="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg></button>
+        <button class="o4-railbtn" title="Services" aria-label="Services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M4.2 7l2.6 1.5M17.2 15.5L19.8 17M4.2 17l2.6-1.5M17.2 8.5L19.8 7"/><circle cx="12" cy="12" r="3.2"/></svg></button>
+        <div class="o4-railsp"></div>
+        <button class="o4-railbtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+      </nav>
+
+      <!-- project tree -->
+      <aside class="o4-tree">
+        <div class="o4-treehead">
+          <div class="o4-treetitle">
+            <h3>Projects</h3>
+            <label class="o4-comp"><span>Completed</span><i></i></label>
+          </div>
+          <input class="o4-filter" placeholder="Filter projects…" aria-label="Filter projects">
+          <div class="o4-pills">
+            <button class="o4-pill" data-scope="on_track"><span class="o4-dot o4-d-ok"></span><b>14</b></button>
+            <button class="o4-pill" data-scope="needs_attention"><span class="o4-dot o4-d-at"></span><b>5</b></button>
+            <button class="o4-pill" data-scope="overdue"><span class="o4-dot o4-d-ov"></span><b>2</b></button>
+          </div>
+        </div>
+        <div class="o4-treelist" id="o4-treelist"></div>
+      </aside>
+
+      <!-- main pane -->
+      <main class="o4-main">
+        <div class="o4-top">
+          <div class="o4-tline">
+            <h1>Operations overview</h1>
+            <span class="o4-tsub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</span>
+            <button class="o4-aibtn" id="o4-ai"><svg class="o4-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/></svg>Health narrative</button>
+          </div>
+
+          <!-- KPI ribbon -->
+          <div class="o4-ribbon">
+            <div class="o4-cell o4-clk o4-ok" data-scope="on_track" data-seg="all">
+              <div class="o4-cklab"><span class="o4-dot o4-d-ok"></span>On track</div>
+              <div class="o4-ckval">14</div><div class="o4-ckmeta">of 21 active</div>
+            </div>
+            <div class="o4-cell o4-clk o4-at" data-scope="needs_attention" data-seg="attn">
+              <div class="o4-cklab"><span class="o4-dot o4-d-at"></span>Needs attention</div>
+              <div class="o4-ckval">5</div><div class="o4-ckmeta">action required</div>
+            </div>
+            <div class="o4-cell o4-clk o4-ov" data-scope="overdue" data-seg="attn">
+              <div class="o4-cklab"><span class="o4-dot o4-d-ov"></span>Overdue</div>
+              <div class="o4-ckval">2</div><div class="o4-ckmeta">past due date</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">Burned this month</div>
+              <div class="o4-ckval">642<small>h</small></div><div class="o4-ckmeta">across all clients</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">On-time delivery</div>
+              <div class="o4-ckval">86<small>%</small></div><div class="o4-ckmeta">32 / 37 DFTs</div>
+            </div>
+            <div class="o4-cell">
+              <div class="o4-cklab">Avg brief → DFT</div>
+              <div class="o4-ckval">4.2<small>d</small></div><div class="o4-ckmeta">18 projects</div>
+            </div>
+          </div>
+
+          <!-- segmented control -->
+          <div class="o4-seg" role="tablist">
+            <button class="o4-segbtn o4-on" data-seg="attn" role="tab">Needs attention<span class="o4-segcount">5</span></button>
+            <button class="o4-segbtn" data-seg="all" role="tab">All projects</button>
+            <button class="o4-segbtn" data-seg="margin" role="tab">Margin</button>
+            <button class="o4-segbtn" data-seg="activity" role="tab">Activity</button>
+          </div>
+        </div>
+
+        <div class="o4-body">
+          <!-- ATTENTION -->
+          <div class="o4-panel o4-on" data-panel="attn" id="o4-p-attn">
+            <div class="o4-filterbar" id="o4-fb-attn"><span id="o4-fb-attn-txt"></span><button data-clear="attn">Clear filter</button></div>
+            <div id="o4-attn-rows"></div>
+          </div>
+
+          <!-- ALL PROJECTS -->
+          <div class="o4-panel" data-panel="all" id="o4-p-all">
+            <div class="o4-filterbar" id="o4-fb-all"><span id="o4-fb-all-txt"></span><button data-clear="all">Clear filter</button></div>
+            <div class="o4-clist">
+              <div class="o4-listhd"><span style="min-width:96px;flex:0 0 96px">Client</span><span style="flex:1">Project</span><span style="min-width:60px;text-align:right">Engagement</span><span style="min-width:78px;text-align:center">Status</span></div>
+              <div id="o4-all-rows"></div>
+            </div>
+          </div>
+
+          <!-- MARGIN -->
+          <div class="o4-panel" data-panel="margin" id="o4-p-margin">
+            <div class="o4-mwrap">
+              <table class="o4-mtab">
+                <thead><tr><th>Client</th><th class="o4-num">Revenue</th><th class="o4-num">Cost</th><th class="o4-num">Margin</th><th class="o4-num">vs 35% target</th></tr></thead>
+                <tbody id="o4-margin-rows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ACTIVITY -->
+          <div class="o4-panel" data-panel="activity" id="o4-p-activity">
+            <div class="o4-feed"><div class="o4-fline"></div><div id="o4-act-rows"></div></div>
+          </div>
+        </div>
+
+        <div class="o4-snack" id="o4-snack"></div>
+      </main>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>One persistent KPI ribbon answers "how are we doing" at a glance, while a single segmented control means the body shows exactly one thing at a time — no endless scroll, no two near-identical lists competing for the eye. The default segment is <em>Needs attention</em>, so the screen opens on the only question that matters: what do I act on now. The ribbon's interactive scope counts are visually distinct (hover "filter" hint) from the passive KPIs, resolving the conflated-semantics problem, and clicking one deep-links straight into the relevant segment, pre-filtered. Margin is one click away as a first-class, full-width table rather than buried below the fold.</p></div>
+    <div><h3>Trade-offs</h3><p>Only one body panel is visible at a time, so cross-referencing (e.g. an attention item against its margin row) needs a tab switch rather than a glance — the cost of enforced single-focus. The segmented control is a learned affordance: a first-time user must discover that the body swaps. Density per panel is high but breadth is hidden, so power users who liked seeing everything at once on a wide monitor lose the "whole picture" scroll. The ribbon fixes six cells horizontally, which gets tight below ~1100px and would need to wrap or scroll on narrow screens.</p></div>
+  </div>
+  <script>(function(){
+    var root=document.getElementById('opt4');
+    if(!root)return;
+    var $=function(s,c){return (c||root).querySelector(s);};
+    var $$=function(s,c){return Array.prototype.slice.call((c||root).querySelectorAll(s));};
+
+    // ---- data (verbatim from spec) ----
+    var attn=[
+      {client:'Sasol',proj:'Q3 Brand Refresh',eng:'retainer',st:'needs_attention',reason:'3 briefs awaiting scope · oldest 6 days'},
+      {client:'Woolworths',proj:'Loyalty App Launch',eng:'fixed',st:'overdue',reason:'DFT 6 days past due'},
+      {client:'Discovery',proj:'Vitality Always-On',eng:'retainer',st:'needs_attention',reason:'burn 92% · 2 weeks left in cycle'},
+      {client:"Nando's",proj:'Winter Menu Push',eng:'project',st:'overdue',reason:'milestone slipped twice'},
+      {client:'Capitec',proj:'Always-On Social',eng:'retainer',st:'needs_attention',reason:'no activity in 9 days'}
+    ];
+    var recent=[
+      {client:'Takealot',proj:'Black Friday Creative',eng:'project',st:'on_track',reason:'DFT approved today'},
+      {client:'MTN',proj:'5G Awareness',eng:'retainer',st:'on_track',reason:'brief scoped 2h ago'},
+      {client:'Standard Bank',proj:'Wealth Microsite',eng:'fixed',st:'on_track',reason:'quote accepted yesterday'},
+      {client:'Clicks',proj:'Health Content Hub',eng:'retainer',st:'on_track',reason:'12 tasks completed this week'},
+      {client:'Tiger Brands',proj:'Packaging Refresh',eng:'project',st:'on_track',reason:'kickoff Monday'}
+    ];
+    var margin=[
+      {client:'Takealot',rev:'R 510 000',cost:'R 306 000',pct:'40.0%',vs:'+5.0pp',rag:'green'},
+      {client:'Sasol',rev:'R 388 500',cost:'R 233 100',pct:'40.0%',vs:'+5.0pp',rag:'green'},
+      {client:'Discovery',rev:'R 412 000',cost:'R 286 000',pct:'30.6%',vs:'−4.4pp',rag:'amber'},
+      {client:'MTN',rev:'R 264 000',cost:'R 171 600',pct:'35.0%',vs:'0.0pp',rag:'green'},
+      {client:'Capitec',rev:'R 198 000',cost:'R 148 500',pct:'25.0%',vs:'−10.0pp',rag:'red'},
+      {client:'Woolworths',rev:'R 295 000',cost:'R 224 200',pct:'24.0%',vs:'−11.0pp',rag:'red'}
+    ];
+    var tree=[
+      {client:'Sasol',kids:[['Q3 Brand Refresh','needs_attention'],['Retail POS Toolkit','on_track']]},
+      {client:'Woolworths',kids:[['Loyalty App Launch','overdue'],['Festive Catalogue','on_track']]},
+      {client:'Discovery',kids:[['Vitality Always-On','needs_attention'],['Health Rewards Email','on_track']]},
+      {client:"Nando's",kids:[['Winter Menu Push','overdue'],['Peri Social','on_track']]},
+      {client:'Capitec',kids:[['Always-On Social','needs_attention']]},
+      {client:'Takealot',kids:[['Black Friday Creative','on_track'],['Marketplace SEO','on_track']]},
+      {client:'MTN',kids:[['5G Awareness','on_track']]},
+      {client:'Standard Bank',kids:[['Wealth Microsite','on_track']]},
+      {client:'Clicks',kids:[['Health Content Hub','on_track']]},
+      {client:'Tiger Brands',kids:[['Packaging Refresh','on_track']]}
+    ];
+    var stMap={on_track:{cls:'ok',lab:'On track'},needs_attention:{cls:'at',lab:'Attention'},overdue:{cls:'ov',lab:'Overdue'}};
+    var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+
+    // ---- snackbar ----
+    var snack=$('#o4-snack'),snackT;
+    function toast(msg){snack.textContent=msg;snack.classList.add('o4-show');clearTimeout(snackT);snackT=setTimeout(function(){snack.classList.remove('o4-show');},1900);}
+    function open(name){toast('Opening '+name+'…');}
+
+    // ---- tree ----
+    var treelist=$('#o4-treelist');
+    tree.forEach(function(g){
+      var grp=document.createElement('div');grp.className='o4-grp';
+      var n=g.kids.length;
+      grp.innerHTML='<div class="o4-grphd"><span>'+esc(g.client)+'</span><span style="font-weight:600;opacity:.6;font-family:\'JetBrains Mono\',monospace">'+n+'</span><span class="o4-caret">▾</span></div><div class="o4-grpkids"></div>';
+      var kidwrap=$('.o4-grpkids',grp);
+      g.kids.forEach(function(k){
+        var label=g.client+' — '+k[0];
+        var row=document.createElement('div');row.className='o4-prow';row.setAttribute('data-scope',k[1]);row.setAttribute('data-name',label);
+        row.innerHTML='<span class="o4-dot o4-d-'+stMap[k[1]].cls+'"></span><span>'+esc(k[0])+'</span>';
+        row.addEventListener('click',function(){$$('.o4-prow').forEach(function(r){r.classList.remove('o4-sel');});row.classList.add('o4-sel');open(label);});
+        kidwrap.appendChild(row);
+      });
+      $('.o4-grphd',grp).addEventListener('click',function(){grp.classList.toggle('o4-closed');});
+      treelist.appendChild(grp);
+    });
+
+    // ---- attention rich rows ----
+    var attnWrap=$('#o4-attn-rows');
+    attn.forEach(function(p){
+      var label=p.client+' — '+p.proj,sc=stMap[p.st].cls;
+      var el=document.createElement('div');el.className='o4-arow';el.setAttribute('data-scope',p.st);el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-abar o4-'+sc+'"></span><div class="o4-amid"><div class="o4-aname"><b>'+esc(p.client)+' — </b>'+esc(p.proj)+'</div><div class="o4-areason">'+esc(p.reason)+'</div></div><div class="o4-aright"><span class="o4-badge o4-b-'+sc+'">'+stMap[p.st].lab+'</span><span class="o4-eng">'+esc(p.eng)+'</span></div>';
+      el.addEventListener('click',function(){open(label);});
+      attnWrap.appendChild(el);
+    });
+
+    // ---- all projects compact list (attn + recent) ----
+    var allWrap=$('#o4-all-rows');
+    var allData=attn.concat(recent);
+    allData.forEach(function(p){
+      var label=p.client+' — '+p.proj,sc=stMap[p.st].cls;
+      var el=document.createElement('div');el.className='o4-crow';el.setAttribute('data-scope',p.st);el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-dot o4-d-'+sc+'"></span><span class="o4-cclient">'+esc(p.client)+'</span><span class="o4-cproj">'+esc(p.proj)+'</span><span class="o4-ceng">'+esc(p.eng)+'</span><span class="o4-cbadge o4-b-'+sc+'">'+stMap[p.st].lab+'</span>';
+      el.addEventListener('click',function(){open(label);});
+      allWrap.appendChild(el);
+    });
+
+    // ---- margin ----
+    var mWrap=$('#o4-margin-rows');
+    margin.forEach(function(m){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td><span class="o4-mclient"><span class="o4-rag '+m.rag+'"></span>'+esc(m.client)+'</span></td><td class="o4-num">'+esc(m.rev)+'</td><td class="o4-num">'+esc(m.cost)+'</td><td class="o4-num">'+esc(m.pct)+'</td><td class="o4-num"><span class="o4-vs '+m.rag+'">'+esc(m.vs)+'</span></td>';
+      mWrap.appendChild(tr);
+    });
+
+    // ---- activity feed ----
+    var actWrap=$('#o4-act-rows');
+    recent.forEach(function(p){
+      var label=p.client+' — '+p.proj;
+      var el=document.createElement('div');el.className='o4-frow';el.setAttribute('data-name',label);
+      el.innerHTML='<span class="o4-fdot"></span><div class="o4-fcard"><div class="o4-fname"><b>'+esc(p.client)+' — </b>'+esc(p.proj)+'</div><div class="o4-fmeta">'+esc(p.reason)+'<span class="o4-feng">'+esc(p.eng)+'</span></div></div>';
+      el.addEventListener('click',function(){open(label);});
+      actWrap.appendChild(el);
+    });
+
+    // ---- segmented control ----
+    var segBtns=$$('.o4-segbtn'),panels=$$('.o4-panel');
+    function showSeg(seg){
+      segBtns.forEach(function(b){b.classList.toggle('o4-on',b.getAttribute('data-seg')===seg);});
+      panels.forEach(function(p){p.classList.toggle('o4-on',p.getAttribute('data-panel')===seg);});
+    }
+    segBtns.forEach(function(b){b.addEventListener('click',function(){showSeg(b.getAttribute('data-seg'));if(activeScope)applyFilter(activeScope);});});
+
+    // ---- scope filtering (within attn + all panels) ----
+    var scopeLab={on_track:'On track',needs_attention:'Needs attention',overdue:'Overdue'};
+    function applyFilter(scope){
+      // attn panel
+      var aShown=0;
+      $$('#o4-attn-rows .o4-arow').forEach(function(r){var hit=!scope||r.getAttribute('data-scope')===scope;r.style.display=hit?'':'none';if(hit)aShown++;});
+      var fbA=$('#o4-fb-attn');
+      if(scope&&$('#o4-p-attn').classList.contains('o4-on')){fbA.classList.add('o4-show');$('#o4-fb-attn-txt').textContent='Filtered to '+scopeLab[scope]+' · '+aShown+' shown';}else{fbA.classList.remove('o4-show');}
+      // all panel
+      var cShown=0;
+      $$('#o4-all-rows .o4-crow').forEach(function(r){var hit=!scope||r.getAttribute('data-scope')===scope;r.style.display=hit?'':'none';if(hit)cShown++;});
+      var fbAll=$('#o4-fb-all');
+      if(scope&&$('#o4-p-all').classList.contains('o4-on')){fbAll.classList.add('o4-show');$('#o4-fb-all-txt').textContent='Filtered to '+scopeLab[scope]+' · '+cShown+' shown';}else{fbAll.classList.remove('o4-show');}
+      // tree pills
+      $$('.o4-pill').forEach(function(p){p.classList.toggle('o4-on',p.getAttribute('data-scope')===scope);});
+      // tree rows dim
+      $$('.o4-prow').forEach(function(r){r.style.opacity=(!scope||r.getAttribute('data-scope')===scope)?'1':'.32';});
+      activeScope=scope;
+    }
+    var activeScope=null;
+
+    // clear-filter buttons
+    $$('.o4-filterbar button').forEach(function(btn){btn.addEventListener('click',function(e){e.stopPropagation();applyFilter(null);activeScope=null;});});
+
+    // tree scope pills
+    $$('.o4-pill').forEach(function(p){p.addEventListener('click',function(){var sc=p.getAttribute('data-scope');var next=(activeScope===sc)?null:sc;applyFilter(next);activeScope=next;});});
+
+    // ---- ribbon clickable cells: deep-link to segment + filter ----
+    $$('.o4-cell.o4-clk').forEach(function(c){
+      c.addEventListener('click',function(){
+        var seg=c.getAttribute('data-seg'),scope=c.getAttribute('data-scope');
+        showSeg(seg);
+        applyFilter(scope);activeScope=scope;
+      });
+    });
+
+    // ---- AI button ----
+    $('#o4-ai').addEventListener('click',function(){toast('Generating health narrative…');});
+
+    // completed toggle (chrome)
+    $('.o4-comp').addEventListener('click',function(){$('.o4-comp').classList.toggle('o4-comp-on');});
+  })();</script>
+</article>
+<article class="opt" id="opt5">
+  <div class="opt-head"><span class="opt-num">OPTION 5</span><h2>Status lanes — projects as cards in scope-status columns</h2></div>
+  <p class="opt-tagline">A Kanban board where every project is a card in a scope-status lane, so you see the shape of the portfolio at a glance instead of scrolling two flat lists.</p>
+  <div class="frame">
+    <section class="o5-root">
+      <style>
+        .o5-root{--o5-rail:56px;font-family:'Inter',system-ui,sans-serif;color:var(--on-surface);background:var(--surface-container-low);display:flex;min-height:640px;position:relative;overflow:hidden}
+        .o5-root *{box-sizing:border-box}
+        /* icon rail */
+        .o5-rail{width:var(--o5-rail);flex:0 0 var(--o5-rail);background:var(--surface);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;z-index:3}
+        .o5-logo{width:34px;height:34px;border-radius:10px;background:var(--gradient-brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;margin-bottom:10px;box-shadow:0 4px 12px rgba(124,58,237,.32)}
+        .o5-railbtn{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--on-surface-variant);cursor:pointer;border:none;background:none;transition:background .15s,color .15s}
+        .o5-railbtn:hover{background:var(--surface-container-high);color:var(--on-surface)}
+        .o5-railbtn.o5-on{background:var(--primary-container);color:var(--on-primary-container)}
+        .o5-railbtn svg{width:20px;height:20px}
+        .o5-rail-sp{flex:1}
+        /* main column */
+        .o5-main{flex:1;min-width:0;display:flex;flex-direction:column}
+        /* kpi strip */
+        .o5-kpi{display:flex;align-items:center;gap:14px;padding:13px 20px;background:var(--surface);border-bottom:1px solid var(--outline-variant);flex-wrap:wrap}
+        .o5-kpi-title{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:2px}
+        .o5-kpi-sub{font-size:11.5px;color:var(--on-surface-variant);font-weight:500}
+        .o5-kpi-spacer{flex:1;min-width:8px}
+        .o5-clientsel{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--on-surface-variant);background:var(--surface-container);border:1px solid var(--outline-variant);border-radius:8px;padding:6px 10px;cursor:pointer}
+        .o5-clientsel svg{width:13px;height:13px;opacity:.7}
+        .o5-stat{display:flex;flex-direction:column;line-height:1.15;padding-left:14px;border-left:1px solid var(--outline-variant)}
+        .o5-stat:first-of-type{border-left:none;padding-left:0}
+        .o5-stat-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .o5-stat-l{font-size:10px;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-top:1px}
+        .o5-ai{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--on-primary-container);background:var(--primary-container);border:none;border-radius:999px;padding:7px 13px;cursor:pointer}
+        .o5-ai svg{width:13px;height:13px}
+        .o5-ai:hover{box-shadow:0 4px 12px rgba(124,58,237,.22)}
+        /* board */
+        .o5-board{flex:1;display:flex;gap:14px;padding:16px 20px 20px;overflow-x:auto;overflow-y:hidden;align-items:stretch}
+        .o5-lane{flex:0 0 272px;display:flex;flex-direction:column;min-height:0;background:var(--surface-container);border:1px solid var(--outline-variant);border-radius:14px;transition:flex-basis .25s ease}
+        .o5-lane.o5-collapsed{flex-basis:54px}
+        .o5-lane.o5-collapsed .o5-lane-body,.o5-lane.o5-collapsed .o5-lane-hint{display:none}
+        .o5-lane.o5-dim{opacity:.4}
+        .o5-lane-head{display:flex;align-items:center;gap:9px;padding:12px 13px;cursor:pointer;border-radius:14px 14px 0 0;border-bottom:1px solid var(--outline-variant);user-select:none;position:relative}
+        .o5-lane.o5-collapsed .o5-lane-head{border-bottom:none;writing-mode:vertical-rl;text-orientation:mixed;flex-direction:column;height:100%;border-radius:14px;padding:13px 0}
+        .o5-lane-tick{position:absolute;top:0;left:13px;right:13px;height:3px;border-radius:0 0 3px 3px}
+        .o5-lane.o5-collapsed .o5-lane-tick{top:13px;bottom:13px;left:0;width:3px;height:auto;right:auto;border-radius:0 3px 3px 0}
+        .o5-lane-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+        .o5-lane-name{font-size:12.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+        .o5-lane-count{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;background:var(--surface);border:1px solid var(--outline-variant);border-radius:999px;min-width:24px;height:21px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px}
+        .o5-lane.o5-collapsed .o5-lane-count{margin-top:6px}
+        .o5-lane-chev{margin-left:auto;color:var(--on-surface-variant);display:flex;transition:transform .2s}
+        .o5-lane.o5-collapsed .o5-lane-chev{transform:rotate(-90deg);margin:6px 0 0}
+        .o5-lane-chev svg{width:15px;height:15px}
+        /* lane colour roles */
+        .o5-lane[data-lane="overdue"] .o5-lane-tick{background:var(--error)}
+        .o5-lane[data-lane="overdue"] .o5-lane-dot{background:var(--error)}
+        .o5-lane[data-lane="overdue"] .o5-lane-head{background:var(--error-container)}
+        .o5-lane[data-lane="attention"] .o5-lane-tick{background:var(--amber)}
+        .o5-lane[data-lane="attention"] .o5-lane-dot{background:var(--amber)}
+        .o5-lane[data-lane="attention"] .o5-lane-head{background:var(--amber-soft)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-tick{background:var(--tertiary)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-dot{background:var(--tertiary)}
+        .o5-lane[data-lane="ontrack"] .o5-lane-head{background:var(--tertiary-container)}
+        .o5-lane[data-lane="delivered"] .o5-lane-tick{background:var(--green)}
+        .o5-lane[data-lane="delivered"] .o5-lane-dot{background:var(--green)}
+        .o5-lane[data-lane="delivered"] .o5-lane-head{background:var(--green-soft)}
+        .o5-lane-hint{font-size:10px;color:var(--on-surface-variant);font-weight:500;padding:7px 13px 2px}
+        .o5-lane-body{flex:1;overflow-y:auto;padding:9px 11px 12px;display:flex;flex-direction:column;gap:9px}
+        .o5-lane-body::-webkit-scrollbar{width:7px}
+        .o5-lane-body::-webkit-scrollbar-thumb{background:var(--outline);border-radius:99px}
+        /* card */
+        .o5-card{background:var(--surface);border:1px solid var(--outline-variant);border-radius:11px;padding:10px 11px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04);transition:box-shadow .15s,transform .12s,border-color .15s;position:relative}
+        .o5-card:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);transform:translateY(-1px);border-color:var(--outline)}
+        .o5-card:active{transform:translateY(0)}
+        .o5-card-top{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+        .o5-card-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+        .o5-card-dot.o5-s-overdue{background:var(--error)}
+        .o5-card-dot.o5-s-attention{background:var(--amber)}
+        .o5-card-dot.o5-s-ontrack{background:var(--tertiary)}
+        .o5-card-dot.o5-s-delivered{background:var(--green)}
+        .o5-card-client{font-size:10.5px;color:var(--on-surface-variant);font-weight:600;letter-spacing:.01em}
+        .o5-card-chip{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:999px;background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o5-card-name{font-size:13px;font-weight:700;letter-spacing:-.01em;line-height:1.25;margin-bottom:4px}
+        .o5-card-reason{font-size:11px;color:var(--on-surface-variant);font-style:italic;line-height:1.35}
+        .o5-card-foot{display:flex;align-items:center;gap:5px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--outline-variant);font-size:10px;color:var(--on-surface-variant);font-weight:500}
+        .o5-card-foot svg{width:11px;height:11px;opacity:.7}
+        .o5-card-foot .o5-foot-v{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--on-surface)}
+        .o5-more{text-align:center;font-size:11px;font-weight:600;color:var(--on-primary-container);background:var(--surface-container-high);border:1px dashed var(--outline);border-radius:9px;padding:8px;cursor:pointer}
+        .o5-more:hover{background:var(--surface-container-highest)}
+        /* margin rail (right, the headline business signal pulled up to be visible) */
+        .o5-lane[data-lane="margin"]{flex-basis:248px;background:var(--surface-container-low)}
+        .o5-lane[data-lane="margin"] .o5-lane-head{background:var(--surface-container-high);border-radius:14px 14px 0 0}
+        .o5-lane[data-lane="margin"] .o5-lane-tick{background:var(--gradient-brand)}
+        .o5-lane[data-lane="margin"] .o5-lane-dot{background:var(--primary)}
+        .o5-mrow{display:flex;align-items:center;gap:8px;padding:8px 9px;background:var(--surface);border:1px solid var(--outline-variant);border-radius:10px}
+        .o5-mrag{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+        .o5-mrag.o5-rag-green{background:var(--green)}
+        .o5-mrag.o5-rag-amber{background:var(--amber)}
+        .o5-mrag.o5-rag-red{background:var(--error)}
+        .o5-m-mid{flex:1;min-width:0}
+        .o5-m-client{font-size:12px;font-weight:700;letter-spacing:-.01em}
+        .o5-m-rev{font-size:10px;color:var(--on-surface-variant);font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;margin-top:1px}
+        .o5-m-right{text-align:right;flex:0 0 auto}
+        .o5-m-pct{font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+        .o5-m-vs{font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;margin-top:1px}
+        .o5-m-vs.o5-up{color:var(--green-deep)}
+        .o5-m-vs.o5-down{color:var(--on-error-container)}
+        .o5-m-vs.o5-flat{color:var(--on-surface-variant)}
+        /* snackbar */
+        .o5-snack{position:absolute;left:50%;bottom:18px;transform:translateX(-50%) translateY(14px);background:var(--on-surface);color:var(--surface);font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(76,29,149,.28);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10;display:flex;align-items:center;gap:8px}
+        .o5-snack.o5-show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .o5-snack-dot{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px rgba(168,85,247,.3)}
+      </style>
+
+      <!-- ICON RAIL -->
+      <nav class="o5-rail" aria-label="App navigation">
+        <div class="o5-logo">C</div>
+        <button class="o5-railbtn o5-on" title="Board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="9" rx="1"/></svg></button>
+        <button class="o5-railbtn" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h7l2 2h9v11H3z"/></svg></button>
+        <button class="o5-railbtn" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M21 20a5 5 0 0 0-4-5"/></svg></button>
+        <button class="o5-railbtn" title="Briefs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg></button>
+        <button class="o5-railbtn" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l4-5 3 3 4-6"/></svg></button>
+        <div class="o5-rail-sp"></div>
+        <button class="o5-railbtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+      </nav>
+
+      <!-- MAIN -->
+      <div class="o5-main">
+        <!-- KPI strip -->
+        <header class="o5-kpi">
+          <div>
+            <div class="o5-kpi-title">Operations board</div>
+            <div class="o5-kpi-sub">Tue, 10 Jun 2026 · 21 active projects · 9 clients</div>
+          </div>
+          <button class="o5-clientsel" title="Filter by client (chrome)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+            All clients
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="o5-kpi-spacer"></div>
+          <div class="o5-stat"><span class="o5-stat-v">642h</span><span class="o5-stat-l">Burned · MTD</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">86%</span><span class="o5-stat-l">On-time · 32/37</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">4.2d</span><span class="o5-stat-l">Brief→DFT · 18</span></div>
+          <div class="o5-stat"><span class="o5-stat-v">21</span><span class="o5-stat-l">Active total</span></div>
+          <button class="o5-ai" id="o5-ai">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
+            Health narrative
+          </button>
+        </header>
+
+        <!-- BOARD -->
+        <main class="o5-board" id="o5-board">
+
+          <!-- OVERDUE -->
+          <section class="o5-lane" data-lane="overdue">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Overdue</span>
+              <span class="o5-lane-count" data-count>2</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Past due — act today</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Woolworths — Loyalty App Launch">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-overdue"></span><span class="o5-card-client">Woolworths</span><span class="o5-card-chip">fixed</span></div>
+                <div class="o5-card-name">Loyalty App Launch</div>
+                <div class="o5-card-reason">DFT 6 days past due</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Due <span class="o5-foot-v">−6d</span></div>
+              </article>
+              <article class="o5-card" data-name="Nando's — Winter Menu Push">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-overdue"></span><span class="o5-card-client">Nando's</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Winter Menu Push</div>
+                <div class="o5-card-reason">milestone slipped twice</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Due <span class="o5-foot-v">−2d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- NEEDS ATTENTION -->
+          <section class="o5-lane" data-lane="attention">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Needs attention</span>
+              <span class="o5-lane-count" data-count>3</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Watch this week</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Sasol — Q3 Brand Refresh">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Sasol</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Q3 Brand Refresh</div>
+                <div class="o5-card-reason">3 briefs awaiting scope · oldest 6 days</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H7l-3 3z"/></svg>Last activity <span class="o5-foot-v">6d</span></div>
+              </article>
+              <article class="o5-card" data-name="Discovery — Vitality Always-On">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Discovery</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Vitality Always-On</div>
+                <div class="o5-card-reason">burn 92% · 2 weeks left in cycle</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 1 9 9"/><path d="M12 7v5l3 2"/></svg>Burn <span class="o5-foot-v">92%</span></div>
+              </article>
+              <article class="o5-card" data-name="Capitec — Always-On Social">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-attention"></span><span class="o5-card-client">Capitec</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Always-On Social</div>
+                <div class="o5-card-reason">no activity in 9 days</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H7l-3 3z"/></svg>Last activity <span class="o5-foot-v">9d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- ON TRACK -->
+          <section class="o5-lane" data-lane="ontrack">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">On track</span>
+              <span class="o5-lane-count" data-count>14</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Healthy — no action needed</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Sasol — Retail POS Toolkit">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Sasol</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Retail POS Toolkit</div>
+                <div class="o5-card-reason">on schedule</div>
+              </article>
+              <article class="o5-card" data-name="Woolworths — Festive Catalogue">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Woolworths</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Festive Catalogue</div>
+                <div class="o5-card-reason">in production</div>
+              </article>
+              <article class="o5-card" data-name="Discovery — Health Rewards Email">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Discovery</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Health Rewards Email</div>
+                <div class="o5-card-reason">awaiting client copy</div>
+              </article>
+              <article class="o5-card" data-name="Nando's — Peri Social">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Nando's</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Peri Social</div>
+                <div class="o5-card-reason">scheduled through July</div>
+              </article>
+              <article class="o5-card" data-name="Takealot — Marketplace SEO">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">Takealot</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Marketplace SEO</div>
+                <div class="o5-card-reason">monthly cadence on track</div>
+              </article>
+              <article class="o5-card" data-name="MTN — 5G Awareness">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">MTN</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">5G Awareness</div>
+                <div class="o5-card-reason">brief scoped 2h ago</div>
+              </article>
+              <div class="o5-more" id="o5-more">+8 more on track</div>
+            </div>
+          </section>
+
+          <!-- RECENTLY DELIVERED -->
+          <section class="o5-lane" data-lane="delivered">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Recently delivered</span>
+              <span class="o5-lane-count" data-count>5</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Closed in the last few days</div>
+            <div class="o5-lane-body" data-body>
+              <article class="o5-card" data-name="Takealot — Black Friday Creative">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Takealot</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Black Friday Creative</div>
+                <div class="o5-card-reason">DFT approved today</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">today</span></div>
+              </article>
+              <article class="o5-card" data-name="Standard Bank — Wealth Microsite">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Standard Bank</span><span class="o5-card-chip">fixed</span></div>
+                <div class="o5-card-name">Wealth Microsite</div>
+                <div class="o5-card-reason">quote accepted yesterday</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">1d</span></div>
+              </article>
+              <article class="o5-card" data-name="Clicks — Health Content Hub">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Clicks</span><span class="o5-card-chip">retainer</span></div>
+                <div class="o5-card-name">Health Content Hub</div>
+                <div class="o5-card-reason">12 tasks completed this week</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">2d</span></div>
+              </article>
+              <article class="o5-card" data-name="Tiger Brands — Packaging Refresh">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">Tiger Brands</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Packaging Refresh</div>
+                <div class="o5-card-reason">kickoff Monday</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">3d</span></div>
+              </article>
+              <article class="o5-card" data-name="MTN — Brand Sprint">
+                <div class="o5-card-top"><span class="o5-card-dot o5-s-delivered"></span><span class="o5-card-client">MTN</span><span class="o5-card-chip">project</span></div>
+                <div class="o5-card-name">Brand Sprint</div>
+                <div class="o5-card-reason">signed off &amp; invoiced</div>
+                <div class="o5-card-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Closed <span class="o5-foot-v">4d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- CLIENT MARGIN (pulled up beside the lanes so it isn't buried) -->
+          <section class="o5-lane" data-lane="margin">
+            <div class="o5-lane-head" data-toggle>
+              <span class="o5-lane-tick"></span>
+              <span class="o5-lane-dot"></span>
+              <span class="o5-lane-name">Margin · 30d</span>
+              <span class="o5-lane-count" data-count>6</span>
+              <span class="o5-lane-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></span>
+            </div>
+            <div class="o5-lane-hint">Target 35% · rolling</div>
+            <div class="o5-lane-body" data-body>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">Takealot</div><div class="o5-m-rev">R 510 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">40.0%</div><div class="o5-m-vs o5-up">+5.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">Sasol</div><div class="o5-m-rev">R 388 500 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">40.0%</div><div class="o5-m-vs o5-up">+5.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-amber"></span><div class="o5-m-mid"><div class="o5-m-client">Discovery</div><div class="o5-m-rev">R 412 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">30.6%</div><div class="o5-m-vs o5-down">−4.4pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-green"></span><div class="o5-m-mid"><div class="o5-m-client">MTN</div><div class="o5-m-rev">R 264 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">35.0%</div><div class="o5-m-vs o5-flat">0.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-red"></span><div class="o5-m-mid"><div class="o5-m-client">Capitec</div><div class="o5-m-rev">R 198 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">25.0%</div><div class="o5-m-vs o5-down">−10.0pp</div></div></div>
+              <div class="o5-mrow"><span class="o5-mrag o5-rag-red"></span><div class="o5-m-mid"><div class="o5-m-client">Woolworths</div><div class="o5-m-rev">R 295 000 rev</div></div><div class="o5-m-right"><div class="o5-m-pct">24.0%</div><div class="o5-m-vs o5-down">−11.0pp</div></div></div>
+            </div>
+          </section>
+
+        </main>
+
+        <div class="o5-snack" id="o5-snack"><span class="o5-snack-dot"></span><span id="o5-snack-text">Opening…</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>The portfolio's shape is legible in one glance: the red and amber lanes on the left are short and demand action, the long teal lane reassures, and "recently delivered" gives a sense of momentum — replacing two near-identical flat lists with one spatial mental model. Collapsing a lane lets you mute the noise (e.g. fold "on track" to focus on what's burning), and pulling the margin table up beside the lanes means the headline business signal is never buried below the fold.</p></div>
+    <div><h3>Trade-offs</h3><p>A board trades vertical scanability for horizontal space — on a narrow screen the later lanes scroll off-canvas, and the fixed-height columns cap how many cards are visible before they scroll internally. Cards carry less detail than full rows (no inline scope badge text), and the icon-only rail removes the always-visible client tree, so client-centric navigation now lives behind the filter dropdown rather than in a persistent sidebar.</p></div>
+  </div>
+
+  <script>(function(){
+    var root=document.getElementById('opt5');if(!root)return;
+    var board=root.querySelector('#o5-board');
+    var snack=root.querySelector('#o5-snack');
+    var snackText=root.querySelector('#o5-snack-text');
+    var snackTimer=null;
+    function toast(msg){
+      snackText.textContent=msg;
+      snack.classList.add('o5-show');
+      if(snackTimer)clearTimeout(snackTimer);
+      snackTimer=setTimeout(function(){snack.classList.remove('o5-show');},1900);
+    }
+    // live lane counts (counts real cards, excludes the +more chip)
+    function refreshCounts(){
+      root.querySelectorAll('.o5-lane').forEach(function(lane){
+        var ln=lane.getAttribute('data-lane');
+        if(ln==='margin')return; // static count
+        var cnt=lane.querySelector('[data-count]');
+        if(!cnt)return;
+        var cards=lane.querySelectorAll('.o5-lane-body .o5-card').length;
+        if(ln==='ontrack'){
+          var hidden=lane.querySelector('#o5-more')?8:0;
+          cnt.textContent=cards+hidden;
+        }else{
+          cnt.textContent=cards;
+        }
+      });
+    }
+    // lane collapse/expand
+    root.querySelectorAll('.o5-lane-head[data-toggle]').forEach(function(head){
+      head.addEventListener('click',function(){
+        var lane=head.closest('.o5-lane');
+        lane.classList.toggle('o5-collapsed');
+        var nm=lane.querySelector('.o5-lane-name').textContent;
+        toast(lane.classList.contains('o5-collapsed')?('Collapsed '+nm):('Expanded '+nm));
+      });
+    });
+    // card click -> snackbar
+    board.addEventListener('click',function(e){
+      var card=e.target.closest('.o5-card');
+      if(card){ toast('Opening '+card.getAttribute('data-name')+'…'); return; }
+    });
+    // +more chip reveals the remaining on-track cards
+    var more=root.querySelector('#o5-more');
+    if(more){
+      more.addEventListener('click',function(e){
+        e.stopPropagation();
+        var body=more.parentNode;
+        var extra=[
+          ['Standard Bank','Wealth Microsite Phase 2','fixed','quote accepted yesterday'],
+          ['Clicks','Loyalty Mailer','retainer','12 tasks completed this week'],
+          ['Tiger Brands','Seasonal OOH','project','kickoff Monday'],
+          ['Capitec','App Store Creative','project','in design review'],
+          ['Sasol','Internal Comms Pack','retainer','on schedule'],
+          ['Discovery','Member Onboarding','retainer','drafting flows'],
+          ['MTN','Retail Activation','project','asset round 2'],
+          ['Woolworths','Loyalty Emails','retainer','queued for send']
+        ];
+        var frag=document.createDocumentFragment();
+        extra.forEach(function(r){
+          var c=document.createElement('article');
+          c.className='o5-card';
+          c.setAttribute('data-name',r[0]+' — '+r[1]);
+          c.innerHTML='<div class="o5-card-top"><span class="o5-card-dot o5-s-ontrack"></span><span class="o5-card-client">'+r[0]+'</span><span class="o5-card-chip">'+r[2]+'</span></div><div class="o5-card-name">'+r[1]+'</div><div class="o5-card-reason">'+r[3]+'</div>';
+          frag.appendChild(c);
+        });
+        body.appendChild(frag);
+        more.remove();
+        refreshCounts();
+        toast('Showing all on-track projects');
+      });
+    }
+    // AI affordance (chrome)
+    var ai=root.querySelector('#o5-ai');
+    if(ai)ai.addEventListener('click',function(){toast('Generating health narrative…');});
+    refreshCounts();
+  })();</script>
+</article>
+<article class="opt" id="opt6">
+  <div class="opt-head"><span class="opt-num">OPTION 6</span><h2>Scoreboard + unified table — hero KPIs over one sortable index</h2></div>
+  <p class="opt-tagline">A bold portfolio-health scoreboard answers "are we healthy?" in one glance, then a single sortable, filterable table replaces both flat lists and the tree as the project index.</p>
+  <div class="frame">
+    <section class="o6-root">
+      <style>
+        .o6-root{display:flex;min-height:660px;background:var(--surface-container-low);color:var(--on-surface);font-family:'Inter',system-ui,sans-serif;border-radius:14px;overflow:hidden}
+        .o6-root *{box-sizing:border-box}
+        /* icon rail */
+        .o6-rail{width:56px;flex:0 0 56px;background:var(--surface);border-right:1px solid var(--outline-variant);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px}
+        .o6-logo{width:32px;height:32px;border-radius:9px;background:var(--gradient-brand);margin-bottom:10px}
+        .o6-ric{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--on-surface-variant);cursor:pointer;transition:.15s}
+        .o6-ric:hover{background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o6-ric.o6-on{background:var(--primary-container);color:var(--on-primary-container)}
+        .o6-ric svg{width:20px;height:20px}
+        .o6-spacer{flex:1}
+        .o6-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface-container-highest);color:var(--on-primary-container);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+        /* main */
+        .o6-main{flex:1;min-width:0;overflow-y:auto;padding:22px 26px 30px}
+        .o6-top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+        .o6-h1{font-size:21px;font-weight:700;letter-spacing:-.01em}
+        .o6-sub{font-size:13px;color:var(--on-surface-variant);margin-top:3px}
+        .o6-ai{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--on-primary-container);background:var(--surface-container-high);border:1px solid var(--outline);padding:8px 13px;border-radius:999px;cursor:pointer;transition:.15s}
+        .o6-ai:hover{box-shadow:0 8px 24px rgba(76,29,149,.12);transform:translateY(-1px)}
+        .o6-ai svg{width:14px;height:14px}
+        /* scoreboard hero */
+        .o6-hero{background:var(--surface);border:1px solid var(--outline-variant);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;margin-bottom:20px}
+        .o6-hero-grad{height:4px;background:var(--gradient-brand)}
+        .o6-hero-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:0}
+        @media(max-width:880px){.o6-hero-grid{grid-template-columns:1fr}}
+        .o6-hero-l{padding:22px 24px}
+        .o6-hero-headline{display:flex;align-items:baseline;gap:12px;margin-bottom:4px}
+        .o6-big{font-size:42px;font-weight:800;letter-spacing:-.025em;line-height:1;font-family:'JetBrains Mono',monospace}
+        .o6-big-sub{font-size:14px;color:var(--on-surface-variant);font-weight:600}
+        .o6-pct{font-size:15px;font-weight:700;color:var(--tertiary)}
+        .o6-bar{display:flex;height:18px;border-radius:999px;overflow:hidden;margin:16px 0 11px;background:var(--surface-container);box-shadow:inset 0 0 0 1px var(--outline-variant)}
+        .o6-seg{height:100%;transition:.2s}
+        .o6-seg-g{background:var(--tertiary)}
+        .o6-seg-a{background:var(--amber)}
+        .o6-seg-r{background:var(--error)}
+        .o6-legend{display:flex;gap:18px;flex-wrap:wrap}
+        .o6-leg{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--on-surface-variant)}
+        .o6-leg b{color:var(--on-surface);font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+        .o6-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+        .o6-d-g{background:var(--tertiary)}.o6-d-a{background:var(--amber)}.o6-d-r{background:var(--error)}
+        /* hero right: KPI stat row */
+        .o6-hero-r{border-left:1px solid var(--outline-variant);background:var(--surface-container-low);display:grid;grid-template-columns:1fr 1fr;gap:1px;background-color:var(--outline-variant)}
+        @media(max-width:880px){.o6-hero-r{border-left:none;border-top:1px solid var(--outline-variant)}}
+        .o6-kpi{background:var(--surface);padding:14px 18px;display:flex;flex-direction:column;gap:2px}
+        .o6-kpi-v{font-size:22px;font-weight:800;letter-spacing:-.02em;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+        .o6-kpi-l{font-size:11.5px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+        .o6-kpi-m{font-size:11px;color:var(--on-surface-variant);margin-top:1px}
+        .o6-kpi-m.o6-warn{color:var(--amber-deep);font-weight:600}
+        /* filter bar */
+        .o6-filterbar{display:flex;align-items:center;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+        .o6-fb-label{font-size:12px;font-weight:700;color:var(--on-surface-variant);text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+        .o6-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--on-surface-variant);background:var(--surface);border:1px solid var(--outline-variant);padding:6px 12px;border-radius:999px;cursor:pointer;transition:.13s;user-select:none}
+        .o6-chip:hover{border-color:var(--outline);background:var(--surface-container-low)}
+        .o6-chip.o6-on{background:var(--primary-container);border-color:var(--primary);color:var(--on-primary-container);box-shadow:0 1px 2px rgba(76,29,149,.12)}
+        .o6-chip .o6-ct{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:11.5px;background:var(--surface-container);border-radius:999px;padding:1px 7px}
+        .o6-chip.o6-on .o6-ct{background:rgba(255,255,255,.6)}
+        .o6-chip .o6-dot{width:8px;height:8px}
+        /* table */
+        .o6-tablewrap{background:var(--surface);border:1px solid var(--outline-variant);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden}
+        .o6-tbl{width:100%;border-collapse:collapse;font-size:13px}
+        .o6-tbl thead th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant);padding:11px 16px;border-bottom:1px solid var(--outline-variant);background:var(--surface-container-low);cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0}
+        .o6-tbl thead th:hover{color:var(--on-primary-container)}
+        .o6-tbl th.o6-num,.o6-tbl td.o6-num{text-align:right}
+        .o6-th-in{display:inline-flex;align-items:center;gap:5px}
+        .o6-caret{width:0;height:0;opacity:0;transition:.15s;border-left:4px solid transparent;border-right:4px solid transparent}
+        th.o6-sorted-asc .o6-caret{opacity:1;border-bottom:5px solid var(--primary)}
+        th.o6-sorted-desc .o6-caret{opacity:1;border-top:5px solid var(--primary)}
+        th.o6-sorted-asc,th.o6-sorted-desc{color:var(--on-primary-container)}
+        .o6-tbl tbody tr{border-bottom:1px solid var(--outline-variant);cursor:pointer;transition:background .12s}
+        .o6-tbl tbody tr:last-child{border-bottom:none}
+        .o6-tbl tbody tr:hover{background:var(--surface-container-low)}
+        .o6-tbl tbody tr.o6-sel{background:var(--surface-container-high)}
+        .o6-tbl td{padding:11px 16px;vertical-align:middle}
+        .o6-stat{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+        .o6-stat-lab{font-size:12px;font-weight:600}
+        .o6-st-g{color:var(--tertiary)}.o6-st-a{color:var(--amber-deep)}.o6-st-r{color:var(--error)}
+        .o6-cp{display:flex;flex-direction:column;gap:1px}
+        .o6-cp-c{font-size:11px;color:var(--on-surface-variant);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+        .o6-cp-p{font-size:13.5px;font-weight:600;color:var(--on-surface);letter-spacing:-.005em}
+        .o6-eng{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 9px;border-radius:999px;background:var(--surface-container-high);color:var(--on-primary-container)}
+        .o6-note{font-size:12px;color:var(--on-surface-variant);font-style:italic;max-width:260px}
+        .o6-last{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--on-surface);white-space:nowrap}
+        .o6-margin-pill{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;padding:2px 9px;border-radius:8px}
+        .o6-mp-g{background:var(--green-soft);color:var(--green-deep)}
+        .o6-mp-a{background:var(--amber-soft);color:var(--amber-deep)}
+        .o6-mp-r{background:var(--error-container);color:var(--on-error-container)}
+        .o6-empty{padding:30px;text-align:center;color:var(--on-surface-variant);font-size:13px}
+        .o6-count{font-size:12px;color:var(--on-surface-variant);padding:9px 16px;border-top:1px solid var(--outline-variant);background:var(--surface-container-low);font-variant-numeric:tabular-nums}
+        /* snackbar */
+        .o6-snack{position:absolute;left:50%;bottom:22px;transform:translateX(-50%) translateY(16px);background:var(--on-surface);color:var(--surface);font-size:13px;font-weight:600;padding:11px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(76,29,149,.28);opacity:0;pointer-events:none;transition:.22s;z-index:20;white-space:nowrap}
+        .o6-snack.o6-show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .o6-root{position:relative}
+      </style>
+
+      <!-- icon rail -->
+      <nav class="o6-rail" aria-label="App navigation">
+        <div class="o6-logo"></div>
+        <div class="o6-ric o6-on" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></div>
+        <div class="o6-ric" title="Projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div>
+        <div class="o6-ric" title="Clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M19 20a5 5 0 0 0-3-4.6"/></svg></div>
+        <div class="o6-ric" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <div class="o6-ric" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+        <div class="o6-spacer"></div>
+        <div class="o6-avatar">CC</div>
+      </nav>
+
+      <!-- main pane -->
+      <main class="o6-main">
+        <div class="o6-top">
+          <div>
+            <div class="o6-h1">Operations overview</div>
+            <div class="o6-sub">Tuesday, 10 June 2026 · 21 active projects across 9 clients</div>
+          </div>
+          <button class="o6-ai" type="button" data-o6-ai><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Generate health narrative</button>
+        </div>
+
+        <!-- HERO SCOREBOARD -->
+        <div class="o6-hero">
+          <div class="o6-hero-grad"></div>
+          <div class="o6-hero-grid">
+            <div class="o6-hero-l">
+              <div class="o6-hero-headline">
+                <span class="o6-big">21</span>
+                <span class="o6-big-sub">active projects · <span class="o6-pct">67% on track</span></span>
+              </div>
+              <div class="o6-bar" role="img" aria-label="14 on track, 5 need attention, 2 overdue">
+                <div class="o6-seg o6-seg-g" style="width:66.7%"></div>
+                <div class="o6-seg o6-seg-a" style="width:23.8%"></div>
+                <div class="o6-seg o6-seg-r" style="width:9.5%"></div>
+              </div>
+              <div class="o6-legend">
+                <span class="o6-leg"><span class="o6-dot o6-d-g"></span>On track <b>14</b></span>
+                <span class="o6-leg"><span class="o6-dot o6-d-a"></span>Needs attention <b>5</b></span>
+                <span class="o6-leg"><span class="o6-dot o6-d-r"></span>Overdue <b>2</b></span>
+              </div>
+            </div>
+            <div class="o6-hero-r">
+              <div class="o6-kpi"><span class="o6-kpi-v">642h</span><span class="o6-kpi-l">Burned this month</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">86%</span><span class="o6-kpi-l">On-time delivery</span><span class="o6-kpi-m">32 of 37 milestones</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">4.2d</span><span class="o6-kpi-l">Avg brief → DFT</span><span class="o6-kpi-m">across 18 projects</span></div>
+              <div class="o6-kpi"><span class="o6-kpi-v">34%</span><span class="o6-kpi-l">Avg margin</span><span class="o6-kpi-m o6-warn">1pp below 35% target</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="o6-filterbar" data-o6-filters>
+          <span class="o6-fb-label">Show</span>
+          <span class="o6-chip o6-on" data-o6-filter="all">All <span class="o6-ct">21</span></span>
+          <span class="o6-chip" data-o6-filter="on_track"><span class="o6-dot o6-d-g"></span>On track <span class="o6-ct">14</span></span>
+          <span class="o6-chip" data-o6-filter="needs_attention"><span class="o6-dot o6-d-a"></span>Needs attention <span class="o6-ct">5</span></span>
+          <span class="o6-chip" data-o6-filter="overdue"><span class="o6-dot o6-d-r"></span>Overdue <span class="o6-ct">2</span></span>
+        </div>
+
+        <!-- UNIFIED TABLE -->
+        <div class="o6-tablewrap">
+          <table class="o6-tbl">
+            <thead>
+              <tr>
+                <th data-o6-sort="status"><span class="o6-th-in">Status<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="name"><span class="o6-th-in">Client / Project<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="eng"><span class="o6-th-in">Engagement<span class="o6-caret"></span></span></th>
+                <th data-o6-sort="note"><span class="o6-th-in">Note<span class="o6-caret"></span></span></th>
+                <th class="o6-num" data-o6-sort="last"><span class="o6-th-in">Last activity / margin<span class="o6-caret"></span></span></th>
+              </tr>
+            </thead>
+            <tbody data-o6-body></tbody>
+          </table>
+          <div class="o6-count" data-o6-count></div>
+        </div>
+      </main>
+
+      <div class="o6-snack" data-o6-snack></div>
+    </section>
+  </div>
+  <div class="opt-notes">
+    <div><h3>Why it's better</h3><p>The scoreboard hero gives an instant portfolio verdict — the segmented bar and "21 active · 67% on track" headline make health legible before you read a single row, with the four supporting KPIs (including margin, surfaced from its buried table) tidied beside it. One unified, sortable, filterable table then replaces the two near-identical flat lists <em>and</em> the tree: attention, recent and on-track projects live in a single dense index you can re-rank by status, name, engagement or activity. Far less scroll, far more answer-per-pixel.</p></div>
+    <div><h3>Trade-offs</h3><p>Dropping the project tree removes the always-on client grouping and the per-client expand/collapse muscle memory; heavy multi-client users lose that spatial map (a Clients view in the rail compensates). The single table mixes "needs action" and "all good" rows, so urgency depends on the user actually filtering or sorting rather than it being pre-segmented. The margin signal shares a column with last-activity, so it reads as a secondary cell rather than its own RAG table.</p></div>
+  </div>
+  <script>(function(){
+    var root=document.getElementById('opt6');if(!root)return;
+    var body=root.querySelector('[data-o6-body]');
+    var countEl=root.querySelector('[data-o6-count]');
+    var snack=root.querySelector('[data-o6-snack]');
+    var statusOrder={overdue:0,needs_attention:1,on_track:2};
+    var rows=[
+      // 5 needs attention
+      {status:'needs_attention',client:'Sasol',project:'Q3 Brand Refresh',eng:'retainer',note:'3 briefs awaiting scope · oldest 6 days',last:'2h ago',lastV:2,margin:40.0,rag:'g'},
+      {status:'overdue',client:'Woolworths',project:'Loyalty App Launch',eng:'fixed',note:'DFT 6 days past due',last:'6d ago',lastV:144,margin:24.0,rag:'r'},
+      {status:'needs_attention',client:'Discovery',project:'Vitality Always-On',eng:'retainer',note:'burn 92% · 2 weeks left in cycle',last:'1d ago',lastV:24,margin:30.6,rag:'a'},
+      {status:'overdue',client:"Nando's",project:'Winter Menu Push',eng:'project',note:'milestone slipped twice',last:'3d ago',lastV:72,margin:null,rag:null},
+      {status:'needs_attention',client:'Capitec',project:'Always-On Social',eng:'retainer',note:'no activity in 9 days',last:'9d ago',lastV:216,margin:25.0,rag:'r'},
+      // 5 recent (on track)
+      {status:'on_track',client:'Takealot',project:'Black Friday Creative',eng:'project',note:'DFT approved today',last:'1h ago',lastV:1,margin:40.0,rag:'g'},
+      {status:'on_track',client:'MTN',project:'5G Awareness',eng:'retainer',note:'brief scoped 2h ago',last:'2h ago',lastV:2,margin:35.0,rag:'g'},
+      {status:'on_track',client:'Standard Bank',project:'Wealth Microsite',eng:'fixed',note:'quote accepted yesterday',last:'1d ago',lastV:24,margin:null,rag:null},
+      {status:'on_track',client:'Clicks',project:'Health Content Hub',eng:'retainer',note:'12 tasks completed this week',last:'5h ago',lastV:5,margin:null,rag:null},
+      {status:'on_track',client:'Tiger Brands',project:'Packaging Refresh',eng:'project',note:'kickoff Monday',last:'4d ago',lastV:96,margin:null,rag:null},
+      // extra on-track from the tree
+      {status:'on_track',client:'Sasol',project:'Retail POS Toolkit',eng:'retainer',note:'on schedule',last:'1d ago',lastV:24,margin:40.0,rag:'g'},
+      {status:'on_track',client:'Takealot',project:'Marketplace SEO',eng:'retainer',note:'sprint on track',last:'6h ago',lastV:6,margin:40.0,rag:'g'}
+    ];
+    var stClass={on_track:'o6-st-g',needs_attention:'o6-st-a',overdue:'o6-st-r'};
+    var stDot={on_track:'o6-d-g',needs_attention:'o6-d-a',overdue:'o6-d-r'};
+    var stLabel={on_track:'On track',needs_attention:'Attention',overdue:'Overdue'};
+    var ragClass={g:'o6-mp-g',a:'o6-mp-a',r:'o6-mp-r'};
+    var filter='all',sortKey=null,sortDir=1;
+
+    function snackbar(msg){snack.textContent=msg;snack.classList.add('o6-show');clearTimeout(snack._t);snack._t=setTimeout(function(){snack.classList.remove('o6-show');},2200);}
+
+    function compare(a,b){
+      var av,bv;
+      if(sortKey==='status'){av=statusOrder[a.status];bv=statusOrder[b.status];}
+      else if(sortKey==='name'){av=(a.client+a.project).toLowerCase();bv=(b.client+b.project).toLowerCase();}
+      else if(sortKey==='eng'){av=a.eng;bv=b.eng;}
+      else if(sortKey==='note'){av=a.note.toLowerCase();bv=b.note.toLowerCase();}
+      else if(sortKey==='last'){av=a.lastV;bv=b.lastV;}
+      if(av<bv)return -1*sortDir;if(av>bv)return 1*sortDir;return 0;
+    }
+
+    function render(){
+      var list=rows.filter(function(r){return filter==='all'||r.status===filter;});
+      if(sortKey)list=list.slice().sort(compare);
+      body.innerHTML='';
+      if(!list.length){var er=document.createElement('tr');er.innerHTML='<td colspan="5" class="o6-empty">No projects match this filter.</td>';body.appendChild(er);}
+      list.forEach(function(r){
+        var tr=document.createElement('tr');
+        var rightCell;
+        if(r.margin!=null){rightCell='<span class="o6-margin-pill '+ragClass[r.rag]+'">'+r.margin.toFixed(1)+'%</span>';}
+        else{rightCell='<span class="o6-last">'+r.last+'</span>';}
+        tr.innerHTML=
+          '<td><span class="o6-stat"><span class="o6-dot '+stDot[r.status]+'"></span><span class="o6-stat-lab '+stClass[r.status]+'">'+stLabel[r.status]+'</span></span></td>'+
+          '<td><span class="o6-cp"><span class="o6-cp-c">'+r.client+'</span><span class="o6-cp-p">'+r.project+'</span></span></td>'+
+          '<td><span class="o6-eng">'+r.eng+'</span></td>'+
+          '<td><span class="o6-note">'+r.note+'</span></td>'+
+          '<td class="o6-num">'+rightCell+'</td>';
+        tr.addEventListener('click',function(){
+          body.querySelectorAll('tr').forEach(function(x){x.classList.remove('o6-sel');});
+          tr.classList.add('o6-sel');
+          snackbar('Opening '+r.client+' — '+r.project+'…');
+        });
+        body.appendChild(tr);
+      });
+      var total=rows.length;
+      countEl.textContent='Showing '+list.length+' of '+total+' projects'+(filter!=='all'?' · filtered':'')+(sortKey?' · sorted by '+sortKey:'');
+    }
+
+    // filter chips
+    root.querySelectorAll('[data-o6-filter]').forEach(function(chip){
+      chip.addEventListener('click',function(){
+        var f=chip.getAttribute('data-o6-filter');
+        if(filter===f&&f!=='all'){filter='all';}else{filter=f;}
+        root.querySelectorAll('[data-o6-filter]').forEach(function(c){c.classList.toggle('o6-on',c.getAttribute('data-o6-filter')===filter);});
+        render();
+      });
+    });
+
+    // sortable headers
+    root.querySelectorAll('[data-o6-sort]').forEach(function(th){
+      th.addEventListener('click',function(){
+        var k=th.getAttribute('data-o6-sort');
+        if(sortKey===k){sortDir=-sortDir;}else{sortKey=k;sortDir=1;}
+        root.querySelectorAll('[data-o6-sort]').forEach(function(t){t.classList.remove('o6-sorted-asc','o6-sorted-desc');});
+        th.classList.add(sortDir===1?'o6-sorted-asc':'o6-sorted-desc');
+        render();
+      });
+    });
+
+    root.querySelector('[data-o6-ai]').addEventListener('click',function(){snackbar('Generating health narrative…');});
+
+    render();
+  })();</script>
+</article>
+</div><!-- /.shell -->
+<script>
+/* ---- populate the current-state recreation ---- */
+(function(){
+  var tree=[
+    ["Sasol",[["Q3 Brand Refresh","amber"],["Retail POS Toolkit","green"]]],
+    ["Woolworths",[["Loyalty App Launch","red"],["Festive Catalogue","green"]]],
+    ["Discovery",[["Vitality Always-On","amber"],["Health Rewards Email","green"]]],
+    ["Nando's",[["Winter Menu Push","red"],["Peri Social","green"]]],
+    ["Capitec",[["Always-On Social","amber"]]],
+    ["Takealot",[["Black Friday Creative","green"],["Marketplace SEO","green"]]],
+    ["MTN",[["5G Awareness","green"]]],
+    ["Standard Bank",[["Wealth Microsite","green"]]],
+    ["Clicks",[["Health Content Hub","green"]]],
+    ["Tiger Brands",[["Packaging Refresh","green"]]]
+  ];
+  var dotc={green:"var(--tertiary)",amber:"var(--amber)",red:"var(--error)"};
+  var chev='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg>';
+  var t=document.getElementById('curtree'); if(t){ t.innerHTML=tree.map(function(c){
+    return '<div class="cur-cgroup"><div class="cur-cg-hd">'+chev+'<span>'+c[0]+'</span></div>'+
+      c[1].map(function(p){return '<div class="cur-prow"><span class="cur-dot" style="background:'+dotc[p[1]]+'"></span><span class="nm">'+p[0]+'</span></div>';}).join('')+'</div>';
+  }).join(''); }
+
+  var attn=[
+    ["Sasol","Q3 Brand Refresh","retainer","amber","Needs attention","3 briefs awaiting scope · oldest 6 days"],
+    ["Woolworths","Loyalty App Launch","fixed","red","Overdue","DFT 6 days past due"],
+    ["Discovery","Vitality Always-On","retainer","amber","Needs attention","burn 92% · 2 weeks left in cycle"],
+    ["Nando's","Winter Menu Push","project","red","Overdue","milestone slipped twice"],
+    ["Capitec","Always-On Social","retainer","amber","Needs attention","no activity in 9 days"]
+  ];
+  var recent=[
+    ["Takealot","Black Friday Creative","project","green","On track","DFT approved today"],
+    ["MTN","5G Awareness","retainer","green","On track","brief scoped 2h ago"],
+    ["Standard Bank","Wealth Microsite","fixed","green","On track","quote accepted yesterday"],
+    ["Clicks","Health Content Hub","retainer","green","On track","12 tasks completed this week"],
+    ["Tiger Brands","Packaging Refresh","project","green","On track","kickoff Monday"]
+  ];
+  function liHtml(r){return '<div class="cur-li"><span class="cur-dot" style="background:'+dotc[r[3]]+'"></span>'+
+    '<span class="nm"><span class="cl">'+r[0]+' — </span><b>'+r[1]+'</b><span class="rsn">'+r[5]+'</span></span>'+
+    '<span class="cur-badge '+r[3]+'">'+r[4]+'</span><span class="cur-eng">'+r[2]+'</span></div>';}
+  var a=document.getElementById('curattn'); if(a) a.innerHTML=attn.map(liHtml).join('');
+  var rc=document.getElementById('currecent'); if(rc) rc.innerHTML=recent.map(liHtml).join('');
+
+  var margin=[
+    ["Takealot","R 510 000","R 306 000","40.0%","+5.0pp","green"],
+    ["Sasol","R 388 500","R 233 100","40.0%","+5.0pp","green"],
+    ["Discovery","R 412 000","R 286 000","30.6%","−4.4pp","amber"],
+    ["MTN","R 264 000","R 171 600","35.0%","0.0pp","green"],
+    ["Capitec","R 198 000","R 148 500","25.0%","−10.0pp","red"],
+    ["Woolworths","R 295 000","R 224 200","24.0%","−11.0pp","red"]
+  ];
+  var m=document.getElementById('curmargin'); if(m) m.innerHTML=margin.map(function(r){
+    return '<tr><td><span class="cur-dot" style="display:inline-block;margin-right:7px;background:'+dotc[r[5]]+'"></span>'+r[0]+
+      '</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td style="font-weight:600">'+r[3]+'</td><td style="color:var(--on-surface-variant)">'+r[4]+'</td></tr>';
+  }).join('');
+})();
+
+/* ---- jumpnav scroll-spy ---- */
+(function(){
+  var links=Array.prototype.slice.call(document.querySelectorAll('.jumpnav a'));
+  var map={}; links.forEach(function(l){ map[l.getAttribute('href').slice(1)]=l; });
+  var obs=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ links.forEach(function(l){l.classList.remove('active');}); var t=map[e.target.id]; if(t&&!t.classList.contains('cur')) t.classList.add('active'); } });
+  },{rootMargin:"-45% 0px -50% 0px"});
+  document.querySelectorAll('article.opt').forEach(function(a){obs.observe(a);});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+</div><!-- /.shell -->
+<script>
+/* ---- populate the current-state recreation ---- */
+(function(){
+  var tree=[
+    ["Sasol",[["Q3 Brand Refresh","amber"],["Retail POS Toolkit","green"]]],
+    ["Woolworths",[["Loyalty App Launch","red"],["Festive Catalogue","green"]]],
+    ["Discovery",[["Vitality Always-On","amber"],["Health Rewards Email","green"]]],
+    ["Nando's",[["Winter Menu Push","red"],["Peri Social","green"]]],
+    ["Capitec",[["Always-On Social","amber"]]],
+    ["Takealot",[["Black Friday Creative","green"],["Marketplace SEO","green"]]],
+    ["MTN",[["5G Awareness","green"]]],
+    ["Standard Bank",[["Wealth Microsite","green"]]],
+    ["Clicks",[["Health Content Hub","green"]]],
+    ["Tiger Brands",[["Packaging Refresh","green"]]]
+  ];
+  var dotc={green:"var(--tertiary)",amber:"var(--amber)",red:"var(--error)"};
+  var chev='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg>';
+  var t=document.getElementById('curtree'); if(t){ t.innerHTML=tree.map(function(c){
+    return '<div class="cur-cgroup"><div class="cur-cg-hd">'+chev+'<span>'+c[0]+'</span></div>'+
+      c[1].map(function(p){return '<div class="cur-prow"><span class="cur-dot" style="background:'+dotc[p[1]]+'"></span><span class="nm">'+p[0]+'</span></div>';}).join('')+'</div>';
+  }).join(''); }
+
+  var attn=[
+    ["Sasol","Q3 Brand Refresh","retainer","amber","Needs attention","3 briefs awaiting scope · oldest 6 days"],
+    ["Woolworths","Loyalty App Launch","fixed","red","Overdue","DFT 6 days past due"],
+    ["Discovery","Vitality Always-On","retainer","amber","Needs attention","burn 92% · 2 weeks left in cycle"],
+    ["Nando's","Winter Menu Push","project","red","Overdue","milestone slipped twice"],
+    ["Capitec","Always-On Social","retainer","amber","Needs attention","no activity in 9 days"]
+  ];
+  var recent=[
+    ["Takealot","Black Friday Creative","project","green","On track","DFT approved today"],
+    ["MTN","5G Awareness","retainer","green","On track","brief scoped 2h ago"],
+    ["Standard Bank","Wealth Microsite","fixed","green","On track","quote accepted yesterday"],
+    ["Clicks","Health Content Hub","retainer","green","On track","12 tasks completed this week"],
+    ["Tiger Brands","Packaging Refresh","project","green","On track","kickoff Monday"]
+  ];
+  function liHtml(r){return '<div class="cur-li"><span class="cur-dot" style="background:'+dotc[r[3]]+'"></span>'+
+    '<span class="nm"><span class="cl">'+r[0]+' — </span><b>'+r[1]+'</b><span class="rsn">'+r[5]+'</span></span>'+
+    '<span class="cur-badge '+r[3]+'">'+r[4]+'</span><span class="cur-eng">'+r[2]+'</span></div>';}
+  var a=document.getElementById('curattn'); if(a) a.innerHTML=attn.map(liHtml).join('');
+  var rc=document.getElementById('currecent'); if(rc) rc.innerHTML=recent.map(liHtml).join('');
+
+  var margin=[
+    ["Takealot","R 510 000","R 306 000","40.0%","+5.0pp","green"],
+    ["Sasol","R 388 500","R 233 100","40.0%","+5.0pp","green"],
+    ["Discovery","R 412 000","R 286 000","30.6%","−4.4pp","amber"],
+    ["MTN","R 264 000","R 171 600","35.0%","0.0pp","green"],
+    ["Capitec","R 198 000","R 148 500","25.0%","−10.0pp","red"],
+    ["Woolworths","R 295 000","R 224 200","24.0%","−11.0pp","red"]
+  ];
+  var m=document.getElementById('curmargin'); if(m) m.innerHTML=margin.map(function(r){
+    return '<tr><td><span class="cur-dot" style="display:inline-block;margin-right:7px;background:'+dotc[r[5]]+'"></span>'+r[0]+
+      '</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td style="font-weight:600">'+r[3]+'</td><td style="color:var(--on-surface-variant)">'+r[4]+'</td></tr>';
+  }).join('');
+})();
+
+/* ---- jumpnav scroll-spy ---- */
+(function(){
+  var links=Array.prototype.slice.call(document.querySelectorAll('.jumpnav a'));
+  var map={}; links.forEach(function(l){ map[l.getAttribute('href').slice(1)]=l; });
+  var obs=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ links.forEach(function(l){l.classList.remove('active');}); var t=map[e.target.id]; if(t&&!t.classList.contains('cur')) t.classList.add('active'); } });
+  },{rootMargin:"-45% 0px -50% 0px"});
+  document.querySelectorAll('article.opt').forEach(function(a){obs.observe(a);});
+})();
+</script>
+</body>
+</html>
