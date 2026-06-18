@@ -15,17 +15,20 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
-  const results = useMemo(() => {
+  const LIMIT = 50;
+  const { results, matchCount } = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return services
+    const matched = services
       .filter((s) => !excludeIds.has(s.id))
       .filter((s) => {
         if (!q) return true;
         const hay = `${s.name} ${s.code ?? ""}`.toLowerCase();
         return hay.includes(q);
-      })
-      .slice(0, 20);
+      });
+    return { results: matched.slice(0, LIMIT), matchCount: matched.length };
   }, [services, query, excludeIds]);
+
+  const truncated = matchCount > results.length;
 
   return (
     <div className="relative">
@@ -60,6 +63,11 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
               </Button>
             </li>
           ))}
+          {truncated && (
+            <li className="sticky bottom-0 border-t bg-popover px-3 py-1.5 text-xs text-muted-foreground">
+              Showing first {results.length} of {matchCount} — keep typing to narrow
+            </li>
+          )}
         </ul>
       )}
       {open && !isLoading && results.length === 0 && query.trim() && (

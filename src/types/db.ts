@@ -1343,6 +1343,7 @@ export type Database = {
           recorded_at: string
           status_at_sync: string | null
           synced_at: string
+          task_name: string | null
           time_entries: Json | null
         }
         Insert: {
@@ -1356,6 +1357,7 @@ export type Database = {
           recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
+          task_name?: string | null
           time_entries?: Json | null
         }
         Update: {
@@ -1369,6 +1371,7 @@ export type Database = {
           recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
+          task_name?: string | null
           time_entries?: Json | null
         }
         Relationships: [
@@ -2562,6 +2565,7 @@ export type Database = {
           recorded_at: string | null
           status_at_sync: string | null
           synced_at: string | null
+          task_name: string | null
           time_entries: Json | null
         }
         Relationships: [

@@ -12,6 +12,8 @@ import { useServices } from "@/hooks/useServices";
 import { useTeam } from "@/hooks/useTeam";
 import { useCreateRetainer } from "@/hooks/useCreateRetainer";
 import type { CreateRetainerInput } from "@/hooks/useCreateRetainer";
+import { useSettings } from "@/hooks/useSettings";
+import { useClientAcceptedQuotes } from "@/hooks/useQuotes";
 import { formatZar } from "@/lib/utils";
 
 const STEPS = [
@@ -94,6 +96,7 @@ export function NewRetainerWizard() {
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { data: services = [] } = useServices();
+  const { data: settings } = useSettings();
   const createRetainer = useCreateRetainer();
 
   const [step, setStep] = useState<StepKey>("terms");
@@ -105,16 +108,31 @@ export function NewRetainerWizard() {
   const [nameTouched, setNameTouched] = useState(false);
   const [recurrenceStart, setRecurrenceStart] = useState<string>(today());
   const [hoursTarget, setHoursTarget] = useState<string>("");
+  const [hoursTouched, setHoursTouched] = useState(false);
   const [monthlyFee, setMonthlyFee] = useState<string>("");
+  const [importQuoteId, setImportQuoteId] = useState<string>("");
 
   // Step 2 — Recurring services
   const [rows, setRows] = useState<ServiceRow[]>([]);
 
   const { data: clientLists = [], isLoading: listsLoading } = useClientLists(clientId || null);
+  const { data: clientQuotes = [] } = useClientAcceptedQuotes(clientId || null);
 
   const clientName = clients.find((c) => c.id === clientId)?.name ?? "";
   const defaultName = clientName ? `${clientName} retainer` : "";
   const effectiveName = nameTouched ? name : defaultName;
+
+  // Auto-derive the monthly hours target from the fee at the blended hourly
+  // rate (Settings → blended_hourly_rate_zar, e.g. R1 150/h). The user can
+  // override by typing in the hours field, which sticks until they clear it.
+  const blendedRate = settings?.blended_hourly_rate_zar ?? 0;
+  const feeNum = Number(monthlyFee) || 0;
+  const autoHours = blendedRate > 0 && feeNum > 0 ? feeNum / blendedRate : 0;
+  const effectiveHours = hoursTouched
+    ? hoursTarget
+    : autoHours
+    ? autoHours.toFixed(2)
+    : "";
 
   const pickedServiceIds = useMemo(
     () => new Set(rows.map((r) => r.service_id)),
@@ -172,6 +190,38 @@ export function NewRetainerWizard() {
     );
   }
 
+  function importFromQuote(quoteId: string) {
+    const q = clientQuotes.find((x) => x.id === quoteId);
+    if (!q) return;
+    // Only import lines whose service still exists in the catalogue — a deleted
+    // service would fail the create-retainer FK insert.
+    const validLines = q.lines.filter((l) => services.some((s) => s.id === l.service_id));
+    const skipped = q.lines.length - validLines.length;
+
+    setMonthlyFee((q.total_cents / 100).toString());
+    setHoursTouched(false); // let hours re-derive from the imported fee
+    setRows(
+      validLines.map((l) => ({
+        rowId: nextRowId(),
+        service_id: l.service_id,
+        cadence: "monthly" as Cadence,
+        occurrences_per_month: Math.max(1, Math.round(l.qty)),
+        points_per_occurrence: 1,
+        default_assignees: [],
+        is_live_eligible: false,
+      })),
+    );
+
+    if (validLines.length === 0) {
+      toast.warning("That quote has no importable services (none still in the catalogue).");
+      return;
+    }
+    toast.success(
+      `Imported ${validLines.length} service${validLines.length === 1 ? "" : "s"} from quote` +
+        (skipped > 0 ? ` · ${skipped} skipped (no longer in catalogue)` : ""),
+    );
+  }
+
   function handleCreate() {
     if (!step1Valid || !step2Valid) return;
 
@@ -179,7 +229,7 @@ export function NewRetainerWizard() {
       client_id: clientId,
       clickup_list_id: clickupListId,
       name: effectiveName.trim(),
-      retainer_hours_target: Number(hoursTarget) || 0,
+      retainer_hours_target: Number(effectiveHours) || 0,
       retainer_monthly_fee_cents: Math.round((Number(monthlyFee) || 0) * 100),
       recurrence_start: recurrenceStart,
       services: rows.map((r) => ({
@@ -233,6 +283,13 @@ export function NewRetainerWizard() {
               onChange={(e) => {
                 setClientId(e.target.value);
                 setClickupListId("");
+                // Clear everything tied to the previous client so imported /
+                // prefilled values never silently carry over to another client.
+                setImportQuoteId("");
+                setRows([]);
+                setMonthlyFee("");
+                setHoursTarget("");
+                setHoursTouched(false);
               }}
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             >
@@ -244,6 +301,42 @@ export function NewRetainerWizard() {
               ))}
             </select>
           </div>
+
+          {clientQuotes.length > 0 && (
+            <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
+              <Label className="text-label-small text-m-on-surface-variant">
+                Start from an accepted quote (optional)
+              </Label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={importQuoteId}
+                  onChange={(e) => setImportQuoteId(e.target.value)}
+                  className="h-9 flex-1 rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="">Select a quote…</option>
+                  {clientQuotes.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      v{q.version} · {formatZar(q.total_cents)} · {q.lines.length} service
+                      {q.lines.length === 1 ? "" : "s"}
+                      {q.accepted_at ? ` · ${q.accepted_at.slice(0, 10)}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!importQuoteId}
+                  onClick={() => importFromQuote(importQuoteId)}
+                >
+                  Import
+                </Button>
+              </div>
+              <p className="text-label-small text-m-on-surface-variant">
+                Prefills the monthly fee and a recurring service per quote line. You set cadence,
+                occurrences and assignees.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-label-small text-m-on-surface-variant">ClickUp list</Label>
@@ -300,10 +393,20 @@ export function NewRetainerWizard() {
                 type="number"
                 min="0"
                 step="0.5"
-                value={hoursTarget}
-                onChange={(e) => setHoursTarget(e.target.value)}
+                value={effectiveHours}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Clearing the field reverts to the auto-derived value.
+                  setHoursTouched(v.trim() !== "");
+                  setHoursTarget(v);
+                }}
                 placeholder="0"
               />
+              {!hoursTouched && autoHours > 0 && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  Auto · fee ÷ {formatZar(Math.round(blendedRate * 100))}/h — edit to override
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-label-small text-m-on-surface-variant">
@@ -501,7 +604,7 @@ export function NewRetainerWizard() {
               <dt className="text-m-on-surface-variant">Start date</dt>
               <dd>{recurrenceStart}</dd>
               <dt className="text-m-on-surface-variant">Monthly hours target</dt>
-              <dd>{Number(hoursTarget) || 0}</dd>
+              <dd>{Number(effectiveHours) || 0}</dd>
               <dt className="text-m-on-surface-variant">Monthly fee</dt>
               <dd>{formatZar(Math.round((Number(monthlyFee) || 0) * 100))}</dd>
             </dl>

@@ -59,6 +59,65 @@ export function useQuote(id: string | undefined) {
   });
 }
 
+// An accepted quote belonging to a client, with its service lines — used to
+// prefill the New Retainer wizard ("start from quote"). Quotes don't carry a
+// client_id directly, so we walk client → briefs → scopes → quotes(accepted).
+export type ImportableQuoteLine = { service_id: string; qty: number };
+export type ImportableQuote = {
+  id: string;
+  version: number;
+  total_cents: number;
+  accepted_at: string | null;
+  lines: ImportableQuoteLine[];
+};
+
+export function useClientAcceptedQuotes(clientId: string | null) {
+  return useQuery({
+    enabled: !!clientId,
+    queryKey: ["clientAcceptedQuotes", clientId] as const,
+    staleTime: 60_000,
+    queryFn: async (): Promise<ImportableQuote[]> => {
+      if (!clientId) return [];
+
+      const { data: briefs, error: bErr } = await supabase
+        .from("briefs").select("id").eq("client_id", clientId);
+      if (bErr) throw bErr;
+      const briefIds = (briefs ?? []).map((b) => b.id);
+      if (briefIds.length === 0) return [];
+
+      const { data: scopes, error: sErr } = await supabase
+        .from("scopes").select("id").in("brief_id", briefIds);
+      if (sErr) throw sErr;
+      const scopeIds = (scopes ?? []).map((s) => s.id);
+      if (scopeIds.length === 0) return [];
+
+      const { data: quotes, error: qErr } = await supabase
+        .from("quotes")
+        .select("id, version, total_cents, accepted_at, quote_services(service_id, qty)")
+        .in("scope_id", scopeIds)
+        .eq("status", "accepted")
+        .order("accepted_at", { ascending: false });
+      if (qErr) throw qErr;
+
+      return (quotes ?? []).map((q) => {
+        const row = q as typeof q & {
+          quote_services: Array<{ service_id: string; qty: number }> | null;
+        };
+        return {
+          id: row.id,
+          version: row.version,
+          total_cents: Number(row.total_cents ?? 0),
+          accepted_at: row.accepted_at,
+          lines: (row.quote_services ?? []).map((l) => ({
+            service_id: l.service_id,
+            qty: Number(l.qty) || 1,
+          })),
+        };
+      });
+    },
+  });
+}
+
 export function useLiveQuoteForScope(scopeId: string | undefined) {
   return useQuery({
     enabled: !!scopeId,

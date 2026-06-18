@@ -451,7 +451,15 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
             <tbody>
               {actuals.map((a) => (
                 <tr key={a.id} className="border-t border-m-outline-variant">
-                  <td className="py-1 font-mono text-xs">{a.clickup_task_id}</td>
+                  <td className="py-1">
+                    {a.task_name ? (
+                      a.task_name
+                    ) : (
+                      <span className="font-mono text-xs text-m-on-surface-variant">
+                        {a.clickup_task_id}
+                      </span>
+                    )}
+                  </td>
                   <td>{depts.find((d) => d.id === a.dept_id)?.name ?? "—"}</td>
                   <td>{Number(a.planned_hours).toFixed(1)}</td>
                   <td>{Number(a.actual_hours).toFixed(1)}</td>
