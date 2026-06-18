@@ -14,6 +14,7 @@ import { useCreateRetainer } from "@/hooks/useCreateRetainer";
 import type { CreateRetainerInput } from "@/hooks/useCreateRetainer";
 import { useSettings } from "@/hooks/useSettings";
 import { useClientAcceptedQuotes } from "@/hooks/useQuotes";
+import { useParseRetainerInvoice } from "@/hooks/useParseRetainerInvoice";
 import { formatZar } from "@/lib/utils";
 
 const STEPS = [
@@ -98,6 +99,7 @@ export function NewRetainerWizard() {
   const { data: services = [] } = useServices();
   const { data: settings } = useSettings();
   const createRetainer = useCreateRetainer();
+  const parseInvoice = useParseRetainerInvoice();
 
   const [step, setStep] = useState<StepKey>("terms");
 
@@ -222,6 +224,54 @@ export function NewRetainerWizard() {
     );
   }
 
+  async function handleInvoiceFile(file: File) {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result as string);
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(file);
+      });
+      const lines = await parseInvoice.mutateAsync(dataUrl);
+      // Keep only lines Claude matched to a service that still exists.
+      const matched = lines.filter(
+        (l) => l.suggested_service_id && services.some((s) => s.id === l.suggested_service_id),
+      );
+      const unmatched = lines.filter((l) => !matched.includes(l));
+      const totalCents = lines.reduce((sum, l) => sum + (l.amount_cents || 0), 0);
+
+      setMonthlyFee(totalCents > 0 ? (totalCents / 100).toString() : "");
+      setHoursTouched(false);
+      setRows(
+        matched.map((l) => ({
+          rowId: nextRowId(),
+          service_id: l.suggested_service_id!,
+          cadence: "monthly" as Cadence,
+          occurrences_per_month: Math.max(1, Math.round(l.qty)),
+          points_per_occurrence: 1,
+          default_assignees: [],
+          is_live_eligible: false,
+        })),
+      );
+
+      if (matched.length === 0) {
+        toast.warning(
+          "Couldn't match any invoice lines to a service" +
+            (unmatched.length ? `: ${unmatched.map((u) => u.description).join(", ")}` : "."),
+        );
+        return;
+      }
+      toast.success(
+        `Imported ${matched.length} line${matched.length === 1 ? "" : "s"} from invoice` +
+          (unmatched.length
+            ? ` · ${unmatched.length} not matched (add manually): ${unmatched.map((u) => u.description).join(", ")}`
+            : ""),
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to read invoice");
+    }
+  }
+
   function handleCreate() {
     if (!step1Valid || !step2Valid) return;
 
@@ -337,6 +387,28 @@ export function NewRetainerWizard() {
               </p>
             </div>
           )}
+
+          <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
+            <Label className="text-label-small text-m-on-surface-variant">
+              Import from invoice (PDF)
+            </Label>
+            <input
+              type="file"
+              accept="application/pdf"
+              disabled={parseInvoice.isPending}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleInvoiceFile(f);
+                e.target.value = "";
+              }}
+              className="block w-full text-sm text-m-on-surface file:mr-3 file:rounded-md file:border-0 file:bg-m-primary file:px-3 file:py-1.5 file:text-label-small file:text-m-on-primary disabled:opacity-50"
+            />
+            <p className="text-label-small text-m-on-surface-variant">
+              {parseInvoice.isPending
+                ? "Reading invoice with AI…"
+                : "Upload the client's monthly retainer invoice — each line becomes an editable row (cost → hours auto). Adjust before saving."}
+            </p>
+          </div>
 
           <div className="space-y-1.5">
             <Label className="text-label-small text-m-on-surface-variant">ClickUp list</Label>
