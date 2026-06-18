@@ -292,7 +292,7 @@ Deno.serve(async (req: Request) => {
 
     // Build custom fields that are the same for every child task in this push.
     const sharedCustomFields: Array<{ id: string; value: string | number }> = [];
-    const clientCf = resolveDropdownOption("Client Name", client.name);
+    const clientCf = resolveDropdownOption("Client Name", client.clickup_client_name ?? client.name);
     if (clientCf) sharedCustomFields.push(clientCf);
     const engCf = resolveDropdownOption("Engagement Type", "Task");
     if (engCf) sharedCustomFields.push(engCf);

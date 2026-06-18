@@ -72,3 +72,35 @@ export function findCustomField(
   if (expectedType && field.type !== expectedType) return null;
   return { id: field.id, type: field.type };
 }
+
+export type CuField = {
+  id: string;
+  name: string;
+  type: string;
+  type_config?: { options?: Array<{ id: string; name?: string }> };
+};
+
+/**
+ * Resolve a ClickUp DROPDOWN custom field + option by name (both
+ * case-insensitive). Returns the `{id, value}` shape that a task-create
+ * `custom_fields` array expects (value = the option's id), or null if the
+ * field or the option isn't found — so callers can omit it gracefully.
+ *
+ * Mirrors the inline helper used in push-to-clickup / create-recurring-tasks.
+ */
+export function resolveDropdownOption(
+  cuFields: CuField[],
+  fieldName: string,
+  optionName: string,
+): { id: string; value: string } | null {
+  const field = cuFields.find(
+    (f) => f.name?.trim().toLowerCase() === fieldName.trim().toLowerCase() &&
+      f.type === "drop_down",
+  );
+  if (!field?.type_config?.options) return null;
+  const needle = optionName.trim().toLowerCase();
+  const option = field.type_config.options.find(
+    (o) => o.name?.trim().toLowerCase() === needle,
+  );
+  return option ? { id: field.id, value: option.id } : null;
+}

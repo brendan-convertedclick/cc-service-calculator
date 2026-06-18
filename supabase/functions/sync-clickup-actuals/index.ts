@@ -177,6 +177,9 @@ Deno.serve(async (req: Request) => {
           .insert({
             project_id: a.project_id,
             clickup_task_id: a.clickup_task_id,
+            // Capture the ClickUp task name so the UI can show it instead of
+            // the opaque task id. Falls back to null if absent.
+            task_name: typeof task?.name === "string" ? task.name : null,
             dept_id: a.dept_id,
             planned_hours: a.planned_hours,
             actual_hours: actualHours,

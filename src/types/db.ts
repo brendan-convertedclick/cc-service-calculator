@@ -739,6 +739,7 @@ export type Database = {
       clients: {
         Row: {
           archived_at: string | null
+          clickup_client_name: string | null
           clickup_folder_id: string | null
           created_at: string
           id: string
@@ -753,6 +754,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
@@ -767,6 +769,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
@@ -1343,6 +1346,7 @@ export type Database = {
           recorded_at: string
           status_at_sync: string | null
           synced_at: string
+          task_name: string | null
           time_entries: Json | null
         }
         Insert: {
@@ -1356,6 +1360,7 @@ export type Database = {
           recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
+          task_name?: string | null
           time_entries?: Json | null
         }
         Update: {
@@ -1369,6 +1374,7 @@ export type Database = {
           recorded_at?: string
           status_at_sync?: string | null
           synced_at?: string
+          task_name?: string | null
           time_entries?: Json | null
         }
         Relationships: [
@@ -2562,6 +2568,7 @@ export type Database = {
           recorded_at: string | null
           status_at_sync: string | null
           synced_at: string | null
+          task_name: string | null
           time_entries: Json | null
         }
         Relationships: [
