@@ -835,6 +835,7 @@ export type Database = {
       departments: {
         Row: {
           archived_at: string | null
+          clickup_work_stream: string | null
           color: string | null
           cost_rate_cents: number | null
           created_at: string
@@ -847,6 +848,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          clickup_work_stream?: string | null
           color?: string | null
           cost_rate_cents?: number | null
           created_at?: string
@@ -859,6 +861,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          clickup_work_stream?: string | null
           color?: string | null
           cost_rate_cents?: number | null
           created_at?: string
@@ -2075,6 +2078,7 @@ export type Database = {
       }
       services: {
         Row: {
+          clickup_work_stream: string | null
           code: string | null
           completion_definition: string | null
           created_at: string
@@ -2096,6 +2100,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null
           created_at?: string
@@ -2117,6 +2122,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null
           created_at?: string

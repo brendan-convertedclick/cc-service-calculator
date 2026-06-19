@@ -43,6 +43,7 @@ export function ServiceDetail({ mode }: Props) {
     unit_of_sale: "",
     percentage_value: null as number | null,
     rule_id: null as string | null,
+    clickup_work_stream: null as string | null,
     primary_team_member_id: null as string | null,
     scope_definition: "",
     included_revisions: "",
@@ -64,6 +65,7 @@ export function ServiceDetail({ mode }: Props) {
         unit_of_sale: s.unit_of_sale ?? "",
         percentage_value: s.percentage_value,
         rule_id: s.rule_id,
+        clickup_work_stream: s.clickup_work_stream,
         primary_team_member_id: s.primary_team_member_id,
         scope_definition: s.scope_definition ?? "",
         included_revisions: s.included_revisions ?? "",
@@ -90,6 +92,7 @@ export function ServiceDetail({ mode }: Props) {
       percentage_value:
         form.pricing_model === "percentage" ? form.percentage_value : null,
       rule_id: form.rule_id,
+      clickup_work_stream: form.clickup_work_stream || null,
       primary_team_member_id: form.primary_team_member_id,
       scope_definition: form.scope_definition || null,
       included_revisions: form.included_revisions || null,
@@ -320,6 +323,29 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>ClickUp Work Stream</Label>
+                    <select
+                      value={form.clickup_work_stream ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, clickup_work_stream: e.target.value || null })
+                      }
+                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    >
+                      <option value="">— derive from department —</option>
+                      {[
+                        "New Business", "Creative", "3D", "Development", "Social Media",
+                        "Content", "SEO", "Paid Media", "Admin", "Strategy",
+                        "Internal Meeting", "Project Meeting", "Client Meeting", "Technical",
+                        "Project Management", "Software", "Client Sign Off", "AI",
+                      ].map((w) => (
+                        <option key={w} value={w}>{w}</option>
+                      ))}
+                    </select>
+                    <p className="text-label-small text-m-on-surface-variant">
+                      Overrides the department-derived Work Stream on ClickUp tasks (for meeting / admin / sign-off services).
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Primary team member</Label>
