@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: project, error: pErr } = await sb
       .from("projects")
-      .select("id, clickup_list_id, client_id")
+      .select("id, clickup_list_id, client_id, clickup_parent_task_id")
       .eq("id", project_id)
       .single();
     if (pErr || !project) return json({ error: pErr?.message ?? "Project not found" }, 404);
@@ -105,14 +105,17 @@ Deno.serve(async (req: Request) => {
     if (serviceIds.length > 0) {
       const [{ data: svcRows }, { data: depts }, { data: allocs }] = await Promise.all([
         sb.from("services").select("id, name").in("id", serviceIds),
-        sb.from("departments").select("id, name"),
+        sb.from("departments").select("id, name, clickup_work_stream"),
         sb.from("service_allocation_resolved").select("service_id, department_id, pct").in("service_id", serviceIds),
       ]);
       for (const s of (svcRows ?? []) as Array<{ id: string; name: string }>) {
         serviceNameById.set(s.id, s.name);
       }
-      const deptNameById = new Map<string, string>(
-        ((depts ?? []) as Array<{ id: string; name: string }>).map((d) => [d.id, d.name]),
+      // The Work Stream ClickUp option label for a department: the
+      // clickup_work_stream override, else the department name.
+      const deptWorkStreamById = new Map<string, string>(
+        ((depts ?? []) as Array<{ id: string; name: string; clickup_work_stream: string | null }>)
+          .map((d) => [d.id, d.clickup_work_stream ?? d.name]),
       );
       // Pick the highest-pct department per service.
       const topByService = new Map<string, { dept_id: string; pct: number }>();
@@ -122,8 +125,8 @@ Deno.serve(async (req: Request) => {
         if (!cur || a.pct > cur.pct) topByService.set(a.service_id, { dept_id: a.department_id, pct: a.pct });
       }
       for (const [svcId, top] of topByService) {
-        const name = deptNameById.get(top.dept_id);
-        if (name) serviceDeptById.set(svcId, name);
+        const ws = deptWorkStreamById.get(top.dept_id);
+        if (ws) serviceDeptById.set(svcId, ws);
       }
     }
 
@@ -195,17 +198,24 @@ Deno.serve(async (req: Request) => {
             // One-off backfill: rename + set fields + points on the tasks that
             // were created before this convention existed.
             const ids = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
+            const isMonthly = svc.cadence === "monthly";
             const dates = mode === "live"
               ? [periodStart]
               : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
             for (let i = 0; i < ids.length; i++) {
               const d = dates[i] ?? dates[dates.length - 1] ?? periodStart;
               const name = mode === "live" ? liveTaskName(svc.service_id) : taskName(svc.service_id, d, svc.cadence);
-              const cf = buildCustomFields(svc.service_id, (mode === "live" ? periodStart : d).getTime());
+              const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
+              const cf = buildCustomFields(svc.service_id, engagementMs);
+              const dueDate = mode === "live" ? undefined : isMonthly ? periodEnd.getTime() : d.getTime();
+              const startDate = mode === "live" ? undefined : isMonthly ? periodStart.getTime() : undefined;
               const pr = await patchClickupTask(clickupPat, ids[i], {
                 name,
                 points: pointsFor(svc),
                 customFields: cf,
+                parent: project.clickup_parent_task_id ?? undefined,
+                startDate,
+                dueDate,
               });
               if (pr.renameOk) patched += 1;
             }
@@ -228,14 +238,21 @@ Deno.serve(async (req: Request) => {
               `Time accrues here via Rize.io → ClickUp time-entry sync.`,
             assigneeIds,
             timeEstimateMs: 0,
+            parent: project.clickup_parent_task_id ?? undefined,
             points: pointsFor(svc),
             customFields: buildCustomFields(svc.service_id, periodStart.getTime()),
           });
           if (id) taskIds.push(id);
         } else {
-          // N discrete dated tasks.
+          // N discrete dated tasks. Monthly (once-a-month) tasks span the whole
+          // billing period (1st → last day); weekly/other keep their per-
+          // occurrence date.
+          const isMonthly = svc.cadence === "monthly";
           const dates = plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
           for (const d of dates) {
+            const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
+            const startDate = isMonthly ? periodStart.getTime() : undefined;
+            const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
             const id = await createClickupTask(
               clickupPat,
               project.clickup_list_id!,
@@ -246,9 +263,11 @@ Deno.serve(async (req: Request) => {
                   `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
                 assigneeIds,
                 timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
-                dueDate: d.getTime(),
+                dueDate,
+                startDate,
+                parent: project.clickup_parent_task_id ?? undefined,
                 points: pointsFor(svc),
-                customFields: buildCustomFields(svc.service_id, d.getTime()),
+                customFields: buildCustomFields(svc.service_id, engagementMs),
               },
             );
             if (id) taskIds.push(id);
@@ -297,6 +316,8 @@ async function createClickupTask(
     assigneeIds: number[];
     timeEstimateMs: number;
     dueDate?: number;
+    startDate?: number;
+    parent?: string;
     points?: number;
     customFields?: CustomField[];
   },
@@ -309,7 +330,10 @@ async function createClickupTask(
     time_estimate: args.timeEstimateMs,
   };
   if (args.assigneeIds.length > 0) body.assignees = args.assigneeIds;
-  if (args.dueDate) body.due_date = args.dueDate;
+  if (args.dueDate) { body.due_date = args.dueDate; body.due_date_time = false; }
+  if (args.startDate) { body.start_date = args.startDate; body.start_date_time = false; }
+  // Nest the work task under the retainer's umbrella task as a subtask.
+  if (args.parent) body.parent = args.parent;
   if (args.points !== undefined) body.points = args.points;
   if (args.customFields && args.customFields.length > 0) body.custom_fields = args.customFields;
   const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
@@ -328,17 +352,37 @@ async function createClickupTask(
 async function patchClickupTask(
   pat: string,
   taskId: string,
-  args: { name: string; points: number; customFields: CustomField[] },
+  args: {
+    name: string;
+    points: number;
+    customFields: CustomField[];
+    parent?: string;
+    startDate?: number;
+    dueDate?: number;
+  },
 ): Promise<{ renameOk: boolean; fieldsSet: number; fieldsTotal: number }> {
   const headers = { Authorization: pat, "Content-Type": "application/json" };
+  const updBody: Record<string, unknown> = { name: args.name, points: args.points };
+  if (args.dueDate) { updBody.due_date = args.dueDate; updBody.due_date_time = false; }
+  if (args.startDate) { updBody.start_date = args.startDate; updBody.start_date_time = false; }
   const upd = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
     method: "PUT",
     headers,
-    body: JSON.stringify({ name: args.name, points: args.points }),
+    body: JSON.stringify(updBody),
   });
   if (!upd.ok) {
     console.error(`patch task ${taskId} rename failed: ${upd.status}`);
     return { renameOk: false, fieldsSet: 0, fieldsTotal: args.customFields.length };
+  }
+  // Re-parent separately so an unsupported/invalid parent can't fail the
+  // rename/date update above.
+  if (args.parent) {
+    const pr = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ parent: args.parent }),
+    });
+    if (!pr.ok) console.error(`patch task ${taskId} re-parent failed: ${pr.status}`);
   }
   let fieldsSet = 0;
   for (const cf of args.customFields) {
