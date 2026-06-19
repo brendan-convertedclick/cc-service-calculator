@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
 
     // Preload departments + team members for assignee resolution.
     const [deptsRes, teamRes] = await Promise.all([
-      supabase.from("departments").select("id,name,primary_team_member_id"),
+      supabase.from("departments").select("id,name,primary_team_member_id,clickup_work_stream"),
       supabase
         .from("team_members")
         .select("id,clickup_user_id")
@@ -214,7 +214,7 @@ Deno.serve(async (req: Request) => {
             if (clientCf) cf.push(clientCf);
             const engCf = resolveDropdownOption("Engagement Type", "Task");
             if (engCf) cf.push(engCf);
-            const wsCf = resolveDropdownOption("Work Stream", dept.name);
+            const wsCf = resolveDropdownOption("Work Stream", dept.clickup_work_stream ?? dept.name);
             if (wsCf) cf.push(wsCf);
             if (dateField) cf.push({ id: dateField.id, value: cycleDate.getTime() });
 
@@ -410,7 +410,7 @@ Deno.serve(async (req: Request) => {
           if (a) cf.push(a);
           const b = pickOption("Engagement Type", "Task");
           if (b) cf.push(b);
-          const c = pickOption("Work Stream", dept.name);
+          const c = pickOption("Work Stream", dept.clickup_work_stream ?? dept.name);
           if (c) cf.push(c);
           const dateF = cuFields.find((x) => x.name === "Date of Engagement" && x.type === "date");
           if (dateF) cf.push({ id: dateF.id, value: new Date(s.next_due_at).getTime() });

@@ -261,13 +261,21 @@ Deno.serve(async (req: Request) => {
     const { data: deptRows } = deptIds.length > 0
       ? await supabase
           .from("departments")
-          .select("id,primary_team_member_id")
+          .select("id,name,primary_team_member_id,clickup_work_stream")
           .in("id", deptIds)
       : { data: [] };
     const deptOwnerMap = new Map<string, string | null>(
       (deptRows ?? []).map((d: { id: string; primary_team_member_id: string | null }) => [
         d.id,
         d.primary_team_member_id,
+      ]),
+    );
+    // Department → ClickUp "Work Stream" option label (clickup_work_stream
+    // override, else the department name).
+    const deptWorkStreamById = new Map<string, string>(
+      (deptRows ?? []).map((d: { id: string; name: string; clickup_work_stream: string | null }) => [
+        d.id,
+        d.clickup_work_stream ?? d.name,
       ]),
     );
     const teamById = new Map(
@@ -331,7 +339,10 @@ Deno.serve(async (req: Request) => {
           const owner = ownerId ? teamById.get(ownerId) : null;
 
           const taskCf = [...sharedCustomFields];
-          const wsCf = resolveDropdownOption("Work Stream", alloc.dept_name);
+          const wsCf = resolveDropdownOption(
+            "Work Stream",
+            deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name,
+          );
           if (wsCf) taskCf.push(wsCf);
 
           const dueDays = dueDaysMap.get(item.service_id);
