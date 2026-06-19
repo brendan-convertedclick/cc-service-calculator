@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ServicePicker } from "@/components/ServicePicker";
+import { retainerRowPreview } from "@/lib/retainerMath";
 import { useServices } from "@/hooks/useServices";
 import { useTeam } from "@/hooks/useTeam";
 import {
@@ -234,6 +235,9 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                   })}
                 </div>
               </div>
+              <p className="text-label-small text-m-on-surface-variant">
+                {retainerRowPreview(r.occurrences_per_month, r.points_per_occurrence, r.default_assignees.length, r.is_live_eligible)}
+              </p>
               {!rowIsValid(r) && (
                 <p className="text-label-small text-m-error">
                   Needs positive occurrences and points, and at least one assignee.
