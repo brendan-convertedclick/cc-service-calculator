@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { useServices } from "@/hooks/useServices";
+import { Plus, Search } from "lucide-react";
+import { toast } from "sonner";
+import { useServices, useCreateService } from "@/hooks/useServices";
+import { useRules } from "@/hooks/useRules";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 interface Props {
   excludeIds: Set<string>;
@@ -12,8 +15,16 @@ interface Props {
 
 export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
   const { data: services = [], isLoading } = useServices();
+  const { data: rules = [] } = useRules();
+  const createService = useCreateService();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+
+  // Inline "add a service that isn't in the catalogue yet" mini-form.
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newRuleId, setNewRuleId] = useState("");
 
   const LIMIT = 50;
   const { results, matchCount } = useMemo(() => {
@@ -30,6 +41,40 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
 
   const truncated = matchCount > results.length;
 
+  function startAdding() {
+    setNewName(query.trim());
+    setNewPrice("");
+    setNewRuleId("");
+    setAdding(true);
+  }
+  function cancelAdding() {
+    setAdding(false);
+  }
+  function handleCreate() {
+    const name = newName.trim();
+    if (!name || !newRuleId || createService.isPending) return;
+    createService.mutate(
+      {
+        name,
+        pricing_model: "fixed",
+        sell_price_cents: Math.round((Number(newPrice) || 0) * 100),
+        rule_id: newRuleId,
+        status: "active",
+      },
+      {
+        onSuccess: (created) => {
+          onPick(created.id);
+          setAdding(false);
+          setQuery("");
+          setOpen(false);
+          toast.success(`Added "${created.name}"`);
+        },
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : "Failed to create service"),
+      },
+    );
+  }
+
   return (
     <div className="relative">
       <div className="flex items-center gap-2">
@@ -41,11 +86,14 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            // Don't collapse while the add-form is open — interacting with it
+            // blurs the search input.
+            onBlur={() => setTimeout(() => { if (!adding) setOpen(false); }, 150)}
           />
         </div>
       </div>
-      {open && !isLoading && results.length > 0 && (
+
+      {open && !adding && !isLoading && results.length > 0 && (
         <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
           {results.map((s) => (
             <li key={s.id}>
@@ -70,9 +118,70 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
           )}
         </ul>
       )}
-      {open && !isLoading && results.length === 0 && query.trim() && (
-        <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-3 text-sm text-muted-foreground shadow-md">
-          No matches.
+
+      {open && !adding && !isLoading && results.length === 0 && query.trim() && (
+        <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-2 text-sm shadow-md">
+          <p className="px-1 py-1 text-muted-foreground">No matching service.</p>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-left"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              startAdding();
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Add "{query.trim()}" as a new service
+          </Button>
+        </div>
+      )}
+
+      {adding && (
+        <div className="absolute z-10 mt-1 w-full space-y-3 rounded-md border bg-popover p-3 shadow-md">
+          <div className="text-title-small">New service</div>
+          <div className="space-y-1.5">
+            <Label className="text-label-small text-m-on-surface-variant">Name</Label>
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Service name" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-label-small text-m-on-surface-variant">Price (ZAR)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-label-small text-m-on-surface-variant">Department</Label>
+              <select
+                value={newRuleId}
+                onChange={(e) => setNewRuleId(e.target.value)}
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="">Select…</option>
+                {rules.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={cancelAdding} disabled={createService.isPending}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCreate}
+              disabled={!newName.trim() || !newRuleId || createService.isPending}
+            >
+              {createService.isPending ? "Adding…" : "Add & select"}
+            </Button>
+          </div>
         </div>
       )}
     </div>
