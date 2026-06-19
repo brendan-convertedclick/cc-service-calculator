@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -117,6 +117,17 @@ export function NewRetainerWizard() {
 
   const { data: clientLists = [], isLoading: listsLoading } = useClientLists(clientId || null);
   const { data: clientQuotes = [] } = useClientAcceptedQuotes(clientId || null);
+
+  // Default the ClickUp list to "Delivery" (where client delivery work lives)
+  // once the client's lists load, unless one is already chosen. Client change
+  // resets clickupListId to "", so this re-applies per client.
+  useEffect(() => {
+    if (clickupListId || clientLists.length === 0) return;
+    const delivery = clientLists.find(
+      (l) => (l.custom_label ?? l.clickup_list_name)?.toLowerCase() === "delivery",
+    );
+    if (delivery) setClickupListId(delivery.clickup_list_id);
+  }, [clientLists, clickupListId]);
 
   const clientName = clients.find((c) => c.id === clientId)?.name ?? "";
   const defaultName = clientName ? `${clientName} retainer` : "";
