@@ -12,6 +12,7 @@ import { BurnChart } from "@/components/BurnChart";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectCommunications } from "@/components/projects/ProjectCommunications";
+import { RetainerServicesEditor } from "@/components/retainers/RetainerServicesEditor";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useDepartments } from "@/hooks/useDepartments";
 import { currentMonthKey, filterBurnActuals, monthRange } from "@/hooks/usePulseRetainerBurn";
@@ -433,6 +434,17 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
           </div>
         </CardContent>
       </Card>
+
+      {project.engagement_type === 'retainer' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recurring services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RetainerServicesEditor projectId={project.id} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4">
