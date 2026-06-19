@@ -15,6 +15,7 @@ import type { CreateRetainerInput } from "@/hooks/useCreateRetainer";
 import { useSettings } from "@/hooks/useSettings";
 import { useClientAcceptedQuotes } from "@/hooks/useQuotes";
 import { useParseRetainerInvoice } from "@/hooks/useParseRetainerInvoice";
+import { retainerRowPreview } from "@/lib/retainerMath";
 import { formatZar } from "@/lib/utils";
 
 const STEPS = [
@@ -637,6 +638,9 @@ export function NewRetainerWizard() {
                       </div>
                     </div>
 
+                    <p className="text-label-small text-m-on-surface-variant">
+                      {retainerRowPreview(r.occurrences_per_month, r.points_per_occurrence, r.default_assignees.length, r.is_live_eligible)}
+                    </p>
                     {!valid && (
                       <p className="text-label-small text-m-error">
                         Needs positive occurrences and points, and at least one assignee.
