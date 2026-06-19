@@ -102,14 +102,17 @@ Deno.serve(async (req: Request) => {
     const serviceIds = [...new Set((services as Array<{ service_id: string }>).map((s) => s.service_id))];
     const serviceNameById = new Map<string, string>();
     const serviceDeptById = new Map<string, string>();
+    // Per-service Work Stream override (wins over the department mapping).
+    const serviceWsOverride = new Map<string, string>();
     if (serviceIds.length > 0) {
       const [{ data: svcRows }, { data: depts }, { data: allocs }] = await Promise.all([
-        sb.from("services").select("id, name").in("id", serviceIds),
+        sb.from("services").select("id, name, clickup_work_stream").in("id", serviceIds),
         sb.from("departments").select("id, name, clickup_work_stream"),
         sb.from("service_allocation_resolved").select("service_id, department_id, pct").in("service_id", serviceIds),
       ]);
-      for (const s of (svcRows ?? []) as Array<{ id: string; name: string }>) {
+      for (const s of (svcRows ?? []) as Array<{ id: string; name: string; clickup_work_stream: string | null }>) {
         serviceNameById.set(s.id, s.name);
+        if (s.clickup_work_stream) serviceWsOverride.set(s.id, s.clickup_work_stream);
       }
       // The Work Stream ClickUp option label for a department: the
       // clickup_work_stream override, else the department name.
@@ -138,7 +141,7 @@ Deno.serve(async (req: Request) => {
       }
       const eng = resolveDropdownOption(cuFields, "Engagement Type", "Task");
       if (eng) cf.push(eng);
-      const wsName = serviceDeptById.get(serviceId);
+      const wsName = serviceWsOverride.get(serviceId) || serviceDeptById.get(serviceId);
       if (wsName) {
         const ws = resolveDropdownOption(cuFields, "Work Stream", wsName);
         if (ws) cf.push(ws);

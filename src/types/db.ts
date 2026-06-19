@@ -2078,6 +2078,7 @@ export type Database = {
       }
       services: {
         Row: {
+          clickup_work_stream: string | null
           code: string | null
           completion_definition: string | null
           created_at: string
@@ -2099,6 +2100,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null
           created_at?: string
@@ -2120,6 +2122,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null
           created_at?: string

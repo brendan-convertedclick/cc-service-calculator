@@ -361,10 +361,12 @@ Deno.serve(async (req: Request) => {
       ];
       const { data: schedServices } = await supabase
         .from("services")
-        .select("id,name")
+        .select("id,name,clickup_work_stream")
         .in("id", schedServiceIds);
       const serviceById = new Map(
-        (schedServices ?? []).map((s: { id: string; name: string }) => [s.id, s]),
+        (schedServices ?? []).map(
+          (s: { id: string; name: string; clickup_work_stream: string | null }) => [s.id, s],
+        ),
       );
 
       for (const s of dueSchedules as Array<{
@@ -410,7 +412,7 @@ Deno.serve(async (req: Request) => {
           if (a) cf.push(a);
           const b = pickOption("Engagement Type", "Task");
           if (b) cf.push(b);
-          const c = pickOption("Work Stream", dept.clickup_work_stream ?? dept.name);
+          const c = pickOption("Work Stream", svc?.clickup_work_stream ?? dept.clickup_work_stream ?? dept.name);
           if (c) cf.push(c);
           const dateF = cuFields.find((x) => x.name === "Date of Engagement" && x.type === "date");
           if (dateF) cf.push({ id: dateF.id, value: new Date(s.next_due_at).getTime() });

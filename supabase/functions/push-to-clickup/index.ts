@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days")
+          .select("id,default_due_days,clickup_work_stream")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -255,6 +255,12 @@ Deno.serve(async (req: Request) => {
         s.id,
         s.default_due_days,
       ]),
+    );
+    // Per-service Work Stream override (wins over the department mapping).
+    const serviceWsOverride = new Map<string, string>(
+      (svcRows ?? [])
+        .filter((s: { clickup_work_stream: string | null }) => !!s.clickup_work_stream)
+        .map((s: { id: string; clickup_work_stream: string }) => [s.id, s.clickup_work_stream]),
     );
     // Resolve assignees from department → primary team member → clickup_user_id.
     const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
@@ -341,7 +347,7 @@ Deno.serve(async (req: Request) => {
           const taskCf = [...sharedCustomFields];
           const wsCf = resolveDropdownOption(
             "Work Stream",
-            deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name,
+            serviceWsOverride.get(item.service_id) ?? deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name,
           );
           if (wsCf) taskCf.push(wsCf);
 
