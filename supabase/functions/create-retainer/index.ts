@@ -234,6 +234,16 @@ Deno.serve(async (req: Request) => {
           provision_error: provision,
         });
       }
+      // Seed project_actuals right away so the new retainer's tasks appear in
+      // Conductor immediately instead of waiting for the hourly cron. Fire-and-
+      // forget — a failure here is non-fatal (the cron still catches up).
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/sync-clickup-actuals`, {
+          method: "POST",
+          headers: { "content-type": "application/json", apikey: anon },
+          body: JSON.stringify({ project_id: projectId }),
+        });
+      } catch { /* non-fatal */ }
       return json({
         project_id: projectId,
         clickup_parent_task_id: parentTaskId,
