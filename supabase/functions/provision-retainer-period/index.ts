@@ -42,10 +42,14 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { project_id, period_start, rename_existing } = (await req.json()) as {
+    const { project_id, period_start, rename_existing, force_service_ids } = (await req.json()) as {
       project_id?: string;
       period_start?: string;
       rename_existing?: boolean;
+      // Services to re-provision: trash their existing ClickUp tasks for the
+      // period and recreate from the current config (e.g. after a live→manual
+      // or occurrences change mid-period).
+      force_service_ids?: string[];
     };
     if (!project_id) return json({ error: "project_id required" }, 400);
 
@@ -166,6 +170,7 @@ Deno.serve(async (req: Request) => {
     let created = 0;
     let reused = 0;
     let patched = 0;
+    let reprovisioned = 0;
 
     for (const svc of services as Array<{
       id: string;
@@ -196,7 +201,8 @@ Deno.serve(async (req: Request) => {
           .eq("assignee_id", assigneeId)
           .eq("period_start", isoDate(periodStart))
           .maybeSingle();
-        if (existing) {
+        const forceReprovision = (force_service_ids ?? []).includes(svc.service_id);
+        if (existing && !forceReprovision) {
           if (rename_existing) {
             // One-off backfill: rename + set fields + points on the tasks that
             // were created before this convention existed.
@@ -225,6 +231,21 @@ Deno.serve(async (req: Request) => {
           }
           reused += 1;
           continue;
+        }
+
+        if (existing && forceReprovision) {
+          // Trash the stale ClickUp tasks + provisioned_tasks row, then fall
+          // through to recreate from the current config.
+          const staleIds = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
+          for (const tid of staleIds) await deleteClickupTask(clickupPat, tid);
+          await sb.from("provisioned_tasks").delete().eq("id", (existing as { id: string }).id);
+          // Also drop the trashed tasks' historical actuals so they stop
+          // surfacing in project_actuals_current / the Conductor Tasks table.
+          if (staleIds.length > 0) {
+            await sb.from("project_actuals").delete()
+              .eq("project_id", project_id).in("clickup_task_id", staleIds);
+          }
+          reprovisioned += 1;
         }
 
         const assigneeIds = (member as { clickup_user_id: number | null }).clickup_user_id
@@ -304,7 +325,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    return json({ created, reused, patched, field_resolution });
+    return json({ created, reused, patched, reprovisioned, field_resolution });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
@@ -398,6 +419,16 @@ async function patchClickupTask(
     else console.error(`patch task ${taskId} field ${cf.id} failed: ${fr.status}`);
   }
   return { renameOk: true, fieldsSet, fieldsTotal: args.customFields.length };
+}
+
+// Trash a ClickUp task (recoverable in ClickUp for ~30 days). Used when
+// re-provisioning a service whose config changed mid-period.
+async function deleteClickupTask(pat: string, taskId: string): Promise<void> {
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+    method: "DELETE",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+  });
+  if (!res.ok) console.error(`delete task ${taskId} failed: ${res.status}`);
 }
 
 function firstOfMonth(d: Date): Date {
