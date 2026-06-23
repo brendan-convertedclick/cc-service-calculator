@@ -18,6 +18,11 @@ import { useParseRetainerInvoice } from "@/hooks/useParseRetainerInvoice";
 import { retainerRowPreview } from "@/lib/retainerMath";
 import { formatZar } from "@/lib/utils";
 
+// Invoice-PDF import is gated until the ANTHROPIC_API_KEY secret is set in
+// Supabase (parse-retainer-invoice needs it). Flip to true once the key is in.
+// Keeps the wizard file identical across branches in the meantime.
+const INVOICE_IMPORT_ENABLED = false;
+
 const STEPS = [
   { key: "terms", label: "Terms" },
   { key: "services", label: "Recurring services" },
@@ -401,27 +406,29 @@ export function NewRetainerWizard() {
             </div>
           )}
 
-          <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
-            <Label className="text-label-small text-m-on-surface-variant">
-              Import from invoice (PDF)
-            </Label>
-            <input
-              type="file"
-              accept="application/pdf"
-              disabled={parseInvoice.isPending}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleInvoiceFile(f);
-                e.target.value = "";
-              }}
-              className="block w-full text-sm text-m-on-surface file:mr-3 file:rounded-md file:border-0 file:bg-m-primary file:px-3 file:py-1.5 file:text-label-small file:text-m-on-primary disabled:opacity-50"
-            />
-            <p className="text-label-small text-m-on-surface-variant">
-              {parseInvoice.isPending
-                ? "Reading invoice with AI…"
-                : "Upload the client's monthly retainer invoice — each line becomes an editable row (cost → hours auto). Adjust before saving."}
-            </p>
-          </div>
+          {INVOICE_IMPORT_ENABLED && (
+            <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
+              <Label className="text-label-small text-m-on-surface-variant">
+                Import from invoice (PDF)
+              </Label>
+              <input
+                type="file"
+                accept="application/pdf"
+                disabled={parseInvoice.isPending}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleInvoiceFile(f);
+                  e.target.value = "";
+                }}
+                className="block w-full text-sm text-m-on-surface file:mr-3 file:rounded-md file:border-0 file:bg-m-primary file:px-3 file:py-1.5 file:text-label-small file:text-m-on-primary disabled:opacity-50"
+              />
+              <p className="text-label-small text-m-on-surface-variant">
+                {parseInvoice.isPending
+                  ? "Reading invoice with AI…"
+                  : "Upload the client's monthly retainer invoice — each line becomes an editable row (cost → hours auto). Adjust before saving."}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-label-small text-m-on-surface-variant">ClickUp list</Label>
