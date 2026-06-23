@@ -111,7 +111,6 @@ export function NewRetainerWizard() {
   const [nameTouched, setNameTouched] = useState(false);
   const [recurrenceStart, setRecurrenceStart] = useState<string>(today());
   const [hoursTarget, setHoursTarget] = useState<string>("");
-  const [hoursTouched, setHoursTouched] = useState(false);
   const [monthlyFee, setMonthlyFee] = useState<string>("");
   const [importQuoteId, setImportQuoteId] = useState<string>("");
 
@@ -136,17 +135,22 @@ export function NewRetainerWizard() {
   const defaultName = clientName ? `${clientName} retainer` : "";
   const effectiveName = nameTouched ? name : defaultName;
 
-  // Auto-derive the monthly hours target from the fee at the blended hourly
-  // rate (Settings → blended_hourly_rate_zar, e.g. R1 150/h). The user can
-  // override by typing in the hours field, which sticks until they clear it.
+  // Fee ↔ hours are linked at the blended hourly rate (Settings →
+  // blended_hourly_rate_zar, e.g. R1 150/h): editing either recomputes the
+  // other. Clearing one clears both.
   const blendedRate = settings?.blended_hourly_rate_zar ?? 0;
-  const feeNum = Number(monthlyFee) || 0;
-  const autoHours = blendedRate > 0 && feeNum > 0 ? feeNum / blendedRate : 0;
-  const effectiveHours = hoursTouched
-    ? hoursTarget
-    : autoHours
-    ? autoHours.toFixed(2)
-    : "";
+  const onFeeChange = (v: string) => {
+    setMonthlyFee(v);
+    const n = Number(v);
+    setHoursTarget(blendedRate > 0 && v.trim() !== "" && n > 0 ? (n / blendedRate).toFixed(2) : "");
+  };
+  const onHoursChange = (v: string) => {
+    setHoursTarget(v);
+    const n = Number(v);
+    setMonthlyFee(
+      blendedRate > 0 && v.trim() !== "" && n > 0 ? String(Math.round(n * blendedRate * 100) / 100) : "",
+    );
+  };
 
   const pickedServiceIds = useMemo(
     () => new Set(rows.map((r) => r.service_id)),
@@ -212,8 +216,7 @@ export function NewRetainerWizard() {
     const validLines = q.lines.filter((l) => services.some((s) => s.id === l.service_id));
     const skipped = q.lines.length - validLines.length;
 
-    setMonthlyFee((q.total_cents / 100).toString());
-    setHoursTouched(false); // let hours re-derive from the imported fee
+    onFeeChange((q.total_cents / 100).toString()); // also derives hours
     setRows(
       validLines.map((l) => ({
         rowId: nextRowId(),
@@ -252,8 +255,7 @@ export function NewRetainerWizard() {
       const unmatched = lines.filter((l) => !matched.includes(l));
       const totalCents = lines.reduce((sum, l) => sum + (l.amount_cents || 0), 0);
 
-      setMonthlyFee(totalCents > 0 ? (totalCents / 100).toString() : "");
-      setHoursTouched(false);
+      onFeeChange(totalCents > 0 ? (totalCents / 100).toString() : "");
       setRows(
         matched.map((l) => ({
           rowId: nextRowId(),
@@ -291,7 +293,7 @@ export function NewRetainerWizard() {
       client_id: clientId,
       clickup_list_id: clickupListId,
       name: effectiveName.trim(),
-      retainer_hours_target: Number(effectiveHours) || 0,
+      retainer_hours_target: Number(hoursTarget) || 0,
       retainer_monthly_fee_cents: Math.round((Number(monthlyFee) || 0) * 100),
       recurrence_start: recurrenceStart,
       services: rows.map((r) => ({
@@ -351,7 +353,6 @@ export function NewRetainerWizard() {
                 setRows([]);
                 setMonthlyFee("");
                 setHoursTarget("");
-                setHoursTouched(false);
               }}
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             >
@@ -477,18 +478,13 @@ export function NewRetainerWizard() {
                 type="number"
                 min="0"
                 step="0.5"
-                value={effectiveHours}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  // Clearing the field reverts to the auto-derived value.
-                  setHoursTouched(v.trim() !== "");
-                  setHoursTarget(v);
-                }}
+                value={hoursTarget}
+                onChange={(e) => onHoursChange(e.target.value)}
                 placeholder="0"
               />
-              {!hoursTouched && autoHours > 0 && (
+              {blendedRate > 0 && (
                 <p className="text-label-small text-m-on-surface-variant">
-                  Auto · fee ÷ {formatZar(Math.round(blendedRate * 100))}/h — edit to override
+                  Linked to fee at {formatZar(Math.round(blendedRate * 100))}/h — edit either
                 </p>
               )}
             </div>
@@ -501,7 +497,7 @@ export function NewRetainerWizard() {
                 min="0"
                 step="0.01"
                 value={monthlyFee}
-                onChange={(e) => setMonthlyFee(e.target.value)}
+                onChange={(e) => onFeeChange(e.target.value)}
                 placeholder="0"
               />
             </div>
@@ -691,7 +687,7 @@ export function NewRetainerWizard() {
               <dt className="text-m-on-surface-variant">Start date</dt>
               <dd>{recurrenceStart}</dd>
               <dt className="text-m-on-surface-variant">Monthly hours target</dt>
-              <dd>{Number(effectiveHours) || 0}</dd>
+              <dd>{Number(hoursTarget) || 0}</dd>
               <dt className="text-m-on-surface-variant">Monthly fee</dt>
               <dd>{formatZar(Math.round((Number(monthlyFee) || 0) * 100))}</dd>
             </dl>
