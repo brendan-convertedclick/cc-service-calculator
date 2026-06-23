@@ -15,7 +15,7 @@ import type { CreateRetainerInput } from "@/hooks/useCreateRetainer";
 import { useSettings } from "@/hooks/useSettings";
 import { useClientAcceptedQuotes } from "@/hooks/useQuotes";
 import { useParseRetainerInvoice } from "@/hooks/useParseRetainerInvoice";
-import { retainerRowPreview } from "@/lib/retainerMath";
+import { retainerRowPreview, retainerRowStats } from "@/lib/retainerMath";
 import { formatZar } from "@/lib/utils";
 
 // Invoice-PDF import is gated until the ANTHROPIC_API_KEY secret is set in
@@ -162,14 +162,32 @@ export function NewRetainerWizard() {
     [rows],
   );
 
-  const totalPointsPerMonth = useMemo(
-    () =>
-      rows.reduce(
-        (sum, r) => sum + r.occurrences_per_month * r.points_per_occurrence,
-        0,
-      ),
-    [rows],
-  );
+  // Assignee-aware totals (occurrences × assignees), matching what actually
+  // provisions to ClickUp.
+  const { totalPointsPerMonth, totalPlannedHours } = useMemo(() => {
+    let points = 0;
+    let hours = 0;
+    for (const r of rows) {
+      const s = retainerRowStats(
+        r.occurrences_per_month,
+        r.points_per_occurrence,
+        r.default_assignees.length,
+        r.is_live_eligible,
+      );
+      points += s.points;
+      hours += s.hours;
+    }
+    return { totalPointsPerMonth: points, totalPlannedHours: hours };
+  }, [rows]);
+
+  const targetHours = Number(hoursTarget) || 0;
+  const hoursGap = totalPlannedHours - targetHours; // + = over target, − = under
+  const gapLabel =
+    Math.abs(hoursGap) < 0.05
+      ? "on target"
+      : hoursGap < 0
+      ? `${(-hoursGap).toFixed(2)}h under`
+      : `${hoursGap.toFixed(2)}h over`;
 
   const hasNoLists = !!clientId && !listsLoading && clientLists.length === 0;
   const step1Valid = !!clientId && !!clickupListId && effectiveName.trim().length > 0;
@@ -655,14 +673,20 @@ export function NewRetainerWizard() {
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
-            <span className="text-body-small text-m-on-surface-variant">Total points / month</span>
-            <span className="text-title-small tabular-nums">
-              {totalPointsPerMonth}
-              <span className="ml-2 text-label-small text-m-on-surface-variant">
-                ≈ {(totalPointsPerMonth * 0.25).toFixed(2)} h
+          <div className="space-y-1 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-body-small text-m-on-surface-variant">Planned hours / month</span>
+              <span className="text-title-small tabular-nums">
+                {totalPlannedHours.toFixed(2)} h
+                <span className="ml-2 text-label-small text-m-on-surface-variant">{totalPointsPerMonth} pts</span>
               </span>
-            </span>
+            </div>
+            {targetHours > 0 && (
+              <div className="flex items-center justify-between text-label-small">
+                <span className="text-m-on-surface-variant">vs monthly target {targetHours.toFixed(2)} h</span>
+                <span className={hoursGap < -0.05 ? "text-m-error" : "text-m-on-surface-variant"}>{gapLabel}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-between pt-1">
@@ -705,6 +729,17 @@ export function NewRetainerWizard() {
               <div className="text-title-small">Recurring services</div>
               <span className="text-label-small text-m-on-surface-variant">
                 {totalPointsPerMonth} pts / month
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-m-surface-container-low px-3 py-2 text-body-small">
+              <span className="text-m-on-surface-variant">Planned hours vs target</span>
+              <span className="tabular-nums">
+                <strong>{totalPlannedHours.toFixed(2)} h</strong> planned
+                {targetHours > 0 && (
+                  <span className={hoursGap < -0.05 ? "text-m-error" : "text-m-on-surface-variant"}>
+                    {" "}/ {targetHours.toFixed(2)} h target · {gapLabel}
+                  </span>
+                )}
               </span>
             </div>
             <ul className="divide-y divide-m-outline-variant">
