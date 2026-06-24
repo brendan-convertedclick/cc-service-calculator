@@ -304,7 +304,7 @@ Deno.serve(async (req: Request) => {
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
             const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
             const cf = buildCustomFields(svc.service_id, engagementMs);
-            let id: string | null;
+            let id: string | null = null;
             if (svc.clickup_task_template_id) {
               // Stamp the task out of the ClickUp Task Template, then layer on
               // Conductor's name / points / dates / parent / fields + assignees.
@@ -325,7 +325,10 @@ Deno.serve(async (req: Request) => {
                 });
                 await setClickupAssignees(clickupPat, id, assigneeIds);
               }
-            } else {
+            }
+            if (!id) {
+              // No template, or the template create failed — fall back to a
+              // normal blank task so a period never ends up with no tasks.
               id = await createClickupTask(
                 clickupPat,
                 project.clickup_list_id!,
