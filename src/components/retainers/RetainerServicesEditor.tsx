@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ServicePicker } from "@/components/ServicePicker";
 import { retainerRowPreview } from "@/lib/retainerMath";
-import { useServices } from "@/hooks/useServices";
+import { useServices, useUpdateService } from "@/hooks/useServices";
 import { useTeam } from "@/hooks/useTeam";
 import {
   useRetainerServices,
@@ -29,6 +29,7 @@ type Row = {
   is_live_eligible: boolean;
   occurrence_labels: string[];
   clickup_task_template_id: string;
+  nameEdit?: string; // inline edit of the catalogue service name (undefined = unchanged)
 };
 
 let seq = 0;
@@ -49,6 +50,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
   const { data: loaded } = useRetainerServices(projectId);
   const update = useUpdateRetainerServices();
   const provision = useProvisionRetainerNow();
+  const updateService = useUpdateService();
 
   const [rows, setRows] = useState<Row[]>([]);
   // Initialise once per project; re-sync after a save (which assigns ids to new
@@ -126,8 +128,20 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
     );
   }
 
-  function save() {
+  async function save() {
     if (!valid) return;
+    // Persist any inline service-name edits to the catalogue first.
+    const renames = rows.filter(
+      (r) => r.nameEdit !== undefined && r.nameEdit.trim() && r.nameEdit.trim() !== serviceName(r.service_id),
+    );
+    for (const r of renames) {
+      try {
+        await updateService.mutateAsync({ id: r.service_id, patch: { name: r.nameEdit!.trim() } });
+      } catch (e) {
+        toast.error(e instanceof Error ? `Rename failed: ${e.message}` : "Rename failed");
+        return;
+      }
+    }
     const payload: RetainerServiceInput[] = rows.map((r) => ({
       id: r.id,
       service_id: r.service_id,
@@ -182,8 +196,18 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         <div className="space-y-3">
           {rows.map((r) => (
             <div key={r.rowId} className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface p-3">
-              <div className="flex items-start justify-between">
-                <div className="text-title-small">{serviceName(r.service_id)}</div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 space-y-1">
+                  <Input
+                    value={r.nameEdit ?? serviceName(r.service_id)}
+                    onChange={(e) => patchRow(r.rowId, { nameEdit: e.target.value })}
+                    aria-label="Service name"
+                    className="text-title-small font-medium"
+                  />
+                  <p className="text-label-small text-m-on-surface-variant">
+                    Renames the service everywhere it's used.
+                  </p>
+                </div>
                 <Button variant="ghost" size="icon" onClick={() => removeRow(r.rowId)} aria-label="Remove service">
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -308,8 +332,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         >
           {provision.isPending ? "Provisioning…" : "Provision now"}
         </Button>
-        <Button size="sm" onClick={save} disabled={!valid || update.isPending}>
-          {update.isPending ? "Saving…" : "Save services"}
+        <Button size="sm" onClick={save} disabled={!valid || update.isPending || updateService.isPending}>
+          {update.isPending || updateService.isPending ? "Saving…" : "Save services"}
         </Button>
       </div>
       <p className="text-label-small text-m-on-surface-variant">
