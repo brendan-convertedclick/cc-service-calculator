@@ -27,6 +27,7 @@ type Row = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  occurrence_labels: string[];
 };
 
 let seq = 0;
@@ -64,6 +65,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           points_per_occurrence: Number(s.points_per_occurrence),
           default_assignees: s.default_assignees ?? [],
           is_live_eligible: s.is_live_eligible,
+          occurrence_labels: s.occurrence_labels ?? [],
         })),
       );
       initedRef.current = projectId;
@@ -85,6 +87,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         points_per_occurrence: 1,
         default_assignees: [],
         is_live_eligible: false,
+        occurrence_labels: [],
       },
     ]);
   }
@@ -109,6 +112,17 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
     );
   }
 
+  function setLabel(rowId: string, index: number, value: string) {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.rowId !== rowId) return r;
+        const labels = [...r.occurrence_labels];
+        labels[index] = value;
+        return { ...r, occurrence_labels: labels };
+      }),
+    );
+  }
+
   function save() {
     if (!valid) return;
     const payload: RetainerServiceInput[] = rows.map((r) => ({
@@ -119,6 +133,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       points_per_occurrence: r.points_per_occurrence,
       default_assignees: r.default_assignees,
       is_live_eligible: r.is_live_eligible,
+      occurrence_labels: r.occurrence_labels,
     }));
     update.mutate(
       { projectId, services: payload },
@@ -235,6 +250,25 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                   })}
                 </div>
               </div>
+              {!r.is_live_eligible &&
+                Math.round(r.occurrences_per_month) >= 1 &&
+                Math.round(r.occurrences_per_month) <= 20 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">
+                      Task labels (optional — one per occurrence, e.g. website names; persists each month)
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Array.from({ length: Math.round(r.occurrences_per_month) }).map((_, i) => (
+                        <Input
+                          key={i}
+                          value={r.occurrence_labels[i] ?? ""}
+                          onChange={(e) => setLabel(r.rowId, i, e.target.value)}
+                          placeholder={`Task ${i + 1} label`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               <p className="text-label-small text-m-on-surface-variant">
                 {retainerRowPreview(r.occurrences_per_month, r.points_per_occurrence, r.default_assignees.length, r.is_live_eligible)}
               </p>
