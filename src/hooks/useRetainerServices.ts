@@ -14,6 +14,7 @@ export type RetainerRecurringServiceRow = {
   default_assignees: string[];
   is_live_eligible: boolean;
   occurrence_labels: string[] | null;
+  clickup_task_template_id: string | null;
   created_at: string;
 };
 
@@ -28,6 +29,7 @@ export type RetainerServiceInput = {
   default_assignees: string[];
   is_live_eligible: boolean;
   occurrence_labels?: string[];
+  clickup_task_template_id?: string | null;
 };
 
 export function useRetainerServices(projectId: string | undefined) {
