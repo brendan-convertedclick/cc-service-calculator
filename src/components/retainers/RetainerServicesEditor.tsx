@@ -28,6 +28,7 @@ type Row = {
   default_assignees: string[];
   is_live_eligible: boolean;
   occurrence_labels: string[];
+  clickup_task_template_id: string;
 };
 
 let seq = 0;
@@ -66,6 +67,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           default_assignees: s.default_assignees ?? [],
           is_live_eligible: s.is_live_eligible,
           occurrence_labels: s.occurrence_labels ?? [],
+          clickup_task_template_id: s.clickup_task_template_id ?? "",
         })),
       );
       initedRef.current = projectId;
@@ -88,6 +90,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         default_assignees: [],
         is_live_eligible: false,
         occurrence_labels: [],
+        clickup_task_template_id: "",
       },
     ]);
   }
@@ -134,6 +137,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       default_assignees: r.default_assignees,
       is_live_eligible: r.is_live_eligible,
       occurrence_labels: r.occurrence_labels,
+      clickup_task_template_id: r.clickup_task_template_id.trim() || null,
     }));
     update.mutate(
       { projectId, services: payload },
@@ -269,6 +273,18 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                     </div>
                   </div>
                 )}
+              {!r.is_live_eligible && (
+                <div className="space-y-1.5">
+                  <Label className="text-label-small text-m-on-surface-variant">
+                    ClickUp Task Template ID (optional — stamps each task from a template, incl. its checklist & fields)
+                  </Label>
+                  <Input
+                    value={r.clickup_task_template_id}
+                    onChange={(e) => patchRow(r.rowId, { clickup_task_template_id: e.target.value })}
+                    placeholder="e.g. t-869xxxxx"
+                  />
+                </div>
+              )}
               <p className="text-label-small text-m-on-surface-variant">
                 {retainerRowPreview(r.occurrences_per_month, r.points_per_occurrence, r.default_assignees.length, r.is_live_eligible)}
               </p>

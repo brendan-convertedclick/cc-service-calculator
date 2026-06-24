@@ -183,8 +183,25 @@ Deno.serve(async (req: Request) => {
       default_assignees: string[];
       is_live_eligible: boolean;
       occurrence_labels: string[] | null;
+      clickup_task_template_id: string | null;
     }>) {
-      for (const assigneeId of svc.default_assignees) {
+      // Shared mode: when a service has per-occurrence labels (e.g. one task per
+      // website), every listed assignee sits on the SAME labelled tasks (doer +
+      // checker) rather than each getting their own copies. Resolve all their
+      // ClickUp ids up front and run the assignee loop once, keyed on the first.
+      const sharedMode = (svc.occurrence_labels ?? []).filter((l) => l && l.trim()).length > 0;
+      let sharedClickupIds: number[] = [];
+      if (sharedMode) {
+        const { data: members } = await sb
+          .from("team_members")
+          .select("id, clickup_user_id")
+          .in("id", svc.default_assignees);
+        sharedClickupIds = (members ?? [])
+          .map((m) => (m as { clickup_user_id: number | null }).clickup_user_id)
+          .filter((x): x is number => typeof x === "number");
+      }
+      const assigneeLoop = sharedMode ? svc.default_assignees.slice(0, 1) : svc.default_assignees;
+      for (const assigneeId of assigneeLoop) {
         const { data: member } = await sb
           .from("team_members")
           .select("id, full_name, clickup_user_id, tracking_mode")
@@ -253,7 +270,9 @@ Deno.serve(async (req: Request) => {
           reprovisioned += 1;
         }
 
-        const assigneeIds = (member as { clickup_user_id: number | null }).clickup_user_id
+        const assigneeIds = sharedMode
+          ? sharedClickupIds
+          : (member as { clickup_user_id: number | null }).clickup_user_id
           ? [(member as { clickup_user_id: number }).clickup_user_id]
           : [];
 
@@ -283,23 +302,48 @@ Deno.serve(async (req: Request) => {
             const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
             const startDate = isMonthly ? periodStart.getTime() : undefined;
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
-            const id = await createClickupTask(
-              clickupPat,
-              project.clickup_list_id!,
-              {
-                name: taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]),
-                description:
-                  `Auto-seeded by Phase 8 provisioner. ` +
-                  `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
-                assigneeIds,
-                timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
-                dueDate,
-                startDate,
-                parent: project.clickup_parent_task_id ?? undefined,
-                points: pointsFor(svc),
-                customFields: buildCustomFields(svc.service_id, engagementMs),
-              },
-            );
+            const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
+            const cf = buildCustomFields(svc.service_id, engagementMs);
+            let id: string | null;
+            if (svc.clickup_task_template_id) {
+              // Stamp the task out of the ClickUp Task Template, then layer on
+              // Conductor's name / points / dates / parent / fields + assignees.
+              id = await createClickupTaskFromTemplate(
+                clickupPat,
+                project.clickup_list_id!,
+                svc.clickup_task_template_id,
+                nm,
+              );
+              if (id) {
+                await patchClickupTask(clickupPat, id, {
+                  name: nm,
+                  points: pointsFor(svc),
+                  customFields: cf,
+                  parent: project.clickup_parent_task_id ?? undefined,
+                  dueDate,
+                  startDate,
+                });
+                await setClickupAssignees(clickupPat, id, assigneeIds);
+              }
+            } else {
+              id = await createClickupTask(
+                clickupPat,
+                project.clickup_list_id!,
+                {
+                  name: nm,
+                  description:
+                    `Auto-seeded by Phase 8 provisioner. ` +
+                    `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
+                  assigneeIds,
+                  timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
+                  dueDate,
+                  startDate,
+                  parent: project.clickup_parent_task_id ?? undefined,
+                  points: pointsFor(svc),
+                  customFields: cf,
+                },
+              );
+            }
             if (id) taskIds.push(id);
           }
         }
@@ -435,6 +479,46 @@ async function deleteClickupTask(pat: string, taskId: string): Promise<void> {
     headers: { Authorization: pat, "Content-Type": "application/json" },
   });
   if (!res.ok) console.error(`delete task ${taskId} failed: ${res.status}`);
+}
+
+// Create a task FROM a ClickUp Task Template (carries the template's
+// description, checklist, subtasks and custom-field defaults). Returns the new
+// task id, or null. The UI exposes ids like "t-869xxxx"; the API path accepts
+// it with or without the prefix depending on workspace, so try both.
+async function createClickupTaskFromTemplate(
+  pat: string,
+  listId: string,
+  templateId: string,
+  name: string,
+): Promise<string | null> {
+  const ids = templateId.startsWith("t-")
+    ? [templateId, templateId.slice(2)]
+    : [templateId, `t-${templateId}`];
+  for (const tid of ids) {
+    const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/taskTemplate/${tid}/task`, {
+      method: "POST",
+      headers: { Authorization: pat, "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      return (data as { id?: string } | null)?.id ?? null;
+    }
+    console.error(`create-from-template ${tid} failed: ${res.status}`);
+  }
+  return null;
+}
+
+// Add assignees to an existing task (used for template-stamped tasks, which the
+// template-create endpoint doesn't assign).
+async function setClickupAssignees(pat: string, taskId: string, assigneeIds: number[]): Promise<void> {
+  if (assigneeIds.length === 0) return;
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+    method: "PUT",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+    body: JSON.stringify({ assignees: { add: assigneeIds } }),
+  });
+  if (!res.ok) console.error(`set assignees ${taskId} failed: ${res.status}`);
 }
 
 function firstOfMonth(d: Date): Date {
