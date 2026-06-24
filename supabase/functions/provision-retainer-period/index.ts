@@ -155,10 +155,12 @@ Deno.serve(async (req: Request) => {
       return cf;
     };
 
-    const taskName = (serviceId: string, d: Date, cadence: string): string => {
+    const taskName = (serviceId: string, d: Date, cadence: string, label?: string): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
+      // Optional per-occurrence label (e.g. a website name) sits after the client.
+      const labelPart = label && label.trim() ? `${label.trim()} - ` : "";
       const week = cadence === "monthly" ? "" : `Week ${weekOfMonth(d)} - `;
-      return `${clientName} - ${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
+      return `${clientName} - ${labelPart}${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
     };
     const liveTaskName = (serviceId: string): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
@@ -180,6 +182,7 @@ Deno.serve(async (req: Request) => {
       points_per_occurrence: number;
       default_assignees: string[];
       is_live_eligible: boolean;
+      occurrence_labels: string[] | null;
     }>) {
       for (const assigneeId of svc.default_assignees) {
         const { data: member } = await sb
@@ -213,7 +216,9 @@ Deno.serve(async (req: Request) => {
               : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
             for (let i = 0; i < ids.length; i++) {
               const d = dates[i] ?? dates[dates.length - 1] ?? periodStart;
-              const name = mode === "live" ? liveTaskName(svc.service_id) : taskName(svc.service_id, d, svc.cadence);
+              const name = mode === "live"
+                ? liveTaskName(svc.service_id)
+                : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
               const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
               const cf = buildCustomFields(svc.service_id, engagementMs);
               const dueDate = mode === "live" ? undefined : isMonthly ? periodEnd.getTime() : d.getTime();
@@ -273,7 +278,8 @@ Deno.serve(async (req: Request) => {
           // occurrence date.
           const isMonthly = svc.cadence === "monthly";
           const dates = plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
-          for (const d of dates) {
+          for (let i = 0; i < dates.length; i++) {
+            const d = dates[i];
             const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
             const startDate = isMonthly ? periodStart.getTime() : undefined;
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
@@ -281,7 +287,7 @@ Deno.serve(async (req: Request) => {
               clickupPat,
               project.clickup_list_id!,
               {
-                name: taskName(svc.service_id, d, svc.cadence),
+                name: taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]),
                 description:
                   `Auto-seeded by Phase 8 provisioner. ` +
                   `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
@@ -466,6 +472,14 @@ function plannedTaskDates(
       if (dow !== 0 && dow !== 6) out.push(new Date(d));
       d = new Date(d.getTime() + 86_400_000);
     }
+    return out;
+  }
+  if (cadence === "monthly") {
+    // Monthly tasks span the whole period (start 1st / due last day), so the
+    // specific weekday doesn't matter — emit exactly `target` of them. (The
+    // weekday-stepping below would skip weekends and undercount, which is what
+    // dropped the 5th task.)
+    for (let i = 0; i < target; i++) out.push(new Date(periodStart));
     return out;
   }
   const totalDays = Math.max(1, Math.round((endMs - startMs) / 86_400_000));

@@ -13,6 +13,7 @@ export type RetainerRecurringServiceRow = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  occurrence_labels: string[] | null;
   created_at: string;
 };
 
@@ -26,6 +27,7 @@ export type RetainerServiceInput = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  occurrence_labels?: string[];
 };
 
 export function useRetainerServices(projectId: string | undefined) {

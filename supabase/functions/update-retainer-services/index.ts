@@ -29,6 +29,7 @@ type ServiceInput = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  occurrence_labels?: string[];
 };
 
 Deno.serve(async (req: Request) => {
@@ -94,6 +95,7 @@ Deno.serve(async (req: Request) => {
         points_per_occurrence: svc.points_per_occurrence,
         default_assignees: svc.default_assignees,
         is_live_eligible: svc.is_live_eligible,
+        occurrence_labels: (svc.occurrence_labels ?? []).map((l) => l.trim()).filter(Boolean),
       };
       if (svc.id && existingIds.has(svc.id)) {
         const { error } = await sb.from("retainer_recurring_services").update(row).eq("id", svc.id);
