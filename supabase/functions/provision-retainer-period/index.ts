@@ -42,15 +42,21 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { project_id, period_start, rename_existing, force_service_ids } = (await req.json()) as {
-      project_id?: string;
-      period_start?: string;
-      rename_existing?: boolean;
-      // Services to re-provision: trash their existing ClickUp tasks for the
-      // period and recreate from the current config (e.g. after a live→manual
-      // or occurrences change mid-period).
-      force_service_ids?: string[];
-    };
+    const { project_id, period_start, rename_existing, force_service_ids, force_all, skip_logged } =
+      (await req.json()) as {
+        project_id?: string;
+        period_start?: string;
+        rename_existing?: boolean;
+        // Services to re-provision: trash their existing ClickUp tasks for the
+        // period and recreate from the current config (e.g. after a live→manual
+        // or occurrences change mid-period).
+        force_service_ids?: string[];
+        // Re-provision EVERY service in the retainer (self-serve button).
+        force_all?: boolean;
+        // When re-provisioning, skip any (service × assignee) whose existing
+        // tasks already have logged hours, so time isn't lost.
+        skip_logged?: boolean;
+      };
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const sb = createServiceRoleClient();
@@ -185,6 +191,7 @@ Deno.serve(async (req: Request) => {
     let reused = 0;
     let patched = 0;
     let reprovisioned = 0;
+    let skipped_logged = 0;
 
     for (const svc of services as Array<{
       id: string;
@@ -236,7 +243,7 @@ Deno.serve(async (req: Request) => {
           .eq("assignee_id", assigneeId)
           .eq("period_start", isoDate(periodStart))
           .maybeSingle();
-        const forceReprovision = (force_service_ids ?? []).includes(svc.service_id);
+        const forceReprovision = !!force_all || (force_service_ids ?? []).includes(svc.service_id);
         if (existing && !forceReprovision) {
           if (rename_existing) {
             // One-off backfill: rename + set fields + points on the tasks that
@@ -271,9 +278,24 @@ Deno.serve(async (req: Request) => {
         }
 
         if (existing && forceReprovision) {
+          const staleIds = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
+          // Guard: never trash a task that already has logged hours.
+          if (skip_logged && staleIds.length > 0) {
+            const { data: logged } = await sb
+              .from("project_actuals_current")
+              .select("clickup_task_id")
+              .eq("project_id", project_id)
+              .in("clickup_task_id", staleIds)
+              .gt("actual_hours", 0)
+              .limit(1);
+            if (logged && logged.length > 0) {
+              skipped_logged += 1;
+              reused += 1;
+              continue;
+            }
+          }
           // Trash the stale ClickUp tasks + provisioned_tasks row, then fall
           // through to recreate from the current config.
-          const staleIds = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
           for (const tid of staleIds) await deleteClickupTask(clickupPat, tid);
           await sb.from("provisioned_tasks").delete().eq("id", (existing as { id: string }).id);
           // Also drop the trashed tasks' historical actuals so they stop
@@ -400,7 +422,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    return json({ created, reused, patched, reprovisioned, field_resolution });
+    return json({ created, reused, patched, reprovisioned, skipped_logged, field_resolution });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

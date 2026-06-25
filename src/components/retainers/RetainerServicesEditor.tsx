@@ -12,6 +12,7 @@ import {
   useRetainerServices,
   useUpdateRetainerServices,
   useProvisionRetainerNow,
+  useReprovisionRetainerMonth,
   type RetainerServiceInput,
 } from "@/hooks/useRetainerServices";
 
@@ -53,6 +54,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
   const { data: loaded } = useRetainerServices(projectId);
   const update = useUpdateRetainerServices();
   const provision = useProvisionRetainerNow();
+  const reprovision = useReprovisionRetainerMonth();
   const updateService = useUpdateService();
 
   const [rows, setRows] = useState<Row[]>([]);
@@ -189,6 +191,28 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           `Provisioned this period${res.created ? ` — ${res.created} new` : " — nothing new"}`,
         ),
       onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to provision"),
+    });
+  }
+
+  function reprovisionMonth() {
+    if (
+      !confirm(
+        "Re-create this month's ClickUp tasks to match the saved services (names, labels, cadence)?\n\n" +
+          "Save your changes first. Tasks that already have logged hours are left untouched.",
+      )
+    ) return;
+    reprovision.mutate(projectId, {
+      onSuccess: (res) => {
+        const parts = [
+          res.reprovisioned ? `${res.reprovisioned} updated` : "",
+          res.created ? `${res.created} created` : "",
+          res.skipped_logged ? `${res.skipped_logged} kept (had logged time)` : "",
+        ].filter(Boolean);
+        toast.success(
+          `Re-provisioned this month${parts.length ? ` — ${parts.join(", ")}` : " — nothing to change"}`,
+        );
+      },
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to re-provision"),
     });
   }
 
@@ -369,21 +393,33 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       )}
 
       <div className="flex items-center justify-between pt-1">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={provisionNow}
-          disabled={provision.isPending}
-          title="Create this month's ClickUp tasks for any newly-added services"
-        >
-          {provision.isPending ? "Provisioning…" : "Provision now"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={provisionNow}
+            disabled={provision.isPending}
+            title="Create this month's ClickUp tasks for any newly-added services"
+          >
+            {provision.isPending ? "Provisioning…" : "Provision now"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={reprovisionMonth}
+            disabled={reprovision.isPending}
+            title="Re-create this month's tasks to match the saved names/labels (tasks with logged hours are kept)"
+          >
+            {reprovision.isPending ? "Re-provisioning…" : "Re-provision this month"}
+          </Button>
+        </div>
         <Button size="sm" onClick={save} disabled={!valid || update.isPending || updateService.isPending}>
           {update.isPending || updateService.isPending ? "Saving…" : "Save services"}
         </Button>
       </div>
       <p className="text-label-small text-m-on-surface-variant">
-        Changes apply to next month's provisioning. Use "Provision now" to push newly-added services into the current month.
+        Changes apply to next month automatically. "Provision now" adds newly-added services to this month;
+        "Re-provision this month" updates this month's task names/labels to match (tasks with logged hours are kept).
       </p>
     </div>
   );

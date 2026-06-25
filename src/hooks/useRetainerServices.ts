@@ -97,3 +97,31 @@ export function useProvisionRetainerNow() {
     },
   });
 }
+
+// Re-provision THIS month for every service in the retainer — recreates the
+// current period's ClickUp tasks to match the saved config (names, labels,
+// cadence). skip_logged leaves any task that already has logged hours untouched.
+export function useReprovisionRetainerMonth() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { data, error } = await supabase.functions.invoke("provision-retainer-period", {
+        body: { project_id: projectId, force_all: true, skip_logged: true },
+      });
+      if (error) throw error;
+      const body = data as {
+        error?: string;
+        created?: number;
+        reprovisioned?: number;
+        skipped_logged?: number;
+      };
+      if (body.error) throw new Error(body.error);
+      await supabase.functions.invoke("sync-clickup-actuals", { body: { project_id: projectId } });
+      return body;
+    },
+    onSuccess: (_d, projectId) => {
+      qc.invalidateQueries({ queryKey: ["project", projectId] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
