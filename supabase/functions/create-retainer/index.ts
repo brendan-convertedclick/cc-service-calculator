@@ -28,6 +28,19 @@ import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
 const VALID_CADENCES = ["daily", "weekly", "biweekly", "monthly", "custom"];
 
+// Strip a redundant leading client name from a retainer name so the
+// "[Retainer] {client} — {name}" umbrella label doesn't show the client twice
+// (e.g. client "Trellidor UK" + retainer "Trellidor UK - Paid Media" → "Paid Media").
+export function dedupeRetainerName(retainerName: string, clientName: string): string {
+  const name = retainerName.trim();
+  const client = clientName.trim();
+  if (client && name.toLowerCase().startsWith(client.toLowerCase())) {
+    const rest = name.slice(client.length).replace(/^\s*[-:—]\s*/, "").trim();
+    if (rest) return rest;
+  }
+  return name;
+}
+
 type ServiceInput = {
   service_id: string;
   cadence: string;
@@ -137,7 +150,7 @@ Deno.serve(async (req: Request) => {
 
     // --- Step 2: create the ClickUp parent task (omit status → CRTSK_001) ---
     const parentTaskId = await createClickupTask(clickupPat, clickup_list_id, {
-      name: `[Retainer] ${client.name} — ${name.trim()}`,
+      name: `[Retainer] ${client.name} — ${dedupeRetainerName(name, client.name)}`,
       description:
         `Retainer parent task for ${client.name}.\n` +
         `Recurring services provisioned monthly by the Phase 8 provisioner.`,
