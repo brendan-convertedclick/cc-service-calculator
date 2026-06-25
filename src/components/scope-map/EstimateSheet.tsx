@@ -34,8 +34,9 @@ export interface EstimateSheetProps {
   onOpenChange: (v: boolean) => void;
   brief: { id: string; client_id: string | null; parent_project_id: string | null };
   /**
-   * Selected new_billable placements — one prefilled line each. The caller only
-   * ever passes billable items (out_of_scope lines are excluded upstream).
+   * Selected placements — one prefilled line each. Any ticked ask can be passed
+   * (a new-billable item, or an in-scope ask the operator chose to bill this
+   * time); in-scope items prefill at their catalogue price.
    */
   items: BriefTaskSowPlacement[];
 }
@@ -101,7 +102,13 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
             item.task_ref,
           qty,
           unit_points: 1,
-          unit_value_cents: item.estimated_cents ?? matched?.sell_price_cents ?? 0,
+          // A new-billable line carries a real estimated figure; an in-scope ask
+          // ticked onto the CE shows R0 (covered) so fall back to the catalogue
+          // price the operator is now choosing to bill.
+          unit_value_cents:
+            item.estimated_cents && item.estimated_cents > 0
+              ? item.estimated_cents
+              : (matched?.sell_price_cents ?? 0),
           line_kind: "add" as CELineKind,
           target_task_id: null,
           sort_order: i,
@@ -241,7 +248,7 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
             <h3 className="text-title-small">Line items</h3>
             {lines.length === 0 ? (
               <p className="rounded-md border border-dashed border-m-outline-variant px-3 py-6 text-center text-body-small text-m-on-surface-variant">
-                No items selected. Pick outside-scope items on the map first.
+                No items selected. Tick items on the map first.
               </p>
             ) : (
               <ul className="space-y-2">

@@ -9,17 +9,40 @@ import type { BriefTaskSowPlacement } from "@/types/sow-placements";
 
 export interface ScopeItemChipProps {
   item: BriefTaskSowPlacement;
-  /** Whether this (outside) item is selected for the cost estimate. */
+  /** Whether this item is selected for the cost estimate. */
   selected: boolean;
   onToggleSelect: (ref: string) => void;
   onOverride: (ref: string, isInside: boolean) => void;
 }
 
 /**
+ * A short, client-ready one-liner explaining why this ask is in or out of
+ * scope. Prefers the analysis's own description; falls back to a disposition
+ * default so a synopsis always shows.
+ */
+function synopsisFor(item: BriefTaskSowPlacement): string {
+  const desc = item.item_description?.trim();
+  if (desc) return desc;
+  switch (item.disposition) {
+    case "in_agreed_scope":
+      return "Covered by the current agreement — no extra charge.";
+    case "new_billable":
+      return "Not in the current agreement — quoted as new work.";
+    case "out_of_scope":
+      return "Outside the services we provide.";
+    default:
+      return item.is_inside
+        ? "Covered by the current scope."
+        : "Outside the current scope.";
+  }
+}
+
+/**
  * A single ask rendered as a full-width row inside one of the scope-map
- * columns. Clicking the row opens a Radix popover with the AI reasoning +
- * override actions. Outside rows carry a leading checkbox that toggles
- * inclusion in the cost estimate without opening the popover.
+ * columns: a checkbox (include in the cost estimate), the ask name, a short
+ * why-it's-in/out synopsis, and the confidence. Clicking the row opens a
+ * popover with the AI reasoning + override actions. The leading checkbox
+ * toggles estimate inclusion without opening the popover.
  */
 export function ScopeItemChip({
   item,
@@ -28,13 +51,14 @@ export function ScopeItemChip({
   onOverride,
 }: ScopeItemChipProps) {
   const name = item.item_name ?? item.task_ref;
+  const synopsis = synopsisFor(item);
   const confidence = item.ai_confidence;
   const lowConfidence = confidence !== null && confidence < 0.55;
   const verdict = item.is_inside ? "In SOW" : "Outside SOW";
   const ariaLabel = [
     name,
     verdict,
-    item.is_inside ? null : selected ? "Included in estimate" : "Not included in estimate",
+    selected ? "Included in estimate" : "Not included in estimate",
     item.ai_match_quote ? `Reasoning: ${item.ai_match_quote}` : null,
   ]
     .filter(Boolean)
@@ -47,49 +71,50 @@ export function ScopeItemChip({
           type="button"
           aria-label={ariaLabel}
           className={cn(
-            "group flex w-full items-center gap-2.5 rounded-lg border bg-m-surface px-3 py-2.5 text-left shadow-elev-1 transition-colors hover:bg-m-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+            "group flex w-full items-start gap-2.5 rounded-lg border bg-m-surface px-3 py-2.5 text-left shadow-elev-1 transition-colors hover:bg-m-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             lowConfidence
               ? "border-dashed border-m-outline"
               : "border-m-outline-variant",
           )}
         >
-          {!item.is_inside && (
-            // Purely decorative mouse shortcut — a real control cannot nest
-            // inside the trigger button, so the operable checkbox lives in
-            // the popover and selection state is announced via the row
-            // button's aria-label. Clicks stop propagation so they never
-            // toggle the popover.
-            <span
-              aria-hidden="true"
-              data-testid={`chip-select-${item.task_ref}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSelect(item.task_ref);
-              }}
-              className={cn(
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
-                selected
-                  ? "border-m-error bg-m-error text-m-on-error"
-                  : "border-m-outline bg-m-surface",
-              )}
-            >
-              {selected && <Check className="h-3 w-3" />}
+          {/* Purely decorative mouse shortcut — a real control cannot nest
+              inside the trigger button, so the operable checkbox lives in the
+              popover and selection state is announced via the row button's
+              aria-label. Clicks stop propagation so they never toggle the
+              popover. Available on every row so any ask can be added to the CE. */}
+          <span
+            aria-hidden="true"
+            data-testid={`chip-select-${item.task_ref}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(item.task_ref);
+            }}
+            className={cn(
+              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+              selected
+                ? "border-m-primary bg-m-primary text-m-on-primary"
+                : "border-m-outline bg-m-surface",
+            )}
+          >
+            {selected && <Check className="h-3 w-3" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-label-large text-m-on-surface">{name}</span>
+            <span className="mt-0.5 block text-body-small text-m-on-surface-variant">
+              {synopsis}
             </span>
-          )}
-          <span className="min-w-0 flex-1 text-label-large text-m-on-surface">
-            {name}
           </span>
           {confidence !== null && (
             <span
               className={cn(
-                "shrink-0 tabular-nums text-label-small",
+                "mt-0.5 shrink-0 tabular-nums text-label-small",
                 lowConfidence ? "text-m-tertiary" : "text-m-on-surface-variant",
               )}
             >
               {Math.round(confidence * 100)}%
             </span>
           )}
-          <ChevronRight className="h-4 w-4 shrink-0 text-m-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100" />
+          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-m-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3" sideOffset={8}>
@@ -100,9 +125,7 @@ export function ScopeItemChip({
               {item.is_inside && item.sow_slug ? `${verdict} · ${item.sow_slug}` : verdict}
             </Badge>
           </div>
-          {item.item_description && (
-            <p className="text-body-small text-m-on-surface-variant">{item.item_description}</p>
-          )}
+          <p className="text-body-small text-m-on-surface-variant">{synopsis}</p>
         </div>
 
         {confidence !== null && (
@@ -152,26 +175,24 @@ export function ScopeItemChip({
               Move outside
             </Button>
           ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => onOverride(item.task_ref, true)}
-              >
-                <ArrowUpLeft className="h-3.5 w-3.5" />
-                Move inside
-              </Button>
-              <label className="flex cursor-pointer items-center gap-2 text-label-medium text-m-on-surface">
-                <Checkbox
-                  checked={selected}
-                  onCheckedChange={() => onToggleSelect(item.task_ref)}
-                  aria-label={`Include "${name}" in estimate`}
-                />
-                Include in estimate
-              </label>
-            </>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => onOverride(item.task_ref, true)}
+            >
+              <ArrowUpLeft className="h-3.5 w-3.5" />
+              Move inside
+            </Button>
           )}
+          <label className="flex cursor-pointer items-center gap-2 text-label-medium text-m-on-surface">
+            <Checkbox
+              checked={selected}
+              onCheckedChange={() => onToggleSelect(item.task_ref)}
+              aria-label={`Include "${name}" in estimate`}
+            />
+            Include in estimate
+          </label>
         </div>
       </PopoverContent>
     </Popover>

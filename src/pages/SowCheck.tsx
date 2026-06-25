@@ -282,17 +282,23 @@ function SowCheckInner({ briefId }: { briefId: string }) {
   }, [clientSows, placements]);
   const sowTitles = sowSlugs.map((slug) => sowTitleBySlug.get(slug) ?? slug);
 
+  // Any ticked item feeds the estimate — including in-scope asks the operator
+  // decides to bill this time (a covered item they want on the CE), not just
+  // new-billable ones.
   const selectedItems = useMemo(
-    () =>
-      // Only new_billable items can feed the estimate — out_of_scope lines are
-      // never billable, even if their ref somehow lingers in the selection set.
-      (placements ?? []).filter(
-        (p) => isBillablePlacement(p) && selectedRefs.has(p.task_ref),
-      ),
+    () => (placements ?? []).filter((p) => selectedRefs.has(p.task_ref)),
     [placements, selectedRefs],
   );
+  // Preview value: a new-billable line carries a real cents figure; an in-scope
+  // ask shows R0 (covered), so fall back to its catalogue price — the same
+  // figure the EstimateSheet prefills when the operator bills it.
+  const valueForPlacement = (p: BriefTaskSowPlacement): number => {
+    if (p.estimated_cents && p.estimated_cents > 0) return p.estimated_cents;
+    const svc = p.suggested_service_id ? serviceById.get(p.suggested_service_id) : undefined;
+    return svc?.sell_price_cents ?? 0;
+  };
   const selectedEstimateCents = selectedItems.reduce(
-    (sum, p) => sum + (p.estimated_cents ?? 0),
+    (sum, p) => sum + valueForPlacement(p),
     0,
   );
 
