@@ -150,6 +150,7 @@ export interface SowTemplate {
   slug: string | null;
   kind: "template" | "snippet";
   master_sow_slug: string | null;
+  department: string | null;
   body: SowBody;
   schema_version: number;
   archived_at: string | null;

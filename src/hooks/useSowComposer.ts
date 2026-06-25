@@ -247,3 +247,130 @@ export function useSaveSectionToLibrary() {
     onSuccess: () => qc.invalidateQueries({ queryKey: SOW_LIBRARY_KEY }),
   });
 }
+
+// ── Template CRUD (cog / manage) ──────────────────────────────────────────────
+
+export function useCreateSowTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; department?: string | null; body?: SowBody }) => {
+      const { data, error } = await sb
+        .from("sow_templates")
+        .insert({
+          name: input.name,
+          kind: "template",
+          department: input.department ?? null,
+          body: input.body ?? [],
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as SowTemplate;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SOW_TEMPLATES_LIST_KEY }),
+  });
+}
+
+export function useUpdateSowTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Partial<Pick<SowTemplate, "name" | "department" | "body" | "archived_at">>) => {
+      const { data, error } = await sb
+        .from("sow_templates")
+        .update(patch)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as SowTemplate;
+    },
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: SOW_TEMPLATES_LIST_KEY });
+      qc.invalidateQueries({ queryKey: SOW_TEMPLATE_KEY(d.id) });
+    },
+  });
+}
+
+export function useDuplicateSowTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (tpl: SowTemplate) => {
+      const { data, error } = await sb
+        .from("sow_templates")
+        .insert({
+          name: `${tpl.name} (copy)`,
+          kind: "template",
+          department: tpl.department,
+          body: tpl.body,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as SowTemplate;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SOW_TEMPLATES_LIST_KEY }),
+  });
+}
+
+export function useDeleteSowTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb.from("sow_templates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SOW_TEMPLATES_LIST_KEY }),
+  });
+}
+
+export function useDeleteSowDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb.from("sow_documents").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SOW_DOCS_LIST_KEY }),
+  });
+}
+
+// ── Variable registry CRUD (cog / manage) ─────────────────────────────────────
+
+export function useUpsertSowVariable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: Partial<VariableDef> & { key: string; type: VariableDef["type"] }) => {
+      const row = {
+        key: v.key,
+        label: v.label ?? null,
+        type: v.type,
+        scope: v.scope ?? (v.type === "computed" ? "computed" : "global"),
+        template_id: v.template_id ?? null,
+        default_value: v.default_value ?? null,
+        expression: v.expression ?? null,
+        enum_options: v.enum_options ?? null,
+      };
+      const query = v.id
+        ? sb.from("sow_variables").update(row).eq("id", v.id)
+        : sb.from("sow_variables").insert(row);
+      const { data, error } = await query.select().single();
+      if (error) throw error;
+      return data as VariableDef;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sow-variables"] }),
+  });
+}
+
+export function useDeleteSowVariable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb.from("sow_variables").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sow-variables"] }),
+  });
+}

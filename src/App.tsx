@@ -115,6 +115,9 @@ const SowComposer = lazy(() =>
 const SowList = lazy(() =>
   import("@/pages/SowList").then((m) => ({ default: m.SowList })),
 );
+const SowManage = lazy(() =>
+  import("@/pages/SowManage").then((m) => ({ default: m.SowManage })),
+);
 
 /**
  * Phase 1 role gates.
@@ -195,6 +198,7 @@ export default function App() {
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
               {/* Scope Composer — visual SOW builder (reclaims the old /sow redirect). */}
               <Route path="sow" element={<SowList />} />
+              <Route path="sow/manage" element={<SowManage />} />
               <Route path="sow/templates/:id" element={<SowComposer />} />
               <Route path="sow/docs/:id" element={<SowComposer />} />
               <Route path="services" element={<ServicesList />} />
