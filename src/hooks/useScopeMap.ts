@@ -125,6 +125,10 @@ export type PlacementOverride = {
   service_area_id?: string | null;
   sow_slug?: string | null;
   override_reason?: string | null;
+  // Scope Ledger Rail: the Scope Receipt's In/New/Out override persists the
+  // three-way disposition directly. When supplied, is_inside is kept in sync
+  // (is_inside === disposition === 'in_agreed_scope') for the legacy map visual.
+  disposition?: BriefTaskSowPlacement["disposition"];
 };
 
 function definedPatch(patch: PlacementOverride): Partial<BriefTaskSowPlacement> {
@@ -132,6 +136,7 @@ function definedPatch(patch: PlacementOverride): Partial<BriefTaskSowPlacement> 
   if (patch.service_area_id !== undefined) out.service_area_id = patch.service_area_id;
   if (patch.sow_slug !== undefined) out.sow_slug = patch.sow_slug;
   if (patch.override_reason !== undefined) out.override_reason = patch.override_reason;
+  if (patch.disposition !== undefined) out.disposition = patch.disposition;
   return out;
 }
 

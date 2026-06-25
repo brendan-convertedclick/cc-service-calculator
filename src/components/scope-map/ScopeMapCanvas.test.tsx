@@ -23,6 +23,11 @@ function makeItem(overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacem
     sow_slug: "web-retainer",
     suggested_service_id: null,
     estimated_cents: null,
+    // Scope Ledger Rail (migration 0071).
+    disposition: null,
+    quantity: null,
+    grounding_quote: null,
+    needs_review: null,
     ...overrides,
   };
 }

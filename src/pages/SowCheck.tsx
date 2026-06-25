@@ -17,6 +17,10 @@ import {
 import { ScopeMapCanvas } from "@/components/scope-map/ScopeMapCanvas";
 import { SowSelectionCard } from "@/components/scope-map/SowSelectionCard";
 import { EstimateSheet } from "@/components/scope-map/EstimateSheet";
+import { ScopeReceipt } from "@/components/scope-receipt/ScopeReceipt";
+import { useServices } from "@/hooks/useServices";
+import { useClientRetainerAllowance } from "@/hooks/useClientRetainerAllowance";
+import type { ReceiptCatalogService } from "@/lib/scope-receipt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,7 +50,11 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/format";
-import type { BriefTaskSowPlacement } from "@/types/sow-placements";
+import {
+  isBillablePlacement,
+  placementDisposition,
+  type BriefTaskSowPlacement,
+} from "@/types/sow-placements";
 
 /**
  * Scope map — Phase 4 of the brief pipeline (route /briefs/:id/sow-check).
@@ -80,6 +88,27 @@ function SowCheckInner({ briefId }: { briefId: string }) {
   const override = useOverridePlacement(briefId);
   const approve = useApprovePlacements(briefId);
 
+  // Catalog lookup for the Scope Receipt (Xero code, unit price, unit of sale),
+  // keyed by service id so a placement's suggested_service_id resolves directly.
+  const { data: services } = useServices();
+  const serviceById = useMemo(
+    () =>
+      new Map<string, ReceiptCatalogService>(
+        (services ?? []).map((s) => [
+          s.id,
+          {
+            id: s.id,
+            code: s.code,
+            name: s.name,
+            sell_price_cents: s.sell_price_cents,
+            unit_of_sale: s.unit_of_sale,
+          },
+        ]),
+      ),
+    [services],
+  );
+  const retainerAllowanceQuery = useClientRetainerAllowance(brief?.client_id);
+
   // slug → title for badges + canvas chips (master_sows is a typed table).
   const { data: masterSows } = useQuery({
     queryKey: ["master-sows"],
@@ -105,6 +134,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
   const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
   const [estimateOpen, setEstimateOpen] = useState(false);
   const [reanalyseOpen, setReanalyseOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("receipt");
   const autoRanRef = useRef(false);
   const selectionInitRef = useRef(false);
 
@@ -116,9 +146,10 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           setSelection({ available: res.available, suggested: res.suggested_slugs });
           return;
         }
-        // Fresh placements → default-select every outside item for the estimate.
+        // Fresh placements → default-select every new-billable item for the
+        // estimate. out_of_scope items are never billable, so they stay unticked.
         setSelectedRefs(
-          new Set(res.placements.filter((p) => !p.is_inside).map((p) => p.task_ref)),
+          new Set(res.placements.filter(isBillablePlacement).map((p) => p.task_ref)),
         );
         selectionInitRef.current = true;
         toast.success(
@@ -147,7 +178,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
     if (selectionInitRef.current) return;
     if (!placements || placements.length === 0) return;
     selectionInitRef.current = true;
-    setSelectedRefs(new Set(placements.filter((p) => !p.is_inside).map((p) => p.task_ref)));
+    setSelectedRefs(new Set(placements.filter(isBillablePlacement).map((p) => p.task_ref)));
   }, [placements]);
 
   const handleToggleSelect = (ref: string) => {
@@ -164,6 +195,9 @@ function SowCheckInner({ briefId }: { briefId: string }) {
       {
         task_ref: ref,
         is_inside: isInside,
+        // Keep the three-way disposition in sync with the legacy in/out flip so
+        // the List badge, map circle, and estimate selection can't disagree.
+        disposition: isInside ? "in_agreed_scope" : "new_billable",
         service_area_id: null,
         ...(isInside ? {} : { sow_slug: null }),
         override_reason: isInside ? "Operator moved inside" : "Operator moved outside",
@@ -176,6 +210,38 @@ function SowCheckInner({ briefId }: { briefId: string }) {
             const next = new Set(prev);
             if (isInside) next.delete(ref);
             else next.add(ref);
+            return next;
+          });
+        },
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : "Failed to update placement"),
+      },
+    );
+  };
+
+  // Scope Receipt In/New/Out override — persists the three-way disposition
+  // (and keeps is_inside in sync for the legacy map visual). Estimate selection
+  // follows: a line moved to new_billable is auto-selected; anything else drops.
+  const handleReceiptOverride = (
+    ref: string,
+    disposition: "in_agreed_scope" | "new_billable" | "out_of_scope",
+  ) => {
+    const isInside = disposition === "in_agreed_scope";
+    override.mutate(
+      {
+        task_ref: ref,
+        is_inside: isInside,
+        disposition,
+        service_area_id: null,
+        ...(isInside ? {} : { sow_slug: null }),
+        override_reason: `Operator moved to ${disposition}`,
+      },
+      {
+        onSuccess: () => {
+          setSelectedRefs((prev) => {
+            const next = new Set(prev);
+            if (disposition === "new_billable") next.add(ref);
+            else next.delete(ref);
             return next;
           });
         },
@@ -218,7 +284,11 @@ function SowCheckInner({ briefId }: { briefId: string }) {
 
   const selectedItems = useMemo(
     () =>
-      (placements ?? []).filter((p) => !p.is_inside && selectedRefs.has(p.task_ref)),
+      // Only new_billable items can feed the estimate — out_of_scope lines are
+      // never billable, even if their ref somehow lingers in the selection set.
+      (placements ?? []).filter(
+        (p) => isBillablePlacement(p) && selectedRefs.has(p.task_ref),
+      ),
     [placements, selectedRefs],
   );
   const selectedEstimateCents = selectedItems.reduce(
@@ -348,11 +418,32 @@ function SowCheckInner({ briefId }: { briefId: string }) {
         )
       ) : (
         <>
-          <Tabs defaultValue="map">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
+              <TabsTrigger value="receipt">Receipt</TabsTrigger>
               <TabsTrigger value="map">Map</TabsTrigger>
               <TabsTrigger value="list">List</TabsTrigger>
             </TabsList>
+            <TabsContent value="receipt" className="pt-6">
+              <ScopeReceipt
+                placements={placements ?? []}
+                serviceById={serviceById}
+                meter={
+                  retainerAllowanceQuery.data &&
+                  retainerAllowanceQuery.data.totalOccurrences > 0
+                    ? {
+                        label: "Retainer allowance (this month)",
+                        used: (placements ?? []).filter(
+                          (p) => placementDisposition(p) === "in_agreed_scope",
+                        ).length,
+                        allowance: retainerAllowanceQuery.data.totalOccurrences,
+                      }
+                    : undefined
+                }
+                onBuildEstimate={() => setEstimateOpen(true)}
+                onOverride={handleReceiptOverride}
+              />
+            </TabsContent>
             <TabsContent value="map" className="pt-6">
               <ScopeMapCanvas
                 items={placements ?? []}
@@ -371,7 +462,9 @@ function SowCheckInner({ briefId }: { briefId: string }) {
             </TabsContent>
           </Tabs>
 
-          {selectedItems.length > 0 && (
+          {/* Legacy selection bar — only on map/list; the Receipt tab carries
+              its own sticky quote footer so they never double up. */}
+          {activeTab !== "receipt" && selectedItems.length > 0 && (
             <div className="sticky bottom-4 z-20">
               <Card className="border-m-outline-variant bg-m-surface-container shadow-elev-3">
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
@@ -483,9 +576,24 @@ function PlacementsTable({
                 )}
               </TableCell>
               <TableCell>
-                <Badge variant={p.is_inside ? "muted" : "destructive"}>
-                  {p.is_inside ? "In SOW" : "Outside SOW"}
-                </Badge>
+                {(() => {
+                  const d = placementDisposition(p);
+                  const meta = {
+                    in_agreed_scope: { variant: "success" as const, label: "In agreed scope" },
+                    new_billable: { variant: "warning" as const, label: "New billable" },
+                    out_of_scope: { variant: "muted" as const, label: "Out of scope" },
+                  }[d];
+                  return (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      {p.needs_review && (
+                        <Badge variant="destructive" className="text-label-small">
+                          Review
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })()}
               </TableCell>
               <TableCell className="text-body-small text-m-on-surface-variant">
                 {p.ai_confidence !== null ? `${Math.round(p.ai_confidence * 100)}%` : "—"}

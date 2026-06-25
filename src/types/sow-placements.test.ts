@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { BriefTaskSowPlacement } from "./sow-placements";
+import {
+  isBillablePlacement,
+  placementDisposition,
+  type BriefTaskSowPlacement,
+} from "./sow-placements";
 
 // Factory mirrors the full row shape — a compile error here flags any drift
 // between the hand-maintained type and code building placement rows.
@@ -21,6 +25,11 @@ const p = (overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacement => 
   sow_slug: null,
   suggested_service_id: null,
   estimated_cents: null,
+  // Scope Ledger Rail (migration 0071).
+  disposition: null,
+  quantity: null,
+  grounding_quote: null,
+  needs_review: null,
   ...overrides,
 });
 
@@ -37,5 +46,53 @@ describe("BriefTaskSowPlacement factory", () => {
     expect(row.sow_slug).toBe("web-retainer");
     expect(row.estimated_cents).toBe(250_000);
     expect(row.suggested_service_id).toBeNull();
+  });
+
+  it("carries the Scope Ledger Rail fields added by migration 0071", () => {
+    const row = p({
+      disposition: "new_billable",
+      quantity: 3,
+      grounding_quote: "please build three landing pages",
+      needs_review: true,
+    });
+    expect(row.disposition).toBe("new_billable");
+    expect(row.quantity).toBe(3);
+    expect(row.grounding_quote).toBe("please build three landing pages");
+    expect(row.needs_review).toBe(true);
+  });
+});
+
+describe("placementDisposition", () => {
+  it("returns the explicit disposition when set", () => {
+    expect(placementDisposition(p({ disposition: "out_of_scope" }))).toBe("out_of_scope");
+    expect(placementDisposition(p({ disposition: "new_billable" }))).toBe("new_billable");
+    expect(placementDisposition(p({ disposition: "in_agreed_scope" }))).toBe("in_agreed_scope");
+  });
+
+  it("falls back to is_inside for pre-0071 rows (disposition null)", () => {
+    expect(placementDisposition(p({ disposition: null, is_inside: true }))).toBe("in_agreed_scope");
+    expect(placementDisposition(p({ disposition: null, is_inside: false }))).toBe("new_billable");
+  });
+});
+
+describe("isBillablePlacement", () => {
+  it("is true only for new_billable", () => {
+    expect(isBillablePlacement(p({ disposition: "new_billable" }))).toBe(true);
+    expect(isBillablePlacement(p({ disposition: "in_agreed_scope" }))).toBe(false);
+    expect(isBillablePlacement(p({ disposition: "out_of_scope" }))).toBe(false);
+  });
+
+  it("excludes out_of_scope items from the estimate", () => {
+    const rows = [
+      p({ task_ref: "a", disposition: "new_billable" }),
+      p({ task_ref: "b", disposition: "out_of_scope" }),
+      p({ task_ref: "c", disposition: "in_agreed_scope" }),
+    ];
+    expect(rows.filter(isBillablePlacement).map((r) => r.task_ref)).toEqual(["a"]);
+  });
+
+  it("treats legacy outside rows as billable (back-compat)", () => {
+    expect(isBillablePlacement(p({ disposition: null, is_inside: false }))).toBe(true);
+    expect(isBillablePlacement(p({ disposition: null, is_inside: true }))).toBe(false);
   });
 });

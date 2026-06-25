@@ -359,6 +359,121 @@ export type Database = {
           },
         ]
       }
+      brief_task_sow_placements: {
+        Row: {
+          ai_confidence: number | null
+          ai_match_quote: string | null
+          approved_at: string | null
+          approved_by: string | null
+          brief_id: string
+          created_at: string
+          disposition: string | null
+          estimated_cents: number | null
+          grounding_quote: string | null
+          id: string
+          is_inside: boolean
+          item_description: string | null
+          item_name: string | null
+          needs_review: boolean | null
+          override_reason: string | null
+          quantity: number | null
+          service_area_id: string | null
+          sow_slug: string | null
+          suggested_service_id: string | null
+          task_ref: string
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_match_quote?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          brief_id: string
+          created_at?: string
+          disposition?: string | null
+          estimated_cents?: number | null
+          grounding_quote?: string | null
+          id?: string
+          is_inside: boolean
+          item_description?: string | null
+          item_name?: string | null
+          needs_review?: boolean | null
+          override_reason?: string | null
+          quantity?: number | null
+          service_area_id?: string | null
+          sow_slug?: string | null
+          suggested_service_id?: string | null
+          task_ref: string
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_match_quote?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          brief_id?: string
+          created_at?: string
+          disposition?: string | null
+          estimated_cents?: number | null
+          grounding_quote?: string | null
+          id?: string
+          is_inside?: boolean
+          item_description?: string | null
+          item_name?: string | null
+          needs_review?: boolean | null
+          override_reason?: string | null
+          quantity?: number | null
+          service_area_id?: string | null
+          sow_slug?: string | null
+          suggested_service_id?: string | null
+          task_ref?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brief_task_sow_placements_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_task_sow_placements_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_task_sow_placements_service_area_id_fkey"
+            columns: ["service_area_id"]
+            isOneToOne: false
+            referencedRelation: "sow_service_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_task_sow_placements_sow_slug_fkey"
+            columns: ["sow_slug"]
+            isOneToOne: false
+            referencedRelation: "master_sows"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "brief_task_sow_placements_suggested_service_id_fkey"
+            columns: ["suggested_service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "brief_task_sow_placements_suggested_service_id_fkey"
+            columns: ["suggested_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       briefs: {
         Row: {
           assignee_id: string | null
@@ -466,6 +581,179 @@ export type Database = {
             columns: ["triaged_by"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      change_estimate_line_items: {
+        Row: {
+          change_estimate_id: string
+          description: string
+          id: string
+          line_kind: string
+          qty: number
+          service_id: string | null
+          sort_order: number
+          target_task_id: string | null
+          unit_points: number
+          unit_value_cents: number
+        }
+        Insert: {
+          change_estimate_id: string
+          description: string
+          id?: string
+          line_kind: string
+          qty?: number
+          service_id?: string | null
+          sort_order?: number
+          target_task_id?: string | null
+          unit_points: number
+          unit_value_cents: number
+        }
+        Update: {
+          change_estimate_id?: string
+          description?: string
+          id?: string
+          line_kind?: string
+          qty?: number
+          service_id?: string | null
+          sort_order?: number
+          target_task_id?: string | null
+          unit_points?: number
+          unit_value_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_estimate_line_items_change_estimate_id_fkey"
+            columns: ["change_estimate_id"]
+            isOneToOne: false
+            referencedRelation: "change_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_estimate_line_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "change_estimate_line_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      change_estimates: {
+        Row: {
+          approval_note: string | null
+          approved_at: string | null
+          approver_email: string | null
+          brief_id: string | null
+          client_id: string
+          created_at: string
+          created_by: string | null
+          delta_points: number
+          delta_value_cents: number
+          external_approval_id: string | null
+          id: string
+          outbound_email_id: string | null
+          project_id: string | null
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          source: string
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_note?: string | null
+          approved_at?: string | null
+          approver_email?: string | null
+          brief_id?: string | null
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          delta_points?: number
+          delta_value_cents?: number
+          external_approval_id?: string | null
+          id?: string
+          outbound_email_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          source: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_note?: string | null
+          approved_at?: string | null
+          approver_email?: string | null
+          brief_id?: string | null
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          delta_points?: number
+          delta_value_cents?: number
+          external_approval_id?: string | null
+          id?: string
+          outbound_email_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          source?: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_estimates_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_estimates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_estimates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "change_estimates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_estimates_outbound_email_id_fkey"
+            columns: ["outbound_email_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_emails"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_estimates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -694,6 +982,49 @@ export type Database = {
           },
         ]
       }
+      client_sows: {
+        Row: {
+          client_id: string
+          created_at: string
+          sow_slug: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          sow_slug: string
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          sow_slug?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_sows_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sows_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_sows_sow_slug_fkey"
+            columns: ["sow_slug"]
+            isOneToOne: false
+            referencedRelation: "master_sows"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       client_touchpoints: {
         Row: {
           client_id: string
@@ -876,6 +1207,134 @@ export type Database = {
           {
             foreignKeyName: "departments_primary_team_member_id_fkey"
             columns: ["primary_team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          body_text: string
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          subject: string
+          updated_at: string
+          variables: string[]
+        }
+        Insert: {
+          body_html: string
+          body_text: string
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          subject: string
+          updated_at?: string
+          variables?: string[]
+        }
+        Update: {
+          body_html?: string
+          body_text?: string
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          subject?: string
+          updated_at?: string
+          variables?: string[]
+        }
+        Relationships: []
+      }
+      extension_requests: {
+        Row: {
+          approved_at: string | null
+          approver_id: string | null
+          clickup_subtask_id: string | null
+          clickup_subtask_url: string | null
+          client_id: string
+          created_at: string
+          delta_pct: number
+          extra_points: number
+          id: string
+          original_points: number
+          parent_clickup_task_id: string
+          parent_task_name: string
+          reason: string
+          rejected_reason: string | null
+          requester_id: string
+          status: string
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_subtask_id?: string | null
+          clickup_subtask_url?: string | null
+          client_id: string
+          created_at?: string
+          delta_pct: number
+          extra_points: number
+          id?: string
+          original_points: number
+          parent_clickup_task_id: string
+          parent_task_name: string
+          reason: string
+          rejected_reason?: string | null
+          requester_id: string
+          status: string
+          tier: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_subtask_id?: string | null
+          clickup_subtask_url?: string | null
+          client_id?: string
+          created_at?: string
+          delta_pct?: number
+          extra_points?: number
+          id?: string
+          original_points?: number
+          parent_clickup_task_id?: string
+          parent_task_name?: string
+          reason?: string
+          rejected_reason?: string | null
+          requester_id?: string
+          status?: string
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extension_requests_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "extension_requests_requester_id_fkey"
+            columns: ["requester_id"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]
@@ -1069,6 +1528,114 @@ export type Database = {
             columns: ["time_category_id"]
             isOneToOne: false
             referencedRelation: "time_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_emails: {
+        Row: {
+          approval_link: string | null
+          bcc_addresses: string[]
+          body_html: string
+          body_text: string
+          brief_id: string | null
+          cc_addresses: string[]
+          client_id: string | null
+          composed_by: string
+          created_at: string
+          drive_link: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          project_id: string | null
+          send_error: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          template: string | null
+          to_addresses: string[]
+          updated_at: string
+        }
+        Insert: {
+          approval_link?: string | null
+          bcc_addresses?: string[]
+          body_html: string
+          body_text: string
+          brief_id?: string | null
+          cc_addresses?: string[]
+          client_id?: string | null
+          composed_by: string
+          created_at?: string
+          drive_link?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          project_id?: string | null
+          send_error?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template?: string | null
+          to_addresses: string[]
+          updated_at?: string
+        }
+        Update: {
+          approval_link?: string | null
+          bcc_addresses?: string[]
+          body_html?: string
+          body_text?: string
+          brief_id?: string | null
+          cc_addresses?: string[]
+          client_id?: string | null
+          composed_by?: string
+          created_at?: string
+          drive_link?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          project_id?: string | null
+          send_error?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template?: string | null
+          to_addresses?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_emails_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_emails_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_emails_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "outbound_emails_composed_by_fkey"
+            columns: ["composed_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_emails_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1344,6 +1911,7 @@ export type Database = {
           cost_cents: number | null
           dept_id: string | null
           id: string
+          is_productized: boolean | null
           planned_hours: number
           project_id: string
           recorded_at: string
@@ -1358,6 +1926,7 @@ export type Database = {
           cost_cents?: number | null
           dept_id?: string | null
           id?: string
+          is_productized?: boolean | null
           planned_hours: number
           project_id: string
           recorded_at?: string
@@ -1372,6 +1941,7 @@ export type Database = {
           cost_cents?: number | null
           dept_id?: string | null
           id?: string
+          is_productized?: boolean | null
           planned_hours?: number
           project_id?: string
           recorded_at?: string
@@ -1390,6 +1960,108 @@ export type Database = {
           },
           {
             foreignKeyName: "project_actuals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_events: {
+        Row: {
+          actor_team_member_id: string | null
+          clickup_task_id: string | null
+          event_type: string
+          id: string
+          occurred_at: string
+          payload: Json
+          project_id: string
+          synced_at: string
+        }
+        Insert: {
+          actor_team_member_id?: string | null
+          clickup_task_id?: string | null
+          event_type: string
+          id?: string
+          occurred_at: string
+          payload?: Json
+          project_id: string
+          synced_at?: string
+        }
+        Update: {
+          actor_team_member_id?: string | null
+          clickup_task_id?: string | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          project_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_events_actor_team_member_id_fkey"
+            columns: ["actor_team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_problems: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          details: Json
+          first_detected_at: string
+          id: string
+          last_detected_at: string
+          problem_type: string
+          project_id: string
+          resolved_at: string | null
+          severity: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          details?: Json
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          problem_type: string
+          project_id: string
+          resolved_at?: string | null
+          severity: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          details?: Json
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          problem_type?: string
+          project_id?: string
+          resolved_at?: string | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_problems_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_problems_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -1508,6 +2180,64 @@ export type Database = {
             columns: ["quote_id"]
             isOneToOne: true
             referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provisioned_tasks: {
+        Row: {
+          assignee_id: string
+          clickup_task_ids: string[]
+          created_at: string
+          id: string
+          mode: string
+          period_end: string
+          period_start: string
+          project_id: string
+          recurring_service_id: string
+        }
+        Insert: {
+          assignee_id: string
+          clickup_task_ids?: string[]
+          created_at?: string
+          id?: string
+          mode: string
+          period_end: string
+          period_start: string
+          project_id: string
+          recurring_service_id: string
+        }
+        Update: {
+          assignee_id?: string
+          clickup_task_ids?: string[]
+          created_at?: string
+          id?: string
+          mode?: string
+          period_end?: string
+          period_start?: string
+          project_id?: string
+          recurring_service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provisioned_tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provisioned_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provisioned_tasks_recurring_service_id_fkey"
+            columns: ["recurring_service_id"]
+            isOneToOne: false
+            referencedRelation: "retainer_recurring_services"
             referencedColumns: ["id"]
           },
         ]
@@ -1900,6 +2630,76 @@ export type Database = {
         }
         Relationships: []
       }
+      retainer_recurring_services: {
+        Row: {
+          cadence: string
+          checklist_items: string[]
+          clickup_task_template_id: string | null
+          created_at: string
+          default_assignees: string[]
+          id: string
+          is_live_eligible: boolean
+          occurrence_labels: string[]
+          occurrences_per_month: number
+          points_per_occurrence: number
+          project_id: string
+          service_id: string
+          task_description: string | null
+        }
+        Insert: {
+          cadence: string
+          checklist_items?: string[]
+          clickup_task_template_id?: string | null
+          created_at?: string
+          default_assignees?: string[]
+          id?: string
+          is_live_eligible?: boolean
+          occurrence_labels?: string[]
+          occurrences_per_month: number
+          points_per_occurrence: number
+          project_id: string
+          service_id: string
+          task_description?: string | null
+        }
+        Update: {
+          cadence?: string
+          checklist_items?: string[]
+          clickup_task_template_id?: string | null
+          created_at?: string
+          default_assignees?: string[]
+          id?: string
+          is_live_eligible?: boolean
+          occurrence_labels?: string[]
+          occurrences_per_month?: number
+          points_per_occurrence?: number
+          project_id?: string
+          service_id?: string
+          task_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retainer_recurring_services_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retainer_recurring_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "retainer_recurring_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rule_allocations: {
         Row: {
           department_id: string
@@ -2085,6 +2885,8 @@ export type Database = {
           default_due_days: number | null
           id: string
           included_revisions: string | null
+          is_deliverable: boolean
+          is_productized: boolean
           name: string
           notes: string | null
           owner_role: string | null
@@ -2107,6 +2909,8 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
+          is_deliverable?: boolean
+          is_productized?: boolean
           name: string
           notes?: string | null
           owner_role?: string | null
@@ -2129,6 +2933,8 @@ export type Database = {
           default_due_days?: number | null
           id?: string
           included_revisions?: string | null
+          is_deliverable?: boolean
+          is_productized?: boolean
           name?: string
           notes?: string | null
           owner_role?: string | null
@@ -2162,8 +2968,10 @@ export type Database = {
       }
       settings: {
         Row: {
+          account_manager_email: string
           anthropic_enabled: boolean
           anthropic_model: string
+          approval_program_base_url: string | null
           blended_hourly_rate_zar: number
           clickup_clients_space_id: string | null
           clickup_enabled: boolean
@@ -2172,15 +2980,19 @@ export type Database = {
           id: number
           inbound_email_secret: string | null
           productivity_goal_points: number
+          standard_point_rate_cents: number | null
           unallocated_ai_clickup_task_id: string | null
           updated_at: string
+          waiting_on_client_statuses: string[]
           xero_enabled: boolean
           xero_oauth_tokens: Json | null
           zar_per_point: number
         }
         Insert: {
+          account_manager_email?: string
           anthropic_enabled?: boolean
           anthropic_model?: string
+          approval_program_base_url?: string | null
           blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
@@ -2189,15 +3001,19 @@ export type Database = {
           id?: number
           inbound_email_secret?: string | null
           productivity_goal_points?: number
+          standard_point_rate_cents?: number | null
           unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
+          waiting_on_client_statuses?: string[]
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
           zar_per_point?: number
         }
         Update: {
+          account_manager_email?: string
           anthropic_enabled?: boolean
           anthropic_model?: string
+          approval_program_base_url?: string | null
           blended_hourly_rate_zar?: number
           clickup_clients_space_id?: string | null
           clickup_enabled?: boolean
@@ -2206,8 +3022,10 @@ export type Database = {
           id?: number
           inbound_email_secret?: string | null
           productivity_goal_points?: number
+          standard_point_rate_cents?: number | null
           unallocated_ai_clickup_task_id?: string | null
           updated_at?: string
+          waiting_on_client_statuses?: string[]
           xero_enabled?: boolean
           xero_oauth_tokens?: Json | null
           zar_per_point?: number
@@ -2240,6 +3058,139 @@ export type Database = {
           slug?: string
         }
         Relationships: []
+      }
+      sow_service_areas: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          sort_order: number
+          sow_slug: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          sow_slug: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          sow_slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sow_service_areas_sow_slug_fkey"
+            columns: ["sow_slug"]
+            isOneToOne: false
+            referencedRelation: "master_sows"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      staff_briefs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          auto_approved: boolean
+          clickup_list_id: string
+          clickup_list_name: string
+          clickup_task_id: string | null
+          clickup_task_url: string | null
+          client_id: string
+          created_at: string
+          goal: string
+          id: string
+          is_internal: boolean
+          measurable_outcome: string
+          rejected_reason: string | null
+          sprint_points: number
+          status: string
+          submitter_id: string
+          success_criteria: string
+          task_name: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_approved?: boolean
+          clickup_list_id: string
+          clickup_list_name: string
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          client_id: string
+          created_at?: string
+          goal: string
+          id?: string
+          is_internal?: boolean
+          measurable_outcome: string
+          rejected_reason?: string | null
+          sprint_points: number
+          status?: string
+          submitter_id: string
+          success_criteria: string
+          task_name: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          auto_approved?: boolean
+          clickup_list_id?: string
+          clickup_list_name?: string
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          client_id?: string
+          created_at?: string
+          goal?: string
+          id?: string
+          is_internal?: boolean
+          measurable_outcome?: string
+          rejected_reason?: string | null
+          sprint_points?: number
+          status?: string
+          submitter_id?: string
+          success_criteria?: string
+          task_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_briefs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_briefs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_briefs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "staff_briefs_submitter_id_fkey"
+            columns: ["submitter_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_groups: {
         Row: {
@@ -2307,6 +3258,7 @@ export type Database = {
       team_members: {
         Row: {
           archived_at: string | null
+          auth_user_id: string | null
           clickup_user_id: number | null
           cost_rate_cents: number | null
           created_at: string
@@ -2314,11 +3266,14 @@ export type Database = {
           full_name: string
           id: string
           primary_department_id: string | null
+          role: string
           skills: string[]
+          tracking_mode: string
           updated_at: string
         }
         Insert: {
           archived_at?: string | null
+          auth_user_id?: string | null
           clickup_user_id?: number | null
           cost_rate_cents?: number | null
           created_at?: string
@@ -2326,11 +3281,14 @@ export type Database = {
           full_name: string
           id?: string
           primary_department_id?: string | null
+          role?: string
           skills?: string[]
+          tracking_mode?: string
           updated_at?: string
         }
         Update: {
           archived_at?: string | null
+          auth_user_id?: string | null
           clickup_user_id?: number | null
           cost_rate_cents?: number | null
           created_at?: string
@@ -2338,7 +3296,9 @@ export type Database = {
           full_name?: string
           id?: string
           primary_department_id?: string | null
+          role?: string
           skills?: string[]
+          tracking_mode?: string
           updated_at?: string
         }
         Relationships: [
@@ -2523,6 +3483,56 @@ export type Database = {
       }
     }
     Views: {
+      live_actuals_by_period: {
+        Row: {
+          billable: boolean | null
+          clickup_task_id: string | null
+          client_id: string | null
+          department_id: string | null
+          entry_id: string | null
+          entry_start: string | null
+          hours: number | null
+          team_member_id: string | null
+          time_category_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ongoing_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ongoing_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "ongoing_tasks_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ongoing_tasks_time_category_id_fkey"
+            columns: ["time_category_id"]
+            isOneToOne: false
+            referencedRelation: "time_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_primary_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ongoing_actuals_current: {
         Row: {
           clickup_task_id: string | null
@@ -2637,8 +3647,29 @@ export type Database = {
           },
         ]
       }
+      v_sprint_actuals: {
+        Row: {
+          actual_id: string | null
+          clickup_task_id: string | null
+          project_id: string | null
+          recorded_at: string | null
+          sprint_points: number | null
+          synced_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_actuals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      current_team_member_id: { Args: never; Returns: string }
+      current_team_member_role: { Args: never; Returns: string }
       generate_project_code: { Args: never; Returns: string }
       get_direct_multiplier: {
         Args: { p_end: string; p_logged_by?: string; p_start: string }

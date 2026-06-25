@@ -94,7 +94,6 @@ const ReconciliationView = lazy(() =>
 const PulseView = lazy(() =>
   import("@/pages/PulseView").then((m) => ({ default: m.PulseView })),
 );
-const SOWFamilyPage = lazy(() => import("@/pages/SOWFamilyPage"));
 const ProductivityPage = lazy(() =>
   import("@/pages/ProductivityPage").then((m) => ({ default: m.ProductivityPage })),
 );
@@ -189,7 +188,7 @@ export default function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
               <Route path="sow" element={<Navigate to="/services" replace />} />
-              <Route path="sow/:familySlug" element={<SOWFamilyPage />} />
+              <Route path="sow/:familySlug" element={<Navigate to="/services" replace />} />
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { SOWLevelsManager } from "@/components/sow/SOWLevelsManager";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,14 +26,13 @@ import {
 } from "@/hooks/useOngoingTasks";
 import type { TaskGroup, TaskTemplate } from "@/types/ongoing";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "sow" | "productivity" | "output-multiplier" | "task-catalog";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "productivity" | "output-multiplier" | "task-catalog";
 
 const NAV: { key: SectionKey; label: string }[] = [
   { key: "clickup",          label: "ClickUp" },
   { key: "anthropic",        label: "Anthropic" },
   { key: "xero",             label: "Xero" },
   { key: "gmail",            label: "Gmail" },
-  { key: "sow",              label: "SOW Clauses" },
   { key: "productivity",     label: "Productivity" },
   { key: "output-multiplier", label: "Output Multiplier" },
   { key: "task-catalog",     label: "Task catalog" },
@@ -405,44 +403,6 @@ export function Settings() {
                   <p className="text-label-small text-m-on-surface-variant">
                     Used to calculate the equivalent human cost of passive agent output.
                   </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeSection === "sow" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>SOW Clause Hierarchy</CardTitle>
-                <CardDescription>
-                  Define the priority order for scope-of-work clause inheritance. Higher levels override lower ones.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SOWLevelsManager />
-                <div className="pt-2 border-t border-white/10">
-                  <p className="text-xs text-muted-foreground mb-2">Edit clause values per service family:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "paid-media-management",
-                      "creative-production",
-                      "website-build",
-                      "seo-content",
-                      "website-hosting-maintenance",
-                      "social-media-management",
-                      "analytics-tracking",
-                      "video-3d-production",
-                      "marketing-automation",
-                    ].map(slug => (
-                      <Link
-                        key={slug}
-                        to={`/sow/${slug}`}
-                        className="text-xs text-indigo-400 underline hover:text-indigo-300 transition-colors"
-                      >
-                        {slug}
-                      </Link>
-                    ))}
-                  </div>
                 </div>
               </CardContent>
             </Card>

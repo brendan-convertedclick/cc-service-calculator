@@ -14,8 +14,32 @@ import {
 } from "./scope-map-logic.ts";
 
 const SERVICES: CatalogueService[] = [
-  { id: "svc-1", code: "SEO-AUDIT", name: "SEO audit", sell_price_cents: 450000 },
-  { id: "svc-2", code: "LP-BUILD", name: "Landing page build", sell_price_cents: 1200000 },
+  {
+    id: "svc-1",
+    code: "SEO-AUDIT",
+    name: "SEO audit",
+    sell_price_cents: 450000,
+    unit_of_sale: "audit",
+    is_deliverable: true,
+  },
+  {
+    id: "svc-2",
+    code: "LP-BUILD",
+    name: "Landing page build",
+    sell_price_cents: 1200000,
+    unit_of_sale: "page",
+    is_deliverable: true,
+  },
+  // Non-deliverable SKU (spend / pass-through): must never be offered to the
+  // model nor accepted as a matched code.
+  {
+    id: "svc-3",
+    code: "AD-SPEND",
+    name: "Ad spend",
+    sell_price_cents: 0,
+    unit_of_sale: "month",
+    is_deliverable: false,
+  },
 ];
 
 // --- makeTaskRef ---
@@ -61,10 +85,12 @@ Deno.test("parseScopeMapItems: extracts array embedded in prose, maps catalogue 
   const text = `Here you go:\n[
     { "item_name": "Monthly SEO report", "item_description": "Recurring report", "is_inside": true,
       "sow_slug": "seo-retainer", "service_area_id": "area-1", "confidence": 0.9,
-      "reasoning": "Covered under 'monthly reporting' clause", "suggested_service_code": null, "estimated_zar": null },
+      "reasoning": "Covered under 'monthly reporting' clause", "matched_service_code": null,
+      "quantity": 1, "grounding_quote": "send me the monthly SEO report", "estimated_zar": null },
     { "item_name": "New landing page", "item_description": "Promo LP", "is_inside": false,
       "sow_slug": null, "service_area_id": null, "confidence": 0.8,
-      "reasoning": "No web build deliverable in the SOW", "suggested_service_code": "LP-BUILD", "estimated_zar": 9999 }
+      "reasoning": "No web build deliverable in the SOW", "matched_service_code": "LP-BUILD",
+      "quantity": 3, "grounding_quote": "build three new landing pages", "estimated_zar": 9999 }
   ]`;
   const items = parseScopeMapItems(text, PARSE_OPTS);
   assertEquals(items?.length, 2);
@@ -72,10 +98,40 @@ Deno.test("parseScopeMapItems: extracts array embedded in prose, maps catalogue 
   assertEquals(items![0].service_area_id, "area-1");
   assertEquals(items![0].suggested_service_id, null);
   assertEquals(items![0].estimated_cents, null);
+  assertEquals(items![0].matched_service_code, null);
+  assertEquals(items![0].quantity, 1);
+  assertEquals(items![0].grounding_quote, "send me the monthly SEO report");
+  assertEquals(items![0].confidence, 0.9);
   assertEquals(items![1].is_inside, false);
   assertEquals(items![1].suggested_service_id, "svc-2");
+  assertEquals(items![1].matched_service_code, "LP-BUILD");
+  assertEquals(items![1].quantity, 3);
+  assertEquals(items![1].grounding_quote, "build three new landing pages");
   // Catalogue price wins over estimated_zar.
   assertEquals(items![1].estimated_cents, 1200000);
+});
+
+Deno.test("parseScopeMapItems: whitelists matched_service_code, defaults quantity, drops invented/non-deliverable codes", () => {
+  const text = `[
+    { "item_name": "Made-up match", "item_description": "x", "is_inside": false,
+      "sow_slug": null, "service_area_id": null, "confidence": 0.7,
+      "reasoning": "", "matched_service_code": "NOT-A-REAL-CODE", "grounding_quote": null, "estimated_zar": null },
+    { "item_name": "Spend match", "item_description": "x", "is_inside": false,
+      "sow_slug": null, "service_area_id": null, "confidence": 0.7,
+      "reasoning": "", "matched_service_code": "AD-SPEND", "quantity": 0, "grounding_quote": "  ", "estimated_zar": null }
+  ]`;
+  const items = parseScopeMapItems(text, PARSE_OPTS);
+  // Invented code → null, no quantity given → default 1.
+  assertEquals(items![0].matched_service_code, null);
+  assertEquals(items![0].suggested_service_id, null);
+  assertEquals(items![0].quantity, 1);
+  assertEquals(items![0].grounding_quote, null);
+  // Non-deliverable code is never matchable → null; non-positive quantity → 1;
+  // whitespace-only grounding quote → null.
+  assertEquals(items![1].matched_service_code, null);
+  assertEquals(items![1].suggested_service_id, null);
+  assertEquals(items![1].quantity, 1);
+  assertEquals(items![1].grounding_quote, null);
 });
 
 Deno.test("parseScopeMapItems: whitelists sow_slug and service_area_id", () => {
@@ -163,7 +219,10 @@ Deno.test("buildAnalyzeSystem: includes SOW headers, areas, and catalogue lines"
   assertStringIncludes(system, "## SOW: SEO Retainer (slug: seo-retainer)");
   assertStringIncludes(system, "Monthly reporting.");
   assertStringIncludes(system, 'id=area-1 · name="Reporting" · sow=seo-retainer');
-  assertStringIncludes(system, "SEO-AUDIT | SEO audit | R4500");
+  // New catalogue format: code | name | unit_of_sale | price.
+  assertStringIncludes(system, "SEO-AUDIT | SEO audit | audit | R4500");
+  // Non-deliverable SKUs are never offered to the model.
+  assertEquals(system.includes("AD-SPEND"), false);
 });
 
 Deno.test("buildAnalyzeSystem: shows placeholders when areas/catalogue empty", () => {
