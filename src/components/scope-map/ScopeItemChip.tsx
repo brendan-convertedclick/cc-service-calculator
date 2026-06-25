@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ConfidenceBars } from "@/components/scope-map/ConfidenceBars";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import type { BriefTaskSowPlacement } from "@/types/sow-placements";
@@ -105,13 +106,11 @@ export function ScopeItemChip({
             </span>
           </span>
           {confidence !== null && (
-            <span
-              className={cn(
-                "mt-0.5 shrink-0 tabular-nums text-label-small",
-                lowConfidence ? "text-m-tertiary" : "text-m-on-surface-variant",
-              )}
-            >
-              {Math.round(confidence * 100)}%
+            <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
+              <ConfidenceBars value={confidence} />
+              <span className="tabular-nums text-label-small text-m-on-surface-variant">
+                {Math.round(confidence * 100)}%
+              </span>
             </span>
           )}
           <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-m-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100" />
