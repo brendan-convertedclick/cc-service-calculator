@@ -1,7 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 
-/** The AppShell sidebar — proves React mounted and auth bypass worked */
-const NAV_SIDEBAR = "aside nav";
+/** The AppShell sidebar rail — proves React mounted and auth bypass worked.
+ * (The nav links live directly in the <aside> rail; an earlier `aside nav`
+ * selector went stale when the shell was restructured.) */
+const NAV_SIDEBAR = "aside";
 
 /** Regex matching any crash boundary text */
 const CRASH_TEXT = /something went wrong|unexpected error/i;

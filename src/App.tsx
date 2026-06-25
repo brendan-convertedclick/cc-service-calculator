@@ -109,6 +109,9 @@ const ComposeEmail = lazy(() =>
 const SowCheck = lazy(() =>
   import("@/pages/SowCheck").then((m) => ({ default: m.SowCheck })),
 );
+const SowComposer = lazy(() =>
+  import("@/pages/SowComposer").then((m) => ({ default: m.SowComposer })),
+);
 
 /**
  * Phase 1 role gates.
@@ -187,6 +190,9 @@ export default function App() {
               <Route path="retainers/new" element={<NewRetainerWizard />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
+              {/* Scope Composer — visual SOW builder (reclaims the old /sow redirect). */}
+              <Route path="sow/templates/:id" element={<SowComposer />} />
+              <Route path="sow/docs/:id" element={<SowComposer />} />
               <Route path="sow" element={<Navigate to="/services" replace />} />
               <Route path="sow/:familySlug" element={<Navigate to="/services" replace />} />
               <Route path="services" element={<ServicesList />} />
