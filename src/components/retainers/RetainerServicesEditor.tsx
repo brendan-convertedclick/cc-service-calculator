@@ -29,6 +29,8 @@ type Row = {
   is_live_eligible: boolean;
   occurrence_labels: string[];
   clickup_task_template_id: string;
+  task_description: string;
+  checklist_items: string[];
   nameEdit?: string; // inline edit of the catalogue service name (undefined = unchanged)
 };
 
@@ -70,6 +72,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           is_live_eligible: s.is_live_eligible,
           occurrence_labels: s.occurrence_labels ?? [],
           clickup_task_template_id: s.clickup_task_template_id ?? "",
+          task_description: s.task_description ?? "",
+          checklist_items: s.checklist_items ?? [],
         })),
       );
       initedRef.current = projectId;
@@ -93,6 +97,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         is_live_eligible: false,
         occurrence_labels: [],
         clickup_task_template_id: "",
+        task_description: "",
+        checklist_items: [],
       },
     ]);
   }
@@ -152,6 +158,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       is_live_eligible: r.is_live_eligible,
       occurrence_labels: r.occurrence_labels,
       clickup_task_template_id: r.clickup_task_template_id.trim() || null,
+      task_description: r.task_description.trim() || null,
+      checklist_items: r.checklist_items,
     }));
     update.mutate(
       { projectId, services: payload },
@@ -307,6 +315,32 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                     onChange={(e) => patchRow(r.rowId, { clickup_task_template_id: e.target.value })}
                     placeholder="e.g. t-869xxxxx"
                   />
+                </div>
+              )}
+              {!r.is_live_eligible && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">
+                      Task description (optional — added to each task)
+                    </Label>
+                    <textarea
+                      value={r.task_description}
+                      onChange={(e) => patchRow(r.rowId, { task_description: e.target.value })}
+                      placeholder="Standing instructions for every task…"
+                      className="min-h-[64px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-label-small text-m-on-surface-variant">
+                      Checklist items (optional — one per line)
+                    </Label>
+                    <textarea
+                      value={r.checklist_items.join("\n")}
+                      onChange={(e) => patchRow(r.rowId, { checklist_items: e.target.value.split("\n") })}
+                      placeholder="Before &amp; After Screenshot"
+                      className="min-h-[64px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
                 </div>
               )}
               <p className="text-label-small text-m-on-surface-variant">
