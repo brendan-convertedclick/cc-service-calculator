@@ -136,7 +136,12 @@ Deno.serve(async (req: Request) => {
     const [sowsRes, areasRes, servicesRes] = await Promise.all([
       sb.from("master_sows").select("slug, title, body_md").in("slug", slugs),
       sb.from("sow_service_areas").select("id, name, sow_slug").in("sow_slug", slugs),
-      sb.from("services").select("id, code, name, sell_price_cents").eq("status", "active"),
+      // Only deliverable services are catalogue-matchable for the Scope Ledger Rail.
+      sb
+        .from("services")
+        .select("id, code, name, sell_price_cents, unit_of_sale, is_deliverable")
+        .eq("status", "active")
+        .eq("is_deliverable", true),
     ]);
     if (sowsRes.error) return json({ error: sowsRes.error.message }, 500);
     if (servicesRes.error) return json({ error: servicesRes.error.message }, 500);
@@ -208,6 +213,10 @@ Deno.serve(async (req: Request) => {
         ai_match_quote: item.ai_match_quote,
         suggested_service_id: item.suggested_service_id,
         estimated_cents: item.estimated_cents,
+        // Scope Ledger Rail extraction fields (disposition itself is resolved
+        // deterministically downstream from these + the client's allowances).
+        quantity: item.quantity,
+        grounding_quote: item.grounding_quote,
         // force replaces approved placements — clear stale approval/override
         // stamps when an old row is overwritten via the upsert conflict path.
         ...(body.force

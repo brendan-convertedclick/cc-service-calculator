@@ -9,6 +9,15 @@ export type CatalogueService = {
   code: string;
   name: string;
   sell_price_cents: number;
+  /** Unit the SKU is sold by (e.g. "page", "month", "hour"). Optional for legacy callers. */
+  unit_of_sale?: string | null;
+  /**
+   * Whether the SKU is an actual deliverable (vs. spend / pass-through /
+   * software). Only deliverable services are fed to the model and accepted as
+   * a `matched_service_code`. Optional so legacy callers/tests still compile;
+   * treated as deliverable when absent.
+   */
+  is_deliverable?: boolean;
 };
 export type ScopeRow = {
   enhanced_prose: string | null;
@@ -28,6 +37,18 @@ export type ParsedScopeItem = {
   ai_match_quote: string;
   suggested_service_id: string | null;
   estimated_cents: number | null;
+  // --- Scope Ledger Rail fields (mirror ExtractedAsk in scope-disposition.ts) ---
+  /**
+   * Xero catalog code the model matched, whitelisted to a real deliverable
+   * service code; null when nothing fits or the model invented a code.
+   */
+  matched_service_code: string | null;
+  /** How many of the matched unit the client is asking for. Defaults to 1. */
+  quantity: number;
+  /** Verbatim substring of the brief that grounds this ask; null if absent. */
+  grounding_quote: string | null;
+  /** 0..1 model confidence (alias of ai_confidence under the Rail naming). */
+  confidence: number;
 };
 
 export const BRIEF_BODY_MAX_CHARS = 8000;
@@ -140,8 +161,14 @@ export function buildAnalyzeSystem(opts: {
   const areaList = opts.serviceAreas
     .map((a) => `- id=${a.id} · name="${a.name}" · sow=${a.sow_slug}`)
     .join("\n");
+  // Only deliverable services are offered to the model: it must never match an
+  // ask to a spend / pass-through / software SKU.
   const catalogue = opts.services
-    .map((s) => `${s.code} | ${s.name} | R${(s.sell_price_cents / 100).toFixed(0)}`)
+    .filter((s) => s.is_deliverable !== false)
+    .map(
+      (s) =>
+        `${s.code} | ${s.name} | ${s.unit_of_sale ?? "unit"} | R${(s.sell_price_cents / 100).toFixed(0)}`,
+    )
     .join("\n");
   return [
     "You are a scoping analyst at Converted Click, a digital marketing agency.",
@@ -149,13 +176,19 @@ export function buildAnalyzeSystem(opts: {
     "to decide which asks are covered (inside scope) and which fall outside.",
     "Be precise: only mark an ask inside when an SOW clause clearly covers it. Do not invent commitments.",
     "",
+    "For EVERY discrete ask you must also identify WHAT the client is asking for and WHICH catalogue",
+    "item delivers it, and HOW MANY of that item's unit are needed. Match to a catalogue code ONLY",
+    "when an item clearly delivers the ask; return null for the code when nothing in the catalogue fits.",
+    "Do NOT decide whether the ask is paid, billable, or already covered by the retainer/agreement —",
+    "that is computed downstream. Your job is extraction and catalogue matching only.",
+    "",
     "# Signed SOWs",
     sowBlocks,
     "",
     "# Service areas (optional grouping — use these uuids for inside items when one clearly applies)",
     areaList || "(none defined)",
     "",
-    "# Service catalogue (code | name | price) — use codes to suggest a delivery service for OUTSIDE items",
+    "# Service catalogue (code | name | unit_of_sale | price) — match every ask to one of these codes (or null)",
     catalogue || "(none)",
   ].join("\n");
 }
@@ -190,6 +223,9 @@ export function buildAnalyzeUser(opts: {
     "Extract every discrete ask the client is making in this request, then classify each ask against the SOWs in the system prompt.",
     "Cap the extraction at the 25 most substantive asks — if there are more, keep only the 25 that matter most.",
     'Keep every "reasoning" value at 200 characters or fewer.',
+    "For each ask, decide WHICH catalogue code delivers it and HOW MANY of that code's unit are needed (quantity).",
+    "Do NOT decide whether the ask is paid or in-scope — only extract, match a catalogue code (or null), and count.",
+    'Set "grounding_quote" to a short VERBATIM substring copied exactly from the brief body above that proves this ask was requested.',
     "Return ONLY a JSON array, nothing else. Each element:",
     '{ "item_name": "<short label, max 60 chars>",',
     '  "item_description": "<what the client wants, one or two sentences>",',
@@ -198,7 +234,9 @@ export function buildAnalyzeUser(opts: {
     '  "service_area_id": "<uuid from the service-area list, or null>",',
     '  "confidence": <0..1>,',
     '  "reasoning": "<max 200 chars; quote or cite the SOW clause for inside items; explain the gap for outside items>",',
-    '  "suggested_service_code": "<catalogue code that would deliver it, for OUTSIDE items, else null>",',
+    '  "matched_service_code": "<the catalogue code that delivers this ask, or null if nothing fits>",',
+    '  "quantity": <how many of that catalogue unit are asked for; a positive number, default 1>,',
+    '  "grounding_quote": "<verbatim substring of the brief proving this ask, or null>",',
     '  "estimated_zar": <ballpark rand amount if no catalogue code fits, else null> }',
   );
   return parts.join("\n");
@@ -211,10 +249,14 @@ export function buildAnalyzeUser(opts: {
  * - clamps confidence to 0..1;
  * - whitelists sow_slug to the selected SOW set;
  * - whitelists service_area_id to the loaded areas;
- * - maps suggested_service_code → catalogue row (suggested_service_id +
+ * - whitelists matched_service_code (or the legacy suggested_service_code) to a
+ *   real DELIVERABLE catalogue code; any invented/non-deliverable code → null;
+ * - maps the matched code → catalogue row (suggested_service_id +
  *   estimated_cents = sell_price_cents), else estimated_cents from
  *   estimated_zar when given and within [0, MAX_ESTIMATED_CENTS]
- *   (negative/overflow → null, mirroring the confidence clamp), else null.
+ *   (negative/overflow → null, mirroring the confidence clamp), else null;
+ * - parses quantity as a positive number, defaulting to 1 when absent/invalid;
+ * - captures grounding_quote (verbatim brief substring) when a string.
  */
 export function parseScopeMapItems(
   text: string,
@@ -235,7 +277,11 @@ export function parseScopeMapItems(
   }
   if (!Array.isArray(parsed)) return null;
 
-  const byCode = new Map(opts.services.map((s) => [s.code, s]));
+  // Whitelist target: only DELIVERABLE codes are matchable. A matched_service_code
+  // that isn't here (invented or non-deliverable) is dropped to null.
+  const byCode = new Map(
+    opts.services.filter((s) => s.is_deliverable !== false).map((s) => [s.code, s]),
+  );
   const items: ParsedScopeItem[] = [];
 
   for (const raw of parsed) {
@@ -252,9 +298,27 @@ export function parseScopeMapItems(
         ? r.service_area_id
         : null;
 
-    const service = typeof r.suggested_service_code === "string"
-      ? byCode.get(r.suggested_service_code) ?? null
-      : null;
+    // New Rail field (matched_service_code); fall back to the legacy
+    // suggested_service_code so older prompts/callers still resolve a service.
+    const rawCode =
+      typeof r.matched_service_code === "string"
+        ? r.matched_service_code
+        : typeof r.suggested_service_code === "string"
+          ? r.suggested_service_code
+          : null;
+    const service = rawCode !== null ? byCode.get(rawCode) ?? null : null;
+    // Whitelist to a real deliverable code; invented/non-deliverable → null.
+    const matchedServiceCode = service ? service.code : null;
+
+    // Quantity: keep the parsed positive number; default 1 only when absent/invalid.
+    const rawQty = Number(r.quantity);
+    const quantity = Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1;
+
+    const groundingQuote =
+      typeof r.grounding_quote === "string" && r.grounding_quote.trim() !== ""
+        ? r.grounding_quote.trim().slice(0, 2000)
+        : null;
+
     const estimatedZar =
       typeof r.estimated_zar === "number" && Number.isFinite(r.estimated_zar)
         ? r.estimated_zar
@@ -269,16 +333,22 @@ export function parseScopeMapItems(
         ? rawCents
         : null;
 
+    const aiConfidence = clamp(Number(r.confidence) || 0, 0, 1);
+
     items.push({
       item_name: r.item_name.trim().slice(0, 120),
       item_description: typeof r.item_description === "string" ? r.item_description.trim() : "",
       is_inside: r.is_inside,
       sow_slug: sowSlug,
       service_area_id: areaId,
-      ai_confidence: clamp(Number(r.confidence) || 0, 0, 1),
+      ai_confidence: aiConfidence,
       ai_match_quote: typeof r.reasoning === "string" ? r.reasoning.trim().slice(0, 400) : "",
       suggested_service_id: service?.id ?? null,
       estimated_cents: estimatedCents,
+      matched_service_code: matchedServiceCode,
+      quantity,
+      grounding_quote: groundingQuote,
+      confidence: aiConfidence,
     });
   }
   return items;
