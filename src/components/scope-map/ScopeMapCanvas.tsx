@@ -1,13 +1,12 @@
-import { useMemo } from "react";
-import { layoutScopeMap, type LayoutItem } from "@/lib/scope-map-layout";
 import { ScopeItemChip } from "@/components/scope-map/ScopeItemChip";
+import { cn } from "@/lib/utils";
 import type { BriefTaskSowPlacement } from "@/types/sow-placements";
 
 export type ScopeMapItem = BriefTaskSowPlacement;
 
 export interface ScopeMapCanvasProps {
   items: ScopeMapItem[];
-  /** Titles of the SOWs the analysis ran against — chips along the top of the circle. */
+  /** Titles of the SOWs the analysis ran against — shown as chips above the columns. */
   sowTitles: string[];
   /** Outside items chosen for the cost estimate. */
   selectedRefs: Set<string>;
@@ -15,14 +14,78 @@ export interface ScopeMapCanvasProps {
   onOverride: (ref: string, isInside: boolean) => void;
 }
 
-/** Layout-space size — everything is computed in an 800-unit square and
- * rendered responsively via SVG viewBox + %-positioned HTML chips. */
-const LAYOUT_SIZE = 800;
+interface ScopeColumnProps {
+  title: string;
+  tone: "inside" | "outside";
+  items: ScopeMapItem[];
+  selectedRefs: Set<string>;
+  onToggleSelect: (ref: string) => void;
+  onOverride: (ref: string, isInside: boolean) => void;
+  emptyHint: string;
+}
+
+/** One vertical column — a titled panel that stacks its items top-to-bottom. */
+function ScopeColumn({
+  title,
+  tone,
+  items,
+  selectedRefs,
+  onToggleSelect,
+  onOverride,
+  emptyHint,
+}: ScopeColumnProps) {
+  return (
+    <section
+      className={cn(
+        "flex flex-col rounded-xl border",
+        tone === "inside"
+          ? "border-emerald-200 bg-emerald-50/40"
+          : "border-m-outline-variant bg-m-surface-container/40",
+      )}
+    >
+      <header
+        className={cn(
+          "flex items-center gap-2 border-b px-4 py-2.5",
+          tone === "inside" ? "border-emerald-200" : "border-m-outline-variant",
+        )}
+      >
+        <span
+          className={cn(
+            "h-2.5 w-2.5 shrink-0 rounded-full",
+            tone === "inside" ? "bg-emerald-500" : "bg-m-error",
+          )}
+          aria-hidden="true"
+        />
+        <span className="text-title-small text-m-on-surface">
+          {title} · {items.length}
+        </span>
+      </header>
+      <div className="flex flex-col gap-2 p-3">
+        {items.length === 0 ? (
+          <p className="px-1 py-8 text-center text-body-small text-m-on-surface-variant">
+            {emptyHint}
+          </p>
+        ) : (
+          items.map((item) => (
+            <ScopeItemChip
+              key={item.task_ref}
+              item={item}
+              selected={selectedRefs.has(item.task_ref)}
+              onToggleSelect={onToggleSelect}
+              onOverride={onOverride}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
 
 /**
- * The scope map: in-scope asks rendered inside a circle (confidence-scaled
- * golden-angle placement), out-of-scope asks on an outer ring with connector
- * lines. Pure presentation — all data and writes live with the caller.
+ * The scope map: a two-column layout. In-scope asks stack vertically on the
+ * left, out-of-scope asks stack vertically on the right. Each row opens a
+ * popover with the AI reasoning + override actions. Pure presentation — all
+ * data and writes live with the caller.
  */
 export function ScopeMapCanvas({
   items,
@@ -31,27 +94,9 @@ export function ScopeMapCanvas({
   onToggleSelect,
   onOverride,
 }: ScopeMapCanvasProps) {
-  const layout = useMemo(() => {
-    const layoutItems: LayoutItem[] = items.map((i) => ({
-      ref: i.task_ref,
-      isInside: i.is_inside,
-      confidence: i.ai_confidence ?? 0.5,
-    }));
-    return layoutScopeMap(layoutItems, LAYOUT_SIZE);
-  }, [items]);
-
-  const positionByRef = useMemo(
-    () => new Map(layout.positions.map((p) => [p.ref, p])),
-    [layout],
-  );
-
-  const insideCount = items.filter((i) => i.is_inside).length;
-  const { cx, cy, r } = layout.circle;
-  const pct = (n: number) => `${(n / LAYOUT_SIZE) * 100}%`;
-
   if (items.length === 0) {
     return (
-      <div className="mx-auto flex aspect-square w-full max-w-[760px] items-center justify-center rounded-xl border border-dashed border-m-outline-variant">
+      <div className="mx-auto flex min-h-[200px] w-full items-center justify-center rounded-xl border border-dashed border-m-outline-variant">
         <p className="max-w-xs text-center text-body-medium text-m-on-surface-variant">
           No scope items yet. Run the analysis to map this request against the
           client's SOWs.
@@ -60,67 +105,14 @@ export function ScopeMapCanvas({
     );
   }
 
-  return (
-    <div
-      className="relative mx-auto aspect-square w-full max-w-[760px]"
-      data-testid="scope-map-canvas"
-    >
-      <svg
-        viewBox={`0 0 ${LAYOUT_SIZE} ${LAYOUT_SIZE}`}
-        className="absolute inset-0 h-full w-full"
-        role="img"
-        aria-label={`Scope map: ${insideCount} item(s) in scope, ${items.length - insideCount} outside`}
-      >
-        {/* Connector lines from the circle edge to each outside chip. */}
-        {items
-          .filter((i) => !i.is_inside)
-          .map((i) => {
-            const pos = positionByRef.get(i.task_ref);
-            if (!pos) return null;
-            const dx = pos.x - cx;
-            const dy = pos.y - cy;
-            const dist = Math.hypot(dx, dy) || 1;
-            const edgeX = cx + (dx / dist) * r;
-            const edgeY = cy + (dy / dist) * r;
-            return (
-              <line
-                key={i.task_ref}
-                x1={edgeX}
-                y1={edgeY}
-                x2={pos.x}
-                y2={pos.y}
-                stroke="hsl(var(--mcolor-outline-variant))"
-                strokeWidth={2}
-              />
-            );
-          })}
-        {/* Main scope circle — soft fill + soft edge. */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="hsl(var(--mcolor-primary-container) / 0.25)"
-          stroke="hsl(var(--mcolor-primary) / 0.35)"
-          strokeWidth={2}
-        />
-        {/* Dashed boundary ring for emphasis. */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="hsl(var(--mcolor-primary))"
-          strokeWidth={2}
-          strokeDasharray="10 12"
-        />
-      </svg>
+  const inside = items.filter((i) => i.is_inside);
+  const outside = items.filter((i) => !i.is_inside);
 
-      {/* SOW title chips along the top of the circle. */}
+  return (
+    <div className="space-y-4" data-testid="scope-map-canvas">
       {sowTitles.length > 0 && (
-        <div
-          className="absolute left-1/2 flex max-w-[80%] -translate-x-1/2 -translate-y-full flex-wrap items-center justify-center gap-1.5 pb-2"
-          style={{ top: pct(cy - r) }}
-        >
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-label-small text-m-on-surface-variant">Mapped against:</span>
           {sowTitles.map((title) => (
             <span
               key={title}
@@ -132,32 +124,26 @@ export function ScopeMapCanvas({
         </div>
       )}
 
-      {/* Centre label. */}
-      <div
-        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-label-small text-m-on-surface-variant"
-        style={{ left: pct(cx), top: pct(cy) }}
-        aria-hidden="true"
-      >
-        In scope · {insideCount}
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <ScopeColumn
+          title="In scope"
+          tone="inside"
+          items={inside}
+          selectedRefs={selectedRefs}
+          onToggleSelect={onToggleSelect}
+          onOverride={onOverride}
+          emptyHint="Nothing landed in scope."
+        />
+        <ScopeColumn
+          title="Out of scope"
+          tone="outside"
+          items={outside}
+          selectedRefs={selectedRefs}
+          onToggleSelect={onToggleSelect}
+          onOverride={onOverride}
+          emptyHint="Everything is covered — nothing falls outside the SOW."
+        />
       </div>
-
-      {/* Item chips. */}
-      {items.map((item) => {
-        const pos = positionByRef.get(item.task_ref);
-        if (!pos) return null;
-        return (
-          <ScopeItemChip
-            key={item.task_ref}
-            item={item}
-            x={pos.x}
-            y={pos.y}
-            size={LAYOUT_SIZE}
-            selected={selectedRefs.has(item.task_ref)}
-            onToggleSelect={onToggleSelect}
-            onOverride={onOverride}
-          />
-        );
-      })}
     </div>
   );
 }

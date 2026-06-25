@@ -348,8 +348,8 @@ function SowCheckInner({ briefId }: { briefId: string }) {
         <div className="min-w-0">
           <h1 className="text-headline-small">Scope map</h1>
           <p className="truncate text-body-small text-m-on-surface-variant">
-            {brief.raw_subject ?? "(no subject)"} — in-scope asks land inside the
-            circle; anything outside can become a cost estimate.
+            {brief.raw_subject ?? "(no subject)"} — in-scope asks on the left,
+            out-of-scope on the right; outside items can become a cost estimate.
           </p>
           {sowTitles.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
