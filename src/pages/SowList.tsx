@@ -287,7 +287,13 @@ export function SowList() {
                       </Popover>
                     </div>
                     <div className="mt-auto flex items-center gap-2">
-                      <Button size="sm" className="flex-1 gap-1" onClick={() => startFromTemplate(tpl)} disabled={createDoc.isPending}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 gap-1 border-m-primary text-m-primary hover:bg-m-primary/5"
+                        onClick={() => startFromTemplate(tpl)}
+                        disabled={createDoc.isPending}
+                      >
                         <Rocket className="h-3.5 w-3.5" />
                         Start SOW
                       </Button>
