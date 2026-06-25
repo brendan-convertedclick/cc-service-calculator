@@ -31,6 +31,8 @@ type ServiceInput = {
   is_live_eligible: boolean;
   occurrence_labels?: string[];
   clickup_task_template_id?: string | null;
+  task_description?: string | null;
+  checklist_items?: string[];
 };
 
 Deno.serve(async (req: Request) => {
@@ -98,6 +100,8 @@ Deno.serve(async (req: Request) => {
         is_live_eligible: svc.is_live_eligible,
         occurrence_labels: (svc.occurrence_labels ?? []).map((l) => l.trim()).filter(Boolean),
         clickup_task_template_id: svc.clickup_task_template_id?.trim() || null,
+        task_description: svc.task_description?.trim() || null,
+        checklist_items: (svc.checklist_items ?? []).map((c) => c.trim()).filter(Boolean),
       };
       if (svc.id && existingIds.has(svc.id)) {
         const { error } = await sb.from("retainer_recurring_services").update(row).eq("id", svc.id);

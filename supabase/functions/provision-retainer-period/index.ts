@@ -184,6 +184,8 @@ Deno.serve(async (req: Request) => {
       is_live_eligible: boolean;
       occurrence_labels: string[] | null;
       clickup_task_template_id: string | null;
+      task_description: string | null;
+      checklist_items: string[] | null;
     }>) {
       // Shared mode: when a service has per-occurrence labels (e.g. one task per
       // website), every listed assignee sits on the SAME labelled tasks (doer +
@@ -334,9 +336,9 @@ Deno.serve(async (req: Request) => {
                 project.clickup_list_id!,
                 {
                   name: nm,
-                  description:
+                  description: svc.task_description?.trim() ||
                     `Auto-seeded by Phase 8 provisioner. ` +
-                    `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
+                      `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
                   assigneeIds,
                   timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
                   dueDate,
@@ -347,7 +349,14 @@ Deno.serve(async (req: Request) => {
                 },
               );
             }
-            if (id) taskIds.push(id);
+            if (id) {
+              taskIds.push(id);
+              // Standing QC checklist (e.g. "Before & After Screenshot"), added
+              // via the ClickUp Checklists API since templates aren't available.
+              if ((svc.checklist_items ?? []).some((c) => c && c.trim())) {
+                await addClickupChecklist(clickupPat, id, svc.checklist_items ?? []);
+              }
+            }
           }
         }
 
@@ -522,6 +531,33 @@ async function setClickupAssignees(pat: string, taskId: string, assigneeIds: num
     body: JSON.stringify({ assignees: { add: assigneeIds } }),
   });
   if (!res.ok) console.error(`set assignees ${taskId} failed: ${res.status}`);
+}
+
+// Add a checklist with the given items to a task (ClickUp Checklists API).
+async function addClickupChecklist(pat: string, taskId: string, items: string[]): Promise<void> {
+  const clean = items.map((i) => i?.trim()).filter(Boolean) as string[];
+  if (clean.length === 0) return;
+  const headers = { Authorization: pat, "Content-Type": "application/json" };
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}/checklist`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Checklist" }),
+  });
+  if (!res.ok) {
+    console.error(`create checklist ${taskId} failed: ${res.status}`);
+    return;
+  }
+  const data = await res.json().catch(() => null) as { checklist?: { id?: string } } | null;
+  const cid = data?.checklist?.id;
+  if (!cid) return;
+  for (const item of clean) {
+    const ir = await fetch(`https://api.clickup.com/api/v2/checklist/${cid}/checklist_item`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: item }),
+    });
+    if (!ir.ok) console.error(`checklist item ${taskId} failed: ${ir.status}`);
+  }
 }
 
 function firstOfMonth(d: Date): Date {
