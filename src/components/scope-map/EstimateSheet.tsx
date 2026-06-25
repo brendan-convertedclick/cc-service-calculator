@@ -33,12 +33,15 @@ export interface EstimateSheetProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   brief: { id: string; client_id: string | null; parent_project_id: string | null };
-  /** Selected outside-SOW placements — one prefilled line each. */
+  /**
+   * Selected new_billable placements — one prefilled line each. The caller only
+   * ever passes billable items (out_of_scope lines are excluded upstream).
+   */
   items: BriefTaskSowPlacement[];
 }
 
 /**
- * Builds a Change Estimate (source 'intake_outside_scope') from the outside
+ * Builds a Change Estimate (source 'intake_outside_scope') from the new-billable
  * items selected on the scope map. Modelled on AdjustPlanSheet; unlike it,
  * project_id and created_by may be null (intake CE for a new brief under the
  * shared login — relaxed by migration 0061).
@@ -82,13 +85,21 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
         const matched = item.suggested_service_id
           ? serviceById.get(item.suggested_service_id)
           : undefined;
+        // Carry the extracted quantity through (Scope Ledger Rail) instead of
+        // hardcoding 1 — a positive, finite count, else fall back to 1.
+        const qty =
+          typeof item.quantity === "number" &&
+          Number.isFinite(item.quantity) &&
+          item.quantity > 0
+            ? item.quantity
+            : 1;
         return {
           tmpId: crypto.randomUUID(),
           service_id: item.suggested_service_id,
           description:
             [item.item_name, item.item_description].filter(Boolean).join(" — ").trim() ||
             item.task_ref,
-          qty: 1,
+          qty,
           unit_points: 1,
           unit_value_cents: item.estimated_cents ?? matched?.sell_price_cents ?? 0,
           line_kind: "add" as CELineKind,

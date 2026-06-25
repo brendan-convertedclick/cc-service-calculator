@@ -46,7 +46,11 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/format";
-import type { BriefTaskSowPlacement } from "@/types/sow-placements";
+import {
+  isBillablePlacement,
+  placementDisposition,
+  type BriefTaskSowPlacement,
+} from "@/types/sow-placements";
 
 /**
  * Scope map — Phase 4 of the brief pipeline (route /briefs/:id/sow-check).
@@ -116,9 +120,10 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           setSelection({ available: res.available, suggested: res.suggested_slugs });
           return;
         }
-        // Fresh placements → default-select every outside item for the estimate.
+        // Fresh placements → default-select every new-billable item for the
+        // estimate. out_of_scope items are never billable, so they stay unticked.
         setSelectedRefs(
-          new Set(res.placements.filter((p) => !p.is_inside).map((p) => p.task_ref)),
+          new Set(res.placements.filter(isBillablePlacement).map((p) => p.task_ref)),
         );
         selectionInitRef.current = true;
         toast.success(
@@ -147,7 +152,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
     if (selectionInitRef.current) return;
     if (!placements || placements.length === 0) return;
     selectionInitRef.current = true;
-    setSelectedRefs(new Set(placements.filter((p) => !p.is_inside).map((p) => p.task_ref)));
+    setSelectedRefs(new Set(placements.filter(isBillablePlacement).map((p) => p.task_ref)));
   }, [placements]);
 
   const handleToggleSelect = (ref: string) => {
@@ -218,7 +223,11 @@ function SowCheckInner({ briefId }: { briefId: string }) {
 
   const selectedItems = useMemo(
     () =>
-      (placements ?? []).filter((p) => !p.is_inside && selectedRefs.has(p.task_ref)),
+      // Only new_billable items can feed the estimate — out_of_scope lines are
+      // never billable, even if their ref somehow lingers in the selection set.
+      (placements ?? []).filter(
+        (p) => isBillablePlacement(p) && selectedRefs.has(p.task_ref),
+      ),
     [placements, selectedRefs],
   );
   const selectedEstimateCents = selectedItems.reduce(
@@ -483,9 +492,24 @@ function PlacementsTable({
                 )}
               </TableCell>
               <TableCell>
-                <Badge variant={p.is_inside ? "muted" : "destructive"}>
-                  {p.is_inside ? "In SOW" : "Outside SOW"}
-                </Badge>
+                {(() => {
+                  const d = placementDisposition(p);
+                  const meta = {
+                    in_agreed_scope: { variant: "success" as const, label: "In agreed scope" },
+                    new_billable: { variant: "warning" as const, label: "New billable" },
+                    out_of_scope: { variant: "muted" as const, label: "Out of scope" },
+                  }[d];
+                  return (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      {p.needs_review && (
+                        <Badge variant="destructive" className="text-label-small">
+                          Review
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })()}
               </TableCell>
               <TableCell className="text-body-small text-m-on-surface-variant">
                 {p.ai_confidence !== null ? `${Math.round(p.ai_confidence * 100)}%` : "—"}

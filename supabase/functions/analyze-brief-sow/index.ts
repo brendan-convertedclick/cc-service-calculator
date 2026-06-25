@@ -36,6 +36,11 @@ import {
   type SowSummary,
   type SowWithBody,
 } from "../_shared/scope-map-logic.ts";
+import { getClientAllowances } from "../_shared/scope-allowances.ts";
+import {
+  resolveDisposition,
+  type CatalogService,
+} from "../_shared/scope-disposition.ts";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -157,6 +162,36 @@ Deno.serve(async (req: Request) => {
     const serviceAreas = (areasRes.data ?? []) as ServiceArea[];
     const services = (servicesRes.data ?? []) as CatalogueService[];
 
+    // Scope Ledger Rail: catalog keyed by Xero code for the deterministic
+    // disposition resolver. Only deliverable services are loaded above, so a
+    // whitelisted matched_service_code always resolves here; an unmatched ask
+    // (null code) falls through to out_of_scope inside resolveDisposition.
+    const catalogByCode = new Map<string, CatalogService>(
+      services.map((s) => [
+        s.code,
+        {
+          id: s.id,
+          code: s.code,
+          is_deliverable: s.is_deliverable !== false,
+          sell_price_cents: s.sell_price_cents ?? 0,
+        },
+      ]),
+    );
+
+    // The client's coverage ledger (retainer entitlements + fixed-project
+    // membership). Empty when the brief has no client — every deliverable ask
+    // then falls to new_billable, which is the correct default.
+    let allowances: Awaited<ReturnType<typeof getClientAllowances>> = [];
+    if (brief.client_id) {
+      try {
+        allowances = await getClientAllowances(sb, brief.client_id as string);
+      } catch (e) {
+        // Never block the analysis on a ledger read — degrade to "no coverage"
+        // (everything deliverable becomes new_billable) and log for triage.
+        console.error("[analyze-brief-sow] getClientAllowances failed:", e);
+      }
+    }
+
     const raw = await callAnthropic({
       model: MODEL,
       system: buildAnalyzeSystem({ sows, serviceAreas, services }),
@@ -201,28 +236,47 @@ Deno.serve(async (req: Request) => {
 
     const keptRefs = new Set(kept.map((r) => r.task_ref as string));
     const rows = items
-      .map((item, i) => ({
-        brief_id: body.brief_id,
-        task_ref: makeTaskRef(i, item.item_name),
-        item_name: item.item_name,
-        item_description: item.item_description,
-        sow_slug: item.sow_slug,
-        service_area_id: item.service_area_id,
-        is_inside: item.is_inside,
-        ai_confidence: item.ai_confidence,
-        ai_match_quote: item.ai_match_quote,
-        suggested_service_id: item.suggested_service_id,
-        estimated_cents: item.estimated_cents,
-        // Scope Ledger Rail extraction fields (disposition itself is resolved
-        // deterministically downstream from these + the client's allowances).
-        quantity: item.quantity,
-        grounding_quote: item.grounding_quote,
-        // force replaces approved placements — clear stale approval/override
-        // stamps when an old row is overwritten via the upsert conflict path.
-        ...(body.force
-          ? { approved_at: null, approved_by: null, override_reason: null }
-          : {}),
-      }))
+      .map((item, i) => {
+        // Scope Ledger Rail: deterministically assign exactly one disposition
+        // from the extracted ask + the client's allowance ledger. The LLM never
+        // decides coverage — resolveDisposition is the single source of truth.
+        const { disposition, needs_review } = resolveDisposition(
+          {
+            item_name: item.item_name,
+            matched_service_code: item.matched_service_code,
+            quantity: item.quantity,
+            grounding_quote: item.grounding_quote,
+            confidence: item.confidence,
+          },
+          allowances,
+          catalogByCode,
+        );
+        return {
+          brief_id: body.brief_id,
+          task_ref: makeTaskRef(i, item.item_name),
+          item_name: item.item_name,
+          item_description: item.item_description,
+          sow_slug: item.sow_slug,
+          service_area_id: item.service_area_id,
+          // Back-compat: is_inside mirrors the in_agreed_scope bucket so legacy
+          // readers keep working. disposition is the new three-way truth.
+          is_inside: disposition === "in_agreed_scope",
+          ai_confidence: item.ai_confidence,
+          ai_match_quote: item.ai_match_quote,
+          suggested_service_id: item.suggested_service_id,
+          estimated_cents: item.estimated_cents,
+          // Scope Ledger Rail fields.
+          disposition,
+          needs_review,
+          quantity: item.quantity,
+          grounding_quote: item.grounding_quote,
+          // force replaces approved placements — clear stale approval/override
+          // stamps when an old row is overwritten via the upsert conflict path.
+          ...(body.force
+            ? { approved_at: null, approved_by: null, override_reason: null }
+            : {}),
+        };
+      })
       .filter((r) => !keptRefs.has(r.task_ref));
 
     let upserted: Array<Record<string, unknown>> = [];
