@@ -155,11 +155,23 @@ Deno.serve(async (req: Request) => {
       return cf;
     };
 
-    const taskName = (serviceId: string, d: Date, cadence: string, label?: string): string => {
+    const taskName = (
+      serviceId: string,
+      d: Date,
+      cadence: string,
+      label?: string,
+      labelAsName?: boolean,
+    ): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
-      // Optional per-occurrence label (e.g. a website name) sits after the client.
-      const labelPart = label && label.trim() ? `${label.trim()} - ` : "";
+      const hasLabel = !!(label && label.trim());
       const week = cadence === "monthly" ? "" : `Week ${weekOfMonth(d)} - `;
+      // labelAsName: the label IS the task name — drop the service name entirely
+      // (for services whose labels are full task descriptions).
+      if (labelAsName && hasLabel) {
+        return `${clientName} - ${label!.trim()} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
+      }
+      // Otherwise the optional label sits between the client and the service name.
+      const labelPart = hasLabel ? `${label!.trim()} - ` : "";
       return `${clientName} - ${labelPart}${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
     };
     const liveTaskName = (serviceId: string): string => {
@@ -183,6 +195,7 @@ Deno.serve(async (req: Request) => {
       default_assignees: string[];
       is_live_eligible: boolean;
       occurrence_labels: string[] | null;
+      label_as_task_name: boolean;
       clickup_task_template_id: string | null;
       task_description: string | null;
       checklist_items: string[] | null;
@@ -237,7 +250,7 @@ Deno.serve(async (req: Request) => {
               const d = dates[i] ?? dates[dates.length - 1] ?? periodStart;
               const name = mode === "live"
                 ? liveTaskName(svc.service_id)
-                : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
+                : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
               const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
               const cf = buildCustomFields(svc.service_id, engagementMs);
               const dueDate = mode === "live" ? undefined : isMonthly ? periodEnd.getTime() : d.getTime();
@@ -304,7 +317,7 @@ Deno.serve(async (req: Request) => {
             const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
             const startDate = isMonthly ? periodStart.getTime() : undefined;
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
-            const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
+            const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
             const cf = buildCustomFields(svc.service_id, engagementMs);
             let id: string | null = null;
             if (svc.clickup_task_template_id) {

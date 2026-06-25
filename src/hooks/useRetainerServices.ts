@@ -17,6 +17,7 @@ export type RetainerRecurringServiceRow = {
   clickup_task_template_id: string | null;
   task_description: string | null;
   checklist_items: string[] | null;
+  label_as_task_name: boolean;
   created_at: string;
 };
 
@@ -34,6 +35,7 @@ export type RetainerServiceInput = {
   clickup_task_template_id?: string | null;
   task_description?: string | null;
   checklist_items?: string[];
+  label_as_task_name?: boolean;
 };
 
 export function useRetainerServices(projectId: string | undefined) {

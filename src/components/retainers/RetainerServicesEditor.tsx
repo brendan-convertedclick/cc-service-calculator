@@ -31,6 +31,7 @@ type Row = {
   clickup_task_template_id: string;
   task_description: string;
   checklist_items: string[];
+  label_as_task_name: boolean;
   nameEdit?: string; // inline edit of the catalogue service name (undefined = unchanged)
 };
 
@@ -74,6 +75,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           clickup_task_template_id: s.clickup_task_template_id ?? "",
           task_description: s.task_description ?? "",
           checklist_items: s.checklist_items ?? [],
+          label_as_task_name: s.label_as_task_name ?? false,
         })),
       );
       initedRef.current = projectId;
@@ -99,6 +101,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         clickup_task_template_id: "",
         task_description: "",
         checklist_items: [],
+        label_as_task_name: false,
       },
     ]);
   }
@@ -160,6 +163,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       clickup_task_template_id: r.clickup_task_template_id.trim() || null,
       task_description: r.task_description.trim() || null,
       checklist_items: r.checklist_items,
+      label_as_task_name: r.label_as_task_name,
     }));
     update.mutate(
       { projectId, services: payload },
@@ -303,6 +307,14 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                         />
                       ))}
                     </div>
+                    <label className="flex items-center gap-2 text-label-small text-m-on-surface-variant">
+                      <input
+                        type="checkbox"
+                        checked={r.label_as_task_name}
+                        onChange={(e) => patchRow(r.rowId, { label_as_task_name: e.target.checked })}
+                      />
+                      Use the label as the task name (hide the service name)
+                    </label>
                   </div>
                 )}
               {!r.is_live_eligible && (

@@ -33,6 +33,7 @@ type ServiceInput = {
   clickup_task_template_id?: string | null;
   task_description?: string | null;
   checklist_items?: string[];
+  label_as_task_name?: boolean;
 };
 
 Deno.serve(async (req: Request) => {
@@ -102,6 +103,7 @@ Deno.serve(async (req: Request) => {
         clickup_task_template_id: svc.clickup_task_template_id?.trim() || null,
         task_description: svc.task_description?.trim() || null,
         checklist_items: (svc.checklist_items ?? []).map((c) => c.trim()).filter(Boolean),
+        label_as_task_name: !!svc.label_as_task_name,
       };
       if (svc.id && existingIds.has(svc.id)) {
         const { error } = await sb.from("retainer_recurring_services").update(row).eq("id", svc.id);
