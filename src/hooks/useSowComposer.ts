@@ -25,6 +25,75 @@ export const SOW_VARIABLES_KEY = (templateId: string | null) =>
   ["sow-variables", templateId ?? "global"] as const;
 export const SOW_LIBRARY_KEY = ["sow-library"] as const;
 export const CLIENT_VARS_KEY = (clientId: string) => ["client-variable-overrides", clientId] as const;
+export const SOW_DOCS_LIST_KEY = ["sow-documents"] as const;
+export const SOW_TEMPLATES_LIST_KEY = ["sow-templates"] as const;
+
+// ── Lists (the /sow index) ────────────────────────────────────────────────────
+
+export type SowDocumentRow = Pick<
+  SowDocument,
+  "id" | "title" | "status" | "client_id" | "template_id"
+> & { updated_at: string };
+
+export function useSowDocuments() {
+  return useQuery({
+    queryKey: SOW_DOCS_LIST_KEY,
+    queryFn: async (): Promise<SowDocumentRow[]> => {
+      const { data, error } = await sb
+        .from("sow_documents")
+        .select("id, title, status, client_id, template_id, updated_at")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data as SowDocumentRow[] | null) ?? [];
+    },
+  });
+}
+
+export function useSowTemplates() {
+  return useQuery({
+    queryKey: SOW_TEMPLATES_LIST_KEY,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<SowTemplate[]> => {
+      const { data, error } = await sb
+        .from("sow_templates")
+        .select("*")
+        .eq("kind", "template")
+        .is("archived_at", null)
+        .order("name");
+      if (error) throw error;
+      return (data as SowTemplate[] | null) ?? [];
+    },
+  });
+}
+
+/** Create a document — optionally snapshotting a template's body (apply once,
+ *  edit per client). Returns the new row so the caller can navigate to it. */
+export function useCreateSowDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      title: string;
+      body?: SowBody;
+      template_id?: string | null;
+      client_id?: string | null;
+    }) => {
+      const { data, error } = await sb
+        .from("sow_documents")
+        .insert({
+          title: input.title,
+          body: input.body ?? [],
+          template_id: input.template_id ?? null,
+          client_id: input.client_id ?? null,
+          status: "draft",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as SowDocument;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SOW_DOCS_LIST_KEY }),
+  });
+}
 
 // ── Documents ─────────────────────────────────────────────────────────────────
 
