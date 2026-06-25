@@ -38,6 +38,16 @@ export function RetainersList() {
     () => new Map(burnRows.map((b) => [b.projectId, b])),
     [burnRows],
   );
+  // Group by client (alphabetical), then by retainer name within each client.
+  const sortedRetainers = useMemo(
+    () =>
+      [...retainers].sort(
+        (a, b) =>
+          (a.client_name ?? "").localeCompare(b.client_name ?? "") ||
+          (a.name ?? "").localeCompare(b.name ?? ""),
+      ),
+    [retainers],
+  );
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpanded(id: string) {
@@ -95,7 +105,7 @@ export function RetainersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {retainers.map((r) => (
+                {sortedRetainers.map((r) => (
                   <Fragment key={r.id}>
                   <TableRow
                     onClick={() => navigate(`/projects/${r.id}`)}
