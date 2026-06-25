@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSowBodyFromPlacements,
   computeSubtotalCents,
   resolveSowDoc,
   resolveSowDocument,
   lintSowDoc,
 } from "./sow-doc";
 import { buildVariableBag } from "./sow-variables";
+import type { BriefTaskSowPlacement } from "@/types/sow-placements";
 import {
   ALL_FIXTURES,
   CLIENT_OVERRIDE,
@@ -125,5 +127,60 @@ describe("lintSowDoc", () => {
     const bag = buildVariableBag(REGISTRY, { "pricing.subtotal_cents": 200000 });
     const doc = resolveSowDoc(SINGLE_SERVICE_TABLE.doc.body, bag);
     expect(lintSowDoc(doc).ok).toBe(true);
+  });
+});
+
+describe("buildSowBodyFromPlacements (wire-in from the scope rail)", () => {
+  const placement = (
+    over: Partial<BriefTaskSowPlacement> & { task_ref: string; disposition: BriefTaskSowPlacement["disposition"] },
+  ): BriefTaskSowPlacement => ({
+    id: over.task_ref,
+    brief_id: "b1",
+    service_area_id: null,
+    is_inside: over.disposition === "in_agreed_scope",
+    ai_match_quote: null,
+    ai_confidence: null,
+    override_reason: null,
+    approved_by: null,
+    approved_at: null,
+    created_at: "",
+    updated_at: "",
+    item_name: over.task_ref,
+    item_description: null,
+    sow_slug: null,
+    suggested_service_id: null,
+    estimated_cents: null,
+    quantity: null,
+    grounding_quote: null,
+    needs_review: null,
+    ...over,
+  });
+
+  it("maps new_billable → service_table, in/out scope → inclusion/exclusion lists", () => {
+    const body = buildSowBodyFromPlacements([
+      placement({ task_ref: "Logo", disposition: "new_billable", estimated_cents: 50000, quantity: 2 }),
+      placement({ task_ref: "Retainer hours", disposition: "in_agreed_scope" }),
+      placement({ task_ref: "TV ad", disposition: "out_of_scope" }),
+    ]);
+
+    const types = body.map((s) => s.type);
+    expect(types).toEqual(["prose", "list", "service_table", "list", "signature"]);
+
+    const table = body.find((s) => s.type === "service_table");
+    if (table?.type === "service_table") {
+      expect(table.props.lines).toHaveLength(1);
+      expect(table.props.lines[0]).toMatchObject({ name: "Logo", qty: 2, unitCents: 50000, disposition: "new_billable" });
+    }
+    const lists = body.filter((s) => s.type === "list");
+    expect(lists.map((l) => (l.type === "list" ? l.props.variant : ""))).toEqual(["inclusions", "exclusions"]);
+    // ordinals are sequential
+    expect(body.map((s) => s.ordinal)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("omits empty buckets but always keeps overview + signature", () => {
+    const body = buildSowBodyFromPlacements([
+      placement({ task_ref: "Only billable", disposition: "new_billable", estimated_cents: 1000 }),
+    ]);
+    expect(body.map((s) => s.type)).toEqual(["prose", "service_table", "signature"]);
   });
 });

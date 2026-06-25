@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Calculator, ChevronRight, Sparkles } from "lucide-react";
+import { Calculator, ChevronRight, ScrollText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useBrief } from "@/hooks/useBriefs";
+import { buildSowBodyFromPlacements } from "@/lib/sow-doc";
+import { useCreateSowDocument } from "@/hooks/useSowComposer";
 import {
   useAnalyzeBrief,
   useApprovePlacements,
@@ -87,6 +89,25 @@ function SowCheckInner({ briefId }: { briefId: string }) {
   const analyze = useAnalyzeBrief(briefId);
   const override = useOverridePlacement(briefId);
   const approve = useApprovePlacements(briefId);
+  const createSowDoc = useCreateSowDocument();
+
+  // Seed a Composer SOW from the scope rail and open the builder, linked to the
+  // brief + client (new_billable → service table, in/out scope → inclusion/exclusion lists).
+  const handleCreateSow = () => {
+    if (!placements?.length) return;
+    createSowDoc.mutate(
+      {
+        title: brief?.raw_subject ? `SOW — ${brief.raw_subject}` : "New SOW",
+        body: buildSowBodyFromPlacements(placements, serviceById),
+        brief_id: briefId,
+        client_id: brief?.client_id ?? null,
+      },
+      {
+        onSuccess: (doc) => navigate(`/sow/docs/${doc.id}`),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create SOW"),
+      },
+    );
+  };
 
   // Catalog lookup for the Scope Receipt (Xero code, unit price, unit of sale),
   // keyed by service id so a placement's suggested_service_id resolves directly.
@@ -368,15 +389,27 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           )}
         </div>
         {hasPlacements && (
-          <Button
-            variant="outline"
-            disabled={analyzing}
-            onClick={handleReanalyse}
-            className="gap-2"
-          >
-            <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
-            {analyzing ? "Analysing…" : "Re-analyse"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={analyzing}
+              onClick={handleReanalyse}
+              className="gap-2"
+            >
+              <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
+              {analyzing ? "Analysing…" : "Re-analyse"}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={createSowDoc.isPending}
+              onClick={handleCreateSow}
+              className="gap-2 border-m-primary text-m-primary hover:bg-m-primary/5"
+              data-testid="create-sow-from-brief"
+            >
+              <ScrollText className="h-4 w-4" />
+              Create SOW
+            </Button>
+          </div>
         )}
       </header>
 

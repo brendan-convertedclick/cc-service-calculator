@@ -76,6 +76,7 @@ export function useCreateSowDocument() {
       body?: SowBody;
       template_id?: string | null;
       client_id?: string | null;
+      brief_id?: string | null;
     }) => {
       const { data, error } = await sb
         .from("sow_documents")
@@ -84,6 +85,7 @@ export function useCreateSowDocument() {
           body: input.body ?? [],
           template_id: input.template_id ?? null,
           client_id: input.client_id ?? null,
+          brief_id: input.brief_id ?? null,
           status: "draft",
         })
         .select()

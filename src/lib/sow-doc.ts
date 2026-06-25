@@ -15,7 +15,7 @@ import {
   type ScopeReceiptModel,
 } from "@/lib/scope-receipt";
 import { buildVariableBag } from "@/lib/sow-variables";
-import type { BriefTaskSowPlacement } from "@/types/sow-placements";
+import { placementDisposition, type BriefTaskSowPlacement } from "@/types/sow-placements";
 import type {
   OverrideMap,
   Section,
@@ -280,4 +280,69 @@ export function resolveSowDocument(args: ResolveSowArgs): ResolvedSowResult {
   const doc = resolveSowDoc(args.body, bag, serviceById);
   const lint = lintSowDoc(doc);
   return { bag, doc, lint, billableTotalCents: doc.billableTotalCents };
+}
+
+/**
+ * Seed a SOW body from a brief's scope-rail placements — wiring the deterministic
+ * scope analysis into the Composer. new_billable asks become service_table lines,
+ * in_agreed_scope asks become an inclusions list, out_of_scope asks an exclusions
+ * list. Pure, so it golden-tests like the rest of the rail.
+ */
+export function buildSowBodyFromPlacements(
+  placements: BriefTaskSowPlacement[],
+  serviceById: Map<string, ReceiptCatalogService> = new Map(),
+): SowBody {
+  const at = (d: BriefTaskSowPlacement["disposition"]) =>
+    placements.filter((p) => placementDisposition(p) === d);
+  const included = at("in_agreed_scope");
+  const billable = at("new_billable");
+  const excluded = at("out_of_scope");
+
+  const lines: ServiceTableLine[] = billable.map((p) => {
+    const svc = p.suggested_service_id ? serviceById.get(p.suggested_service_id) : undefined;
+    return {
+      taskRef: p.task_ref,
+      name: p.item_name ?? p.task_ref,
+      description: p.item_description ?? undefined,
+      serviceId: p.suggested_service_id ?? null,
+      qty: typeof p.quantity === "number" && p.quantity > 0 ? p.quantity : 1,
+      unitCents: p.estimated_cents ?? svc?.sell_price_cents ?? 0,
+      disposition: "new_billable",
+    };
+  });
+
+  const body: SowBody = [];
+  let ordinal = 0;
+  body.push({
+    id: "overview",
+    type: "prose",
+    ordinal: ordinal++,
+    props: { heading: "Overview", markdown: "Scope of Work for **{{client.name}}**, dated {{document.date}}." },
+  });
+  if (included.length) {
+    body.push({
+      id: "included",
+      type: "list",
+      ordinal: ordinal++,
+      props: { heading: "Included — already in scope", variant: "inclusions", items: included.map((p) => p.item_name ?? p.task_ref) },
+    });
+  }
+  if (lines.length) {
+    body.push({
+      id: "deliverables",
+      type: "service_table",
+      ordinal: ordinal++,
+      props: { heading: "New billable — deliverables & pricing", lines, showCostColumn: true },
+    });
+  }
+  if (excluded.length) {
+    body.push({
+      id: "excluded",
+      type: "list",
+      ordinal: ordinal++,
+      props: { heading: "Out of scope", variant: "exclusions", items: excluded.map((p) => p.item_name ?? p.task_ref) },
+    });
+  }
+  body.push({ id: "signature", type: "signature", ordinal: ordinal++, props: { heading: "Acceptance" } });
+  return body;
 }
