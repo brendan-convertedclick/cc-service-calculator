@@ -195,6 +195,9 @@ function SowCheckInner({ briefId }: { briefId: string }) {
       {
         task_ref: ref,
         is_inside: isInside,
+        // Keep the three-way disposition in sync with the legacy in/out flip so
+        // the List badge, map circle, and estimate selection can't disagree.
+        disposition: isInside ? "in_agreed_scope" : "new_billable",
         service_area_id: null,
         ...(isInside ? {} : { sow_slug: null }),
         override_reason: isInside ? "Operator moved inside" : "Operator moved outside",
