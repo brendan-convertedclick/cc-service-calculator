@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days")
+          .select("id,default_due_days,clickup_work_stream")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -256,18 +256,32 @@ Deno.serve(async (req: Request) => {
         s.default_due_days,
       ]),
     );
+    // Per-service Work Stream override (wins over the department mapping).
+    const serviceWsOverride = new Map<string, string>(
+      (svcRows ?? [])
+        .filter((s: { clickup_work_stream: string | null }) => !!s.clickup_work_stream)
+        .map((s: { id: string; clickup_work_stream: string }) => [s.id, s.clickup_work_stream]),
+    );
     // Resolve assignees from department → primary team member → clickup_user_id.
     const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
     const { data: deptRows } = deptIds.length > 0
       ? await supabase
           .from("departments")
-          .select("id,primary_team_member_id")
+          .select("id,name,primary_team_member_id,clickup_work_stream")
           .in("id", deptIds)
       : { data: [] };
     const deptOwnerMap = new Map<string, string | null>(
       (deptRows ?? []).map((d: { id: string; primary_team_member_id: string | null }) => [
         d.id,
         d.primary_team_member_id,
+      ]),
+    );
+    // Department → ClickUp "Work Stream" option label (clickup_work_stream
+    // override, else the department name).
+    const deptWorkStreamById = new Map<string, string>(
+      (deptRows ?? []).map((d: { id: string; name: string; clickup_work_stream: string | null }) => [
+        d.id,
+        d.clickup_work_stream ?? d.name,
       ]),
     );
     const teamById = new Map(
@@ -331,7 +345,10 @@ Deno.serve(async (req: Request) => {
           const owner = ownerId ? teamById.get(ownerId) : null;
 
           const taskCf = [...sharedCustomFields];
-          const wsCf = resolveDropdownOption("Work Stream", alloc.dept_name);
+          const wsCf = resolveDropdownOption(
+            "Work Stream",
+            serviceWsOverride.get(item.service_id) ?? deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name,
+          );
           if (wsCf) taskCf.push(wsCf);
 
           const dueDays = dueDaysMap.get(item.service_id);

@@ -2,9 +2,16 @@
 // the system prompt for prompt-cache hits across repeated calls with the same
 // system prompt (used by all four AI edge functions today).
 
+// A message's content can be a plain string (the common case) or an array of
+// content blocks — used to attach a PDF/image alongside a text instruction.
+export type AnthropicContentBlock =
+  | { type: "text"; text: string }
+  | { type: "document"; source: { type: "base64"; media_type: string; data: string } }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
 export type AnthropicMessage =
-  | { role: "user"; content: string }
-  | { role: "assistant"; content: string };
+  | { role: "user"; content: string | AnthropicContentBlock[] }
+  | { role: "assistant"; content: string | AnthropicContentBlock[] };
 
 export type CallAnthropicInput = {
   model: string;

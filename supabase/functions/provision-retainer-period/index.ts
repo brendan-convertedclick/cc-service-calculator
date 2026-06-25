@@ -42,10 +42,14 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { project_id, period_start, rename_existing } = (await req.json()) as {
+    const { project_id, period_start, rename_existing, force_service_ids } = (await req.json()) as {
       project_id?: string;
       period_start?: string;
       rename_existing?: boolean;
+      // Services to re-provision: trash their existing ClickUp tasks for the
+      // period and recreate from the current config (e.g. after a live→manual
+      // or occurrences change mid-period).
+      force_service_ids?: string[];
     };
     if (!project_id) return json({ error: "project_id required" }, 400);
 
@@ -59,7 +63,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: project, error: pErr } = await sb
       .from("projects")
-      .select("id, clickup_list_id, client_id")
+      .select("id, clickup_list_id, client_id, clickup_parent_task_id")
       .eq("id", project_id)
       .single();
     if (pErr || !project) return json({ error: pErr?.message ?? "Project not found" }, 404);
@@ -102,17 +106,23 @@ Deno.serve(async (req: Request) => {
     const serviceIds = [...new Set((services as Array<{ service_id: string }>).map((s) => s.service_id))];
     const serviceNameById = new Map<string, string>();
     const serviceDeptById = new Map<string, string>();
+    // Per-service Work Stream override (wins over the department mapping).
+    const serviceWsOverride = new Map<string, string>();
     if (serviceIds.length > 0) {
       const [{ data: svcRows }, { data: depts }, { data: allocs }] = await Promise.all([
-        sb.from("services").select("id, name").in("id", serviceIds),
-        sb.from("departments").select("id, name"),
+        sb.from("services").select("id, name, clickup_work_stream").in("id", serviceIds),
+        sb.from("departments").select("id, name, clickup_work_stream"),
         sb.from("service_allocation_resolved").select("service_id, department_id, pct").in("service_id", serviceIds),
       ]);
-      for (const s of (svcRows ?? []) as Array<{ id: string; name: string }>) {
+      for (const s of (svcRows ?? []) as Array<{ id: string; name: string; clickup_work_stream: string | null }>) {
         serviceNameById.set(s.id, s.name);
+        if (s.clickup_work_stream) serviceWsOverride.set(s.id, s.clickup_work_stream);
       }
-      const deptNameById = new Map<string, string>(
-        ((depts ?? []) as Array<{ id: string; name: string }>).map((d) => [d.id, d.name]),
+      // The Work Stream ClickUp option label for a department: the
+      // clickup_work_stream override, else the department name.
+      const deptWorkStreamById = new Map<string, string>(
+        ((depts ?? []) as Array<{ id: string; name: string; clickup_work_stream: string | null }>)
+          .map((d) => [d.id, d.clickup_work_stream ?? d.name]),
       );
       // Pick the highest-pct department per service.
       const topByService = new Map<string, { dept_id: string; pct: number }>();
@@ -122,8 +132,8 @@ Deno.serve(async (req: Request) => {
         if (!cur || a.pct > cur.pct) topByService.set(a.service_id, { dept_id: a.department_id, pct: a.pct });
       }
       for (const [svcId, top] of topByService) {
-        const name = deptNameById.get(top.dept_id);
-        if (name) serviceDeptById.set(svcId, name);
+        const ws = deptWorkStreamById.get(top.dept_id);
+        if (ws) serviceDeptById.set(svcId, ws);
       }
     }
 
@@ -135,7 +145,7 @@ Deno.serve(async (req: Request) => {
       }
       const eng = resolveDropdownOption(cuFields, "Engagement Type", "Task");
       if (eng) cf.push(eng);
-      const wsName = serviceDeptById.get(serviceId);
+      const wsName = serviceWsOverride.get(serviceId) || serviceDeptById.get(serviceId);
       if (wsName) {
         const ws = resolveDropdownOption(cuFields, "Work Stream", wsName);
         if (ws) cf.push(ws);
@@ -145,10 +155,12 @@ Deno.serve(async (req: Request) => {
       return cf;
     };
 
-    const taskName = (serviceId: string, d: Date, cadence: string): string => {
+    const taskName = (serviceId: string, d: Date, cadence: string, label?: string): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
+      // Optional per-occurrence label (e.g. a website name) sits after the client.
+      const labelPart = label && label.trim() ? `${label.trim()} - ` : "";
       const week = cadence === "monthly" ? "" : `Week ${weekOfMonth(d)} - `;
-      return `${clientName} - ${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
+      return `${clientName} - ${labelPart}${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
     };
     const liveTaskName = (serviceId: string): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
@@ -160,6 +172,7 @@ Deno.serve(async (req: Request) => {
     let created = 0;
     let reused = 0;
     let patched = 0;
+    let reprovisioned = 0;
 
     for (const svc of services as Array<{
       id: string;
@@ -169,8 +182,26 @@ Deno.serve(async (req: Request) => {
       points_per_occurrence: number;
       default_assignees: string[];
       is_live_eligible: boolean;
+      occurrence_labels: string[] | null;
+      clickup_task_template_id: string | null;
     }>) {
-      for (const assigneeId of svc.default_assignees) {
+      // Shared mode: when a service has per-occurrence labels (e.g. one task per
+      // website), every listed assignee sits on the SAME labelled tasks (doer +
+      // checker) rather than each getting their own copies. Resolve all their
+      // ClickUp ids up front and run the assignee loop once, keyed on the first.
+      const sharedMode = (svc.occurrence_labels ?? []).filter((l) => l && l.trim()).length > 0;
+      let sharedClickupIds: number[] = [];
+      if (sharedMode) {
+        const { data: members } = await sb
+          .from("team_members")
+          .select("id, clickup_user_id")
+          .in("id", svc.default_assignees);
+        sharedClickupIds = (members ?? [])
+          .map((m) => (m as { clickup_user_id: number | null }).clickup_user_id)
+          .filter((x): x is number => typeof x === "number");
+      }
+      const assigneeLoop = sharedMode ? svc.default_assignees.slice(0, 1) : svc.default_assignees;
+      for (const assigneeId of assigneeLoop) {
         const { data: member } = await sb
           .from("team_members")
           .select("id, full_name, clickup_user_id, tracking_mode")
@@ -190,22 +221,32 @@ Deno.serve(async (req: Request) => {
           .eq("assignee_id", assigneeId)
           .eq("period_start", isoDate(periodStart))
           .maybeSingle();
-        if (existing) {
+        const forceReprovision = (force_service_ids ?? []).includes(svc.service_id);
+        if (existing && !forceReprovision) {
           if (rename_existing) {
             // One-off backfill: rename + set fields + points on the tasks that
             // were created before this convention existed.
             const ids = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
+            const isMonthly = svc.cadence === "monthly";
             const dates = mode === "live"
               ? [periodStart]
               : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
             for (let i = 0; i < ids.length; i++) {
               const d = dates[i] ?? dates[dates.length - 1] ?? periodStart;
-              const name = mode === "live" ? liveTaskName(svc.service_id) : taskName(svc.service_id, d, svc.cadence);
-              const cf = buildCustomFields(svc.service_id, (mode === "live" ? periodStart : d).getTime());
+              const name = mode === "live"
+                ? liveTaskName(svc.service_id)
+                : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
+              const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
+              const cf = buildCustomFields(svc.service_id, engagementMs);
+              const dueDate = mode === "live" ? undefined : isMonthly ? periodEnd.getTime() : d.getTime();
+              const startDate = mode === "live" ? undefined : isMonthly ? periodStart.getTime() : undefined;
               const pr = await patchClickupTask(clickupPat, ids[i], {
                 name,
                 points: pointsFor(svc),
                 customFields: cf,
+                parent: project.clickup_parent_task_id ?? undefined,
+                startDate,
+                dueDate,
               });
               if (pr.renameOk) patched += 1;
             }
@@ -214,7 +255,24 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        const assigneeIds = (member as { clickup_user_id: number | null }).clickup_user_id
+        if (existing && forceReprovision) {
+          // Trash the stale ClickUp tasks + provisioned_tasks row, then fall
+          // through to recreate from the current config.
+          const staleIds = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
+          for (const tid of staleIds) await deleteClickupTask(clickupPat, tid);
+          await sb.from("provisioned_tasks").delete().eq("id", (existing as { id: string }).id);
+          // Also drop the trashed tasks' historical actuals so they stop
+          // surfacing in project_actuals_current / the Conductor Tasks table.
+          if (staleIds.length > 0) {
+            await sb.from("project_actuals").delete()
+              .eq("project_id", project_id).in("clickup_task_id", staleIds);
+          }
+          reprovisioned += 1;
+        }
+
+        const assigneeIds = sharedMode
+          ? sharedClickupIds
+          : (member as { clickup_user_id: number | null }).clickup_user_id
           ? [(member as { clickup_user_id: number }).clickup_user_id]
           : [];
 
@@ -228,29 +286,67 @@ Deno.serve(async (req: Request) => {
               `Time accrues here via Rize.io → ClickUp time-entry sync.`,
             assigneeIds,
             timeEstimateMs: 0,
+            parent: project.clickup_parent_task_id ?? undefined,
             points: pointsFor(svc),
             customFields: buildCustomFields(svc.service_id, periodStart.getTime()),
           });
           if (id) taskIds.push(id);
         } else {
-          // N discrete dated tasks.
+          // N discrete dated tasks. Monthly (once-a-month) tasks span the whole
+          // billing period (1st → last day); weekly/other keep their per-
+          // occurrence date.
+          const isMonthly = svc.cadence === "monthly";
           const dates = plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
-          for (const d of dates) {
-            const id = await createClickupTask(
-              clickupPat,
-              project.clickup_list_id!,
-              {
-                name: taskName(svc.service_id, d, svc.cadence),
-                description:
-                  `Auto-seeded by Phase 8 provisioner. ` +
-                  `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
-                assigneeIds,
-                timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
-                dueDate: d.getTime(),
-                points: pointsFor(svc),
-                customFields: buildCustomFields(svc.service_id, d.getTime()),
-              },
-            );
+          for (let i = 0; i < dates.length; i++) {
+            const d = dates[i];
+            const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
+            const startDate = isMonthly ? periodStart.getTime() : undefined;
+            const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
+            const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i]);
+            const cf = buildCustomFields(svc.service_id, engagementMs);
+            let id: string | null = null;
+            if (svc.clickup_task_template_id) {
+              // Stamp the task out of the ClickUp Task Template, then layer on
+              // Conductor's name / points / dates / parent / fields + assignees.
+              id = await createClickupTaskFromTemplate(
+                clickupPat,
+                project.clickup_list_id!,
+                svc.clickup_task_template_id,
+                nm,
+              );
+              if (id) {
+                await patchClickupTask(clickupPat, id, {
+                  name: nm,
+                  points: pointsFor(svc),
+                  customFields: cf,
+                  parent: project.clickup_parent_task_id ?? undefined,
+                  dueDate,
+                  startDate,
+                });
+                await setClickupAssignees(clickupPat, id, assigneeIds);
+              }
+            }
+            if (!id) {
+              // No template, or the template create failed — fall back to a
+              // normal blank task so a period never ends up with no tasks.
+              id = await createClickupTask(
+                clickupPat,
+                project.clickup_list_id!,
+                {
+                  name: nm,
+                  description:
+                    `Auto-seeded by Phase 8 provisioner. ` +
+                    `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
+                  assigneeIds,
+                  timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
+                  dueDate,
+                  startDate,
+                  parent: project.clickup_parent_task_id ?? undefined,
+                  points: pointsFor(svc),
+                  customFields: cf,
+                },
+              );
+            }
             if (id) taskIds.push(id);
           }
         }
@@ -282,7 +378,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    return json({ created, reused, patched, field_resolution });
+    return json({ created, reused, patched, reprovisioned, field_resolution });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
@@ -297,6 +393,8 @@ async function createClickupTask(
     assigneeIds: number[];
     timeEstimateMs: number;
     dueDate?: number;
+    startDate?: number;
+    parent?: string;
     points?: number;
     customFields?: CustomField[];
   },
@@ -309,7 +407,10 @@ async function createClickupTask(
     time_estimate: args.timeEstimateMs,
   };
   if (args.assigneeIds.length > 0) body.assignees = args.assigneeIds;
-  if (args.dueDate) body.due_date = args.dueDate;
+  if (args.dueDate) { body.due_date = args.dueDate; body.due_date_time = false; }
+  if (args.startDate) { body.start_date = args.startDate; body.start_date_time = false; }
+  // Nest the work task under the retainer's umbrella task as a subtask.
+  if (args.parent) body.parent = args.parent;
   if (args.points !== undefined) body.points = args.points;
   if (args.customFields && args.customFields.length > 0) body.custom_fields = args.customFields;
   const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
@@ -328,17 +429,37 @@ async function createClickupTask(
 async function patchClickupTask(
   pat: string,
   taskId: string,
-  args: { name: string; points: number; customFields: CustomField[] },
+  args: {
+    name: string;
+    points: number;
+    customFields: CustomField[];
+    parent?: string;
+    startDate?: number;
+    dueDate?: number;
+  },
 ): Promise<{ renameOk: boolean; fieldsSet: number; fieldsTotal: number }> {
   const headers = { Authorization: pat, "Content-Type": "application/json" };
+  const updBody: Record<string, unknown> = { name: args.name, points: args.points };
+  if (args.dueDate) { updBody.due_date = args.dueDate; updBody.due_date_time = false; }
+  if (args.startDate) { updBody.start_date = args.startDate; updBody.start_date_time = false; }
   const upd = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
     method: "PUT",
     headers,
-    body: JSON.stringify({ name: args.name, points: args.points }),
+    body: JSON.stringify(updBody),
   });
   if (!upd.ok) {
     console.error(`patch task ${taskId} rename failed: ${upd.status}`);
     return { renameOk: false, fieldsSet: 0, fieldsTotal: args.customFields.length };
+  }
+  // Re-parent separately so an unsupported/invalid parent can't fail the
+  // rename/date update above.
+  if (args.parent) {
+    const pr = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ parent: args.parent }),
+    });
+    if (!pr.ok) console.error(`patch task ${taskId} re-parent failed: ${pr.status}`);
   }
   let fieldsSet = 0;
   for (const cf of args.customFields) {
@@ -351,6 +472,56 @@ async function patchClickupTask(
     else console.error(`patch task ${taskId} field ${cf.id} failed: ${fr.status}`);
   }
   return { renameOk: true, fieldsSet, fieldsTotal: args.customFields.length };
+}
+
+// Trash a ClickUp task (recoverable in ClickUp for ~30 days). Used when
+// re-provisioning a service whose config changed mid-period.
+async function deleteClickupTask(pat: string, taskId: string): Promise<void> {
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+    method: "DELETE",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+  });
+  if (!res.ok) console.error(`delete task ${taskId} failed: ${res.status}`);
+}
+
+// Create a task FROM a ClickUp Task Template (carries the template's
+// description, checklist, subtasks and custom-field defaults). Returns the new
+// task id, or null. The UI exposes ids like "t-869xxxx"; the API path accepts
+// it with or without the prefix depending on workspace, so try both.
+async function createClickupTaskFromTemplate(
+  pat: string,
+  listId: string,
+  templateId: string,
+  name: string,
+): Promise<string | null> {
+  const ids = templateId.startsWith("t-")
+    ? [templateId, templateId.slice(2)]
+    : [templateId, `t-${templateId}`];
+  for (const tid of ids) {
+    const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/taskTemplate/${tid}/task`, {
+      method: "POST",
+      headers: { Authorization: pat, "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      return (data as { id?: string } | null)?.id ?? null;
+    }
+    console.error(`create-from-template ${tid} failed: ${res.status}`);
+  }
+  return null;
+}
+
+// Add assignees to an existing task (used for template-stamped tasks, which the
+// template-create endpoint doesn't assign).
+async function setClickupAssignees(pat: string, taskId: string, assigneeIds: number[]): Promise<void> {
+  if (assigneeIds.length === 0) return;
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+    method: "PUT",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+    body: JSON.stringify({ assignees: { add: assigneeIds } }),
+  });
+  if (!res.ok) console.error(`set assignees ${taskId} failed: ${res.status}`);
 }
 
 function firstOfMonth(d: Date): Date {
@@ -388,6 +559,14 @@ function plannedTaskDates(
       if (dow !== 0 && dow !== 6) out.push(new Date(d));
       d = new Date(d.getTime() + 86_400_000);
     }
+    return out;
+  }
+  if (cadence === "monthly") {
+    // Monthly tasks span the whole period (start 1st / due last day), so the
+    // specific weekday doesn't matter — emit exactly `target` of them. (The
+    // weekday-stepping below would skip weekends and undercount, which is what
+    // dropped the 5th task.)
+    for (let i = 0; i < target; i++) out.push(new Date(periodStart));
     return out;
   }
   const totalDays = Math.max(1, Math.round((endMs - startMs) / 86_400_000));
