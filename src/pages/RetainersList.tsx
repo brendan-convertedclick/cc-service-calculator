@@ -148,7 +148,7 @@ export function RetainersList() {
                       <HoursUsedCell burn={burnByProject.get(r.id) ?? null} />
                     </TableCell>
                     <TableCell>
-                      <Badge>{statusLabel(r.status)}</Badge>
+                      <Badge className="whitespace-nowrap">{statusLabel(r.status)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

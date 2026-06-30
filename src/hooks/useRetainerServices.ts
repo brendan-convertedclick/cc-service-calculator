@@ -18,6 +18,8 @@ export type RetainerRecurringServiceRow = {
   task_description: string | null;
   checklist_items: string[] | null;
   label_as_task_name: boolean;
+  occurrence_start_days: number[] | null;
+  occurrence_due_days: number[] | null;
   created_at: string;
 };
 
@@ -36,6 +38,8 @@ export type RetainerServiceInput = {
   task_description?: string | null;
   checklist_items?: string[];
   label_as_task_name?: boolean;
+  occurrence_start_days?: number[];
+  occurrence_due_days?: number[];
 };
 
 export function useRetainerServices(projectId: string | undefined) {

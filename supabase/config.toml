@@ -108,3 +108,6 @@ verify_jwt = false
 # --- Scope map (Phase 4 SowCheck rebuild) ---
 [functions.analyze-brief-sow]
 verify_jwt = false
+
+[functions.update-retainer-services]
+verify_jwt = false

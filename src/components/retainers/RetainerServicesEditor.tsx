@@ -33,6 +33,8 @@ type Row = {
   task_description: string;
   checklist_items: string[];
   label_as_task_name: boolean;
+  occurrence_start_days: number[]; // per-occurrence start day-of-month (0 = auto)
+  occurrence_due_days: number[]; // per-occurrence due day-of-month (0 = auto)
   nameEdit?: string; // inline edit of the catalogue service name (undefined = unchanged)
 };
 
@@ -78,6 +80,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           task_description: s.task_description ?? "",
           checklist_items: s.checklist_items ?? [],
           label_as_task_name: s.label_as_task_name ?? false,
+          occurrence_start_days: s.occurrence_start_days ?? [],
+          occurrence_due_days: s.occurrence_due_days ?? [],
         })),
       );
       initedRef.current = projectId;
@@ -104,6 +108,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         task_description: "",
         checklist_items: [],
         label_as_task_name: false,
+        occurrence_start_days: [],
+        occurrence_due_days: [],
       },
     ]);
   }
@@ -139,6 +145,20 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
     );
   }
 
+  // Set a per-occurrence start/due day-of-month (0 / NaN = auto).
+  function setDay(rowId: string, kind: "start" | "due", index: number, value: string) {
+    const day = value === "" ? 0 : Number(value);
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.rowId !== rowId) return r;
+        const key = kind === "start" ? "occurrence_start_days" : "occurrence_due_days";
+        const days = [...r[key]];
+        days[index] = Number.isFinite(day) ? day : 0;
+        return { ...r, [key]: days };
+      }),
+    );
+  }
+
   async function save() {
     if (!valid) return;
     // Persist any inline service-name edits to the catalogue first.
@@ -166,6 +186,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       task_description: r.task_description.trim() || null,
       checklist_items: r.checklist_items,
       label_as_task_name: r.label_as_task_name,
+      occurrence_start_days: r.occurrence_start_days,
+      occurrence_due_days: r.occurrence_due_days,
     }));
     update.mutate(
       { projectId, services: payload },
@@ -319,16 +341,38 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                 Math.round(r.occurrences_per_month) <= 20 && (
                   <div className="space-y-1.5">
                     <Label className="text-label-small text-m-on-surface-variant">
-                      Task labels (optional — one per occurrence, e.g. website names; persists each month)
+                      Tasks (optional — label + start/due day-of-month per occurrence; days repeat each month, blank = auto)
                     </Label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
                       {Array.from({ length: Math.round(r.occurrences_per_month) }).map((_, i) => (
-                        <Input
-                          key={i}
-                          value={r.occurrence_labels[i] ?? ""}
-                          onChange={(e) => setLabel(r.rowId, i, e.target.value)}
-                          placeholder={`Task ${i + 1} label`}
-                        />
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            value={r.occurrence_labels[i] ?? ""}
+                            onChange={(e) => setLabel(r.rowId, i, e.target.value)}
+                            placeholder={`Task ${i + 1} label`}
+                            className="flex-1"
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            max="31"
+                            value={r.occurrence_start_days[i] ? r.occurrence_start_days[i] : ""}
+                            onChange={(e) => setDay(r.rowId, "start", i, e.target.value)}
+                            placeholder="Start day"
+                            aria-label={`Task ${i + 1} start day of month`}
+                            className="w-24"
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            max="31"
+                            value={r.occurrence_due_days[i] ? r.occurrence_due_days[i] : ""}
+                            onChange={(e) => setDay(r.rowId, "due", i, e.target.value)}
+                            placeholder="Due day"
+                            aria-label={`Task ${i + 1} due day of month`}
+                            className="w-24"
+                          />
+                        </div>
                       ))}
                     </div>
                     <label className="flex items-center gap-2 text-label-small text-m-on-surface-variant">

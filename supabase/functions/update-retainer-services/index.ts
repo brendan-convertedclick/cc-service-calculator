@@ -21,6 +21,17 @@ import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
 const VALID_CADENCES = ["daily", "weekly", "biweekly", "monthly", "custom"];
 
+// Normalise a per-occurrence day-of-month array: each entry becomes an int in
+// 1–31, or 0 ("auto") when blank/invalid. Trailing auto entries are trimmed.
+function sanitizeDays(days: number[] | undefined): number[] {
+  const out = (days ?? []).map((d) => {
+    const n = Math.round(Number(d));
+    return Number.isFinite(n) && n >= 1 && n <= 31 ? n : 0;
+  });
+  while (out.length > 0 && out[out.length - 1] === 0) out.pop();
+  return out;
+}
+
 type ServiceInput = {
   id?: string;
   service_id: string;
@@ -34,6 +45,8 @@ type ServiceInput = {
   task_description?: string | null;
   checklist_items?: string[];
   label_as_task_name?: boolean;
+  occurrence_start_days?: number[];
+  occurrence_due_days?: number[];
 };
 
 Deno.serve(async (req: Request) => {
@@ -104,6 +117,9 @@ Deno.serve(async (req: Request) => {
         task_description: svc.task_description?.trim() || null,
         checklist_items: (svc.checklist_items ?? []).map((c) => c.trim()).filter(Boolean),
         label_as_task_name: !!svc.label_as_task_name,
+        // Per-occurrence day-of-month overrides (0 = auto). Clamp to 1–31.
+        occurrence_start_days: sanitizeDays(svc.occurrence_start_days),
+        occurrence_due_days: sanitizeDays(svc.occurrence_due_days),
       };
       if (svc.id && existingIds.has(svc.id)) {
         const { error } = await sb.from("retainer_recurring_services").update(row).eq("id", svc.id);

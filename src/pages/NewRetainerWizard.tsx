@@ -49,6 +49,58 @@ const nextRowId = () => `row-${rowSeq++}`;
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// --- Draft auto-save (browser-local) ---------------------------------------
+// The wizard holds everything in React state, so navigating away used to drop
+// it. We persist the in-progress form to localStorage on every change and
+// restore it on mount. One draft at a time, scoped to this browser. Cleared on
+// successful create or "Start fresh".
+const DRAFT_KEY = "new-retainer-draft-v1";
+
+type RetainerDraft = {
+  step: StepKey;
+  clientId: string;
+  clickupListId: string;
+  name: string;
+  nameTouched: boolean;
+  recurrenceStart: string;
+  hoursTarget: string;
+  monthlyFee: string;
+  importQuoteId: string;
+  rows: ServiceRow[];
+};
+
+// A draft is only "real" once the user has entered something worth keeping —
+// avoids restoring an empty shell or a banner on a pristine wizard.
+function draftHasContent(d: RetainerDraft | null): d is RetainerDraft {
+  return !!d && (!!d.clientId || d.nameTouched || d.rows.length > 0);
+}
+
+function loadDraft(): RetainerDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as RetainerDraft;
+    if (!draftHasContent(d)) return null;
+    // Restored rows carry their old rowIds; advance the seq past them so
+    // newly-added rows never collide with a restored "row-N".
+    for (const r of d.rows ?? []) {
+      const n = Number(String(r.rowId).replace(/^row-/, ""));
+      if (Number.isFinite(n) && n >= rowSeq) rowSeq = n + 1;
+    }
+    return d;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function rowIsValid(r: ServiceRow): boolean {
   return (
     !!r.service_id &&
@@ -107,20 +159,26 @@ export function NewRetainerWizard() {
   const createRetainer = useCreateRetainer();
   const parseInvoice = useParseRetainerInvoice();
 
-  const [step, setStep] = useState<StepKey>("terms");
+  // Load any saved draft once, then seed the form from it.
+  const [initialDraft] = useState<RetainerDraft | null>(() => loadDraft());
+  const [draftRestored, setDraftRestored] = useState<boolean>(() => !!initialDraft);
+
+  const [step, setStep] = useState<StepKey>(initialDraft?.step ?? "terms");
 
   // Step 1 — Terms
-  const [clientId, setClientId] = useState<string>("");
-  const [clickupListId, setClickupListId] = useState<string>("");
-  const [name, setName] = useState<string>("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [recurrenceStart, setRecurrenceStart] = useState<string>(today());
-  const [hoursTarget, setHoursTarget] = useState<string>("");
-  const [monthlyFee, setMonthlyFee] = useState<string>("");
-  const [importQuoteId, setImportQuoteId] = useState<string>("");
+  const [clientId, setClientId] = useState<string>(initialDraft?.clientId ?? "");
+  const [clickupListId, setClickupListId] = useState<string>(initialDraft?.clickupListId ?? "");
+  const [name, setName] = useState<string>(initialDraft?.name ?? "");
+  const [nameTouched, setNameTouched] = useState(initialDraft?.nameTouched ?? false);
+  const [recurrenceStart, setRecurrenceStart] = useState<string>(
+    initialDraft?.recurrenceStart ?? today(),
+  );
+  const [hoursTarget, setHoursTarget] = useState<string>(initialDraft?.hoursTarget ?? "");
+  const [monthlyFee, setMonthlyFee] = useState<string>(initialDraft?.monthlyFee ?? "");
+  const [importQuoteId, setImportQuoteId] = useState<string>(initialDraft?.importQuoteId ?? "");
 
   // Step 2 — Recurring services
-  const [rows, setRows] = useState<ServiceRow[]>([]);
+  const [rows, setRows] = useState<ServiceRow[]>(initialDraft?.rows ?? []);
 
   const { data: clientLists = [], isLoading: listsLoading } = useClientLists(clientId || null);
   const { data: clientQuotes = [] } = useClientAcceptedQuotes(clientId || null);
@@ -156,6 +214,60 @@ export function NewRetainerWizard() {
       blendedRate > 0 && v.trim() !== "" && n > 0 ? String(Math.round(n * blendedRate * 100) / 100) : "",
     );
   };
+
+  // Auto-save the in-progress form to localStorage on every change so navigating
+  // away never loses it. Only persists once there's real content; clears the
+  // stored draft when the form is emptied back to a pristine state.
+  useEffect(() => {
+    const draft: RetainerDraft = {
+      step,
+      clientId,
+      clickupListId,
+      name,
+      nameTouched,
+      recurrenceStart,
+      hoursTarget,
+      monthlyFee,
+      importQuoteId,
+      rows,
+    };
+    if (draftHasContent(draft)) {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        /* quota/private-mode — ignore */
+      }
+    } else {
+      clearDraft();
+    }
+  }, [
+    step,
+    clientId,
+    clickupListId,
+    name,
+    nameTouched,
+    recurrenceStart,
+    hoursTarget,
+    monthlyFee,
+    importQuoteId,
+    rows,
+  ]);
+
+  // Reset the whole wizard to a blank state and drop the saved draft.
+  function startFresh() {
+    clearDraft();
+    setDraftRestored(false);
+    setStep("terms");
+    setClientId("");
+    setClickupListId("");
+    setName("");
+    setNameTouched(false);
+    setRecurrenceStart(today());
+    setHoursTarget("");
+    setMonthlyFee("");
+    setImportQuoteId("");
+    setRows([]);
+  }
 
   const pickedServiceIds = useMemo(
     () => new Set(rows.map((r) => r.service_id)),
@@ -331,6 +443,7 @@ export function NewRetainerWizard() {
 
     createRetainer.mutate(body, {
       onSuccess: (result) => {
+        clearDraft();
         toast.success("Retainer created");
         if (result.provision_warning) {
           toast.warning(
@@ -360,6 +473,22 @@ export function NewRetainerWizard() {
         </div>
         <Stepper current={step} />
       </div>
+
+      {draftRestored && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface-container px-4 py-2.5">
+          <p className="text-sm text-m-on-surface-variant">
+            Draft restored — picking up where you left off.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={startFresh}>
+              Start fresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDraftRestored(false)}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       {step === "terms" && (
         <div className="space-y-5 rounded-md border border-m-outline-variant bg-m-surface p-5">

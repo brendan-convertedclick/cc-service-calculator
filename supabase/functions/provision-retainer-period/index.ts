@@ -206,6 +206,8 @@ Deno.serve(async (req: Request) => {
       clickup_task_template_id: string | null;
       task_description: string | null;
       checklist_items: string[] | null;
+      occurrence_start_days: number[] | null;
+      occurrence_due_days: number[] | null;
     }>) {
       // Shared mode: when a service has per-occurrence labels (e.g. one task per
       // website), every listed assignee sits on the SAME labelled tasks (doer +
@@ -260,8 +262,16 @@ Deno.serve(async (req: Request) => {
                 : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
               const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
               const cf = buildCustomFields(svc.service_id, engagementMs);
-              const dueDate = mode === "live" ? undefined : isMonthly ? periodEnd.getTime() : d.getTime();
-              const startDate = mode === "live" ? undefined : isMonthly ? periodStart.getTime() : undefined;
+              const startDay = svc.occurrence_start_days?.[i];
+              const dueDay = svc.occurrence_due_days?.[i];
+              const dueDate = mode === "live"
+                ? undefined
+                : dueDay ? dayInPeriod(periodStart, dueDay).getTime()
+                : isMonthly ? periodEnd.getTime() : d.getTime();
+              const startDate = mode === "live"
+                ? undefined
+                : startDay ? dayInPeriod(periodStart, startDay).getTime()
+                : isMonthly ? periodStart.getTime() : undefined;
               const pr = await patchClickupTask(clickupPat, ids[i], {
                 name,
                 points: pointsFor(svc),
@@ -336,8 +346,17 @@ Deno.serve(async (req: Request) => {
           const dates = plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
           for (let i = 0; i < dates.length; i++) {
             const d = dates[i];
-            const dueDate = isMonthly ? periodEnd.getTime() : d.getTime();
-            const startDate = isMonthly ? periodStart.getTime() : undefined;
+            // Per-occurrence day-of-month overrides (0/absent = auto default).
+            const startDay = svc.occurrence_start_days?.[i];
+            const dueDay = svc.occurrence_due_days?.[i];
+            const customStart = startDay ? dayInPeriod(periodStart, startDay) : null;
+            const customDue = dueDay ? dayInPeriod(periodStart, dueDay) : null;
+            const dueDate = customDue
+              ? customDue.getTime()
+              : isMonthly ? periodEnd.getTime() : d.getTime();
+            const startDate = customStart
+              ? customStart.getTime()
+              : isMonthly ? periodStart.getTime() : undefined;
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
             const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
             const cf = buildCustomFields(svc.service_id, engagementMs);
@@ -603,6 +622,13 @@ function lastOfMonth(d: Date): Date {
 }
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+// Resolve a day-of-month (1–31) to a Date within the given period, clamped to
+// the month's length (e.g. day 31 in February → the 28th/29th).
+function dayInPeriod(periodStart: Date, day: number): Date {
+  const last = lastOfMonth(periodStart).getUTCDate();
+  const clamped = Math.min(Math.max(1, Math.round(day)), last);
+  return new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), clamped));
 }
 function monthYear(d: Date): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
