@@ -171,9 +171,9 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
                 {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-label-small text-muted-foreground">
-                Scope pending…
-              </Badge>
+              <Button asChild variant="outline" size="sm" className="h-7 text-label-small text-muted-foreground">
+                <Link to={`/briefs/${brief.id}/scope`}>Scope pending…</Link>
+              </Button>
             )}
             {brief.sender_email && (
               <Badge variant="secondary" className="text-label-small">

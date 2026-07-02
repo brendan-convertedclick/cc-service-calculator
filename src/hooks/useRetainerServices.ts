@@ -20,6 +20,7 @@ export type RetainerRecurringServiceRow = {
   label_as_task_name: boolean;
   occurrence_start_days: number[] | null;
   occurrence_due_days: number[] | null;
+  roll_up_monthly: boolean;
   created_at: string;
 };
 
@@ -40,6 +41,7 @@ export type RetainerServiceInput = {
   label_as_task_name?: boolean;
   occurrence_start_days?: number[];
   occurrence_due_days?: number[];
+  roll_up_monthly?: boolean;
 };
 
 export function useRetainerServices(projectId: string | undefined) {
@@ -63,13 +65,24 @@ export function useUpdateRetainerServices() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (
-      { projectId, services }: { projectId: string; services: RetainerServiceInput[] },
+      { projectId, services, cleanupRemovedTasks }: {
+        projectId: string;
+        services: RetainerServiceInput[];
+        cleanupRemovedTasks?: boolean;
+      },
     ) => {
       const { data, error } = await supabase.functions.invoke("update-retainer-services", {
-        body: { project_id: projectId, services },
+        body: { project_id: projectId, services, cleanup_removed_tasks: cleanupRemovedTasks },
       });
       if (error) throw error;
-      const body = data as { error?: string; updated?: number; inserted?: number; deleted?: number };
+      const body = data as {
+        error?: string;
+        updated?: number;
+        inserted?: number;
+        deleted?: number;
+        tasks_removed?: number;
+        tasks_kept_logged?: number;
+      };
       if (body.error) throw new Error(body.error);
       return body;
     },

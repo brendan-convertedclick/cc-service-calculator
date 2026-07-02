@@ -47,16 +47,87 @@ type ServiceInput = {
   label_as_task_name?: boolean;
   occurrence_start_days?: number[];
   occurrence_due_days?: number[];
+  roll_up_monthly?: boolean;
 };
+
+// First day of the current month (UTC), as a YYYY-MM-DD string. Used to scope
+// cleanup to the open period onward so closed months keep their history.
+function firstOfMonthIso(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+}
+
+async function deleteClickupTask(pat: string, taskId: string): Promise<void> {
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+    method: "DELETE",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+  });
+  if (!res.ok) console.error(`delete task ${taskId} failed: ${res.status}`);
+}
+
+// For services being removed, trash their provisioned ClickUp tasks from the
+// current month onward — skipping any that already have logged hours — and drop
+// the matching actuals so they stop surfacing in Conductor. The cascade on the
+// retainer_recurring_services delete handles the provisioned_tasks rows.
+async function cleanupRemovedServiceTasks(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  projectId: string,
+  serviceIds: string[],
+): Promise<{ removed: number; keptLogged: number }> {
+  const pat = Deno.env.get("CLICKUP_PAT");
+  if (!pat) {
+    console.error("CLICKUP_PAT not set — skipping ClickUp task cleanup");
+    return { removed: 0, keptLogged: 0 };
+  }
+
+  // Gather candidate ClickUp task ids from this month's (and later) provisioned
+  // rows for the removed services.
+  const { data: provRows } = await sb
+    .from("provisioned_tasks")
+    .select("clickup_task_ids")
+    .eq("project_id", projectId)
+    .in("recurring_service_id", serviceIds)
+    .gte("period_start", firstOfMonthIso());
+  const candidateIds = [
+    ...new Set(
+      ((provRows ?? []) as Array<{ clickup_task_ids: string[] | null }>)
+        .flatMap((r) => r.clickup_task_ids ?? []),
+    ),
+  ];
+  if (candidateIds.length === 0) return { removed: 0, keptLogged: 0 };
+
+  // Never trash a task that has logged time.
+  const { data: logged } = await sb
+    .from("project_actuals_current")
+    .select("clickup_task_id")
+    .eq("project_id", projectId)
+    .in("clickup_task_id", candidateIds)
+    .gt("actual_hours", 0);
+  const loggedIds = new Set(
+    ((logged ?? []) as Array<{ clickup_task_id: string }>).map((r) => r.clickup_task_id),
+  );
+
+  const toRemove = candidateIds.filter((id) => !loggedIds.has(id));
+  for (const id of toRemove) await deleteClickupTask(pat, id);
+  if (toRemove.length > 0) {
+    await sb.from("project_actuals").delete()
+      .eq("project_id", projectId).in("clickup_task_id", toRemove);
+  }
+  return { removed: toRemove.length, keptLogged: loggedIds.size };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { project_id, services } = (await req.json()) as {
+    const { project_id, services, cleanup_removed_tasks } = (await req.json()) as {
       project_id?: string;
       services?: ServiceInput[];
+      // When true, deleting a service also trashes its current/future ClickUp
+      // tasks (only those with no logged time) so they don't linger as orphans.
+      cleanup_removed_tasks?: boolean;
     };
     if (!project_id) return json({ error: "project_id required" }, 400);
     if (!Array.isArray(services) || services.length < 1) {
@@ -96,9 +167,19 @@ Deno.serve(async (req: Request) => {
     let updated = 0;
     let inserted = 0;
     let deleted = 0;
+    let tasks_removed = 0;
+    let tasks_kept_logged = 0;
 
     const toDelete = [...existingIds].filter((id) => !keptIds.has(id));
     if (toDelete.length > 0) {
+      // Optional cleanup: before the cascade drops these services'
+      // provisioned_tasks rows, trash their ClickUp tasks for the current month
+      // onward — but only ones with no logged time, so nothing billable is lost.
+      if (cleanup_removed_tasks) {
+        const res = await cleanupRemovedServiceTasks(sb, project_id, toDelete);
+        tasks_removed = res.removed;
+        tasks_kept_logged = res.keptLogged;
+      }
       const { error } = await sb.from("retainer_recurring_services").delete().in("id", toDelete);
       if (error) return json({ error: error.message }, 500);
       deleted = toDelete.length;
@@ -120,6 +201,7 @@ Deno.serve(async (req: Request) => {
         // Per-occurrence day-of-month overrides (0 = auto). Clamp to 1–31.
         occurrence_start_days: sanitizeDays(svc.occurrence_start_days),
         occurrence_due_days: sanitizeDays(svc.occurrence_due_days),
+        roll_up_monthly: !!svc.roll_up_monthly,
       };
       if (svc.id && existingIds.has(svc.id)) {
         const { error } = await sb.from("retainer_recurring_services").update(row).eq("id", svc.id);
@@ -132,7 +214,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ updated, inserted, deleted });
+    return json({ updated, inserted, deleted, tasks_removed, tasks_kept_logged });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

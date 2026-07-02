@@ -49,11 +49,7 @@ export function BriefIntelligenceView({ intelligence, isLoading }: Props) {
   }
 
   if (!intelligence) {
-    return (
-      <div className="rounded-lg border border-dashed p-6 text-center text-body-medium text-m-on-surface-variant">
-        Analysing brief… This usually takes under 30 seconds.
-      </div>
-    );
+    return null;
   }
 
   const requirements = (intelligence.requirements as Requirement[] | null) ?? [];

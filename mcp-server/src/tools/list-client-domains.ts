@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { normalizeHost } from '../domain.js'
 
 export const schema = z.object({})
 
@@ -32,7 +33,20 @@ export async function handler(_input: z.infer<typeof schema>) {
     if (clientError) throw new Error(clientError.message)
 
     for (const c of clients ?? []) {
-      if (c.primary_domain) domains.add((c.primary_domain as string).toLowerCase())
+      const host = normalizeHost(c.primary_domain as string)
+      if (host) domains.add(host)
+    }
+
+    // Additional domains owned by clients (multi-domain groups)
+    const { data: clientDomains, error: cdError } = await supabase
+      .from('client_domains')
+      .select('domain')
+
+    if (cdError) throw new Error(cdError.message)
+
+    for (const cd of clientDomains ?? []) {
+      const host = normalizeHost(cd.domain as string)
+      if (host) domains.add(host)
     }
 
     const result = [...domains].sort()

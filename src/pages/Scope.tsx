@@ -215,8 +215,8 @@ export function Scope() {
         </div>
       )}
 
-      {/* Scope editor — only after approval */}
-      {isApproved && (
+      {/* Scope editor — after approval, or when no intelligence exists */}
+      {(isApproved || !intelligence) && (
         <div className="space-y-4 pt-2">
           <h2 className="text-title-medium">Scope</h2>
           <ScopeEditor

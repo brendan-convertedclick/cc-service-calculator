@@ -35,6 +35,7 @@ type Row = {
   label_as_task_name: boolean;
   occurrence_start_days: number[]; // per-occurrence start day-of-month (0 = auto)
   occurrence_due_days: number[]; // per-occurrence due day-of-month (0 = auto)
+  roll_up_monthly: boolean; // one monthly task per person instead of per occurrence
   nameEdit?: string; // inline edit of the catalogue service name (undefined = unchanged)
 };
 
@@ -60,6 +61,9 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
   const updateService = useUpdateService();
 
   const [rows, setRows] = useState<Row[]>([]);
+  // When a service is removed, also trash this month's ClickUp tasks for it
+  // (only ones with no logged time). On by default — see the orphan-cleanup fix.
+  const [cleanupRemoved, setCleanupRemoved] = useState(true);
   // Initialise once per project; re-sync after a save (which assigns ids to new
   // rows). Reset via initedRef so a refetch re-seeds from canonical server state.
   const initedRef = useRef<string | null>(null);
@@ -82,6 +86,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           label_as_task_name: s.label_as_task_name ?? false,
           occurrence_start_days: s.occurrence_start_days ?? [],
           occurrence_due_days: s.occurrence_due_days ?? [],
+          roll_up_monthly: s.roll_up_monthly ?? false,
         })),
       );
       initedRef.current = projectId;
@@ -110,6 +115,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         label_as_task_name: false,
         occurrence_start_days: [],
         occurrence_due_days: [],
+        roll_up_monthly: false,
       },
     ]);
   }
@@ -188,9 +194,10 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       label_as_task_name: r.label_as_task_name,
       occurrence_start_days: r.occurrence_start_days,
       occurrence_due_days: r.occurrence_due_days,
+      roll_up_monthly: r.roll_up_monthly,
     }));
     update.mutate(
-      { projectId, services: payload },
+      { projectId, services: payload, cleanupRemovedTasks: cleanupRemoved },
       {
         onSuccess: (res) => {
           initedRef.current = null; // re-seed rows (new rows gain ids) on refetch
@@ -198,6 +205,8 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
             res.updated ? `${res.updated} updated` : "",
             res.inserted ? `${res.inserted} added` : "",
             res.deleted ? `${res.deleted} removed` : "",
+            res.tasks_removed ? `${res.tasks_removed} ClickUp task(s) cleaned up` : "",
+            res.tasks_kept_logged ? `${res.tasks_kept_logged} kept (had logged time)` : "",
           ].filter(Boolean);
           toast.success(`Services saved${parts.length ? ` — ${parts.join(", ")}` : ""}`);
         },
@@ -336,15 +345,35 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                   })}
                 </div>
               </div>
+              {!r.is_live_eligible && Math.round(r.occurrences_per_month) > 1 && (
+                <label className="flex items-start gap-2 text-label-small text-m-on-surface">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={r.roll_up_monthly}
+                    onChange={(e) => patchRow(r.rowId, { roll_up_monthly: e.target.checked })}
+                  />
+                  <span>
+                    Roll up into one monthly task per person
+                    <span className="block text-label-small text-m-on-surface-variant">
+                      One task per assignee for the whole month (holds all {Math.round(r.occurrences_per_month)}{" "}
+                      occurrences' hours), instead of {Math.round(r.occurrences_per_month)} separate tasks each.
+                      Great for daily standups / weekly status.
+                    </span>
+                  </span>
+                </label>
+              )}
               {!r.is_live_eligible &&
                 Math.round(r.occurrences_per_month) >= 1 &&
                 Math.round(r.occurrences_per_month) <= 20 && (
                   <div className="space-y-1.5">
                     <Label className="text-label-small text-m-on-surface-variant">
-                      Tasks (optional — label + start/due day-of-month per occurrence; days repeat each month, blank = auto)
+                      {r.roll_up_monthly
+                        ? "Monthly task (optional — label + start/due day-of-month for the rolled-up task; blank = auto)"
+                        : "Tasks (optional — label + start/due day-of-month per occurrence; days repeat each month, blank = auto)"}
                     </Label>
                     <div className="space-y-2">
-                      {Array.from({ length: Math.round(r.occurrences_per_month) }).map((_, i) => (
+                      {Array.from({ length: r.roll_up_monthly ? 1 : Math.round(r.occurrences_per_month) }).map((_, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <Input
                             value={r.occurrence_labels[i] ?? ""}
@@ -461,6 +490,14 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           {update.isPending || updateService.isPending ? "Saving…" : "Save services"}
         </Button>
       </div>
+      <label className="flex items-center gap-2 pt-1 text-label-small text-m-on-surface-variant">
+        <input
+          type="checkbox"
+          checked={cleanupRemoved}
+          onChange={(e) => setCleanupRemoved(e.target.checked)}
+        />
+        When I remove a service, also delete this month's ClickUp tasks for it (only ones with no logged time)
+      </label>
       <p className="text-label-small text-m-on-surface-variant">
         Changes apply to next month automatically. "Provision now" adds newly-added services to this month;
         "Re-provision this month" updates this month's task names/labels to match (tasks with logged hours are kept).

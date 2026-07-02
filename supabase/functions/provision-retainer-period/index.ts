@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: project, error: pErr } = await sb
       .from("projects")
-      .select("id, clickup_list_id, client_id, clickup_parent_task_id")
+      .select("id, clickup_list_id, client_id, clickup_parent_task_id, clickup_work_stream_override")
       .eq("id", project_id)
       .single();
     if (pErr || !project) return json({ error: pErr?.message ?? "Project not found" }, 404);
@@ -151,7 +151,10 @@ Deno.serve(async (req: Request) => {
       }
       const eng = resolveDropdownOption(cuFields, "Engagement Type", "Task");
       if (eng) cf.push(eng);
-      const wsName = serviceWsOverride.get(serviceId) || serviceDeptById.get(serviceId);
+      // Retainer-level override wins over the per-service / department mapping —
+      // e.g. an Admin retainer where every task should read Work Stream = Admin.
+      const wsName = project.clickup_work_stream_override ||
+        serviceWsOverride.get(serviceId) || serviceDeptById.get(serviceId);
       if (wsName) {
         const ws = resolveDropdownOption(cuFields, "Work Stream", wsName);
         if (ws) cf.push(ws);
@@ -208,6 +211,7 @@ Deno.serve(async (req: Request) => {
       checklist_items: string[] | null;
       occurrence_start_days: number[] | null;
       occurrence_due_days: number[] | null;
+      roll_up_monthly: boolean | null;
     }>) {
       // Shared mode: when a service has per-occurrence labels (e.g. one task per
       // website), every listed assignee sits on the SAME labelled tasks (doer +
@@ -342,8 +346,26 @@ Deno.serve(async (req: Request) => {
           // N discrete dated tasks. Monthly (once-a-month) tasks span the whole
           // billing period (1st → last day); weekly/other keep their per-
           // occurrence date.
-          const isMonthly = svc.cadence === "monthly";
-          const dates = plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
+          //
+          // Roll-up: high-frequency services (daily standup, weekly status) can
+          // opt to collapse the month's occurrences into ONE task per assignee,
+          // spanning the period and holding the whole month's points/hours —
+          // instead of a task per occurrence. Cuts task count dramatically.
+          const rollUp = !!svc.roll_up_monthly;
+          const isMonthly = svc.cadence === "monthly" || rollUp;
+          // Whole-month points/estimate when rolled up; per-occurrence otherwise.
+          const rollUpPoints = Math.max(
+            1,
+            Math.round(svc.occurrences_per_month * svc.points_per_occurrence),
+          );
+          const taskPoints = rollUp ? rollUpPoints : pointsFor(svc);
+          const taskEstimateMs = Math.round(
+            (rollUp ? svc.occurrences_per_month * svc.points_per_occurrence : svc.points_per_occurrence) *
+              POINT_TO_MIN * 60_000,
+          );
+          const dates = rollUp
+            ? [periodStart]
+            : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
           for (let i = 0; i < dates.length; i++) {
             const d = dates[i];
             // Per-occurrence day-of-month overrides (0/absent = auto default).
@@ -358,7 +380,14 @@ Deno.serve(async (req: Request) => {
               ? customStart.getTime()
               : isMonthly ? periodStart.getTime() : undefined;
             const engagementMs = isMonthly ? periodStart.getTime() : d.getTime();
-            const nm = taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
+            // Roll-up names read as monthly (drop the "Week #" segment).
+            const nm = taskName(
+              svc.service_id,
+              d,
+              rollUp ? "monthly" : svc.cadence,
+              svc.occurrence_labels?.[i],
+              svc.label_as_task_name,
+            );
             const cf = buildCustomFields(svc.service_id, engagementMs);
             let id: string | null = null;
             if (svc.clickup_task_template_id) {
@@ -373,7 +402,7 @@ Deno.serve(async (req: Request) => {
               if (id) {
                 await patchClickupTask(clickupPat, id, {
                   name: nm,
-                  points: pointsFor(svc),
+                  points: taskPoints,
                   customFields: cf,
                   parent: project.clickup_parent_task_id ?? undefined,
                   dueDate,
@@ -394,11 +423,11 @@ Deno.serve(async (req: Request) => {
                     `Auto-seeded by Phase 8 provisioner. ` +
                       `Period ${isoDate(periodStart)} → ${isoDate(periodEnd)}.`,
                   assigneeIds,
-                  timeEstimateMs: Math.round(svc.points_per_occurrence * POINT_TO_MIN * 60_000),
+                  timeEstimateMs: taskEstimateMs,
                   dueDate,
                   startDate,
                   parent: project.clickup_parent_task_id ?? undefined,
-                  points: pointsFor(svc),
+                  points: taskPoints,
                   customFields: cf,
                 },
               );
@@ -476,12 +505,26 @@ async function createClickupTask(
   if (args.parent) body.parent = args.parent;
   if (args.points !== undefined) body.points = args.points;
   if (args.customFields && args.customFields.length > 0) body.custom_fields = args.customFields;
-  const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
-    method: "POST",
-    headers: { Authorization: pat, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return null;
+  const post = (b: Record<string, unknown>) =>
+    fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
+      method: "POST",
+      headers: { Authorization: pat, "Content-Type": "application/json" },
+      body: JSON.stringify(b),
+    });
+  let res = await post(body);
+  // ClickUp rejects large sprint-point values (rolled-up monthly tasks can sum
+  // to 80+). Points is a secondary metric — the time estimate carries the real
+  // hours — so if a create fails with points set, drop points and retry once.
+  if (!res.ok && body.points !== undefined) {
+    const errText = await res.text().catch(() => "");
+    console.error(`create task failed (${res.status}) with points=${body.points}; retrying without points. ${errText}`);
+    const { points: _drop, ...rest } = body;
+    res = await post(rest);
+  }
+  if (!res.ok) {
+    console.error(`create task in list ${listId} failed: ${res.status} ${await res.text().catch(() => "")}`);
+    return null;
+  }
   const r = (await res.json()) as { id: string };
   return r.id;
 }

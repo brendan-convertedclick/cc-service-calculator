@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Copy, RefreshCw, Save } from "lucide-react";
+import { Copy, Pencil, RefreshCw, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -56,6 +56,8 @@ export function ProjectDetail() {
 
   const [remoteDraft, setRemoteDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
+  const [nameEditing, setNameEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
   useEffect(() => {
     if (data?.project) {
@@ -66,6 +68,8 @@ export function ProjectDetail() {
         recurrence_end: data.project.recurrence_end ?? "",
       });
       setRemoteDraft(data.project.git_remote_url ?? "");
+      setNameDraft(data.project.name ?? "");
+      setNameEditing(false);
       // due_date is a timestamptz — strip to YYYY-MM-DD for <input type="date">
       setDueDateDraft(
         data.project.due_date ? data.project.due_date.slice(0, 10) : "",
@@ -124,6 +128,29 @@ export function ProjectDetail() {
       },
       {
         onSuccess: () => toast.success("Recurrence saved"),
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  }
+
+  function saveName() {
+    if (!id) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      toast.error("Name can't be empty");
+      return;
+    }
+    if (trimmed === (project.name ?? "")) {
+      setNameEditing(false);
+      return;
+    }
+    updateProject.mutate(
+      { id, patch: { name: trimmed } },
+      {
+        onSuccess: () => {
+          setNameEditing(false);
+          toast.success("Name updated");
+        },
         onError: (e: Error) => toast.error(e.message),
       },
     );
@@ -230,7 +257,59 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                 <span className="font-mono text-label-small px-2 py-0.5 rounded bg-m-surface-container border border-m-outline-variant">
                   {project.project_code}
                 </span>
-                <h1 className="text-headline-small">{project.name ?? "Untitled project"}</h1>
+                {nameEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveName();
+                        if (e.key === "Escape") {
+                          setNameDraft(project.name ?? "");
+                          setNameEditing(false);
+                        }
+                      }}
+                      autoFocus
+                      aria-label="Retainer name"
+                      className="h-8 text-headline-small min-w-[20rem]"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={saveName}
+                      disabled={updateProject.isPending}
+                      aria-label="Save name"
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setNameDraft(project.name ?? "");
+                        setNameEditing(false);
+                      }}
+                      aria-label="Cancel rename"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="group flex items-center gap-1.5">
+                    <h1 className="text-headline-small">{project.name ?? "Untitled project"}</h1>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                      onClick={() => setNameEditing(true)}
+                      aria-label="Edit name"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="text-label-small text-m-on-surface-variant">
                 Started {new Date(project.started_at).toLocaleDateString("en-ZA")} · Status:{" "}
