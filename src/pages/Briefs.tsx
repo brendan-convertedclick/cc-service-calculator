@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CardActionsMenu, CardActionItem } from "@/components/CardActionsMenu";
 import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
@@ -99,7 +100,12 @@ export function Briefs() {
 
   return (
     <div className="max-w-6xl p-6">
-      <h1 className="mb-6 text-headline-medium">Briefs</h1>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-headline-medium">Briefs</h1>
+        <Button asChild>
+          <Link to="/briefs/new">+ New Brief</Link>
+        </Button>
+      </div>
 
       {inFlightAll.length === 0 ? (
         <div className="text-body-medium text-m-on-surface-variant">
