@@ -15,7 +15,9 @@ import {
   useBriefIntelligence,
   useApproveBriefIntelligence,
   useRejectBriefIntelligence,
+  useUpdateBriefIntelligence,
 } from "@/hooks/useBriefIntelligence";
+import { useDepartments } from "@/hooks/useDepartments";
 import { useCurrentUserId } from "@/context/AuthContext";
 import { isMostlyAi } from "@/lib/scope-overlap";
 
@@ -50,13 +52,19 @@ export function Scope() {
   const navigate = useNavigate();
   const userId = useCurrentUserId();
 
+  const [editingIntel, setEditingIntel] = useState(false);
+
   const { data: brief } = useBrief(id);
-  const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id);
+  const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
+    paused: editingIntel,
+  });
+  const { data: departments } = useDepartments();
   const { data: scope } = useScope(id);
   const updateBrief = useUpdateBrief();
   const upsertScope = useUpsertScope();
   const approve = useApproveBriefIntelligence(id ?? "");
   const reject = useRejectBriefIntelligence(id ?? "");
+  const updateIntel = useUpdateBriefIntelligence(id ?? "");
 
   const [rejectNotes, setRejectNotes] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -152,10 +160,21 @@ export function Scope() {
       <BriefIntelligenceView
         intelligence={intelligence ?? null}
         isLoading={intelLoading}
+        departments={departments}
+        onEditingChange={setEditingIntel}
+        onSave={async (patch) => {
+          try {
+            await updateIntel.mutateAsync(patch);
+            toast.success("Brief updated");
+          } catch (e) {
+            toast.error("Failed to save changes");
+            throw e;
+          }
+        }}
       />
 
       {/* AM Review actions — only when pending and intelligence exists */}
-      {!isApproved && !isRejected && intelligence && (
+      {!isApproved && !isRejected && intelligence && !editingIntel && (
         <Card>
           <CardContent className="p-4 space-y-3">
             {showRejectInput ? (

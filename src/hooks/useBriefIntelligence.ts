@@ -5,11 +5,17 @@ import type { Database } from "@/types/db";
 
 type BriefIntelligence =
   Database["public"]["Tables"]["brief_intelligence"]["Row"];
+type BriefIntelligenceUpdate =
+  Database["public"]["Tables"]["brief_intelligence"]["Update"];
 
 const KEY = (briefId: string | undefined) =>
   ["brief-intelligence", briefId] as const;
 
-export function useBriefIntelligence(briefId: string | undefined) {
+export function useBriefIntelligence(
+  briefId: string | undefined,
+  opts?: { paused?: boolean },
+) {
+  const paused = opts?.paused ?? false;
   return useQuery({
     queryKey: KEY(briefId),
     queryFn: async (): Promise<BriefIntelligence | null> => {
@@ -23,9 +29,10 @@ export function useBriefIntelligence(briefId: string | undefined) {
       return data;
     },
     enabled: !!briefId,
-    // Poll every 5s while pending so the UI updates when intake finishes
+    // Poll every 5s while pending so the UI updates when intake finishes —
+    // paused while the AM is editing so a refetch can't clobber the draft.
     refetchInterval: (query) =>
-      query.state.data?.am_status === "pending" ? 5000 : false,
+      !paused && query.state.data?.am_status === "pending" ? 5000 : false,
   });
 }
 
@@ -39,6 +46,25 @@ export function useApproveBriefIntelligence(briefId: string) {
           am_status: "approved",
           am_reviewed_at: new Date().toISOString(),
         })
+        .eq("brief_id", briefId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY(briefId) });
+    },
+  });
+}
+
+export function useUpdateBriefIntelligence(briefId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: BriefIntelligenceUpdate) => {
+      const { data, error } = await supabase
+        .from("brief_intelligence")
+        .update(patch)
         .eq("brief_id", briefId)
         .select()
         .single();
