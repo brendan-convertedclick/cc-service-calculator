@@ -73,6 +73,67 @@ export function findCustomField(
   return { id: field.id, type: field.type };
 }
 
+const POINT_TO_MIN = 15;
+
+export type BriefTaskInput = {
+  listId: string;
+  name: string;
+  description: string;
+  clientName: string;
+  workStream: string;
+  engagementType: string;
+  sprintPoints: number;
+  dateOfEngagement: string;
+  assigneeClickupId?: number | null;
+  dueDateMs?: number | null;
+};
+
+/**
+ * Build the ClickUp task-create body for a single brief task: name,
+ * description, time_estimate, custom_fields, and optional assignees/
+ * due_date. Deliberately omits `status` — list-specific status sets make
+ * hardcoding a value fail with CRTSK_001; let ClickUp use the list default.
+ * Pure (no fetch) so it's unit-testable; the caller does the actual POST.
+ */
+export function buildBriefTaskBody(
+  cuFields: Array<{ id: string; name: string; type: string }>,
+  input: BriefTaskInput,
+): Record<string, unknown> {
+  const cf: Array<{ id: string; value: unknown }> = [];
+  const client = findCustomField(cuFields, "Client Name");
+  if (client) cf.push({ id: client.id, value: input.clientName });
+  const doe = findCustomField(cuFields, "Date of Engagement");
+  if (doe) {
+    cf.push({
+      id: doe.id,
+      value: Date.UTC(
+        Number(input.dateOfEngagement.slice(0, 4)),
+        Number(input.dateOfEngagement.slice(5, 7)) - 1,
+        Number(input.dateOfEngagement.slice(8, 10)),
+      ),
+    });
+  }
+  const et = findCustomField(cuFields, "Engagement Type");
+  if (et) cf.push({ id: et.id, value: input.engagementType });
+  const ws = findCustomField(cuFields, "Work Stream");
+  if (ws) cf.push({ id: ws.id, value: input.workStream });
+  const pts = findCustomField(cuFields, "Sprint Points");
+  if (pts) cf.push({ id: pts.id, value: input.sprintPoints });
+
+  const body: Record<string, unknown> = {
+    name: input.name,
+    description: input.description,
+    time_estimate: Math.round(input.sprintPoints * POINT_TO_MIN * 60_000),
+    custom_fields: cf,
+  };
+  if (input.assigneeClickupId) body.assignees = [input.assigneeClickupId];
+  if (input.dueDateMs) {
+    body.due_date = input.dueDateMs;
+    body.due_date_time = false;
+  }
+  return body;
+}
+
 export type CuField = {
   id: string;
   name: string;

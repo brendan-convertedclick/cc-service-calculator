@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildBriefComment, resolveListAlias } from "./clickup.ts";
+import { buildBriefComment, buildBriefTaskBody, resolveListAlias } from "./clickup.ts";
 
 const aliases = [
   { work_stream: "Development", aliases: ["Development", "Dev", "Engineering"] },
@@ -50,4 +50,38 @@ Deno.test("buildBriefComment emits a BRIEF:: prefixed JSON payload", () => {
   assertEquals(payload.sprint_points, 3);
   assertEquals(payload.work_stream, "Development");
   assertEquals(payload.source_quote_id, "q-1");
+});
+
+Deno.test("buildBriefTaskBody fills custom fields + time estimate, omits status", () => {
+  const fields = [
+    { id: "f_client", name: "Client Name", type: "drop_down" },
+    { id: "f_doe", name: "Date of Engagement", type: "date" },
+    { id: "f_et", name: "Engagement Type", type: "drop_down" },
+    { id: "f_ws", name: "Work Stream", type: "drop_down" },
+    { id: "f_pts", name: "Sprint Points", type: "number" },
+  ];
+  const body = buildBriefTaskBody(fields, {
+    listId: "L1", name: "Pull discount report", description: "d",
+    clientName: "Trellidor", workStream: "Reporting", engagementType: "Task",
+    sprintPoints: 4, dateOfEngagement: "2026-07-08", assigneeClickupId: 99,
+    dueDateMs: null,
+  });
+  assertEquals(body.name, "Pull discount report");
+  assertEquals(body.time_estimate, 4 * 15 * 60_000);
+  assertEquals((body as { status?: unknown }).status, undefined);
+  assertEquals((body as { assignees: number[] }).assignees, [99]);
+  const cf = body.custom_fields as Array<{ id: string; value: unknown }>;
+  assertEquals(cf.find((c) => c.id === "f_client")?.value, "Trellidor");
+  assertEquals(cf.find((c) => c.id === "f_et")?.value, "Task");
+  assertEquals(cf.find((c) => c.id === "f_pts")?.value, 4);
+});
+
+Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when given", () => {
+  const body = buildBriefTaskBody([], {
+    listId: "L1", name: "n", description: "d", clientName: "C",
+    workStream: "W", engagementType: "Task", sprintPoints: 1,
+    dateOfEngagement: "2026-07-08", assigneeClickupId: null, dueDateMs: 1780000000000,
+  });
+  assertEquals((body as { assignees?: unknown }).assignees, undefined);
+  assertEquals((body as { due_date?: number }).due_date, 1780000000000);
 });

@@ -12,7 +12,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
-import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
+import { buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
 
 type StaffBrief = {
   id: string;
@@ -40,8 +40,6 @@ type Member = {
 };
 
 type Client = { id: string; name: string };
-
-const POINT_TO_MIN = 15; // 1 sprint point = 15 minutes (project convention)
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -133,39 +131,21 @@ Deno.serve(async (req: Request) => {
       `---\n` +
       `_Phase 1 staff brief · submitted by ${member.full_name} · approved on ${dateOfEngagement}_`;
 
-    // Compose custom_fields array for create.
-    const customFieldsPayload: Array<{ id: string; value: unknown }> = [];
-    const clientField = findCustomField(cuFields, "Client Name");
-    if (clientField) customFieldsPayload.push({ id: clientField.id, value: cli.name });
-    const doeField = findCustomField(cuFields, "Date of Engagement");
-    if (doeField) {
-      customFieldsPayload.push({
-        id: doeField.id,
-        value: Date.UTC(
-          Number(dateOfEngagement.slice(0, 4)),
-          Number(dateOfEngagement.slice(5, 7)) - 1,
-          Number(dateOfEngagement.slice(8, 10)),
-        ),
-      });
-    }
-    const etField = findCustomField(cuFields, "Engagement Type");
-    if (etField) customFieldsPayload.push({ id: etField.id, value: engagementType });
-    const wsField = findCustomField(cuFields, "Work Stream");
-    if (wsField) customFieldsPayload.push({ id: wsField.id, value: workStream });
-    const pointsField = findCustomField(cuFields, "Sprint Points");
-    if (pointsField) customFieldsPayload.push({ id: pointsField.id, value: brief.sprint_points });
-
-    const taskBody: Record<string, unknown> = {
+    // Compose the ClickUp create body (name, description, time_estimate,
+    // custom_fields, optional assignees). Omits `status` — client spaces use
+    // custom status sets, so hardcoding "to do" fails with CRTSK_001.
+    const taskBody = buildBriefTaskBody(cuFields, {
+      listId: brief.clickup_list_id,
       name: brief.task_name,
       description,
-      // Omit `status` — let ClickUp use the list's default. Client spaces use
-      // custom status sets, so hardcoding "to do" fails with CRTSK_001.
-      time_estimate: Math.round(brief.sprint_points * POINT_TO_MIN * 60_000),
-      custom_fields: customFieldsPayload,
-    };
-    if (member.clickup_user_id) {
-      taskBody.assignees = [member.clickup_user_id];
-    }
+      clientName: cli.name,
+      workStream,
+      engagementType,
+      sprintPoints: brief.sprint_points,
+      dateOfEngagement,
+      assigneeClickupId: member.clickup_user_id,
+      dueDateMs: null,
+    });
 
     const createRes = await fetch(
       `https://api.clickup.com/api/v2/list/${brief.clickup_list_id}/task`,
