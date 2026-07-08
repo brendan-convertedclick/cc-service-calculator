@@ -351,7 +351,13 @@ Deno.serve(async (req: Request) => {
           // opt to collapse the month's occurrences into ONE task per assignee,
           // spanning the period and holding the whole month's points/hours —
           // instead of a task per occurrence. Cuts task count dramatically.
-          const rollUp = !!svc.roll_up_monthly;
+          // Roll up ONLY when the service genuinely collapses to one task/month
+          // (0 or 1 real occurrence label). A multi-occurrence service that also
+          // has roll_up_monthly set must still fan out to one task per
+          // occurrence — otherwise it silently under-generates (the July 2026
+          // shortfall regression from ce482fa).
+          const rollUp = !!svc.roll_up_monthly &&
+            (svc.occurrence_labels ?? []).filter((l) => l && l.trim()).length <= 1;
           const isMonthly = svc.cadence === "monthly" || rollUp;
           // Whole-month points/estimate when rolled up; per-occurrence otherwise.
           const rollUpPoints = Math.max(
