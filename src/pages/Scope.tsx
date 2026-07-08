@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
+import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
@@ -53,6 +54,7 @@ export function Scope() {
   const userId = useCurrentUserId();
 
   const [editingIntel, setEditingIntel] = useState(false);
+  const [quickBriefOpen, setQuickBriefOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
   const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
@@ -154,7 +156,28 @@ export function Scope() {
             )}
           </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setQuickBriefOpen(true)}
+        >
+          Brief as-is
+        </Button>
       </div>
+
+      <QuickBriefSheet
+        open={quickBriefOpen}
+        onOpenChange={setQuickBriefOpen}
+        brief={{
+          id: brief.id,
+          client_id: brief.client_id,
+          intent_type: brief.intent_type,
+          raw_subject: brief.raw_subject,
+          quick_task_suggestion: brief.quick_task_suggestion as
+            | QuickBriefSheetBrief["quick_task_suggestion"]
+            | null,
+        }}
+      />
 
       {/* Intelligence view — always visible */}
       <BriefIntelligenceView

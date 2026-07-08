@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { BriefHandlingButtons } from "@/components/BriefHandlingButtons";
+import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients, useCreateClient } from "@/hooks/useClients";
 import { useCurrentUserId } from "@/context/AuthContext";
@@ -20,6 +22,7 @@ export function BriefRow({ brief }: { brief: Brief }) {
   const navigate = useNavigate();
   const userId = useCurrentUserId();
   const [expanded, setExpanded] = useState(false);
+  const [quickBriefOpen, setQuickBriefOpen] = useState(false);
   const [clientId, setClientId] = useState<string | undefined>(brief.client_id ?? undefined);
   const [newClientName, setNewClientName] = useState("");
   const { data: clients = [] } = useClients();
@@ -126,14 +129,32 @@ export function BriefRow({ brief }: { brief: Brief }) {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button onClick={accept}>Accept</Button>
-              <Button variant="secondary" onClick={needsInfo}>Needs info</Button>
-              <Button variant="ghost" onClick={spam}>Spam</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <BriefHandlingButtons
+                brief={brief}
+                onScopeIt={accept}
+                onBriefAsIs={() => setQuickBriefOpen(true)}
+                onDraftReply={needsInfo}
+              />
+              <Button variant="ghost" size="sm" onClick={spam}>Spam</Button>
             </div>
           </div>
         )}
       </CardContent>
+
+      <QuickBriefSheet
+        open={quickBriefOpen}
+        onOpenChange={setQuickBriefOpen}
+        brief={{
+          id: brief.id,
+          client_id: brief.client_id,
+          intent_type: brief.intent_type,
+          raw_subject: brief.raw_subject,
+          quick_task_suggestion: brief.quick_task_suggestion as
+            | QuickBriefSheetBrief["quick_task_suggestion"]
+            | null,
+        }}
+      />
     </Card>
   );
 }
