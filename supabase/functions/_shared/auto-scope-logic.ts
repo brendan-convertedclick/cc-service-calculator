@@ -6,7 +6,8 @@ export type IntentType =
   | "project_thread"
   | "retainer_thread"
   | "general_query"
-  | "quick_response";
+  | "quick_response"
+  | "quick_task";
 
 const VALID_INTENT_TYPES = new Set<string>([
   "new_brief",
@@ -14,6 +15,7 @@ const VALID_INTENT_TYPES = new Set<string>([
   "retainer_thread",
   "general_query",
   "quick_response",
+  "quick_task",
 ]);
 
 /**
@@ -47,10 +49,14 @@ export function matchesQuickResponseRule(
 export function parseClassifyResponse(text: string): IntentType {
   try {
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return "new_brief";
-    const parsed = JSON.parse(match[0]);
-    const t = parsed?.intent_type;
-    return typeof t === "string" && VALID_INTENT_TYPES.has(t) ? (t as IntentType) : "new_brief";
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      const t = parsed?.intent_type;
+      if (typeof t === "string" && VALID_INTENT_TYPES.has(t)) return t as IntentType;
+    }
+    // Fall back to a bare intent-type token (no JSON wrapper), case-insensitive.
+    const bare = text.trim().toLowerCase();
+    return VALID_INTENT_TYPES.has(bare) ? (bare as IntentType) : "new_brief";
   } catch {
     return "new_brief";
   }
@@ -83,6 +89,7 @@ export const CLASSIFY_SYSTEM = [
   "  retainer_thread — relates to an ongoing retainer engagement",
   "  general_query   — advisory or planning question, no deliverable requested",
   "  quick_response  — simple logistics (reschedule, acknowledgement) — no scoping needed",
+  "  quick_task      — one concrete, self-evident deliverable a person can just do, with no estimation debate (e.g. \"pull the discount report Jul-Mar\", \"add this redirect\", \"resize these 5 assets\"). Choose quick_task over a scope intent when the work is a single obvious action; choose new_brief/project_thread/retainer_thread when effort, price, or SOW-fit is not obvious (e.g. \"build us a landing page\", \"plan a campaign\"). Choose quick_response over quick_task when there is no work to do, only a question to answer.",
   "When in doubt, use new_brief.",
 ].join("\n");
 
@@ -107,7 +114,7 @@ const SCOPE_SYSTEM_BASE =
   "You are a digital agency scoping analyst at Converted Click. " +
   "Analyse the client email and return JSON only. Do not invent commitments.";
 
-const SCOPE_INSTRUCTIONS: Record<Exclude<IntentType, "quick_response">, string> = {
+const SCOPE_INSTRUCTIONS: Record<Exclude<IntentType, "quick_response" | "quick_task">, string> = {
   new_brief: [
     'Return: {"enhanced_prose":"<one-paragraph clarified summary>",',
     '"in_scope":["<explicit in-scope items>"],',
@@ -142,6 +149,14 @@ const QUICK_RESPONSE_INSTRUCTIONS = [
 export function buildScopeSystem(intentType: IntentType): string {
   if (intentType === "quick_response") {
     return `${SCOPE_SYSTEM_BASE}\n${QUICK_RESPONSE_INSTRUCTIONS}`;
+  }
+  if (intentType === "quick_task") {
+    return [
+      "You are scoping a QUICK TASK — a single concrete deliverable that will become one ClickUp task with no further scoping.",
+      "Return ONLY a JSON object with these keys:",
+      '{ "task_name": string (<= 80 chars, imperative), "work_stream": string (the delivery department, e.g. "SEO", "Paid Media", "Web", "Design", "Reporting"), "sprint_points": integer (1 point = 15 minutes; be realistic, minimum 1), "due_date": string|null (ISO yyyy-mm-dd if the message implies urgency or a deadline, else null), "assignee_hint": string|null (a role or name hint for who should do it, else null) }',
+      "No prose, no markdown fences — just the JSON object.",
+    ].join("\n");
   }
   return `${SCOPE_SYSTEM_BASE}\n${SCOPE_INSTRUCTIONS[intentType]}`;
 }

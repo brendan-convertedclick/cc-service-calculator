@@ -1,10 +1,12 @@
 // Run with: deno test supabase/functions/_shared/auto-scope-logic.test.ts
-import { assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "jsr:@std/assert";
 import {
   parseQuickResponseRules,
   matchesQuickResponseRule,
   parseClassifyResponse,
   parseScopeJson,
+  CLASSIFY_SYSTEM,
+  buildScopeSystem,
 } from "./auto-scope-logic.ts";
 
 // --- parseQuickResponseRules ---
@@ -86,4 +88,22 @@ Deno.test("parseScopeJson: parses quick_response draft_reply", () => {
 Deno.test("parseScopeJson: returns empty object on invalid JSON", () => {
   const result = parseScopeJson("not json");
   assertEquals(Object.keys(result).length, 0);
+});
+
+// --- quick_task bucket ---
+
+Deno.test("parseClassifyResponse recognises quick_task", () => {
+  assertEquals(parseClassifyResponse("quick_task"), "quick_task");
+  assertEquals(parseClassifyResponse("  QUICK_TASK  "), "quick_task");
+});
+
+Deno.test("CLASSIFY_SYSTEM documents the quick_task bucket", () => {
+  assert(CLASSIFY_SYSTEM.includes("quick_task"));
+  assert(/one concrete|single deliverable|just do/i.test(CLASSIFY_SYSTEM));
+});
+
+Deno.test("buildScopeSystem for quick_task asks for a suggestion object", () => {
+  const sys = buildScopeSystem("quick_task");
+  assert(/sprint_points/.test(sys));
+  assert(/work_stream/.test(sys));
 });
