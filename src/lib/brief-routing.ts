@@ -13,6 +13,7 @@ export const STATUS_LABEL: Record<BriefStatus, string> = {
   rejected: "Rejected",
   archived: "Archived",
   spam: "Spam",
+  briefed: "Briefed",
 };
 
 export function resumeHref(b: Brief): string {

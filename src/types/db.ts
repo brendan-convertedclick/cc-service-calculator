@@ -477,6 +477,8 @@ export type Database = {
       briefs: {
         Row: {
           assignee_id: string | null
+          clickup_task_id: string | null
+          clickup_task_url: string | null
           client_id: string | null
           created_at: string
           draft_reply: string | null
@@ -487,6 +489,7 @@ export type Database = {
           last_message_at: string | null
           message_count: number
           parent_project_id: string | null
+          quick_task_suggestion: Json | null
           raw_attachments: Json | null
           raw_body: string
           raw_subject: string | null
@@ -501,6 +504,8 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
           client_id?: string | null
           created_at?: string
           draft_reply?: string | null
@@ -511,6 +516,7 @@ export type Database = {
           last_message_at?: string | null
           message_count?: number
           parent_project_id?: string | null
+          quick_task_suggestion?: Json | null
           raw_attachments?: Json | null
           raw_body: string
           raw_subject?: string | null
@@ -525,6 +531,8 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
           client_id?: string | null
           created_at?: string
           draft_reply?: string | null
@@ -535,6 +543,7 @@ export type Database = {
           last_message_at?: string | null
           message_count?: number
           parent_project_id?: string | null
+          quick_task_suggestion?: Json | null
           raw_attachments?: Json | null
           raw_body?: string
           raw_subject?: string | null
@@ -3730,6 +3739,7 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "archived"
+        | "briefed"
       project_status: "in_progress" | "completed" | "cancelled" | "archived"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "superseded"
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
@@ -3873,6 +3883,7 @@ export const Constants = {
         "accepted",
         "rejected",
         "archived",
+        "briefed",
       ],
       project_status: ["in_progress", "completed", "cancelled", "archived"],
       quote_status: ["draft", "sent", "accepted", "rejected", "superseded"],

@@ -82,6 +82,9 @@ const brief: Brief = {
   draft_reply: null,
   intent_type: null,
   parent_project_id: null,
+  quick_task_suggestion: null,
+  clickup_task_id: null,
+  clickup_task_url: null,
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };
