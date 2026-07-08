@@ -52,17 +52,19 @@ Deno.test("buildBriefComment emits a BRIEF:: prefixed JSON payload", () => {
   assertEquals(payload.source_quote_id, "q-1");
 });
 
-Deno.test("buildBriefTaskBody fills custom fields + time estimate, omits status", () => {
+Deno.test("buildBriefTaskBody resolves dropdown options to ids + time estimate, omits status", () => {
+  // Dropdown fields carry their option set; the body must send the option id,
+  // not the label (ClickUp FIELD_011). Non-dropdown fields stay raw.
   const fields = [
-    { id: "f_client", name: "Client Name", type: "drop_down" },
+    { id: "f_client", name: "Client Name", type: "drop_down", type_config: { options: [{ id: "o_trel", name: "Trellidor" }] } },
     { id: "f_doe", name: "Date of Engagement", type: "date" },
-    { id: "f_et", name: "Engagement Type", type: "drop_down" },
-    { id: "f_ws", name: "Work Stream", type: "drop_down" },
+    { id: "f_et", name: "Engagement Type", type: "drop_down", type_config: { options: [{ id: "o_task", name: "Task" }] } },
+    { id: "f_ws", name: "Work Stream", type: "drop_down", type_config: { options: [{ id: "o_dev", name: "Development" }] } },
     { id: "f_pts", name: "Sprint Points", type: "number" },
   ];
   const body = buildBriefTaskBody(fields, {
     name: "Pull discount report", description: "d",
-    clientName: "Trellidor", workStream: "Reporting", engagementType: "Task",
+    clientName: "Trellidor", workStream: "Development", engagementType: "Task",
     sprintPoints: 4, dateOfEngagement: "2026-07-08", assigneeClickupId: 99,
     dueDateMs: null,
   });
@@ -71,9 +73,27 @@ Deno.test("buildBriefTaskBody fills custom fields + time estimate, omits status"
   assertEquals((body as { status?: unknown }).status, undefined);
   assertEquals((body as { assignees: number[] }).assignees, [99]);
   const cf = body.custom_fields as Array<{ id: string; value: unknown }>;
-  assertEquals(cf.find((c) => c.id === "f_client")?.value, "Trellidor");
-  assertEquals(cf.find((c) => c.id === "f_et")?.value, "Task");
+  assertEquals(cf.find((c) => c.id === "f_client")?.value, "o_trel");
+  assertEquals(cf.find((c) => c.id === "f_et")?.value, "o_task");
+  assertEquals(cf.find((c) => c.id === "f_ws")?.value, "o_dev");
   assertEquals(cf.find((c) => c.id === "f_pts")?.value, 4);
+});
+
+Deno.test("buildBriefTaskBody omits a dropdown with no matching option, keeps text fields raw", () => {
+  const fields = [
+    // Dropdown whose option set does NOT contain the requested value → omitted.
+    { id: "f_ws", name: "Work Stream", type: "drop_down", type_config: { options: [{ id: "o_seo", name: "SEO" }] } },
+    // Non-dropdown "Client Name" (text) → raw value passes through.
+    { id: "f_client", name: "Client Name", type: "short_text" },
+  ];
+  const body = buildBriefTaskBody(fields, {
+    name: "n", description: "d", clientName: "Acme", workStream: "Development",
+    engagementType: "Task", sprintPoints: 1, dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null,
+  });
+  const cf = body.custom_fields as Array<{ id: string; value: unknown }>;
+  assertEquals(cf.find((c) => c.id === "f_ws"), undefined); // unresolved dropdown omitted
+  assertEquals(cf.find((c) => c.id === "f_client")?.value, "Acme"); // text field raw
 });
 
 Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when given", () => {

@@ -10,7 +10,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
-import { buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
+import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: brief, error: bErr } = await sb
       .from("briefs")
-      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_folder_id)")
+      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_client_name, clickup_folder_id)")
       .eq("id", b.brief_id)
       .single();
     if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
       return json({ clickup_task_id: brief.clickup_task_id, clickup_task_url: brief.clickup_task_url, already_briefed: true });
     }
 
-    const client = (brief as unknown as { client?: { id: string; name: string; clickup_folder_id: string | null } | null }).client;
+    const client = (brief as unknown as { client?: { id: string; name: string; clickup_client_name: string | null; clickup_folder_id: string | null } | null }).client;
     if (!client) return json({ error: "Brief has no client — assign a client first." }, 400);
     if (!client.clickup_folder_id) return json({ error: `Client ${client.name} has no ClickUp folder configured.` }, 400);
 
@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
     const CU = { headers: { Authorization: clickupPat, "Content-Type": "application/json" } };
     const fieldsRes = await fetch(`https://api.clickup.com/api/v2/list/${list.id}/field`, CU);
     if (!fieldsRes.ok) return json({ error: `ClickUp fields ${fieldsRes.status}: ${await fieldsRes.text()}` }, 502);
-    const cuFields = ((await fieldsRes.json()).fields ?? []) as Array<{ id: string; name: string; type: string }>;
+    const cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
 
     const dateOfEngagement = new Date().toISOString().slice(0, 10);
     const dueDateMs = b.due_date ? Date.parse(b.due_date) : null;
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
 
     const taskBody = buildBriefTaskBody(cuFields, {
       name: b.task_name, description,
-      clientName: client.name, workStream: b.work_stream, engagementType: "Task",
+      clientName: client.clickup_client_name ?? client.name, workStream: b.work_stream, engagementType: "Task",
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
     });
 

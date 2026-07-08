@@ -95,12 +95,28 @@ export type BriefTaskInput = {
  * Pure (no fetch) so it's unit-testable; the caller does the actual POST.
  */
 export function buildBriefTaskBody(
-  cuFields: Array<{ id: string; name: string; type: string }>,
+  cuFields: CuField[],
   input: BriefTaskInput,
 ): Record<string, unknown> {
   const cf: Array<{ id: string; value: unknown }> = [];
-  const client = findCustomField(cuFields, "Client Name");
-  if (client) cf.push({ id: client.id, value: input.clientName });
+
+  // Dropdown custom fields (Client Name / Engagement Type / Work Stream) must
+  // be sent as the option's id, not its label — ClickUp rejects a raw label
+  // with FIELD_011 ("Value must be an option index or uuid"). Resolve via the
+  // list's option set; a non-dropdown field of the same name falls back to the
+  // raw value, and a dropdown with no matching option is omitted (never sent
+  // raw) so the create can't fail on it.
+  const pushField = (name: string, value: unknown) => {
+    const resolved = resolveDropdownOption(cuFields, name, String(value));
+    if (resolved) {
+      cf.push(resolved);
+      return;
+    }
+    const field = findCustomField(cuFields, name);
+    if (field && field.type !== "drop_down") cf.push({ id: field.id, value });
+  };
+
+  pushField("Client Name", input.clientName);
   const doe = findCustomField(cuFields, "Date of Engagement");
   if (doe) {
     cf.push({
@@ -112,10 +128,8 @@ export function buildBriefTaskBody(
       ),
     });
   }
-  const et = findCustomField(cuFields, "Engagement Type");
-  if (et) cf.push({ id: et.id, value: input.engagementType });
-  const ws = findCustomField(cuFields, "Work Stream");
-  if (ws) cf.push({ id: ws.id, value: input.workStream });
+  pushField("Engagement Type", input.engagementType);
+  pushField("Work Stream", input.workStream);
   const pts = findCustomField(cuFields, "Sprint Points");
   if (pts) cf.push({ id: pts.id, value: input.sprintPoints });
 

@@ -39,7 +39,7 @@ type Member = {
   role: string;
 };
 
-type Client = { id: string; name: string };
+type Client = { id: string; name: string; clickup_client_name: string | null };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: client, error: clientErr } = await supabase
       .from("clients")
-      .select("id, name")
+      .select("id, name, clickup_client_name")
       .eq("id", brief.client_id)
       .single();
     if (clientErr || !client) return json({ error: "Client not found" }, 400);
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
     const taskBody = buildBriefTaskBody(cuFields, {
       name: brief.task_name,
       description,
-      clientName: cli.name,
+      clientName: cli.clickup_client_name ?? cli.name,
       workStream,
       engagementType,
       sprintPoints: brief.sprint_points,
