@@ -43,6 +43,14 @@ vi.mock("@/hooks/useTeam", () => ({
   useTeam: () => ({ data: [] }),
 }));
 
+vi.mock("@/hooks/useDepartments", () => ({
+  useDepartments: () => ({ data: [] }),
+}));
+
+vi.mock("@/hooks/useCreateQuickBriefTask", () => ({
+  useCreateQuickBriefTask: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 vi.mock("@/hooks/useAssignBriefToProject", () => ({
   useAssignBriefToProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -97,6 +105,14 @@ describe("BriefConversation", () => {
   it("renders the brief subject in the header", () => {
     render(<BriefConversation brief={brief} open onClose={() => {}} />, { wrapper: Wrapper });
     expect(screen.getByText("Test brief")).toBeInTheDocument();
+  });
+
+  it("mounts the bucket-aware handling buttons in the open brief", () => {
+    // This is the regression guard: the handling buttons must render at their
+    // REAL mount point (the open brief), not just in isolated component tests.
+    render(<BriefConversation brief={brief} open onClose={() => {}} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: /brief as-is/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /scope it/i })).toBeInTheDocument();
   });
 
   it("renders a message from the timeline", () => {

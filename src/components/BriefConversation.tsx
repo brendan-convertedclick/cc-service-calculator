@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Link2, Unlink, Pencil, Settings, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AssigneePicker } from "@/components/AssigneePicker";
 import { BriefThreadView } from "@/components/BriefThreadView";
+import { BriefHandlingButtons } from "@/components/BriefHandlingButtons";
+import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import {
   useBriefDownstream,
@@ -38,10 +40,12 @@ interface BriefConversationProps {
 }
 
 export function BriefConversation({ brief, open, onClose }: BriefConversationProps) {
+  const navigate = useNavigate();
   const { data: downstream } = useBriefDownstream(brief.id);
   const rollback = useRollbackBriefStage();
   const unlink = useAssignBriefToProject();
   const [assignOpen, setAssignOpen] = useState(false);
+  const [quickBriefOpen, setQuickBriefOpen] = useState(false);
 
   const isLinkedToProject = downstream?.kind === "project";
 
@@ -182,6 +186,11 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             )}
             <AssigneePicker briefId={brief.id} assigneeId={brief.assignee_id ?? null} />
             {linkControls}
+            <BriefHandlingButtons
+              brief={brief}
+              onScopeIt={() => navigate(`/briefs/${brief.id}/scope`)}
+              onBriefAsIs={() => setQuickBriefOpen(true)}
+            />
           </div>
         </SheetHeader>
 
@@ -193,6 +202,20 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
           brief={brief}
           open={assignOpen}
           onClose={() => setAssignOpen(false)}
+        />
+
+        <QuickBriefSheet
+          open={quickBriefOpen}
+          onOpenChange={setQuickBriefOpen}
+          brief={{
+            id: brief.id,
+            client_id: brief.client_id,
+            intent_type: brief.intent_type,
+            raw_subject: brief.raw_subject,
+            quick_task_suggestion: brief.quick_task_suggestion as
+              | QuickBriefSheetBrief["quick_task_suggestion"]
+              | null,
+          }}
         />
       </SheetContent>
     </Sheet>

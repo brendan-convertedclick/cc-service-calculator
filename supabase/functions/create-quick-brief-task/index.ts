@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
       `_Quick-briefed from inbox brief ${brief.id} on ${dateOfEngagement}._`;
 
     const taskBody = buildBriefTaskBody(cuFields, {
-      listId: list.id, name: b.task_name, description,
+      name: b.task_name, description,
       clientName: client.name, workStream: b.work_stream, engagementType: "Task",
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
     });
@@ -90,16 +90,30 @@ Deno.serve(async (req: Request) => {
       sprint_points: b.sprint_points, date_of_engagement: dateOfEngagement,
       source_quote_id: `quick_brief:${brief.id}`,
     });
-    await fetch(`https://api.clickup.com/api/v2/task/${created.id}/comment`, {
+    // Fire-and-forget: the task already exists, so a failed audit comment must
+    // not fail the request. Log it so it can be reconciled by hand.
+    const commentRes = await fetch(`https://api.clickup.com/api/v2/task/${created.id}/comment`, {
       ...CU, method: "POST", body: JSON.stringify({ comment_text: comment, notify_all: false }),
     });
+    if (!commentRes.ok) {
+      console.error(`[create-quick-brief-task] BRIEF:: comment failed for task ${created.id}: ${commentRes.status} ${await commentRes.text()}`);
+    }
 
     const { error: upErr } = await sb.from("briefs").update({
       status: "briefed", clickup_task_id: created.id, clickup_task_url: created.url,
       updated_at: new Date().toISOString(),
     }).eq("id", brief.id);
     if (upErr) {
-      return json({ error: `Task ${created.id} created but DB update failed: ${upErr.message}`, clickup_task_id: created.id, clickup_task_url: created.url }, 500);
+      // ORPHANED TASK: the ClickUp task exists but the brief wasn't marked
+      // briefed, so the idempotency guard (which keys on clickup_task_id) won't
+      // fire on retry. Surface a distinctly-worded, non-retryable error and log
+      // it so an operator reconciles by hand instead of blind-retrying into a
+      // duplicate ClickUp task.
+      console.error(`[create-quick-brief-task] ORPHANED TASK ${created.id} (${created.url}) for brief ${brief.id}: DB update failed: ${upErr.message}`);
+      return json({
+        error: `Task ${created.id} was created in ClickUp but the brief could not be marked briefed — reconcile manually, do not retry. (${upErr.message})`,
+        clickup_task_id: created.id, clickup_task_url: created.url, orphaned: true,
+      }, 500);
     }
     return json({ clickup_task_id: created.id, clickup_task_url: created.url });
   } catch (e) {

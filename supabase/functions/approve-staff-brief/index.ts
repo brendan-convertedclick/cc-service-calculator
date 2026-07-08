@@ -135,7 +135,6 @@ Deno.serve(async (req: Request) => {
     // custom_fields, optional assignees). Omits `status` — client spaces use
     // custom status sets, so hardcoding "to do" fails with CRTSK_001.
     const taskBody = buildBriefTaskBody(cuFields, {
-      listId: brief.clickup_list_id,
       name: brief.task_name,
       description,
       clientName: cli.name,

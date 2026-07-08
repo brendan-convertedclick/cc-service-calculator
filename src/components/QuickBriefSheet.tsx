@@ -61,6 +61,10 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   }, [open, brief.quick_task_suggestion, brief.raw_subject]);
 
   const hasClient = Boolean(brief.client_id);
+  // A valid work stream must match a real department name — the AI's guess can
+  // be empty or a stale/mismatched string that would otherwise flow straight
+  // into the ClickUp "Work Stream" dropdown + BRIEF:: audit/invoice trail.
+  const workStreamValid = departments.some((d) => d.name === workStream);
   const saving = createTask.isPending;
 
   const handleCreate = async () => {
@@ -162,13 +166,18 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                 ))}
               </SelectContent>
             </Select>
+            {!workStreamValid && (
+              <p className="text-body-small text-m-on-surface-variant">
+                Pick a work stream — it sets the ClickUp dropdown and the invoice trail.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={saving || !hasClient} onClick={handleCreate}>
+            <Button disabled={saving || !hasClient || !workStreamValid} onClick={handleCreate}>
               {saving ? "Creating…" : "Create task"}
             </Button>
           </div>

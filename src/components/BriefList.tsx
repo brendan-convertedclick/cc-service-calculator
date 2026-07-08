@@ -1,12 +1,13 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen } from "lucide-react";
+import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
+import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { useBriefs, useUpdateBrief, type BriefScope, type BriefFilterOptions, type BriefSortDirection } from "@/hooks/useBriefs";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useBlacklistSender } from "@/hooks/useSenderRules";
@@ -170,6 +171,7 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
 function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boolean; project: ProjectLookupEntry | undefined }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [quickBriefOpen, setQuickBriefOpen] = useState(false);
   const { mutateAsync: updateBrief, isPending } = useUpdateBrief();
   const { mutateAsync: blacklistSender, isPending: isBlacklisting } = useBlacklistSender();
   const isArchived = b.status === "archived";
@@ -212,6 +214,13 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
     e.stopPropagation();
     setMenuOpen(false);
     setAssignOpen(true);
+  }
+
+  function handleBriefAsIs(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    setQuickBriefOpen(true);
   }
 
   return (
@@ -284,6 +293,12 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
                   >
                     <FolderPlus className="h-4 w-4" /> Tag to project
                   </button>
+                  <button
+                    onClick={handleBriefAsIs}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-medium hover:bg-m-surface-container"
+                  >
+                    <Zap className="h-4 w-4" /> Brief as-is
+                  </button>
                   {canBlacklist && (
                     <button
                       onClick={handleBlacklist}
@@ -303,6 +318,19 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
       {assignOpen && (
         <InboxAssignModal brief={b} open={assignOpen} onClose={() => setAssignOpen(false)} />
       )}
+      <QuickBriefSheet
+        open={quickBriefOpen}
+        onOpenChange={setQuickBriefOpen}
+        brief={{
+          id: b.id,
+          client_id: b.client_id,
+          intent_type: b.intent_type,
+          raw_subject: b.raw_subject,
+          quick_task_suggestion: b.quick_task_suggestion as
+            | QuickBriefSheetBrief["quick_task_suggestion"]
+            | null,
+        }}
+      />
     </>
   );
 }

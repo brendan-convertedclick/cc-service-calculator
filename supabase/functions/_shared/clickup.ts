@@ -76,7 +76,6 @@ export function findCustomField(
 const POINT_TO_MIN = 15;
 
 export type BriefTaskInput = {
-  listId: string;
   name: string;
   description: string;
   clientName: string;

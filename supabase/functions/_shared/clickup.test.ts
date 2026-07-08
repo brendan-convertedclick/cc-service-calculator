@@ -61,7 +61,7 @@ Deno.test("buildBriefTaskBody fills custom fields + time estimate, omits status"
     { id: "f_pts", name: "Sprint Points", type: "number" },
   ];
   const body = buildBriefTaskBody(fields, {
-    listId: "L1", name: "Pull discount report", description: "d",
+    name: "Pull discount report", description: "d",
     clientName: "Trellidor", workStream: "Reporting", engagementType: "Task",
     sprintPoints: 4, dateOfEngagement: "2026-07-08", assigneeClickupId: 99,
     dueDateMs: null,
@@ -78,7 +78,7 @@ Deno.test("buildBriefTaskBody fills custom fields + time estimate, omits status"
 
 Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when given", () => {
   const body = buildBriefTaskBody([], {
-    listId: "L1", name: "n", description: "d", clientName: "C",
+    name: "n", description: "d", clientName: "C",
     workStream: "W", engagementType: "Task", sprintPoints: 1,
     dateOfEngagement: "2026-07-08", assigneeClickupId: null, dueDateMs: 1780000000000,
   });

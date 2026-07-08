@@ -172,6 +172,15 @@ Deno.serve(async (req: Request) => {
           { onConflict: "brief_id" },
         );
       if (upsertErr) console.error("[auto-scope] scopes upsert failed:", upsertErr.message);
+    } else if (intentType === "quick_task") {
+      // Defensive: a re-classification from a scope intent to quick_task skips
+      // the scopes upsert, so delete any pre-existing scopes row to avoid
+      // leaving a stale scope hanging off a now-quick-task brief.
+      const { error: delErr } = await supabase
+        .from("scopes")
+        .delete()
+        .eq("brief_id", brief_id);
+      if (delErr) console.error("[auto-scope] stale scopes delete failed:", delErr.message);
     }
 
     return json({ ok: true, intent_type: intentType });
