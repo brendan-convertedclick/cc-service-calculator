@@ -131,6 +131,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // 6. Write to DB
+    const quickTaskSuggestion =
+      intentType === "quick_task" ? scopeData : null;
+
     const { error: updateErr } = await supabase
       .from("briefs")
       .update({
@@ -138,13 +141,15 @@ Deno.serve(async (req: Request) => {
         draft_reply: intentType === "quick_response"
           ? (typeof scopeData.draft_reply === "string" ? scopeData.draft_reply : null)
           : null,
+        quick_task_suggestion: quickTaskSuggestion,
         status: "triaged",
         updated_at: new Date().toISOString(),
       })
       .eq("id", brief_id);
     if (updateErr) console.error("[auto-scope] briefs update failed:", updateErr.message);
 
-    if (intentType !== "quick_response") {
+    // Only the scope-requiring intents get a scopes row.
+    if (intentType !== "quick_response" && intentType !== "quick_task") {
       const toStrings = (v: unknown): string[] =>
         Array.isArray(v) ? (v as unknown[]).map(String) : [];
 
