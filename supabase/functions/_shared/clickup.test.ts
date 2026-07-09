@@ -70,6 +70,7 @@ Deno.test("buildBriefTaskBody resolves dropdown options to ids + time estimate, 
   });
   assertEquals(body.name, "Pull discount report");
   assertEquals(body.time_estimate, 4 * 15 * 60_000);
+  assertEquals((body as { points?: unknown }).points, 4); // native ClickUp sprint points
   assertEquals((body as { status?: unknown }).status, undefined);
   assertEquals((body as { assignees: number[] }).assignees, [99]);
   const cf = body.custom_fields as Array<{ id: string; value: unknown }>;

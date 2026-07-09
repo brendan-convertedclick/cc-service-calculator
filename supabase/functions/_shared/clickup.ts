@@ -136,6 +136,12 @@ export function buildBriefTaskBody(
   const body: Record<string, unknown> = {
     name: input.name,
     description: input.description,
+    // Sprint points are a NATIVE ClickUp field (`points`), not a custom field —
+    // the same mechanism push-to-clickup uses. (A list may also expose a custom
+    // "Sprint Points" field, handled above; setting both is harmless.) ClickUp
+    // rejects very large point values on create, so the caller retries without
+    // `points` if the create fails.
+    points: input.sprintPoints,
     time_estimate: Math.round(input.sprintPoints * POINT_TO_MIN * 60_000),
     custom_fields: cf,
   };

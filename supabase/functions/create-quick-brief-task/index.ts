@@ -79,9 +79,17 @@ Deno.serve(async (req: Request) => {
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
     });
 
-    const createRes = await fetch(`https://api.clickup.com/api/v2/list/${list.id}/task`, {
-      ...CU, method: "POST", body: JSON.stringify(taskBody),
-    });
+    const taskUrl = `https://api.clickup.com/api/v2/list/${list.id}/task`;
+    let createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
+    // ClickUp rejects very large sprint-point values on create; retry once
+    // without `points` rather than fail the task (time_estimate still carries
+    // the effort). See project note on the ClickUp points cap.
+    if (!createRes.ok && "points" in taskBody) {
+      const errText = await createRes.text();
+      console.warn(`[create-quick-brief-task] create failed with points (${createRes.status}: ${errText}); retrying without points`);
+      const { points: _dropped, ...noPoints } = taskBody;
+      createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
+    }
     if (!createRes.ok) return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
     const created = (await createRes.json()) as { id: string; url: string };
 
