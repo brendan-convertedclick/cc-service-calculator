@@ -1,7 +1,7 @@
 // supabase/functions/create-quick-brief-task/index.ts
 //
 // Request:  POST { brief_id, task_name, assignee_member_id?, sprint_points,
-//                  work_stream, due_date? }
+//                  work_stream, due_date?, list_id?, status? }
 // Response: 200 { clickup_task_id, clickup_task_url }
 //
 // Turns a brief into ONE ClickUp task with no scope/SOW/quote. Idempotent:
@@ -20,6 +20,7 @@ Deno.serve(async (req: Request) => {
     const b = (await req.json()) as {
       brief_id?: string; task_name?: string; assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
+      list_id?: string; status?: string;
     };
     if (!b.brief_id || !b.task_name || !b.work_stream || !b.sprint_points) {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
@@ -52,13 +53,23 @@ Deno.serve(async (req: Request) => {
     if (!listsRes.ok) return json({ error: `ClickUp lists ${listsRes.status}: ${await listsRes.text()}` }, 502);
     const lists = ((await listsRes.json()).lists ?? []) as Array<{ id: string; name: string }>;
     if (lists.length === 0) return json({ error: `Client ${client.name} folder has no lists.` }, 400);
-    const list = lists.find((l) => /project/i.test(l.name)) ?? lists[0];
+    // Prefer an explicit list_id if it belongs to this folder's lists; otherwise
+    // fall back to the existing auto-pick (a "projects" list, else the first).
+    const requestedList = b.list_id ? lists.find((l) => l.id === b.list_id) : undefined;
+    const list = requestedList ?? lists.find((l) => /project/i.test(l.name)) ?? lists[0];
 
-    // Resolve assignee → clickup_user_id.
+    // Resolve assignee → clickup_user_id (+ name for the audit note).
     let assigneeClickupId: number | null = null;
+    let assigneeName: string | null = null;
     if (b.assignee_member_id) {
-      const { data: m } = await sb.from("team_members").select("clickup_user_id").eq("id", b.assignee_member_id).maybeSingle();
-      assigneeClickupId = (m as { clickup_user_id: number | null } | null)?.clickup_user_id ?? null;
+      const { data: m } = await sb
+        .from("team_members")
+        .select("clickup_user_id, full_name")
+        .eq("id", b.assignee_member_id)
+        .maybeSingle();
+      const member = m as { clickup_user_id: number | null; full_name: string | null } | null;
+      assigneeClickupId = member?.clickup_user_id ?? null;
+      assigneeName = member?.full_name ?? null;
     }
 
     // Custom field defs for the list.
@@ -78,6 +89,12 @@ Deno.serve(async (req: Request) => {
       clientName: client.clickup_client_name ?? client.name, workStream: b.work_stream, engagementType: "Task",
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
     });
+    // buildBriefTaskBody deliberately omits status (avoids CRTSK_001 on the
+    // default list status). Only set it when the caller passed a valid status
+    // name resolved from this list's own status set.
+    if (b.status) {
+      taskBody.status = b.status;
+    }
 
     const taskUrl = `https://api.clickup.com/api/v2/list/${list.id}/task`;
     let createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
@@ -123,6 +140,32 @@ Deno.serve(async (req: Request) => {
         clickup_task_id: created.id, clickup_task_url: created.url, orphaned: true,
       }, 500);
     }
+
+    // In-app audit note: mirrors useAddInternalNote's brief_messages shape so
+    // this action shows up in the brief's timeline. Best-effort — the task is
+    // already created and the brief already briefed, so a failure here must
+    // not fail the request.
+    try {
+      const summary =
+        `Quick task created in ClickUp → ${created.url} · assigned to ${assigneeName ?? "Unassigned"} · ` +
+        `${b.sprint_points} pts · ${b.work_stream}`;
+      const { error: noteErr } = await sb.from("brief_messages").insert({
+        brief_id: brief.id,
+        gmail_message_id: `note-${crypto.randomUUID()}`,
+        direction: "note",
+        body_text: summary,
+        relayed_by: "conductor",
+        sent_at: new Date().toISOString(),
+        to_emails: [],
+        cc_emails: [],
+      });
+      if (noteErr) {
+        console.error(`[create-quick-brief-task] audit note insert failed for brief ${brief.id}: ${noteErr.message}`);
+      }
+    } catch (noteEx) {
+      console.error(`[create-quick-brief-task] audit note insert threw for brief ${brief.id}: ${noteEx instanceof Error ? noteEx.message : String(noteEx)}`);
+    }
+
     return json({ clickup_task_id: created.id, clickup_task_url: created.url });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

@@ -1,7 +1,7 @@
 // supabase/functions/list-client-clickup-lists/index.ts
 //
 // Request:  POST { client_id: string }
-// Response: 200 { lists: [{ id: string, name: string }] }
+// Response: 200 { lists: [{ id: string, name: string, statuses: Array<{ status: string, color: string | null, type: string, orderindex: number }> }] }
 //
 // Returns the ClickUp lists inside a client's folder. Used by the Phase 1
 // staff brief form's "List / department" dropdown.
@@ -40,9 +40,24 @@ Deno.serve(async (req: Request) => {
     );
     if (!res.ok) return json({ error: `ClickUp ${res.status}: ${await res.text()}` }, 502);
 
-    const body = (await res.json()) as { lists?: Array<{ id: string; name: string }> };
+    const body = (await res.json()) as {
+      lists?: Array<{
+        id: string;
+        name: string;
+        statuses?: Array<{ status: string; color?: string | null; type: string; orderindex: number }>;
+      }>;
+    };
     const lists = (body.lists ?? [])
-      .map((l) => ({ id: l.id, name: l.name }))
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        statuses: (l.statuses ?? []).map((s) => ({
+          status: s.status,
+          color: s.color ?? null,
+          type: s.type,
+          orderindex: Number(s.orderindex),
+        })),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return json({ lists });
