@@ -8,6 +8,9 @@ export type CreateQuickBriefArgs = {
   sprint_points: number;
   work_stream: string;
   due_date: string | null;
+  list_id?: string;
+  status?: string;
+  briefed_by_member_id?: string | null;
 };
 
 type CreateQuickBriefResult = { clickup_task_id: string; clickup_task_url: string };

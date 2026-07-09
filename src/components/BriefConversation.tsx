@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Link2, Unlink, Pencil, Settings, Trash2 } from "lucide-react";
+import { Link2, Unlink, Pencil, Settings, Trash2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
@@ -48,6 +48,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
 
   const isLinkedToProject = downstream?.kind === "project";
+  const isBriefed = brief.status === "briefed" && Boolean(brief.clickup_task_id);
 
   async function handleUnlink() {
     try {
@@ -186,11 +187,27 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             )}
             <AssigneePicker briefId={brief.id} assigneeId={brief.assignee_id ?? null} />
             {linkControls}
-            <BriefHandlingButtons
-              brief={brief}
-              onScopeIt={() => navigate(`/briefs/${brief.id}/scope`)}
-              onBriefAsIs={() => setQuickBriefOpen(true)}
-            />
+            {isBriefed ? (
+              <a
+                href={brief.clickup_task_url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-full border border-m-outline-variant bg-m-surface-container px-3 py-1 text-label-small text-m-on-surface-variant hover:text-m-on-surface"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-m-primary" />
+                Briefed
+                <span className="inline-flex items-center gap-0.5 text-m-primary">
+                  · View task
+                  <ExternalLink className="h-3 w-3" />
+                </span>
+              </a>
+            ) : (
+              <BriefHandlingButtons
+                brief={brief}
+                onScopeIt={() => navigate(`/briefs/${brief.id}/scope`)}
+                onBriefAsIs={() => setQuickBriefOpen(true)}
+              />
+            )}
           </div>
         </SheetHeader>
 

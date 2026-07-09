@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,16 @@ import { useTeam } from "@/hooks/useTeam";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
+import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
 
 const UNASSIGNED = "__unassigned__";
+const STATUS_DEFAULT = "__default__";
+
+const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+type QuickBriefListStatus = { status: string; color: string | null; type: string; orderindex: number };
+type QuickBriefListOption = { id: string; name: string; statuses: QuickBriefListStatus[] };
 
 export interface QuickBriefSheetBrief {
   id: string;
@@ -48,6 +55,13 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [sprintPoints, setSprintPoints] = useState(1);
   const [workStream, setWorkStream] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
+
+  const [lists, setLists] = useState<QuickBriefListOption[]>([]);
+  const [listId, setListId] = useState<string>("");
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [listsError, setListsError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>(STATUS_DEFAULT);
 
   // Prefill each time the sheet opens.
   useEffect(() => {
@@ -58,7 +72,65 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setSprintPoints(draft.sprint_points);
     setWorkStream(draft.work_stream);
     setDueDate(draft.due_date ?? "");
+    setBriefedBy(UNASSIGNED);
   }, [open, brief.quick_task_suggestion, brief.raw_subject]);
+
+  // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors
+  // the fetch pattern in BriefFormBody.tsx. Gated on `open` so a brief that's
+  // never had its sheet opened never triggers a network call.
+  useEffect(() => {
+    if (!open || !brief.client_id) {
+      setLists([]);
+      setListId("");
+      return;
+    }
+    let cancelled = false;
+    setLoadingLists(true);
+    setListsError(null);
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ client_id: brief.client_id }),
+        });
+        const body = (await res.json()) as { lists?: QuickBriefListOption[]; error?: string };
+        if (cancelled) return;
+        if (!res.ok) {
+          setListsError(body.error ?? "Failed to load lists");
+          setLists([]);
+          setListId("");
+          return;
+        }
+        const fetchedLists = body.lists ?? [];
+        setLists(fetchedLists);
+        // Default to the "projects" list, mirroring the server's own fallback,
+        // else the first list.
+        const projectList = fetchedLists.find((l) => /project/i.test(l.name));
+        setListId(projectList?.id ?? fetchedLists[0]?.id ?? "");
+      } catch (e) {
+        if (cancelled) return;
+        setListsError(errorMessage(e));
+      } finally {
+        if (!cancelled) setLoadingLists(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, brief.client_id]);
+
+  const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
+
+  // The status set is scoped to whichever list is selected — reset to the
+  // list default whenever the selected list changes.
+  useEffect(() => {
+    setStatus(STATUS_DEFAULT);
+  }, [listId]);
 
   const hasClient = Boolean(brief.client_id);
   // A valid work stream must match a real department name — the AI's guess can
@@ -76,6 +148,9 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         sprint_points: Math.max(1, Math.round(sprintPoints)),
         work_stream: workStream,
         due_date: dueDate || null,
+        list_id: listId || undefined,
+        status: status === STATUS_DEFAULT ? undefined : status,
+        briefed_by_member_id: briefedBy === UNASSIGNED ? null : briefedBy,
       });
       toast.success("Task created in ClickUp", {
         action: clickup_task_url
@@ -112,21 +187,39 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="qb-assignee">Assignee</Label>
-            <Select value={assignee} onValueChange={setAssignee}>
-              <SelectTrigger id="qb-assignee">
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {team.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="qb-assignee">Assignee</Label>
+              <Select value={assignee} onValueChange={setAssignee}>
+                <SelectTrigger id="qb-assignee">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {team.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="qb-briefed-by">Briefed by</Label>
+              <Select value={briefedBy} onValueChange={setBriefedBy}>
+                <SelectTrigger id="qb-briefed-by">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {team.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -171,6 +264,55 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                 Pick a work stream — it sets the ClickUp dropdown and the invoice trail.
               </p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="qb-list">List</Label>
+              <Select value={listId} onValueChange={setListId} disabled={!hasClient || loadingLists}>
+                <SelectTrigger id="qb-list">
+                  <SelectValue
+                    placeholder={
+                      !hasClient
+                        ? "Assign a client first"
+                        : loadingLists
+                          ? "Loading lists…"
+                          : lists.length === 0
+                            ? "Server will auto-pick"
+                            : "Choose a list…"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {lists.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {listsError && (
+                <p className="text-body-small text-destructive">
+                  Couldn't load lists ({listsError}) — Create will still work, using the server's default list.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="qb-status">Status</Label>
+              <Select value={status} onValueChange={setStatus} disabled={!selectedList}>
+                <SelectTrigger id="qb-status">
+                  <SelectValue placeholder="— List default —" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={STATUS_DEFAULT}>— List default —</SelectItem>
+                  {(selectedList?.statuses ?? []).map((s) => (
+                    <SelectItem key={s.status} value={s.status}>
+                      {s.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
