@@ -20,7 +20,7 @@ Deno.serve(async (req: Request) => {
     const b = (await req.json()) as {
       brief_id?: string; task_name?: string; assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
-      list_id?: string; status?: string;
+      list_id?: string; status?: string; briefed_by_member_id?: string | null;
     };
     if (!b.brief_id || !b.task_name || !b.work_stream || !b.sprint_points) {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
@@ -72,6 +72,19 @@ Deno.serve(async (req: Request) => {
       assigneeName = member?.full_name ?? null;
     }
 
+    // Resolve who is briefing. Interim attribution: ClickUp's native "assigned
+    // by" is always the shared token owner, so we stamp the real briefer into
+    // the task description + audit note until per-user ClickUp auth exists.
+    let briefedByName: string | null = null;
+    if (b.briefed_by_member_id) {
+      const { data: bm } = await sb
+        .from("team_members")
+        .select("full_name")
+        .eq("id", b.briefed_by_member_id)
+        .maybeSingle();
+      briefedByName = (bm as { full_name: string | null } | null)?.full_name ?? null;
+    }
+
     // Custom field defs for the list.
     const CU = { headers: { Authorization: clickupPat, "Content-Type": "application/json" } };
     const fieldsRes = await fetch(`https://api.clickup.com/api/v2/list/${list.id}/field`, CU);
@@ -82,7 +95,8 @@ Deno.serve(async (req: Request) => {
     const dueDateMs = b.due_date ? Date.parse(b.due_date) : null;
     const description =
       `${b.task_name}\n\n${brief.raw_body ?? ""}\n\n---\n` +
-      `_Quick-briefed from inbox brief ${brief.id} on ${dateOfEngagement}._`;
+      `_Quick-briefed from inbox brief ${brief.id} on ${dateOfEngagement}` +
+      `${briefedByName ? ` by ${briefedByName}` : ""}._`;
 
     const taskBody = buildBriefTaskBody(cuFields, {
       name: b.task_name, description,
@@ -148,7 +162,7 @@ Deno.serve(async (req: Request) => {
     try {
       const summary =
         `Quick task created in ClickUp → ${created.url} · assigned to ${assigneeName ?? "Unassigned"} · ` +
-        `${b.sprint_points} pts · ${b.work_stream}`;
+        `${b.sprint_points} pts · ${b.work_stream}${briefedByName ? ` · briefed by ${briefedByName}` : ""}`;
       const { error: noteErr } = await sb.from("brief_messages").insert({
         brief_id: brief.id,
         gmail_message_id: `note-${crypto.randomUUID()}`,
