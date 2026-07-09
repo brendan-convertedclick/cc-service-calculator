@@ -105,8 +105,10 @@ Deno.serve(async (req: Request) => {
     });
     // buildBriefTaskBody deliberately omits status (avoids CRTSK_001 on the
     // default list status). Only set it when the caller passed a valid status
-    // name resolved from this list's own status set.
-    if (b.status) {
+    // name AND the client's requested list was actually honored — a status
+    // scoped to a different (fallback) list may not exist there and would
+    // error the create call.
+    if (b.status && requestedList) {
       taskBody.status = b.status;
     }
 

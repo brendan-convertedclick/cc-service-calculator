@@ -73,6 +73,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setWorkStream(draft.work_stream);
     setDueDate(draft.due_date ?? "");
     setBriefedBy(UNASSIGNED);
+    setStatus(STATUS_DEFAULT);
   }, [open, brief.quick_task_suggestion, brief.raw_subject]);
 
   // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors

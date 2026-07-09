@@ -115,6 +115,23 @@ describe("BriefConversation", () => {
     expect(screen.getByRole("button", { name: /scope it/i })).toBeInTheDocument();
   });
 
+  it("renders the View task link and hides the handling buttons when briefed", () => {
+    const briefedBrief: Brief = {
+      ...brief,
+      status: "briefed",
+      clickup_task_id: "t1",
+      clickup_task_url: "https://app.clickup.com/t/t1",
+    };
+    render(<BriefConversation brief={briefedBrief} open onClose={() => {}} />, { wrapper: Wrapper });
+
+    const link = screen.getByRole("link", { name: /view task/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "https://app.clickup.com/t/t1");
+
+    expect(screen.queryByRole("button", { name: /brief as-is/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /scope it/i })).not.toBeInTheDocument();
+  });
+
   it("renders a message from the timeline", () => {
     render(<BriefConversation brief={brief} open onClose={() => {}} />, { wrapper: Wrapper });
     expect(screen.getByText("Message body")).toBeInTheDocument();

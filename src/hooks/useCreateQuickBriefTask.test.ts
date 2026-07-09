@@ -51,6 +51,42 @@ describe("useCreateQuickBriefTask", () => {
     });
   });
 
+  it("forwards list_id, status, and briefed_by_member_id when passed", async () => {
+    invokeMock.mockResolvedValue({
+      data: { clickup_task_id: "t1", clickup_task_url: "u" },
+      error: null,
+    });
+    const { result } = renderHook(() => useCreateQuickBriefTask(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        brief_id: "b1",
+        task_name: "Do it",
+        assignee_member_id: null,
+        sprint_points: 2,
+        work_stream: "Reporting",
+        due_date: null,
+        list_id: "list-1",
+        status: "in progress",
+        briefed_by_member_id: "member-1",
+      });
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("create-quick-brief-task", {
+      body: {
+        brief_id: "b1",
+        task_name: "Do it",
+        assignee_member_id: null,
+        sprint_points: 2,
+        work_stream: "Reporting",
+        due_date: null,
+        list_id: "list-1",
+        status: "in progress",
+        briefed_by_member_id: "member-1",
+      },
+    });
+  });
+
   it("returns the clickup task result on success", async () => {
     invokeMock.mockResolvedValue({
       data: { clickup_task_id: "t1", clickup_task_url: "u" },
