@@ -46,6 +46,10 @@ export function Settings() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [clickupConn, setClickupConn] = useState<
+    { connected: boolean; clickup_username: string | null } | null
+  >(null);
+  const [clickupDisconnecting, setClickupDisconnecting] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionKey>("clickup");
   const [goalInput, setGoalInput] = useState(
     String(s?.productivity_goal_points ?? 40)
@@ -61,6 +65,39 @@ export function Settings() {
   if (xeroParam === "connected") {
     toast.success("Xero connected successfully!");
   }
+
+  // Fetch the signed-in user's own ClickUp connection status on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token ?? "";
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clickup-oauth?action=status`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const body = (await res.json()) as {
+          connected: boolean;
+          clickup_username: string | null;
+        };
+        if (!cancelled) setClickupConn(body);
+      } catch {
+        if (!cancelled) setClickupConn({ connected: false, clickup_username: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Success toast after the OAuth round-trip (?clickup=connected).
+  useEffect(() => {
+    if (searchParams.get("clickup") === "connected") {
+      toast.success("ClickUp connected successfully!");
+    }
+  }, [searchParams]);
 
   if (isLoading || !s) return <div className="p-6">Loading…</div>;
 
@@ -121,6 +158,40 @@ export function Settings() {
     }
   };
 
+  // ClickUp per-user OAuth. `?action=start` needs the caller's JWT, but a plain
+  // <a href>/redirect can't send an Authorization header — so we pass the JWT as
+  // a `jwt` query param and navigate the whole window to the start URL, which
+  // 302-redirects on to ClickUp's authorize page.
+  const handleClickupConnect = async () => {
+    const { supabase } = await import("@/lib/supabase");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? "";
+    window.location.href = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clickup-oauth?action=start&jwt=${encodeURIComponent(token)}`;
+  };
+
+  const handleClickupDisconnect = async () => {
+    setClickupDisconnecting(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token ?? "";
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clickup-oauth?action=disconnect`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body?.error ?? "Disconnect failed");
+      }
+      setClickupConn({ connected: false, clickup_username: null });
+      toast.success("ClickUp disconnected");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+    } finally {
+      setClickupDisconnecting(false);
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-5xl p-8">
       <h1 className="text-headline-medium text-m-on-surface">Settings</h1>
@@ -151,6 +222,7 @@ export function Settings() {
         <div className="flex-1 min-w-0">
 
           {activeSection === "clickup" && (
+            <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>ClickUp</CardTitle>
@@ -238,6 +310,57 @@ export function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>ClickUp (per-user)</CardTitle>
+                <CardDescription>
+                  Connect your own ClickUp account so tasks you create and assign
+                  are attributed to you. This is separate from the workspace PAT above.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {clickupConn?.connected ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
+                        Connected
+                      </span>
+                      {clickupConn.clickup_username && (
+                        <span className="text-body-small text-m-on-surface-variant">
+                          {clickupConn.clickup_username}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-label-small text-m-on-surface-variant">
+                      Your ClickUp access token is stored securely server-side and is
+                      never exposed to the browser.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleClickupDisconnect}
+                      disabled={clickupDisconnecting}
+                    >
+                      {clickupDisconnecting ? "Disconnecting…" : "Disconnect ClickUp"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-label-small text-m-on-surface-variant">
+                      Not connected. Clicking below will redirect you to ClickUp to
+                      authorise access. Ensure CLICKUP_OAUTH_CLIENT_ID and
+                      CLICKUP_OAUTH_CLIENT_SECRET are set as Supabase Edge Function
+                      secrets before connecting.
+                    </p>
+                    <Button size="sm" onClick={handleClickupConnect}>
+                      Connect ClickUp
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            </div>
           )}
 
           {activeSection === "anthropic" && (

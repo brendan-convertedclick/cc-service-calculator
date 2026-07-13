@@ -842,6 +842,41 @@ export type Database = {
           },
         ]
       }
+      clickup_user_tokens: {
+        Row: {
+          access_token: string
+          clickup_user_id: string | null
+          clickup_username: string | null
+          connected_at: string
+          id: string
+          team_member_id: string
+        }
+        Insert: {
+          access_token: string
+          clickup_user_id?: string | null
+          clickup_username?: string | null
+          connected_at?: string
+          id?: string
+          team_member_id: string
+        }
+        Update: {
+          access_token?: string
+          clickup_user_id?: string | null
+          clickup_username?: string | null
+          connected_at?: string
+          id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clickup_user_tokens_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: true
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_baseline_tasks_log: {
         Row: {
           baseline_task_id: string
