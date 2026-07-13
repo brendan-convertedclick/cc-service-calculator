@@ -25,6 +25,7 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type QuickBriefListStatus = { status: string; color: string | null; type: string; orderindex: number };
 type QuickBriefListOption = { id: string; name: string; statuses: QuickBriefListStatus[] };
+type QuickBriefWorkStreamOption = { id: string; name: string };
 
 export interface QuickBriefSheetBrief {
   id: string;
@@ -58,6 +59,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
 
   const [lists, setLists] = useState<QuickBriefListOption[]>([]);
+  const [workStreamOptions, setWorkStreamOptions] = useState<QuickBriefWorkStreamOption[]>([]);
   const [listId, setListId] = useState<string>("");
   const [loadingLists, setLoadingLists] = useState(false);
   const [listsError, setListsError] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   useEffect(() => {
     if (!open || !brief.client_id) {
       setLists([]);
+      setWorkStreamOptions([]);
       setListId("");
       return;
     }
@@ -99,16 +102,22 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
           },
           body: JSON.stringify({ client_id: brief.client_id }),
         });
-        const body = (await res.json()) as { lists?: QuickBriefListOption[]; error?: string };
+        const body = (await res.json()) as {
+          lists?: QuickBriefListOption[];
+          work_stream_options?: QuickBriefWorkStreamOption[];
+          error?: string;
+        };
         if (cancelled) return;
         if (!res.ok) {
           setListsError(body.error ?? "Failed to load lists");
           setLists([]);
+          setWorkStreamOptions([]);
           setListId("");
           return;
         }
         const fetchedLists = body.lists ?? [];
         setLists(fetchedLists);
+        setWorkStreamOptions(body.work_stream_options ?? []);
         // Default to the "projects" list, mirroring the server's own fallback,
         // else the first list.
         const projectList = fetchedLists.find((l) => /project/i.test(l.name));
@@ -134,10 +143,17 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   }, [listId]);
 
   const hasClient = Boolean(brief.client_id);
-  // A valid work stream must match a real department name — the AI's guess can
-  // be empty or a stale/mismatched string that would otherwise flow straight
+  // The Work Stream picker must offer ClickUp's ACTUAL "Work Stream" custom-field
+  // options (e.g. "Creative", "Content", "3D") — Conductor's department names
+  // (e.g. "Creative Production") are a DIFFERENT label set and don't match, which
+  // left the ClickUp field blank. RESILIENCE: if the ClickUp fetch failed (or
+  // returned no options), fall back to `useDepartments()` so the operator is
+  // never hard-blocked from creating a task.
+  const workStreamSource = workStreamOptions.length > 0 ? workStreamOptions : departments;
+  // A valid work stream must match one of the offered options — the AI's guess
+  // can be empty or a stale/mismatched string that would otherwise flow straight
   // into the ClickUp "Work Stream" dropdown + BRIEF:: audit/invoice trail.
-  const workStreamValid = departments.some((d) => d.name === workStream);
+  const workStreamValid = workStreamSource.some((d) => d.name === workStream);
   const saving = createTask.isPending;
 
   const handleCreate = async () => {
@@ -253,7 +269,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                 <SelectValue placeholder="Choose a work stream…" />
               </SelectTrigger>
               <SelectContent>
-                {departments.map((d) => (
+                {workStreamSource.map((d) => (
                   <SelectItem key={d.id} value={d.name}>
                     {d.name}
                   </SelectItem>
