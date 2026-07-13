@@ -1079,6 +1079,7 @@ export type Database = {
       clients: {
         Row: {
           archived_at: string | null
+          clickup_chat_channel_id: string | null
           clickup_client_name: string | null
           clickup_folder_id: string | null
           created_at: string
@@ -1094,6 +1095,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          clickup_chat_channel_id?: string | null
           clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
@@ -1109,6 +1111,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          clickup_chat_channel_id?: string | null
           clickup_client_name?: string | null
           clickup_folder_id?: string | null
           created_at?: string
