@@ -2,7 +2,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-const DEV_AUTO_LOGIN = import.meta.env.DEV;
+// Auto-login as the shared team account is a LOCAL-DEV convenience only. Prod
+// is served via the Vite dev server (so import.meta.env.DEV is true there too),
+// so also require a non-prod hostname — otherwise prod would force everyone onto
+// team@ and block real per-user logins.
+const DEV_AUTO_LOGIN =
+  import.meta.env.DEV &&
+  (typeof window === "undefined" ||
+    !window.location.hostname.includes("conductor.convertedclick.co.za"));
 const DEV_EMAIL = "team@convertedclick.co.za";
 const DEV_PASSWORD = "cc-calc-2026-temp";
 
