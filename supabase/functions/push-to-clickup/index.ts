@@ -29,6 +29,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
 import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
@@ -59,7 +60,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createUserClient(req);
 
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
     if (!settings?.clickup_enabled) return json({ error: "ClickUp disabled in settings" }, 400);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
@@ -653,6 +654,7 @@ Deno.serve(async (req: Request) => {
       project_code: projectCode,
       clickup_parent_task_id: parent.id,
       child_count: childCount,
+      via,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

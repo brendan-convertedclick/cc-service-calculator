@@ -25,6 +25,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 const VALID_CADENCES = ["daily", "weekly", "biweekly", "monthly", "custom"];
 
@@ -123,7 +124,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const sb = createServiceRoleClient();
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
     // --- Step 1: load client + confirm the active ClickUp list belongs to it ---
@@ -245,6 +246,7 @@ Deno.serve(async (req: Request) => {
           provision_warning:
             "Retainer created, but first-period provisioning failed — retry from the monthly cron or re-provision manually.",
           provision_error: provision,
+          via,
         });
       }
       // Seed project_actuals right away so the new retainer's tasks appear in
@@ -261,6 +263,7 @@ Deno.serve(async (req: Request) => {
         project_id: projectId,
         clickup_parent_task_id: parentTaskId,
         provision,
+        via,
       });
     } catch (e) {
       return json({
@@ -269,6 +272,7 @@ Deno.serve(async (req: Request) => {
         provision_warning:
           "Retainer created, but first-period provisioning failed — retry from the monthly cron or re-provision manually.",
         provision_error: e instanceof Error ? e.message : String(e),
+        via,
       });
     }
   } catch (e) {

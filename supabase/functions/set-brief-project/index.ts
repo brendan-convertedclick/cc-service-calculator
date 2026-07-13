@@ -27,6 +27,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 type Body = {
   brief_id?: string;
@@ -110,7 +111,7 @@ Deno.serve(async (req: Request) => {
     const clickupParentTaskId = project.clickup_parent_task_id as string | null;
 
     if (clickupTaskId && clickupListId) {
-      const clickupPat = Deno.env.get("CLICKUP_PAT");
+      const { token: clickupPat } = await getOperatorClickupToken(req);
       if (!clickupPat) {
         console.error("[set-brief-project] CLICKUP_PAT secret not set — skipping ClickUp move + task read");
       } else {

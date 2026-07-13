@@ -12,6 +12,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
 
 type StaffBrief = {
@@ -50,7 +51,7 @@ Deno.serve(async (req: Request) => {
     if (!staff_brief_id) return json({ error: "staff_brief_id required" }, 400);
 
     const supabase = createUserClient(req);
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
     // Caller must be admin or owner.
@@ -189,7 +190,7 @@ Deno.serve(async (req: Request) => {
       }, 500);
     }
 
-    return json({ clickup_task_id: created.id, clickup_task_url: created.url });
+    return json({ clickup_task_id: created.id, clickup_task_url: created.url, via });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

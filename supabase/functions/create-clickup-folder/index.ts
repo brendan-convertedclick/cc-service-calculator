@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -13,7 +14,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createUserClient(req);
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
     const { data: settings } = await supabase
@@ -33,7 +34,7 @@ Deno.serve(async (req: Request) => {
     if (!res.ok) return json({ error: `ClickUp ${res.status}: ${await res.text()}` }, 502);
 
     const body = await res.json();
-    return json({ id: String(body.id), name: body.name ?? name });
+    return json({ id: String(body.id), name: body.name ?? name, via });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

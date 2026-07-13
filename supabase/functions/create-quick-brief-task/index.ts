@@ -10,6 +10,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 import { briefBriefedMessage, CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
     }
     const sb = createServiceRoleClient();
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
     const { data: brief, error: bErr } = await sb
@@ -206,7 +207,7 @@ Deno.serve(async (req: Request) => {
       console.error(`[create-quick-brief-task] audit note insert threw for brief ${brief.id}: ${noteEx instanceof Error ? noteEx.message : String(noteEx)}`);
     }
 
-    return json({ clickup_task_id: created.id, clickup_task_url: created.url });
+    return json({ clickup_task_id: created.id, clickup_task_url: created.url, via });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

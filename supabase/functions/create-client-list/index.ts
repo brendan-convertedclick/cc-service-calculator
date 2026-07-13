@@ -14,6 +14,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 type CuList = { id: string; name: string };
 
@@ -39,7 +40,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createServiceRoleClient();
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT not set" }, 500);
 
     const { data: client, error: cErr } = await supabase
@@ -135,6 +136,7 @@ Deno.serve(async (req: Request) => {
       client_list_id: row.id,
       clickup_list_id: row.clickup_list_id,
       clickup_list_name: row.clickup_list_name,
+      via,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

@@ -35,6 +35,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 
 const POINT_TO_MIN = 15;
@@ -85,7 +86,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const sb = createServiceRoleClient();
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    const { token: clickupPat, via } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
     const CU = { headers: { Authorization: clickupPat, "Content-Type": "application/json" } };
 
@@ -326,6 +327,7 @@ Deno.serve(async (req: Request) => {
       clickup_list_id: newListId,
       clickup_parent_task_id: parentTaskId,
       created_task_ids,
+      via,
       ...(task_failures.length > 0 && { task_failures }),
     });
   } catch (e) {

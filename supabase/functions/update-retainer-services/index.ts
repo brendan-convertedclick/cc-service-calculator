@@ -18,6 +18,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 const VALID_CADENCES = ["daily", "weekly", "biweekly", "monthly", "custom"];
 
@@ -74,8 +75,8 @@ async function cleanupRemovedServiceTasks(
   sb: any,
   projectId: string,
   serviceIds: string[],
+  pat: string,
 ): Promise<{ removed: number; keptLogged: number }> {
-  const pat = Deno.env.get("CLICKUP_PAT");
   if (!pat) {
     console.error("CLICKUP_PAT not set — skipping ClickUp task cleanup");
     return { removed: 0, keptLogged: 0 };
@@ -150,6 +151,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const sb = createServiceRoleClient();
+    const { token: clickupPat } = await getOperatorClickupToken(req);
 
     const { data: project, error: pErr } = await sb
       .from("projects").select("id, engagement_type").eq("id", project_id).single();
@@ -176,7 +178,7 @@ Deno.serve(async (req: Request) => {
       // provisioned_tasks rows, trash their ClickUp tasks for the current month
       // onward — but only ones with no logged time, so nothing billable is lost.
       if (cleanup_removed_tasks) {
-        const res = await cleanupRemovedServiceTasks(sb, project_id, toDelete);
+        const res = await cleanupRemovedServiceTasks(sb, project_id, toDelete, clickupPat);
         tasks_removed = res.removed;
         tasks_kept_logged = res.keptLogged;
       }
