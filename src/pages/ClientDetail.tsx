@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { useClients } from "@/hooks/useClients";
 import { SenderRulesPanel } from "@/components/clients/SenderRulesPanel";
 import { ClickUpListsPanel } from "@/components/clients/ClickUpListsPanel";
+import { ChatChannelPanel } from "@/components/clients/ChatChannelPanel";
 import { Button } from "@/components/ui/button";
 
 export function ClientDetail() {
@@ -50,6 +51,10 @@ export function ClientDetail() {
       <ClickUpListsPanel
         clientId={client.id}
         clickupFolderId={client.clickup_folder_id ?? null}
+      />
+      <ChatChannelPanel
+        clientId={client.id}
+        clickupChatChannelId={client.clickup_chat_channel_id ?? null}
       />
     </div>
   );

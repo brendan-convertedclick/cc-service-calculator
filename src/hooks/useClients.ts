@@ -13,6 +13,7 @@ export type { Client };
 const LIST = ["clients"] as const;
 const FOLDERS = ["clickup_folders"] as const;
 const SPACES = ["clickup_spaces"] as const;
+const CHAT_CHANNELS = ["clickup_chat_channels"] as const;
 
 export function useClients() {
   return useQuery({
@@ -104,6 +105,20 @@ export function useClickUpSpaces() {
       });
       if (error) throw error;
       return (data as { spaces: Array<{ id: string; name: string }> }).spaces;
+    },
+  });
+}
+
+export function useClickUpChatChannels() {
+  return useQuery({
+    queryKey: CHAT_CHANNELS,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
+      const { data, error } = await supabase.functions.invoke("list-chat-channels", {
+        body: {},
+      });
+      if (error) throw error;
+      return (data as { channels: Array<{ id: string; name: string }> }).channels;
     },
   });
 }
