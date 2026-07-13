@@ -143,6 +143,20 @@ Deno.serve(async (req: Request) => {
     if (!parentTaskId) {
       // Best-effort delete the orphaned list before surfacing the failure.
       await deleteClickupList(clickupPat, newListId);
+      // Also remove the client_lists row we inserted in step 2 — otherwise it
+      // survives pointing at a now-deleted list, and other jobs (provision-
+      // ongoing-tasks, sync-client-clickup-structure, create-retainer) that
+      // read client_lists would 404 against ClickUp indefinitely. Best-effort:
+      // log and continue so a delete failure doesn't mask the original error.
+      const { error: clDelErr } = await sb
+        .from("client_lists")
+        .delete()
+        .eq("clickup_list_id", newListId);
+      if (clDelErr) {
+        console.error(
+          `[create-adhoc-project] client_lists cleanup failed for list ${newListId}: ${clDelErr.message}`,
+        );
+      }
       return json({ error: "Failed to create ClickUp project parent task." }, 502);
     }
 
@@ -171,6 +185,20 @@ Deno.serve(async (req: Request) => {
       // Cleanup: delete the parent task + best-effort delete the list.
       await deleteClickupTask(clickupPat, parentTaskId);
       await deleteClickupList(clickupPat, newListId);
+      // Also remove the client_lists row we inserted in step 2 — otherwise it
+      // survives pointing at a now-deleted list, and other jobs (provision-
+      // ongoing-tasks, sync-client-clickup-structure, create-retainer) that
+      // read client_lists would 404 against ClickUp indefinitely. Best-effort:
+      // log and continue so a delete failure doesn't mask the original error.
+      const { error: clDelErr } = await sb
+        .from("client_lists")
+        .delete()
+        .eq("clickup_list_id", newListId);
+      if (clDelErr) {
+        console.error(
+          `[create-adhoc-project] client_lists cleanup failed for list ${newListId}: ${clDelErr.message}`,
+        );
+      }
       return json({ error: pErr?.message ?? "Failed to insert project" }, 500);
     }
     const projectId = project.id as string;

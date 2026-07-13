@@ -125,6 +125,14 @@ export function NewProjectWizard() {
     };
   }, [clientId]);
 
+  // Statuses are scoped to whichever client's list is selected — reset every
+  // row's status back to the list default whenever the client changes, so a
+  // status picked for a previous client's status set can't be submitted
+  // against a different client (would land the task in task_failures).
+  useEffect(() => {
+    setRows((prev) => prev.map((r) => ({ ...r, status: STATUS_DEFAULT })));
+  }, [clientId]);
+
   // ClickUp's actual "Work Stream" custom-field options are the source of truth.
   // If the fetch failed (or returned none), fall back to Conductor's departments
   // so the operator is never hard-blocked from creating a project.
