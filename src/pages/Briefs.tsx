@@ -78,6 +78,26 @@ export function Briefs() {
     [inFlightAll, selectedClients, selectedStatuses],
   );
 
+  const briefedAll = useMemo(
+    () => allBriefs.filter((b) => b.status === "briefed"),
+    [allBriefs],
+  );
+
+  const briefed = useMemo(
+    () =>
+      briefedAll
+        .filter((b) => {
+          if (selectedClients.size > 0 && (!b.client_id || !selectedClients.has(b.client_id))) {
+            return false;
+          }
+          return true;
+        })
+        .sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+    [briefedAll, selectedClients],
+  );
+
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
 
   const toggleClient = (id: string) => {
@@ -107,7 +127,7 @@ export function Briefs() {
         </Button>
       </div>
 
-      {inFlightAll.length === 0 ? (
+      {inFlightAll.length === 0 && briefedAll.length === 0 ? (
         <div className="text-body-medium text-m-on-surface-variant">
           No open briefs. New briefs land in the Inbox and become in-flight once triaged.
         </div>
@@ -262,6 +282,45 @@ export function Briefs() {
               <div className="text-body-medium text-m-on-surface-variant">
                 No briefs match the current filters.
               </div>
+            )}
+
+            {briefed.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-title-medium">Briefed ({briefed.length})</h2>
+                <div className="space-y-2">
+                  {briefed.map((b) => {
+                    const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
+                    return (
+                      <Card key={b.id} className="transition-colors hover:bg-m-surface-container">
+                        <CardContent className="flex items-center justify-between gap-4 p-4">
+                          <Link to={`/inbox/${b.id}`} className="block min-w-0 flex-1">
+                            <div className="truncate text-title-small">
+                              {b.raw_subject ?? "(no subject)"}
+                            </div>
+                            <div className="text-label-small text-m-on-surface-variant">
+                              {clientName ?? b.sender_email ?? "manual"} ·{" "}
+                              {new Date(b.created_at).toLocaleDateString("en-ZA")}
+                            </div>
+                          </Link>
+                          <div className="flex shrink-0 items-center gap-3">
+                            <Badge>{STATUS_LABEL[b.status]}</Badge>
+                            {b.clickup_task_url && (
+                              <a
+                                href={b.clickup_task_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-label-small font-medium text-m-primary hover:underline"
+                              >
+                                View task ↗
+                              </a>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </section>
             )}
           </div>
         </div>
