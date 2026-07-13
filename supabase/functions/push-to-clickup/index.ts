@@ -30,6 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
+import { mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -75,7 +76,7 @@ Deno.serve(async (req: Request) => {
         brief: {
           raw_subject: string | null;
           client_id: string;
-          client: { id: string; name: string; clickup_folder_id: string | null } | null;
+          client: { id: string; name: string; clickup_folder_id: string | null; clickup_client_name: string | null; clickup_chat_channel_id: string | null } | null;
         } | null;
       };
     }).scope;
@@ -322,6 +323,8 @@ Deno.serve(async (req: Request) => {
       planned_hours: number;
     };
     const actualsRows: ActualRow[] = [];
+    // Collected for a single end-of-push ClickUp Chat summary message.
+    const chatLines: Array<{ name: string; url: string; mention: string | null }> = [];
     let childCount = 0;
 
     // Flatten (item × allocation) so we can batch across the entire push
@@ -340,7 +343,7 @@ Deno.serve(async (req: Request) => {
     for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ item, alloc }): Promise<ActualRow> => {
+        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null } }> => {
           const ownerId = deptOwnerMap.get(alloc.dept_id);
           const owner = ownerId ? teamById.get(ownerId) : null;
 
@@ -414,15 +417,28 @@ Deno.serve(async (req: Request) => {
             );
           }
 
+          const ownerRec = owner as { full_name?: string | null; email?: string | null } | null;
           return {
-            project_id: projectId,
-            clickup_task_id: child.id,
-            dept_id: alloc.dept_id,
-            planned_hours: alloc.hours,
+            row: {
+              project_id: projectId,
+              clickup_task_id: child.id,
+              dept_id: alloc.dept_id,
+              planned_hours: alloc.hours,
+            },
+            chat: {
+              name: `${item.service_name} — ${alloc.dept_name}`,
+              url: child.url,
+              mention: ownerRec
+                ? mentionToken({ email: ownerRec.email, name: ownerRec.full_name })
+                : null,
+            },
           };
         }),
       );
-      actualsRows.push(...results);
+      for (const r of results) {
+        actualsRows.push(r.row);
+        chatLines.push(r.chat);
+      }
       childCount += results.length;
     }
 
@@ -609,6 +625,25 @@ Deno.serve(async (req: Request) => {
             }
           }
         }
+      }
+    }
+
+    // Notify the client's ClickUp Chat channel with ONE summary message (not
+    // one-per-task — avoids channel spam). Best-effort: the project is already
+    // created, so a failed post must never fail the request — log and move on.
+    const chatChannelId = client.clickup_chat_channel_id;
+    if (chatChannelId && chatLines.length > 0) {
+      const projectName = scope.brief?.raw_subject ?? client.name;
+      const header = `🆕 ${chatLines.length} task${chatLines.length === 1 ? "" : "s"} briefed for ${client.name} — ${projectName}`;
+      const bullets = chatLines
+        .map((l) => `- ${l.mention ? `${l.mention} · ` : ""}${l.name} · ${l.url}`)
+        .join("\n");
+      const workspaceId = settings.clickup_workspace_id ? String(settings.clickup_workspace_id) : undefined;
+      const chatRes = await postChatMessage(clickupPat, chatChannelId, `${header}\n${bullets}`, workspaceId);
+      if (!chatRes.ok) {
+        console.error(
+          `[push-to-clickup] chat notify failed for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
       }
     }
 

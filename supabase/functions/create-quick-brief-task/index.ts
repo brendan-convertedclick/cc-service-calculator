@@ -11,6 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import { briefBriefedMessage, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -31,7 +32,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: brief, error: bErr } = await sb
       .from("briefs")
-      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_client_name, clickup_folder_id)")
+      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id)")
       .eq("id", b.brief_id)
       .single();
     if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
@@ -41,7 +42,7 @@ Deno.serve(async (req: Request) => {
       return json({ clickup_task_id: brief.clickup_task_id, clickup_task_url: brief.clickup_task_url, already_briefed: true });
     }
 
-    const client = (brief as unknown as { client?: { id: string; name: string; clickup_client_name: string | null; clickup_folder_id: string | null } | null }).client;
+    const client = (brief as unknown as { client?: { id: string; name: string; clickup_client_name: string | null; clickup_folder_id: string | null; clickup_chat_channel_id: string | null } | null }).client;
     if (!client) return json({ error: "Brief has no client — assign a client first." }, 400);
     if (!client.clickup_folder_id) return json({ error: `Client ${client.name} has no ClickUp folder configured.` }, 400);
 
@@ -61,15 +62,17 @@ Deno.serve(async (req: Request) => {
     // Resolve assignee → clickup_user_id (+ name for the audit note).
     let assigneeClickupId: number | null = null;
     let assigneeName: string | null = null;
+    let assigneeEmail: string | null = null;
     if (b.assignee_member_id) {
       const { data: m } = await sb
         .from("team_members")
-        .select("clickup_user_id, full_name")
+        .select("clickup_user_id, full_name, email")
         .eq("id", b.assignee_member_id)
         .maybeSingle();
-      const member = m as { clickup_user_id: number | null; full_name: string | null } | null;
+      const member = m as { clickup_user_id: number | null; full_name: string | null; email: string | null } | null;
       assigneeClickupId = member?.clickup_user_id ?? null;
       assigneeName = member?.full_name ?? null;
+      assigneeEmail = member?.email ?? null;
     }
 
     // Resolve who is briefing. Interim attribution: ClickUp's native "assigned
@@ -155,6 +158,25 @@ Deno.serve(async (req: Request) => {
         error: `Task ${created.id} was created in ClickUp but the brief could not be marked briefed — reconcile manually, do not retry. (${upErr.message})`,
         clickup_task_id: created.id, clickup_task_url: created.url, orphaned: true,
       }, 500);
+    }
+
+    // Notify the client's ClickUp Chat channel + ping the assignee. Best-effort:
+    // the brief is already briefed, so a failed channel post must never fail the
+    // request — log and move on.
+    if (client.clickup_chat_channel_id) {
+      const mention = mentionToken({ email: assigneeEmail, name: assigneeName });
+      const chatContent = briefBriefedMessage({
+        mention,
+        taskName: b.task_name,
+        points: b.sprint_points,
+        taskUrl: created.url,
+      });
+      const chatRes = await postChatMessage(clickupPat, client.clickup_chat_channel_id, chatContent);
+      if (!chatRes.ok) {
+        console.error(
+          `[create-quick-brief-task] chat notify failed for brief ${brief.id} (channel ${client.clickup_chat_channel_id}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
+      }
     }
 
     // In-app audit note: mirrors useAddInternalNote's brief_messages shape so
