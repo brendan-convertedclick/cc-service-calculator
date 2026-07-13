@@ -3,6 +3,7 @@ import { Calculator, ChevronDown, ChevronLeft, ChevronRight, LogOut } from "luci
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
+import { useTeam } from "@/hooks/useTeam"
 import {
   bottomNavItems,
   navSections,
@@ -187,8 +188,19 @@ interface IconRailProps {
 }
 
 export function IconRail({ navOpen, onToggle }: IconRailProps) {
-  const { signOut } = useAuth()
+  const { signOut, currentUserId, user } = useAuth()
+  const { data: team = [] } = useTeam()
   const navigate = useNavigate()
+
+  // Who's signed in — resolved from the team roster (falls back to the auth
+  // email, e.g. the shared team@ login which has no roster row).
+  const me = team.find((m) => m.id === currentUserId)
+  const displayName = me?.full_name ?? user?.email ?? "Signed in"
+  const initials = (
+    me?.full_name
+      ? me.full_name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("")
+      : (user?.email?.[0] ?? "?")
+  ).toUpperCase()
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -277,8 +289,25 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           </>
         )}
 
-        {/* Sign out — pinned to bottom */}
-        <div className="mt-auto">
+        {/* Profile + Sign out — pinned to bottom */}
+        <div className="mt-auto space-y-1">
+          {navOpen ? (
+            <div className="flex items-center gap-3 px-3 py-2" title={displayName}>
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-m-primary-container text-label-medium font-medium text-m-on-primary-container">
+                {initials}
+              </div>
+              <span className="truncate text-label-large text-m-on-surface">{displayName}</span>
+            </div>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-m-primary-container text-label-medium font-medium text-m-on-primary-container">
+                  {initials}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">{displayName}</TooltipContent>
+            </Tooltip>
+          )}
           {navOpen ? (
             <button
               aria-label="Sign out"
