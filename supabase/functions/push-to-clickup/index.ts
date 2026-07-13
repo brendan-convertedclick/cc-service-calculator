@@ -30,7 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
-import { mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
+import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -631,8 +631,9 @@ Deno.serve(async (req: Request) => {
     // Notify the client's ClickUp Chat channel with ONE summary message (not
     // one-per-task — avoids channel spam). Best-effort: the project is already
     // created, so a failed post must never fail the request — log and move on.
-    const chatChannelId = client.clickup_chat_channel_id;
-    if (chatChannelId && chatLines.length > 0) {
+    // Post to the client's channel, or fall back to Converted Click if none.
+    const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
+    if (chatLines.length > 0) {
       const projectName = scope.brief?.raw_subject ?? client.name;
       const header = `🆕 ${chatLines.length} task${chatLines.length === 1 ? "" : "s"} briefed for ${client.name} — ${projectName}`;
       const bullets = chatLines

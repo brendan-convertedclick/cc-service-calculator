@@ -24,6 +24,11 @@
 // Converted Click's ClickUp workspace/team id (see CLAUDE.md).
 export const CLICKUP_WORKSPACE_ID = "37345392";
 
+// Fallback chat channel when a client has no channel mapped: the internal
+// "Converted Click" channel. We never create per-client channels — brief
+// notifications go to the client's channel, or here if none is set.
+export const CONVERTED_CLICK_CHANNEL_ID = "13kp3g-26752";
+
 export type PostChatResult = { ok: boolean; status?: number; error?: string; message_id?: string };
 
 /**

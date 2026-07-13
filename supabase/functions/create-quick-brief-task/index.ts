@@ -11,7 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
-import { briefBriefedMessage, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
+import { briefBriefedMessage, CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -163,7 +163,9 @@ Deno.serve(async (req: Request) => {
     // Notify the client's ClickUp Chat channel + ping the assignee. Best-effort:
     // the brief is already briefed, so a failed channel post must never fail the
     // request — log and move on.
-    if (client.clickup_chat_channel_id) {
+    {
+      // Post to the client's channel, or fall back to Converted Click if none.
+      const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
       const mention = mentionToken({ email: assigneeEmail, name: assigneeName });
       const chatContent = briefBriefedMessage({
         mention,
@@ -171,10 +173,10 @@ Deno.serve(async (req: Request) => {
         points: b.sprint_points,
         taskUrl: created.url,
       });
-      const chatRes = await postChatMessage(clickupPat, client.clickup_chat_channel_id, chatContent);
+      const chatRes = await postChatMessage(clickupPat, chatChannelId, chatContent);
       if (!chatRes.ok) {
         console.error(
-          `[create-quick-brief-task] chat notify failed for brief ${brief.id} (channel ${client.clickup_chat_channel_id}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[create-quick-brief-task] chat notify failed for brief ${brief.id} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
       }
     }
