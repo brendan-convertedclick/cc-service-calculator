@@ -104,14 +104,19 @@ export function briefBriefedMessage(
 }
 
 /**
- * Produce the best available mention token for a person. Prefers an inline
- * `@email` mention (ClickUp resolves these to a real ping), falls back to the
- * plain name, then to "team".
+ * Produce a ClickUp Chat mention token that actually pings the user. The real
+ * format (confirmed from live channel messages) is a markdown link:
+ *   [@Display Name](#user_mention#<clickup_user_id>)
+ * An inline `@email` does NOT resolve — it renders as plain text. So a real
+ * ping requires the ClickUp user id. Falls back to the plain name (no ping),
+ * then "team".
  */
 export function mentionToken(
-  { email, name }: { email?: string | null; name?: string | null },
+  { clickupUserId, name }: { clickupUserId?: number | string | null; name?: string | null },
 ): string {
-  if (email && email.trim()) return `@${email.trim()}`;
-  if (name && name.trim()) return name.trim();
-  return "team";
+  const display = name && name.trim() ? name.trim() : "team";
+  if (clickupUserId != null && String(clickupUserId).trim()) {
+    return `[@${display}](#user_mention#${clickupUserId})`;
+  }
+  return name && name.trim() ? name.trim() : "team";
 }

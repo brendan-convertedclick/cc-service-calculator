@@ -417,7 +417,7 @@ Deno.serve(async (req: Request) => {
             );
           }
 
-          const ownerRec = owner as { full_name?: string | null; email?: string | null } | null;
+          const ownerRec = owner as { full_name?: string | null; email?: string | null; clickup_user_id?: number | null } | null;
           return {
             row: {
               project_id: projectId,
@@ -429,7 +429,7 @@ Deno.serve(async (req: Request) => {
               name: `${item.service_name} — ${alloc.dept_name}`,
               url: child.url,
               mention: ownerRec
-                ? mentionToken({ email: ownerRec.email, name: ownerRec.full_name })
+                ? mentionToken({ clickupUserId: ownerRec.clickup_user_id, name: ownerRec.full_name })
                 : null,
             },
           };

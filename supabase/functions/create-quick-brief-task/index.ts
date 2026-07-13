@@ -166,7 +166,7 @@ Deno.serve(async (req: Request) => {
     {
       // Post to the client's channel, or fall back to Converted Click if none.
       const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
-      const mention = mentionToken({ email: assigneeEmail, name: assigneeName });
+      const mention = mentionToken({ clickupUserId: assigneeClickupId, name: assigneeName });
       const chatContent = briefBriefedMessage({
         mention,
         taskName: b.task_name,
