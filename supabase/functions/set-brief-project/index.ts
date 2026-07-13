@@ -116,45 +116,31 @@ Deno.serve(async (req: Request) => {
       } else {
         const CU = { headers: { Authorization: clickupPat, "Content-Type": "application/json" } };
 
-        // --- B) Move the task into the project's list (best-effort) ---
-        try {
-          const moveRes = await fetch(
-            `https://api.clickup.com/api/v2/list/${clickupListId}/task/${clickupTaskId}`,
-            { ...CU, method: "POST", body: JSON.stringify({}) },
-          );
-          if (moveRes.ok) {
-            moved = true;
-          } else {
-            const errText = await moveRes.text();
-            console.error(
-              `[set-brief-project] CU move task ${clickupTaskId} -> list ${clickupListId} failed (${moveRes.status}: ${errText})`,
+        // --- B) Reparent the task under the project's umbrella task
+        // (best-effort). This nests it under the project AND moves its home
+        // list to the project's list (a subtask lives in its parent's list).
+        // NB: ClickUp's POST /list/{id}/task/{id} only ADDS a secondary list
+        // membership (Tasks-in-Multiple-Lists ClickApp) and does NOT change the
+        // home list, so reparenting is the correct "group under the project"
+        // mechanism. ---
+        if (clickupParentTaskId) {
+          try {
+            const reparentRes = await fetch(
+              `https://api.clickup.com/api/v2/task/${clickupTaskId}`,
+              { ...CU, method: "PUT", body: JSON.stringify({ parent: clickupParentTaskId }) },
             );
-            // Fallback: reparent under the project's umbrella task. ClickUp
-            // moves a subtask into its parent's list.
-            if (clickupParentTaskId) {
-              try {
-                const reparentRes = await fetch(
-                  `https://api.clickup.com/api/v2/task/${clickupTaskId}`,
-                  { ...CU, method: "PUT", body: JSON.stringify({ parent: clickupParentTaskId }) },
-                );
-                if (reparentRes.ok) {
-                  moved = true;
-                } else {
-                  console.error(
-                    `[set-brief-project] CU reparent task ${clickupTaskId} -> parent ${clickupParentTaskId} failed (${reparentRes.status}: ${await reparentRes.text()})`,
-                  );
-                }
-              } catch (re) {
-                console.error(
-                  `[set-brief-project] CU reparent threw for task ${clickupTaskId}: ${re instanceof Error ? re.message : String(re)}`,
-                );
-              }
+            if (reparentRes.ok) {
+              moved = true;
+            } else {
+              console.error(
+                `[set-brief-project] CU reparent task ${clickupTaskId} -> parent ${clickupParentTaskId} failed (${reparentRes.status}: ${await reparentRes.text()})`,
+              );
             }
+          } catch (re) {
+            console.error(
+              `[set-brief-project] CU reparent threw for task ${clickupTaskId}: ${re instanceof Error ? re.message : String(re)}`,
+            );
           }
-        } catch (me) {
-          console.error(
-            `[set-brief-project] CU move threw for task ${clickupTaskId}: ${me instanceof Error ? me.message : String(me)}`,
-          );
         }
 
         // --- A) Seed a project_actuals row so it shows in Tasks (idempotent) ---
