@@ -24,7 +24,7 @@
 //   2. Create a NEW ClickUp list in the client's folder (named project_name) and
 //      insert a client_lists row (orphan-on-DB-failure like create-client-list).
 //   3. Create a parent umbrella task in the new list (status omitted → CRTSK_001).
-//   4. Insert the projects row (engagement_type='project', is_recurring=false,
+//   4. Insert the projects row (engagement_type='fixed', is_recurring=false,
 //      recurrence_mode='none' so no cron recurs it). On failure → delete parent
 //      task + best-effort delete the list.
 //   5. Fetch the new list's custom fields once.
@@ -161,7 +161,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- Step 4: insert the projects row ---
-    // engagement_type='project' + is_recurring=false + recurrence_mode='none'
+    // engagement_type='fixed' (projects.engagement_type CHECK allows only
+    // 'fixed'|'retainer'; an adhoc project is a fixed-scope, non-recurring one)
+    // + is_recurring=false + recurrence_mode='none'
     // keeps this out of both create-recurring-tasks and provision-retainer-period.
     // project_code is stamped by the DB before-insert trigger (see 0024) — omit
     // it, exactly like create-retainer.
@@ -170,7 +172,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         name: listName,
         client_id,
-        engagement_type: "project",
+        engagement_type: "fixed",
         is_recurring: false,
         recurrence_mode: "none",
         recurrence_interval: null,
