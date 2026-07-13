@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ProgressRing } from "@/components/ProgressRing";
 import { CardActionsMenu, CardActionItem } from "@/components/CardActionsMenu";
 import { useProjects, useUpdateProject } from "@/hooks/useProjects";
@@ -121,7 +122,12 @@ export function Projects() {
 
   return (
     <div className="max-w-6xl p-6">
-      <h1 className="mb-6 text-headline-medium">Projects</h1>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-headline-medium">Projects</h1>
+        <Button asChild>
+          <Link to="/projects/new">+ New Project</Link>
+        </Button>
+      </div>
 
       {projects.length === 0 ? (
         <div className="text-body-medium text-m-on-surface-variant">

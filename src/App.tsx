@@ -64,6 +64,9 @@ const Briefs = lazy(() =>
 const ProjectDetail = lazy(() =>
   import("@/pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })),
 );
+const NewProjectWizard = lazy(() =>
+  import("@/pages/NewProjectWizard").then((m) => ({ default: m.NewProjectWizard })),
+);
 const RetainersList = lazy(() =>
   import("@/pages/RetainersList").then((m) => ({ default: m.RetainersList })),
 );
@@ -191,6 +194,7 @@ export default function App() {
               <Route path="clients/:clientId/projects" element={<Navigate to="/clients" replace />} />
               <Route path="clients/:clientId/projects/:projectId" element={<ProjectScopeView />} />
               <Route path="projects" element={<Projects />} />
+              <Route path="projects/new" element={<NewProjectWizard />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="retainers" element={<RetainersList />} />
               <Route path="retainers/new" element={<NewRetainerWizard />} />
