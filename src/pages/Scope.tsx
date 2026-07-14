@@ -178,7 +178,7 @@ export function Scope() {
           <h1 className="text-title-large truncate">{brief.raw_subject ?? "(no subject)"}</h1>
           <div className="flex items-center gap-2 mt-1">
             {brief.intent_type && (
-              <Badge className="text-label-small">
+              <Badge variant="muted" className="text-label-small">
                 {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
               </Badge>
             )}
