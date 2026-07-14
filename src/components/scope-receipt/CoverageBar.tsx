@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { Money } from "@/components/ui/money";
 import {
   DISPOSITION_ORDER,
   type ScopeReceiptModel,
@@ -56,7 +56,7 @@ export function CoverageBar({ model, clientMode = false }: CoverageBarProps) {
         </span>
         {" · "}
         <span className="font-medium text-amber-700">
-          {model.counts.new_billable} new ({formatCurrency(model.billableTotalCents / 100)})
+          {model.counts.new_billable} new (<Money cents={model.billableTotalCents} />)
         </span>
         {!clientMode && (
           <>

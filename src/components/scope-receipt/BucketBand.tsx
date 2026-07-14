@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { Money } from "@/components/ui/money";
 import type { ReceiptBucket } from "@/lib/scope-receipt";
 import type { Disposition } from "@/types/sow-placements";
 import { ServiceLineRow } from "./ServiceLineRow";
@@ -109,13 +109,13 @@ export function BucketBand({
         </span>
         <div className="ml-auto flex items-center gap-2">
           {covered && (
-            <span className="text-label-small font-medium text-emerald-700 tabular-nums">
-              {formatCurrency(0)} covered
+            <span className="text-label-small font-medium text-emerald-700">
+              <Money cents={0} /> covered
             </span>
           )}
           {showSubtotal && (
-            <span className="text-body-medium font-semibold text-amber-800 tabular-nums">
-              {formatCurrency(bucket.subtotalCents / 100)}
+            <span className="text-body-medium font-semibold text-amber-800">
+              <Money cents={bucket.subtotalCents} />
             </span>
           )}
           {collapsible && (

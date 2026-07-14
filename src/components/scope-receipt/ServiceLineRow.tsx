@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
+import { Money } from "@/components/ui/money";
 import {
   BAND_TITLE,
   DISPOSITION_ORDER,
@@ -85,7 +86,7 @@ function InlineNumber({
         }
       }}
       className={cn(
-        "rounded border border-transparent bg-transparent px-1 py-0.5 tabular-nums",
+        "rounded border border-transparent bg-transparent px-1 py-0.5 font-mono tabular-nums",
         "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
         align === "right" ? "text-right" : "text-center",
         widthClass,
@@ -219,7 +220,7 @@ export function ServiceLineRow({
             widthClass="w-12 text-body-small text-m-on-surface"
           />
         ) : (
-          <span className="min-w-[2ch] text-center text-body-small tabular-nums text-m-on-surface">
+          <span className="min-w-[2ch] text-center text-body-small font-mono tabular-nums text-m-on-surface">
             {formatQty(line.qty)}
           </span>
         )}
@@ -252,22 +253,22 @@ export function ServiceLineRow({
           widthClass="w-20 shrink-0 text-label-small text-m-on-surface-variant"
         />
       ) : (
-        <span className="w-20 shrink-0 text-right text-label-small tabular-nums text-m-on-surface-variant">
-          {formatCurrency(line.unitCents / 100)}
-        </span>
+        <Money
+          cents={line.unitCents}
+          className="w-20 shrink-0 text-right text-label-small text-m-on-surface-variant"
+        />
       )}
 
       {/* line total */}
-      <span
+      <Money
+        cents={line.lineCents}
         className={cn(
-          "w-24 shrink-0 text-right text-body-medium tabular-nums",
+          "w-24 shrink-0 text-right text-body-medium",
           struck
             ? "text-m-on-surface-variant line-through"
             : "font-medium text-m-on-surface",
         )}
-      >
-        {formatCurrency(line.lineCents / 100)}
-      </span>
+      />
 
       {/* ⋮ override */}
       {!clientMode && onOverride && (

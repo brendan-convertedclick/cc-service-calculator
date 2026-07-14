@@ -1,7 +1,7 @@
 import { Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/format";
+import { Money } from "@/components/ui/money";
 import { rollupCE } from "@/types/change-estimates";
 import type { ScopeReceiptModel } from "@/lib/scope-receipt";
 
@@ -63,8 +63,8 @@ export function StickyQuoteFooter({
                 {model.counts.out_of_scope} out of scope — only billable lines are
                 quoted
               </p>
-              <p className="text-headline-small tabular-nums text-m-on-surface">
-                {formatCurrency(delta_value_cents / 100)}
+              <p className="text-headline-small text-m-on-surface">
+                <Money cents={delta_value_cents} />
                 <span className="ml-1 text-label-medium font-normal text-m-on-surface-variant">
                   to quote
                 </span>
