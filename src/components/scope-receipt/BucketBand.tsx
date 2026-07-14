@@ -46,7 +46,7 @@ export interface BucketBandProps {
   /** Expandable per-line detail (team task breakdown). */
   renderLineDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup shown under each line name. */
-  lineSummary?: (taskRef: string) => string | undefined;
+  lineSummary?: (taskRef: string) => ReactNode;
 }
 
 /**

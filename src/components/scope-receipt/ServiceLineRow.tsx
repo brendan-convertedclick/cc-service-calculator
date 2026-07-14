@@ -113,7 +113,7 @@ export interface ServiceLineRowProps {
    */
   renderDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup shown under the name (e.g. "2 tasks · 3.5h · 22pt"). */
-  detailSummary?: string;
+  detailSummary?: ReactNode;
 }
 
 /**

@@ -44,7 +44,7 @@ export interface ScopeReceiptProps {
    */
   renderLineDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup under each billable line name (e.g. "2 tasks · 3.5h · 22pt"). */
-  lineSummary?: (taskRef: string) => string | undefined;
+  lineSummary?: (taskRef: string) => ReactNode;
   className?: string;
 }
 

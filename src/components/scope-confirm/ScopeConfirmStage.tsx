@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -137,14 +137,20 @@ export function ScopeConfirmStage({
     );
   };
 
-  const lineSummary = (taskRef: string): string | undefined => {
+  const lineSummary = (taskRef: string): ReactNode => {
     const placementId = placementIdByTaskRef.get(taskRef);
     if (!placementId) return undefined;
     const tasks = tasksByPlacement.get(placementId) ?? [];
     if (tasks.length === 0) return "+ Add team tasks";
     const h = tasks.reduce((s, t) => s + t.hours, 0);
     const p = tasks.reduce((s, t) => s + t.points, 0);
-    return `${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${fmt(h)}h · ${fmt(p)}pt`;
+    return (
+      <>
+        {tasks.length} task{tasks.length === 1 ? "" : "s"} ·{" "}
+        <span className="font-mono tabular-nums">{fmt(h)}</span>h ·{" "}
+        <span className="font-mono tabular-nums">{fmt(p)}</span>pt
+      </>
+    );
   };
 
   const [selection, setSelection] = useState<{
