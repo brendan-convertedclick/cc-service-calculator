@@ -17,6 +17,7 @@ const TOOLTIP_STYLE = {
   borderRadius: 8,
   color: "#e2e8f0",
   fontSize: 12,
+  fontFamily: "var(--font-mono)",
 };
 
 export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
@@ -37,7 +38,7 @@ export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
         <BarChart data={data} barCategoryGap="28%">
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
           <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <YAxis tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} allowDecimals={false} />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
             formatter={(value, key) => {

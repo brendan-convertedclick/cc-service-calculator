@@ -19,6 +19,7 @@ const TOOLTIP_STYLE = {
   borderRadius: 8,
   color: "#e2e8f0",
   fontSize: 12,
+  fontFamily: "var(--font-mono)",
 };
 
 export function DeliverySpeedChart({ data }: Props) {
@@ -34,7 +35,7 @@ export function DeliverySpeedChart({ data }: Props) {
           <YAxis
             yAxisId="left"
             orientation="left"
-            tick={{ fontSize: 11, fill: "#94a3b8" }}
+            tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "var(--font-mono)" }}
             axisLine={false}
             tickLine={false}
             allowDecimals={false}
@@ -43,7 +44,7 @@ export function DeliverySpeedChart({ data }: Props) {
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 11, fill: "#94a3b8" }}
+            tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "var(--font-mono)" }}
             axisLine={false}
             tickLine={false}
             label={{ value: "days", angle: 90, position: "insideRight", fontSize: 10, fill: "#64748b" }}

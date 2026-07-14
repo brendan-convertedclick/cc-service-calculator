@@ -17,6 +17,7 @@ const TOOLTIP_STYLE = {
   borderRadius: 8,
   color: "#e2e8f0",
   fontSize: 12,
+  fontFamily: "var(--font-mono)",
 };
 
 function formatZarTick(value: number): string {
@@ -44,7 +45,7 @@ export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
           <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <YAxis
             tickFormatter={formatZarTick}
-            tick={{ fontSize: 11, fill: "#94a3b8" }}
+            tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "var(--font-mono)" }}
             axisLine={false}
             tickLine={false}
           />

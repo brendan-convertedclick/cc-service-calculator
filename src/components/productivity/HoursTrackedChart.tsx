@@ -43,7 +43,7 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "#64748b" }}
+              tick={{ fontSize: 10, fill: "#64748b", fontFamily: "var(--font-mono)" }}
               axisLine={false}
               tickLine={false}
             />
@@ -53,10 +53,11 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
                 border: "1px solid #2d3748",
                 borderRadius: 8,
                 fontSize: 12,
+                fontFamily: "var(--font-mono)",
               }}
               labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
               formatter={(value: number) => [`${value.toFixed(1)} hrs`]}
-              itemStyle={{ color: "#94a3b8" }}
+              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
             />
             {displayMembers.map((member) => {
               const originalIdx = activeMembersWithClickUp.findIndex(
@@ -76,7 +77,7 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
                   <LabelList
                     dataKey={`${uid}_hours`}
                     position="top"
-                    style={{ fontSize: 10, fill: color, fontWeight: 600 }}
+                    style={{ fontSize: 10, fill: color, fontWeight: 600, fontFamily: "var(--font-mono)" }}
                     formatter={(v: number) => (v > 0 ? `${v}h` : "")}
                   />
                 </Bar>

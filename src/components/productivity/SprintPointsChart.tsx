@@ -46,7 +46,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "#64748b" }}
+              tick={{ fontSize: 10, fill: "#64748b", fontFamily: "var(--font-mono)" }}
               axisLine={false}
               tickLine={false}
             />
@@ -56,9 +56,10 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                 border: "1px solid #2d3748",
                 borderRadius: 8,
                 fontSize: 12,
+                fontFamily: "var(--font-mono)",
               }}
               labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              itemStyle={{ color: "#94a3b8" }}
+              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
             />
             <ReferenceLine
               y={goalPoints}
@@ -95,7 +96,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                   <LabelList
                     dataKey={`${uid}_total`}
                     position="top"
-                    style={{ fontSize: 10, fill: color, fontWeight: 600 }}
+                    style={{ fontSize: 10, fill: color, fontWeight: 600, fontFamily: "var(--font-mono)" }}
                     formatter={(v: number) => (v > 0 ? v : "")}
                   />
                 </Bar>,
