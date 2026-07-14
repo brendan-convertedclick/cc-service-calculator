@@ -89,7 +89,7 @@ export function Departments() {
                             update.mutate({ id: d.id, patch: { hourly_rate_cents: cents } });
                         }}
                       />
-                      <div className="mt-1 text-right text-xs text-muted-foreground">{formatZar(d.hourly_rate_cents)}</div>
+                      <div className="mt-1 text-right text-xs text-muted-foreground font-mono tabular-nums">{formatZar(d.hourly_rate_cents)}</div>
                     </td>
                     <td className="py-3 pl-2">
                       <Input

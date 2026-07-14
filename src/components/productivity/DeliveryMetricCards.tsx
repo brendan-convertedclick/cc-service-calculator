@@ -21,11 +21,11 @@ export function DeliveryMetricCards({ meta }: Props) {
         <p className="text-label-small text-m-on-surface-variant uppercase tracking-wide">
           Delivery Rate
         </p>
-        <p className="text-display-small font-semibold text-m-on-surface">
+        <p className="text-display-small font-semibold text-m-on-surface font-mono tabular-nums">
           {pct(meta.overallExternalRate)}
         </p>
         <p className="text-body-small text-m-on-surface-variant">
-          external · {pct(meta.overallInternalRate)} internal · {meta.periodLabel}
+          external · <span className="font-mono tabular-nums">{pct(meta.overallInternalRate)}</span> internal · {meta.periodLabel}
         </p>
       </div>
 
@@ -34,11 +34,11 @@ export function DeliveryMetricCards({ meta }: Props) {
           Delivery Speed
         </p>
         <p className="text-display-small font-semibold text-m-on-surface">
-          {meta.tasksPerWorkingDay}
+          <span className="font-mono tabular-nums">{meta.tasksPerWorkingDay}</span>
           <span className="text-title-medium font-normal text-m-on-surface-variant"> /day</span>
         </p>
         <p className="text-body-small text-m-on-surface-variant">
-          {meta.avgCycleDays}d avg cycle · {meta.workingDays} working days
+          <span className="font-mono tabular-nums">{meta.avgCycleDays}</span>d avg cycle · <span className="font-mono tabular-nums">{meta.workingDays}</span> working days
         </p>
       </div>
 
@@ -46,11 +46,11 @@ export function DeliveryMetricCards({ meta }: Props) {
         <p className="text-label-small text-m-on-surface-variant uppercase tracking-wide">
           Delivery Yield
         </p>
-        <p className="text-display-small font-semibold text-m-on-surface">
+        <p className="text-display-small font-semibold text-m-on-surface font-mono tabular-nums">
           {formatZar(meta.totalValueZar)}
         </p>
         <p className="text-body-small text-m-on-surface-variant">
-          {formatZar(meta.avgYieldPerHour)}/hr · R{meta.zarPerPoint}/pt
+          <span className="font-mono tabular-nums">{formatZar(meta.avgYieldPerHour)}</span>/hr · <span className="font-mono tabular-nums">R{meta.zarPerPoint}</span>/pt
         </p>
       </div>
     </div>

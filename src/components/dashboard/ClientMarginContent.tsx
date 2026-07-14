@@ -87,11 +87,11 @@ export function ClientMarginContent({ variant }: Props) {
                 {row.clientName}
               </span>
               <span className="block text-[10px] tabular-nums text-m-on-surface-variant">
-                {fmtZAR(row.revenueCents)} rev
+                <span className="font-mono">{fmtZAR(row.revenueCents)}</span> rev
               </span>
             </span>
             <span className="shrink-0 text-right">
-              <span className={cn("block text-label-medium font-bold tabular-nums", ragText[row.rag])}>
+              <span className={cn("block text-label-medium font-bold font-mono tabular-nums", ragText[row.rag])}>
                 {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "—"}
               </span>
               <span className="block text-[10px] font-medium tabular-nums text-m-on-surface-variant">
@@ -114,7 +114,7 @@ export function ClientMarginContent({ variant }: Props) {
               <span className={cn("h-2 w-2 shrink-0 rounded-full", ragDot[row.rag] ?? "bg-gray-400")} />
               <span className="truncate">{row.clientName}</span>
             </span>
-            <span className="shrink-0 text-[10px] tabular-nums text-m-on-surface-variant">
+            <span className="shrink-0 text-[10px] font-mono tabular-nums text-m-on-surface-variant">
               {fmtZAR(row.revenueCents)}
             </span>
           </div>
@@ -129,7 +129,7 @@ export function ClientMarginContent({ variant }: Props) {
             />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className={cn("text-label-small font-bold tabular-nums", ragText[row.rag])}>
+            <span className={cn("text-label-small font-bold font-mono tabular-nums", ragText[row.rag])}>
               {row.marginPct !== null ? `${row.marginPct.toFixed(1)}%` : "—"}
             </span>
             <span className="text-[10px] text-m-on-surface-variant">

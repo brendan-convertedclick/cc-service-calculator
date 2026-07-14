@@ -233,8 +233,8 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
       ) : (
         <>
           <div className="grid grid-cols-3 gap-3">
-            <MetricCard label="Total hours" value={`${data?.meta.totalHours ?? 0}h`} />
-            <MetricCard label="Distinct tasks" value={String(orderedTasks.length)} />
+            <MetricCard label="Total hours" value={`${data?.meta.totalHours ?? 0}h`} valueClassName="text-title-medium font-mono tabular-nums" />
+            <MetricCard label="Distinct tasks" value={String(orderedTasks.length)} valueClassName="text-title-medium font-mono tabular-nums" />
             <MetricCard
               label="Period"
               value={data?.meta.periodLabel ?? ""}
@@ -339,7 +339,7 @@ function ByPersonView({
               style={{ background: colorForTaskIdx(i) }}
             />
             {shorten(t.name, 32)}
-            <span className="text-m-on-surface-variant/70">· {t.hours.toFixed(1)}h</span>
+            <span className="text-m-on-surface-variant/70">· <span className="font-mono tabular-nums">{t.hours.toFixed(1)}</span>h</span>
           </span>
         ))}
         {orderedTasks.length > 12 && (
@@ -461,7 +461,7 @@ function ByTaskView({
                 <span className="flex-1 min-w-0">
                   <span className="block text-body-small text-m-on-surface truncate">{t.name}</span>
                   <span className="block text-label-small text-m-on-surface-variant">
-                    {t.hours.toFixed(1)}h
+                    <span className="font-mono tabular-nums">{t.hours.toFixed(1)}</span>h
                   </span>
                 </span>
               </label>

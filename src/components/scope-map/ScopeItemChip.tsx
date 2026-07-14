@@ -108,7 +108,7 @@ export function ScopeItemChip({
           {confidence !== null && (
             <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
               <ConfidenceBars value={confidence} />
-              <span className="tabular-nums text-label-small text-m-on-surface-variant">
+              <span className="font-mono tabular-nums text-label-small text-m-on-surface-variant">
                 {Math.round(confidence * 100)}%
               </span>
             </span>
@@ -131,7 +131,7 @@ export function ScopeItemChip({
           <div className="space-y-1">
             <div className="flex items-center justify-between text-label-small text-m-on-surface-variant">
               <span>Confidence</span>
-              <span>{Math.round(confidence * 100)}%</span>
+              <span className="font-mono tabular-nums">{Math.round(confidence * 100)}%</span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-m-surface-container">
               <div
@@ -155,7 +155,7 @@ export function ScopeItemChip({
           <p className="text-body-small text-m-on-surface">
             {item.suggested_service_id ? "Matched catalogue service" : "Ballpark estimate"}
             {item.estimated_cents !== null && (
-              <span className="ml-1 font-medium">
+              <span className="ml-1 font-medium font-mono tabular-nums">
                 {formatCurrency(item.estimated_cents / 100)}
               </span>
             )}

@@ -174,7 +174,7 @@ function SummaryChart({ members }: { members: DirectData["members"] }) {
             </svg>
             <p className="text-label-large text-m-on-surface">{member.display_name}</p>
             <p className="text-body-small text-m-on-surface-variant">
-              {member.human_hours.toFixed(1)}h human · {member.ai_session_hours.toFixed(1)}h AI
+              <span className="font-mono tabular-nums">{member.human_hours.toFixed(1)}</span>h human · <span className="font-mono tabular-nums">{member.ai_session_hours.toFixed(1)}</span>h AI
             </p>
           </div>
         );
@@ -238,7 +238,7 @@ function BreakdownChart({ breakdown }: { breakdown: BreakdownSlice[] }) {
                     <p className="text-label-small text-m-on-surface">{member.display_name}</p>
                   )}
                   <p className="text-body-small text-m-on-surface-variant/70 text-center">
-                    {member.human_hours.toFixed(1)}h · {member.multiplier.toFixed(1)}×
+                    <span className="font-mono tabular-nums">{member.human_hours.toFixed(1)}</span>h · <span className="font-mono tabular-nums">{member.multiplier.toFixed(1)}</span>×
                   </p>
                 </div>
               );
@@ -312,7 +312,7 @@ function BreakdownBarChart({ breakdown, period }: { breakdown: BreakdownSlice[];
                   >
                     {/* Effective output value above bar */}
                     {effectiveH > 0 && (
-                      <span style={{
+                      <span className="font-mono tabular-nums" style={{
                         position: "absolute",
                         bottom: "100%",
                         left: 0,
@@ -343,7 +343,7 @@ function BreakdownBarChart({ breakdown, period }: { breakdown: BreakdownSlice[];
                       }}
                     >
                       {humanBarPx >= 18 && (
-                        <span style={{ fontSize: 9, color: "white", fontWeight: 600, lineHeight: 1 }}>
+                        <span className="font-mono tabular-nums" style={{ fontSize: 9, color: "white", fontWeight: 600, lineHeight: 1 }}>
                           {member.human_hours.toFixed(1)}h
                         </span>
                       )}
@@ -387,7 +387,7 @@ function Chip({ label, value, sub }: { label: string; value: string; sub: string
       <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest mb-1">
         {label}
       </p>
-      <p className="text-headline-small text-m-on-surface font-bold">{value}</p>
+      <p className="text-headline-small text-m-on-surface font-bold font-mono tabular-nums">{value}</p>
       <p className="text-body-small text-m-on-surface-variant/60 mt-0.5">{sub}</p>
     </div>
   );

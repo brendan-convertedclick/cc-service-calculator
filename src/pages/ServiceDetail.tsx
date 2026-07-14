@@ -302,7 +302,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                           })
                         }
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground font-mono tabular-nums">
                         {formatZar(form.sell_price_cents)}
                       </p>
                     </div>

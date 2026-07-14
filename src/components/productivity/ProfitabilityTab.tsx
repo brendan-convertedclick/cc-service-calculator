@@ -58,7 +58,7 @@ export function ProfitabilityTab() {
       <div className="grid grid-cols-4 gap-4">
         {/* Portfolio Margin */}
         <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant">
-          <p className="text-headline-medium text-m-on-surface">{portfolioMargin}</p>
+          <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{portfolioMargin}</p>
           <p className="text-label-medium text-m-on-surface-variant">Portfolio Margin</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">
             across {rows.length} active project{rows.length !== 1 ? "s" : ""}
@@ -67,21 +67,21 @@ export function ProfitabilityTab() {
 
         {/* Total Quoted */}
         <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant">
-          <p className="text-headline-medium text-m-on-surface">{formatZar(totalQuotedCents)}</p>
+          <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{formatZar(totalQuotedCents)}</p>
           <p className="text-label-medium text-m-on-surface-variant">Total Quoted</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">in active pipeline</p>
         </div>
 
         {/* Best Margin */}
         <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant border-l-4 border-l-green-600">
-          <p className="text-headline-medium text-m-on-surface">{bestRow.marginPct != null ? formatPct(bestRow.marginPct) : "—"}</p>
+          <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{bestRow.marginPct != null ? formatPct(bestRow.marginPct) : "—"}</p>
           <p className="text-label-medium text-m-on-surface-variant">{bestRow.projectName}</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">highest margin project</p>
         </div>
 
         {/* Needs Attention */}
         <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant border-l-4 border-l-red-700">
-          <p className="text-headline-medium text-m-on-surface">{redRow.marginPct != null ? formatPct(redRow.marginPct) : "—"}</p>
+          <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{redRow.marginPct != null ? formatPct(redRow.marginPct) : "—"}</p>
           <p className="text-label-medium text-m-on-surface-variant">{redRow.projectName}</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">needs attention</p>
         </div>

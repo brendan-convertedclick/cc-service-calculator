@@ -136,12 +136,12 @@ export function RetainersList() {
                     <TableCell className="text-body-medium text-m-on-surface">
                       {r.name}
                     </TableCell>
-                    <TableCell className="text-right text-body-medium tabular-nums text-m-on-surface">
+                    <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
                       {r.retainer_monthly_fee_cents != null
                         ? formatZar(r.retainer_monthly_fee_cents)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right text-body-medium tabular-nums text-m-on-surface">
+                    <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
                       {r.retainer_hours_target ?? "—"}
                     </TableCell>
                     <TableCell>

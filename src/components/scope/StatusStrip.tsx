@@ -37,7 +37,8 @@ export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props)
       <section>
         <h3 className="mb-2 text-label-large text-m-on-surface">Budget</h3>
         <p className="text-label-small text-m-on-surface-variant">
-          {totalUsed}h used / {totalPlanned}h planned
+          <span className="font-mono tabular-nums">{totalUsed}h</span> used /{" "}
+          <span className="font-mono tabular-nums">{totalPlanned}h</span> planned
         </p>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-m-surface-container">
           <div
@@ -56,7 +57,7 @@ export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props)
                 <span className="text-label-small text-m-on-surface-variant">
                   {a.dept_id ?? "—"}
                 </span>
-                <span className="text-label-small text-m-on-surface">
+                <span className="font-mono tabular-nums text-label-small text-m-on-surface">
                   {a.actual_hours ?? 0}h / {a.planned_hours ?? 0}h
                 </span>
               </div>
@@ -68,7 +69,7 @@ export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props)
       {/* Briefs */}
       <section>
         <h3 className="mb-2 text-label-large text-m-on-surface">Briefs</h3>
-        <p data-testid="brief-count" className="text-display-small text-m-on-surface">
+        <p data-testid="brief-count" className="font-mono tabular-nums text-display-small text-m-on-surface">
           {briefCount}
         </p>
         <p className="text-label-small text-m-on-surface-variant">linked threads</p>
@@ -78,7 +79,7 @@ export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props)
       {quote && (
         <section>
           <h3 className="mb-2 text-label-large text-m-on-surface">Quote</h3>
-          <p className="text-body-large font-medium text-m-on-surface">
+          <p className="text-body-large font-medium font-mono tabular-nums text-m-on-surface">
             {formatZAR(quote.total_cents ?? 0)}
           </p>
           <span

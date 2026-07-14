@@ -15,7 +15,7 @@ export function BurnChart({ rows }: { rows: Row[] }) {
             <div className="flex items-center justify-between text-label-small">
               <span>{r.dept_name}</span>
               <span>
-                {r.actual.toFixed(1)} / {r.planned.toFixed(1)} h
+                <span className="font-mono tabular-nums">{r.actual.toFixed(1)}</span> / <span className="font-mono tabular-nums">{r.planned.toFixed(1)}</span> h
               </span>
             </div>
             <div className="relative mt-1 h-3 w-full rounded-full bg-m-surface-container">

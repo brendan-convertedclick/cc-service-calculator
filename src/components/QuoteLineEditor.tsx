@@ -78,11 +78,11 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
           </div>
           {!open && (
             <div className="mt-0.5 flex items-center gap-2 text-label-small text-m-on-surface-variant">
-              <span className="tabular-nums">Qty {line.qty}</span>
+              <span className="tabular-nums">Qty <span className="font-mono tabular-nums">{line.qty}</span></span>
               <span>·</span>
-              <span className="tabular-nums">{formatZar(unitCents)}/ea</span>
+              <span className="tabular-nums"><span className="font-mono tabular-nums">{formatZar(unitCents)}</span>/ea</span>
               <span>·</span>
-              <span className="tabular-nums">{totalHours.toFixed(1)}h</span>
+              <span className="font-mono tabular-nums">{totalHours.toFixed(1)}h</span>
               {topDepts.length > 0 && <span>·</span>}
               <span className="truncate">
                 {topDepts.map((d) => `${d.name} ${d.pct}%`).join(" · ")}
@@ -93,10 +93,10 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
           )}
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-title-small tabular-nums text-m-on-surface">
+          <div className="text-title-small font-mono tabular-nums text-m-on-surface">
             {formatZar(totalCents)}
           </div>
-          <div className="text-label-small tabular-nums text-m-on-surface-variant">
+          <div className="text-label-small font-mono tabular-nums text-m-on-surface-variant">
             {line.qty} × {formatZar(unitCents)}
           </div>
         </div>
@@ -111,7 +111,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
         )}
         <span
           className={
-            "shrink-0 rounded-full px-2 py-0.5 text-label-small tabular-nums " +
+            "shrink-0 rounded-full px-2 py-0.5 text-label-small font-mono tabular-nums " +
             (sumOutOfTolerance
               ? "bg-destructive/10 text-destructive"
               : "bg-m-surface-container text-m-on-surface-variant")
@@ -155,26 +155,26 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                 type="number"
                 step="0.25"
                 min="0.25"
-                className="h-9 text-right tabular-nums"
+                className="h-9 text-right font-mono tabular-nums"
                 value={line.qty}
                 onChange={(e) => onChange(index, { qty: Number(e.target.value) })}
               />
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Unit price</span>
-              <span className="flex h-9 items-center text-title-small tabular-nums text-m-on-surface">
+              <span className="flex h-9 items-center text-title-small font-mono tabular-nums text-m-on-surface">
                 {formatZar(unitCents)}
               </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Hours</span>
-              <span className="flex h-9 items-center tabular-nums text-m-on-surface">
+              <span className="flex h-9 items-center font-mono tabular-nums text-m-on-surface">
                 {totalHours.toFixed(2)}h
               </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Line total</span>
-              <span className="flex h-9 items-center text-title-medium tabular-nums text-m-primary">
+              <span className="flex h-9 items-center text-title-medium font-mono tabular-nums text-m-primary">
                 {formatZar(totalCents)}
               </span>
             </div>
@@ -209,7 +209,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                         step="0.5"
                         min="0"
                         max="100"
-                        className="h-8 w-full pr-7 text-right tabular-nums"
+                        className="h-8 w-full pr-7 text-right font-mono tabular-nums"
                         value={pct}
                         onChange={(e) =>
                           onChange(index, {
@@ -224,8 +224,8 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                     <span
                       className={
                         dim
-                          ? "text-right text-body-small tabular-nums text-m-on-surface-variant/60"
-                          : "text-right text-body-small tabular-nums text-m-on-surface"
+                          ? "text-right text-body-small font-mono tabular-nums text-m-on-surface-variant/60"
+                          : "text-right text-body-small font-mono tabular-nums text-m-on-surface"
                       }
                     >
                       {hrs.toFixed(2)}h
@@ -248,7 +248,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                   : "text-m-on-surface-variant tabular-nums"
               }
             >
-              Allocation {sumPct.toFixed(2)}%
+              Allocation <span className="font-mono tabular-nums">{sumPct.toFixed(2)}%</span>
             </span>
           </div>
 

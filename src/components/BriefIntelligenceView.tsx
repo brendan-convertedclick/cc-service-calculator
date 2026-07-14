@@ -243,9 +243,9 @@ export function BriefIntelligenceView({
                     {dept.department_name}
                   </span>
                   <span className="text-body-small text-m-on-surface-variant">
-                    {dept.human_hours_low}–{dept.human_hours_high} hrs human
+                    <span className="font-mono tabular-nums">{dept.human_hours_low}–{dept.human_hours_high}</span> hrs human
                     {dept.ai_hours > 0 && (
-                      <span className="ml-2 text-m-primary">· {dept.ai_hours} hrs AI</span>
+                      <span className="ml-2 text-m-primary">· <span className="font-mono tabular-nums">{dept.ai_hours}</span> hrs AI</span>
                     )}
                   </span>
                 </div>
@@ -272,12 +272,15 @@ export function BriefIntelligenceView({
               <div>
                 <div className="text-label-small text-m-on-surface-variant">Human hours</div>
                 <div className="text-title-medium">
-                  {intelligence.total_human_hours_low ?? "?"}–
-                  {intelligence.total_human_hours_high ?? "?"} hrs
+                  <span className="font-mono tabular-nums">
+                    {intelligence.total_human_hours_low ?? "?"}–
+                    {intelligence.total_human_hours_high ?? "?"}
+                  </span>{" "}
+                  hrs
                 </div>
                 {(intelligence.total_ai_hours ?? 0) > 0 && (
                   <div className="text-body-small text-m-primary">
-                    + {intelligence.total_ai_hours} hrs AI
+                    + <span className="font-mono tabular-nums">{intelligence.total_ai_hours}</span> hrs AI
                   </div>
                 )}
               </div>
@@ -285,7 +288,7 @@ export function BriefIntelligenceView({
             {intelligence.estimated_price_cents != null && (
               <div>
                 <div className="text-label-small text-m-on-surface-variant">Estimated price</div>
-                <div className="text-title-medium">{zar(intelligence.estimated_price_cents)}</div>
+                <div className="text-title-medium font-mono tabular-nums">{zar(intelligence.estimated_price_cents)}</div>
               </div>
             )}
           </div>
@@ -526,16 +529,16 @@ export function BriefIntelligenceView({
         <div>
           <div className="text-label-small text-m-on-surface-variant">Human hours</div>
           <div className="text-title-medium">
-            {totals.total_human_hours_low}–{totals.total_human_hours_high} hrs
+            <span className="font-mono tabular-nums">{totals.total_human_hours_low}–{totals.total_human_hours_high}</span> hrs
           </div>
           {totals.total_ai_hours > 0 && (
-            <div className="text-body-small text-m-primary">+ {totals.total_ai_hours} hrs AI</div>
+            <div className="text-body-small text-m-primary">+ <span className="font-mono tabular-nums">{totals.total_ai_hours}</span> hrs AI</div>
           )}
         </div>
         <div className="space-y-1">
           <div className="text-label-small text-m-on-surface-variant">Estimated price</div>
           <div className="flex items-center gap-1">
-            <span className="text-title-medium">R</span>
+            <span className="text-title-medium font-mono">R</span>
             <Input
               type="number"
               step="0.01"
@@ -557,7 +560,7 @@ export function BriefIntelligenceView({
               className="text-label-small text-m-primary underline"
               onClick={() => update({ priceTouched: false })}
             >
-              reset to computed ({zar(computedPrice)})
+              reset to computed (<span className="font-mono tabular-nums">{zar(computedPrice)}</span>)
             </button>
           ) : (
             <div className="text-label-small text-m-on-surface-variant">

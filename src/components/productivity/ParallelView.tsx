@@ -145,7 +145,7 @@ export function ParallelView({ data, period, anchorDate }: Props) {
                       .join(" · ")}
                   >
                     {cell.ai_sessions > 0 && (
-                      <span className="text-[10px] font-semibold leading-none text-white/90 select-none">
+                      <span className="text-[10px] font-semibold leading-none text-white/90 select-none font-mono tabular-nums">
                         {cell.ai_sessions}
                       </span>
                     )}
@@ -191,7 +191,7 @@ function Chip({ label, value, sub }: { label: string; value: string; sub: string
       <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest mb-1">
         {label}
       </p>
-      <p className="text-headline-small text-m-on-surface font-bold">{value}</p>
+      <p className="text-headline-small text-m-on-surface font-bold font-mono tabular-nums">{value}</p>
       <p className="text-body-small text-m-on-surface-variant/60 mt-0.5">{sub}</p>
     </div>
   );

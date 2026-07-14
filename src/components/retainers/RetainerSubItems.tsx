@@ -83,10 +83,10 @@ export function RetainerSubItems({ projectId }: { projectId: string }) {
             <TableCell className="text-body-medium tabular-nums text-m-on-surface-variant">
               {formatPeriod(item.periodStart, item.periodEnd)}
             </TableCell>
-            <TableCell className="text-right text-body-medium tabular-nums text-m-on-surface">
+            <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
               {formatHours(item.estimatedHours)}
             </TableCell>
-            <TableCell className="text-right text-body-medium tabular-nums text-m-on-surface">
+            <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
               {formatHours(item.usedHours)}
             </TableCell>
             <TableCell>

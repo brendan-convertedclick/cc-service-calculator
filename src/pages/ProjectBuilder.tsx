@@ -161,7 +161,7 @@ Output: A structured list of suggested services with hours and allocation, ready
           <div className="flex items-center gap-5 text-body-small">
             <div>
               <div className="text-label-small text-m-on-surface-variant">Lines</div>
-              <div className="text-title-small">{qb.lines.length}</div>
+              <div className="text-title-small font-mono tabular-nums">{qb.lines.length}</div>
             </div>
             <div className="h-8 w-px bg-m-outline-variant" />
             <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ Output: A structured list of suggested services with hours and allocation, ready
                 id="margin-input"
                 type="number"
                 step="0.5"
-                className="h-9 w-20"
+                className="h-9 w-20 font-mono tabular-nums"
                 value={qb.marginPct}
                 onChange={(e) => qb.setMarginPct(Number(e.target.value))}
               />
@@ -188,7 +188,7 @@ Output: A structured list of suggested services with hours and allocation, ready
                 id="discount-input"
                 type="number"
                 step="0.5"
-                className="h-9 w-20"
+                className="h-9 w-20 font-mono tabular-nums"
                 value={qb.discountPct}
                 onChange={(e) => qb.setDiscountPct(Number(e.target.value))}
               />
@@ -196,13 +196,13 @@ Output: A structured list of suggested services with hours and allocation, ready
             <div className="h-8 w-px bg-m-outline-variant" />
             <div>
               <div className="text-label-small text-m-on-surface-variant">Subtotal</div>
-              <div className="text-title-small tabular-nums">
+              <div className="text-title-small font-mono tabular-nums">
                 {formatZar(qb.totals.subtotal_cents)}
               </div>
             </div>
             <div>
               <div className="text-label-small text-m-on-surface-variant">Total</div>
-              <div className="text-headline-small tabular-nums text-m-primary">
+              <div className="text-headline-small font-mono tabular-nums text-m-primary">
                 {formatZar(qb.totals.total_cents)}
               </div>
             </div>

@@ -113,7 +113,7 @@ export function ServiceTableSectionEditor({
                   {services.map((svc) => (
                     <CommandItem key={svc.id} value={`${svc.code ?? ""} ${svc.name}`} onSelect={() => addLine(svc)}>
                       <span className="flex-1 truncate">{svc.name}</span>
-                      <span className="ml-2 text-label-small tabular-nums text-m-on-surface-variant">
+                      <span className="ml-2 text-label-small font-mono tabular-nums text-m-on-surface-variant">
                         {formatCurrency(svc.sell_price_cents / 100)}
                       </span>
                     </CommandItem>
@@ -129,7 +129,7 @@ export function ServiceTableSectionEditor({
           data-cents={billableCents}
           className="text-label-medium tabular-nums text-m-on-surface-variant"
         >
-          Billable {formatCurrency(billableCents / 100)}
+          Billable <span className="font-mono tabular-nums">{formatCurrency(billableCents / 100)}</span>
         </span>
       </div>
     </div>

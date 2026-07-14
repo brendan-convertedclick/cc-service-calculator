@@ -72,10 +72,10 @@ export function ChecklistSummary({ steps, departments, priceCents, pricingModel 
         {entries.map((e) => (
           <span key={e.dept!.id} className="inline-flex items-center gap-1">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: e.dept!.color ?? "#64748b" }} />
-            {e.dept!.name}: {formatHours(e.hours)}
+            {e.dept!.name}: <span className="font-mono tabular-nums">{formatHours(e.hours)}</span>
           </span>
         ))}
-        <span className="ml-auto font-medium text-foreground">Total {formatHours(totalHours)}</span>
+        <span className="ml-auto font-medium text-foreground">Total <span className="font-mono tabular-nums">{formatHours(totalHours)}</span></span>
       </div>
 
       {!isPercentage && priceCents > 0 && (
@@ -87,7 +87,7 @@ export function ChecklistSummary({ steps, departments, priceCents, pricingModel 
             coveragePct <= 100 && "text-muted-foreground"
           )}
         >
-          Budget: {formatZar(priceCents)}. Planned: {formatZar(Math.round(planCents))} ({coveragePct.toFixed(0)}%).
+          Budget: <span className="font-mono tabular-nums">{formatZar(priceCents)}</span>. Planned: <span className="font-mono tabular-nums">{formatZar(Math.round(planCents))}</span> (<span className="font-mono tabular-nums">{coveragePct.toFixed(0)}%</span>).
         </div>
       )}
     </div>

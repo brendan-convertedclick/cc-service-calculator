@@ -508,8 +508,8 @@ function SowCheckInner({ briefId }: { briefId: string }) {
               <Card className="border-m-outline-variant bg-m-surface-container shadow-elev-3">
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                   <span className="text-body-medium text-m-on-surface">
-                    <strong>{selectedItems.length}</strong> item(s) selected · est.{" "}
-                    <strong>{formatCurrency(selectedEstimateCents / 100)}</strong>
+                    <strong className="font-mono tabular-nums">{selectedItems.length}</strong> item(s) selected · est.{" "}
+                    <strong className="font-mono tabular-nums">{formatCurrency(selectedEstimateCents / 100)}</strong>
                   </span>
                   <Button onClick={() => setEstimateOpen(true)} className="gap-2">
                     <Calculator className="h-4 w-4" />
@@ -634,7 +634,7 @@ function PlacementsTable({
                   );
                 })()}
               </TableCell>
-              <TableCell className="text-body-small text-m-on-surface-variant">
+              <TableCell className="text-body-small font-mono tabular-nums text-m-on-surface-variant">
                 {p.ai_confidence !== null ? `${Math.round(p.ai_confidence * 100)}%` : "—"}
               </TableCell>
               <TableCell className="max-w-sm">

@@ -60,13 +60,13 @@ export function AllocationEditor({ allocations, departments, priceCents, readOnl
                 <div className="text-sm font-medium">{dept?.name ?? "Unknown"}</div>
                 {dept && (
                   <div className="text-xs text-muted-foreground">
-                    {formatZar(dept.hourly_rate_cents)}/hr
-                    {r && <> · {formatZar(r.priceShareCents)}</>}
+                    <span className="font-mono tabular-nums">{formatZar(dept.hourly_rate_cents)}</span>/hr
+                    {r && <> · <span className="font-mono tabular-nums">{formatZar(r.priceShareCents)}</span></>}
                   </div>
                 )}
               </div>
               {readOnly ? (
-                <div className="text-right text-sm">{a.pct.toFixed(2)}%</div>
+                <div className="text-right text-sm font-mono tabular-nums">{a.pct.toFixed(2)}%</div>
               ) : (
                 <Input
                   type="number"
@@ -78,7 +78,7 @@ export function AllocationEditor({ allocations, departments, priceCents, readOnl
                   onChange={(e) => update(i, { pct: Number(e.target.value) })}
                 />
               )}
-              {resolved && <div className="text-right text-sm">{r ? formatHours(r.hours) : "—"}</div>}
+              {resolved && <div className="text-right text-sm font-mono tabular-nums">{r ? formatHours(r.hours) : "—"}</div>}
               {!readOnly && (
                 <Button variant="ghost" size="icon" onClick={() => remove(i)}>
                   <X className="h-4 w-4" />
@@ -111,16 +111,16 @@ export function AllocationEditor({ allocations, departments, priceCents, readOnl
       <div className="flex items-center justify-between border-t pt-3 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Total</span>
-          <Badge variant={valid ? "success" : "destructive"}>{sum.toFixed(2)}%</Badge>
+          <Badge variant={valid ? "success" : "destructive"} className="font-mono tabular-nums">{sum.toFixed(2)}%</Badge>
           {!valid && (
             <span className="text-xs text-muted-foreground">
-              must be between {SUM_TOLERANCE_MIN} and {SUM_TOLERANCE_MAX}
+              must be between <span className="font-mono tabular-nums">{SUM_TOLERANCE_MIN}</span> and <span className="font-mono tabular-nums">{SUM_TOLERANCE_MAX}</span>
             </span>
           )}
         </div>
         {resolved && (
           <div className="text-muted-foreground">
-            <span className={cn("font-medium", valid ? "text-foreground" : "text-muted-foreground")}>
+            <span className={cn("font-medium font-mono tabular-nums", valid ? "text-foreground" : "text-muted-foreground")}>
               {formatHours(totalHours(resolved))}
             </span>{" "}
             total budgeted hours

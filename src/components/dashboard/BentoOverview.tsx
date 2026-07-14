@@ -67,7 +67,7 @@ function HeroStat({
 }) {
   return (
     <div className="flex min-w-[130px] flex-1 flex-col justify-between rounded-xl border border-m-outline-variant bg-m-surface-container-low p-3">
-      <div className="text-[28px] font-bold leading-none tracking-tight tabular-nums text-m-on-surface">{value}</div>
+      <div className="text-[28px] font-bold leading-none tracking-tight font-mono tabular-nums text-m-on-surface">{value}</div>
       {visual}
       <div className="mt-1.5 text-[11px] leading-tight text-m-on-surface-variant">{label}</div>
     </div>
@@ -107,7 +107,7 @@ export function BentoOverview({
           active && "ring-2 ring-m-primary",
         )}
       >
-        <div className={cn("text-[34px] font-bold leading-none tabular-nums", numClass)}>{count}</div>
+        <div className={cn("text-[34px] font-bold leading-none font-mono tabular-nums", numClass)}>{count}</div>
         <div className="mt-1.5 flex items-center gap-1.5 text-label-medium font-semibold text-m-on-surface-variant">
           <span className={cn("h-2 w-2 rounded-full", dot)} />
           {label}
@@ -157,7 +157,7 @@ export function BentoOverview({
                   }}
                 >
                   <div className="absolute inset-[6px] rounded-full bg-m-surface" />
-                  <span className="absolute inset-0 grid place-items-center text-label-small font-bold tabular-nums text-m-on-tertiary-container">
+                  <span className="absolute inset-0 grid place-items-center text-label-small font-bold font-mono tabular-nums text-m-on-tertiary-container">
                     {rate !== null ? `${rate}%` : "—"}
                   </span>
                 </div>
@@ -187,7 +187,7 @@ export function BentoOverview({
           <TileHead
             title="Needs attention"
             aside={
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold font-mono tabular-nums text-amber-800">
                 {opsData.attentionProjects.length}
               </span>
             }

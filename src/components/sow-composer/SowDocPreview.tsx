@@ -115,7 +115,7 @@ export function SowDocPreview({
                   data-cents={section.receipt.billableTotalCents}
                 >
                   <span className="text-label-medium text-m-on-surface-variant">Billable subtotal</span>
-                  <span className="text-body-medium font-semibold tabular-nums text-m-on-surface">
+                  <span className="text-body-medium font-mono font-semibold tabular-nums text-m-on-surface">
                     {formatCurrency(section.receipt.billableTotalCents / 100)}
                   </span>
                 </div>
@@ -156,7 +156,7 @@ export function SowDocPreview({
         <span
           data-testid="sow-total"
           data-cents={grandTotalCents}
-          className="text-headline-small font-semibold tabular-nums text-m-on-surface"
+          className="text-headline-small font-mono font-semibold tabular-nums text-m-on-surface"
         >
           {formatCurrency(grandTotalCents / 100)}
         </span>

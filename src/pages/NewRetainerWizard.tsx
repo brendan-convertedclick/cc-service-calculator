@@ -638,7 +638,7 @@ export function NewRetainerWizard() {
               />
               {blendedRate > 0 && (
                 <p className="text-label-small text-m-on-surface-variant">
-                  Linked to fee at {formatZar(Math.round(blendedRate * 100))}/h — edit either
+                  Linked to fee at <span className="font-mono tabular-nums">{formatZar(Math.round(blendedRate * 100))}</span>/h — edit either
                 </p>
               )}
             </div>
@@ -806,13 +806,13 @@ export function NewRetainerWizard() {
             <div className="flex items-center justify-between">
               <span className="text-body-small text-m-on-surface-variant">Planned hours / month</span>
               <span className="text-title-small tabular-nums">
-                {totalPlannedHours.toFixed(2)} h
-                <span className="ml-2 text-label-small text-m-on-surface-variant">{totalPointsPerMonth} pts</span>
+                <span className="font-mono">{totalPlannedHours.toFixed(2)}</span> h
+                <span className="ml-2 text-label-small text-m-on-surface-variant"><span className="font-mono">{totalPointsPerMonth}</span> pts</span>
               </span>
             </div>
             {targetHours > 0 && (
               <div className="flex items-center justify-between text-label-small">
-                <span className="text-m-on-surface-variant">vs monthly target {targetHours.toFixed(2)} h</span>
+                <span className="text-m-on-surface-variant">vs monthly target <span className="font-mono tabular-nums">{targetHours.toFixed(2)}</span> h</span>
                 <span className={hoursGap < -0.05 ? "text-m-error" : "text-m-on-surface-variant"}>{gapLabel}</span>
               </div>
             )}
@@ -847,9 +847,9 @@ export function NewRetainerWizard() {
               <dt className="text-m-on-surface-variant">Start date</dt>
               <dd>{recurrenceStart}</dd>
               <dt className="text-m-on-surface-variant">Monthly hours target</dt>
-              <dd>{Number(hoursTarget) || 0}</dd>
+              <dd className="font-mono tabular-nums">{Number(hoursTarget) || 0}</dd>
               <dt className="text-m-on-surface-variant">Monthly fee</dt>
-              <dd>{formatZar(Math.round((Number(monthlyFee) || 0) * 100))}</dd>
+              <dd className="font-mono tabular-nums">{formatZar(Math.round((Number(monthlyFee) || 0) * 100))}</dd>
             </dl>
           </div>
 
@@ -857,16 +857,16 @@ export function NewRetainerWizard() {
             <div className="flex items-center justify-between">
               <div className="text-title-small">Recurring services</div>
               <span className="text-label-small text-m-on-surface-variant">
-                {totalPointsPerMonth} pts / month
+                <span className="font-mono tabular-nums">{totalPointsPerMonth}</span> pts / month
               </span>
             </div>
             <div className="flex items-center justify-between rounded-md bg-m-surface-container-low px-3 py-2 text-body-small">
               <span className="text-m-on-surface-variant">Planned hours vs target</span>
               <span className="tabular-nums">
-                <strong>{totalPlannedHours.toFixed(2)} h</strong> planned
+                <strong><span className="font-mono">{totalPlannedHours.toFixed(2)}</span> h</strong> planned
                 {targetHours > 0 && (
                   <span className={hoursGap < -0.05 ? "text-m-error" : "text-m-on-surface-variant"}>
-                    {" "}/ {targetHours.toFixed(2)} h target · {gapLabel}
+                    {" "}/ <span className="font-mono">{targetHours.toFixed(2)}</span> h target · {gapLabel}
                   </span>
                 )}
               </span>
@@ -877,7 +877,7 @@ export function NewRetainerWizard() {
                   <div className="flex items-center justify-between">
                     <span className="text-m-on-surface">{serviceName(r.service_id)}</span>
                     <span className="text-m-on-surface-variant">
-                      {r.cadence} · {r.occurrences_per_month}×/mo · {r.points_per_occurrence} pts
+                      {r.cadence} · <span className="font-mono tabular-nums">{r.occurrences_per_month}</span>×/mo · <span className="font-mono tabular-nums">{r.points_per_occurrence}</span> pts
                       {r.is_live_eligible ? " · live" : ""}
                     </span>
                   </div>

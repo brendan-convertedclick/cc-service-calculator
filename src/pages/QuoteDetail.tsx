@@ -126,7 +126,7 @@ export function QuoteDetail() {
             <Badge>{q.status}</Badge>
           </div>
           <div>
-            Total: <strong>{formatZar(Number(q.total_cents))}</strong>
+            Total: <strong className="font-mono tabular-nums">{formatZar(Number(q.total_cents))}</strong>
           </div>
           <div className="flex flex-wrap gap-4">
             {q.cost_estimate_pdf_url && (

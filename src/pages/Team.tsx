@@ -111,7 +111,7 @@ export function Team() {
                         }}
                       />
                       {m.cost_rate_cents != null && (
-                        <div className="mt-1 text-right text-xs text-muted-foreground">{formatZar(m.cost_rate_cents)}</div>
+                        <div className="mt-1 text-right text-xs text-muted-foreground font-mono tabular-nums">{formatZar(m.cost_rate_cents)}</div>
                       )}
                     </td>
                     <td className="py-3 pl-2">

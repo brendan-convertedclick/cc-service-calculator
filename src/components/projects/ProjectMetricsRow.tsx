@@ -69,11 +69,11 @@ export function ProjectMetricsRow({
             />
             <div className="flex items-center gap-3 text-label-small text-m-on-surface-variant whitespace-nowrap">
               <span>
-                <strong className="text-m-on-surface">{actual.toFixed(1)}</strong> / {budgeted.toFixed(1)} pts
+                <strong className="text-m-on-surface font-mono tabular-nums">{actual.toFixed(1)}</strong> / <span className="font-mono tabular-nums">{budgeted.toFixed(1)}</span> pts
               </span>
               {max !== null && (
                 <span>
-                  cap <strong className="text-m-on-surface">{max.toFixed(1)}</strong>
+                  cap <strong className="text-m-on-surface font-mono tabular-nums">{max.toFixed(1)}</strong>
                 </span>
               )}
             </div>

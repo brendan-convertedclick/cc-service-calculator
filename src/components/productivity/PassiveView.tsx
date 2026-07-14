@@ -74,9 +74,9 @@ export function PassiveView({ data }: Props) {
                   />
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-label-large text-m-on-surface">{agent.runs} runs</p>
+                  <p className="text-label-large text-m-on-surface"><span className="font-mono tabular-nums">{agent.runs}</span> runs</p>
                   <p className="text-body-small text-m-primary">
-                    {agent.estimated_human_hours.toFixed(1)}h equiv.
+                    <span className="font-mono tabular-nums">{agent.estimated_human_hours.toFixed(1)}</span>h equiv.
                   </p>
                 </div>
               </div>
@@ -96,8 +96,8 @@ export function PassiveView({ data }: Props) {
               </p>
             </div>
             <p className="text-headline-small text-m-primary font-extrabold">
-              {totals.total_passive_hours.toFixed(0)}h ·{" "}
-              {formatCurrency(totals.total_cost_zar)}
+              <span className="font-mono tabular-nums">{totals.total_passive_hours.toFixed(0)}</span>h ·{" "}
+              <span className="font-mono tabular-nums">{formatCurrency(totals.total_cost_zar)}</span>
             </p>
           </div>
         )}
@@ -112,7 +112,7 @@ function Chip({ label, value, sub }: { label: string; value: string; sub: string
       <p className="text-label-small text-m-on-surface-variant uppercase tracking-widest mb-1">
         {label}
       </p>
-      <p className="text-headline-small text-m-on-surface font-bold">{value}</p>
+      <p className="text-headline-small text-m-on-surface font-bold font-mono tabular-nums">{value}</p>
       <p className="text-body-small text-m-on-surface-variant/60 mt-0.5">{sub}</p>
     </div>
   );

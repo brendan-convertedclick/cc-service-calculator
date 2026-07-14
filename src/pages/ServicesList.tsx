@@ -504,7 +504,7 @@ const ServiceRow = memo(function ServiceRow({
         )}
       </td>
 
-      <td className="px-3 py-2 text-right tabular-nums border-b">{priceLabel}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums border-b">{priceLabel}</td>
 
       <td className="px-3 py-2 border-b">
         <Popover open={open} onOpenChange={setOpen}>
@@ -607,11 +607,11 @@ const ServiceRow = memo(function ServiceRow({
 
             <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2.5">
               <div className="text-[11px] text-muted-foreground">
-                Total <b className="font-semibold text-foreground">{formatHoursShort(sumHours)}</b>
+                Total <b className="font-semibold text-foreground font-mono tabular-nums">{formatHoursShort(sumHours)}</b>
                 {isPercentage ? (
-                  <> · <b className="font-semibold text-foreground">{formatZar(sumCost)}</b></>
+                  <> · <b className="font-semibold text-foreground font-mono tabular-nums">{formatZar(sumCost)}</b></>
                 ) : (
-                  <> · <b className="font-semibold text-foreground">{sumPct}%</b> of price</>
+                  <> · <b className="font-semibold text-foreground font-mono tabular-nums">{sumPct}%</b> of price</>
                 )}
               </div>
               {readOnly ? (

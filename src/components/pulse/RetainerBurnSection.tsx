@@ -40,7 +40,7 @@ export function RetainerBurnSection({ rows, month }: RetainerBurnSectionProps) {
                 <span className="text-body-small font-semibold text-m-on-surface">
                   {r.clientName}{' '}
                   <span className="text-label-small font-normal text-m-on-surface-variant">
-                    {r.hoursUsed > 0 && `${r.hoursUsed}h used · `}no hours target set
+                    {r.hoursUsed > 0 && <><span className="font-mono tabular-nums">{r.hoursUsed}</span>h used · </>}no hours target set
                   </span>
                 </span>
                 <Link to="/retainers" className="text-label-small font-medium text-m-primary hover:underline">
@@ -55,21 +55,21 @@ export function RetainerBurnSection({ rows, month }: RetainerBurnSectionProps) {
                 <span className="text-body-small font-semibold text-m-on-surface">
                   {r.clientName}{' '}
                   <span className="text-label-small font-normal text-m-on-surface-variant">
-                    {fmt(r.feePerMonthCents)}/mo · {r.hoursTarget}h target
+                    <span className="font-mono tabular-nums">{fmt(r.feePerMonthCents)}</span>/mo · <span className="font-mono tabular-nums">{r.hoursTarget}</span>h target
                   </span>
                 </span>
                 <span className={cn('text-label-small font-semibold', r.rag === 'green' ? 'text-m-on-surface-variant' : r.rag === 'amber' ? 'text-amber-700' : 'text-m-error')}>
-                  {r.hoursUsed}h / {r.hoursTarget}h
+                  <span className="font-mono tabular-nums">{r.hoursUsed}</span>h / <span className="font-mono tabular-nums">{r.hoursTarget}</span>h
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-m-surface-container-high">
                 <div className={cn('h-full rounded-full transition-all', barColor[r.rag])} style={{ width: `${Math.min(r.burnPct, 100)}%` }} />
               </div>
               <p className={cn('mt-1 text-label-small', r.isOverrunRisk ? 'text-amber-700 font-medium' : 'text-m-on-surface-variant')}>
-                {r.burnPct}% · {r.daysLeftInMonth} days left
+                <span className="font-mono tabular-nums">{r.burnPct}</span>% · <span className="font-mono tabular-nums">{r.daysLeftInMonth}</span> days left
                 {r.isOverrunRisk && ' · at risk of overrun'}
                 {r.isUnderutilised && ' · under-utilised'}
-                {' · '}{fmt(r.effectiveHourlyRateCents)}/h effective rate
+                {' · '}<span className="font-mono tabular-nums">{fmt(r.effectiveHourlyRateCents)}</span>/h effective rate
               </p>
             </div>
           )}
