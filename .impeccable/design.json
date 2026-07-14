@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "title": "Design System: Conductor",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Studio Violet", "canonical": "#7C3AED", "tonalRamp": ["#2E1065", "#4C1D95", "#5B21B6", "#6D28D9", "#7C3AED", "#8B5CF6", "#A78BFA", "#EDE9FE"] },
+      "primary-pink": { "role": "primary", "displayName": "Signal Pink", "canonical": "#EC4899", "tonalRamp": ["#831843", "#9D174D", "#BE185D", "#DB2777", "#EC4899", "#F472B6", "#F9A8D4", "#FCE7F3"] },
+      "secondary": { "role": "secondary", "displayName": "Slate", "canonical": "#475569", "tonalRamp": ["#0F172A", "#1E293B", "#334155", "#475569", "#64748B", "#94A3B8", "#CBD5E1", "#F1F5F9"] },
+      "tertiary": { "role": "tertiary", "displayName": "Teal", "canonical": "#0891B2", "tonalRamp": ["#164E63", "#155E75", "#0E7490", "#0891B2", "#06B6D4", "#22D3EE", "#67E8F9", "#CFFAFE"] },
+      "error": { "role": "error", "displayName": "Error Red", "canonical": "#DC2626", "tonalRamp": ["#7F1D1D", "#991B1B", "#B91C1C", "#DC2626", "#EF4444", "#F87171", "#FCA5A5", "#FEE2E2"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#09090B", "tonalRamp": ["#09090B", "#18181B", "#27272A", "#3F3F46", "#5B4A7A", "#A1A1AA", "#D4D4D8", "#FAFAFA"] },
+      "surface-container": { "role": "neutral", "displayName": "Violet Mist", "canonical": "#F5F3FF", "tonalRamp": ["#2E1065", "#4C1D95", "#6D28D9", "#8B5CF6", "#C4B5FD", "#DDD6FE", "#EDE9FE", "#F5F3FF"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display Large", "purpose": "Rare — big empty-state or landing moments only, never inside dense screens." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles and primary section headers." },
+      "title": { "displayName": "Title", "purpose": "Card headers, panel titles, table-group labels." },
+      "body": { "displayName": "Body", "purpose": "Default UI text and prose; cap prose at 65–75ch." },
+      "label": { "displayName": "Label", "purpose": "Buttons, form labels, nav, chips." },
+      "mono": { "displayName": "Mono", "purpose": "Currency, hours, percentages, IDs, code — figures that must tabulate." }
+    },
+    "shadows": [
+      { "name": "elev-1", "value": "0 1px 2px 0 rgb(15 23 42 / 0.04)", "purpose": "Resting state for cards and panels." },
+      { "name": "elev-2", "value": "0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.08)", "purpose": "Hover on cards/buttons." },
+      { "name": "elev-3", "value": "0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.08)", "purpose": "Dropdowns, popovers." },
+      { "name": "elev-4", "value": "0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.08)", "purpose": "Floating toolbars, large popovers." },
+      { "name": "elev-5", "value": "0 20px 25px -5px rgb(15 23 42 / 0.1), 0 8px 10px -6px rgb(15 23 42 / 0.08)", "purpose": "Modals and command palette." }
+    ],
+    "motion": [
+      { "name": "transition-default", "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "State changes and feedback; product stays in flow, no choreography." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The signature call to action — violet→pink gradient pill, reserved for primary actions only.",
+      "html": "<button class=\"ds-btn-primary\">Create brief</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 24px; border: none; border-radius: 9999px; background: linear-gradient(135deg, #7C3AED, #EC4899); color: #fff; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.007em; box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.04); cursor: pointer; transition: all 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { filter: brightness(1.1); box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.08); } .ds-btn-primary:active { filter: brightness(0.95); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #7C3AED; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary emphasis — violet-outlined pill on a transparent fill.",
+      "html": "<button class=\"ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 24px; border: 1px solid #C4B5FD; border-radius: 9999px; background: transparent; color: #09090B; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.007em; cursor: pointer; transition: all 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-outline:hover { background: #EDE9FE; } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #7C3AED; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Tinted container fill for lower-priority actions.",
+      "html": "<button class=\"ds-btn-secondary\">Save draft</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 8px 24px; border: none; border-radius: 9999px; background: #E2E8F0; color: #0F172A; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.007em; cursor: pointer; transition: all 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-secondary:hover { background: #CBD5E1; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #7C3AED; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard field — violet-outlined, soft-cornered, with a violet focus glow.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Client name\" />",
+      "css": ".ds-input { display: flex; width: 100%; height: 40px; padding: 8px 12px; border: 1px solid #C4B5FD; border-radius: 0.75rem; background: #fff; color: #09090B; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; letter-spacing: 0.018em; transition: box-shadow 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms; } .ds-input::placeholder { color: #5B4A7A; } .ds-input:focus-visible { outline: none; border-color: transparent; box-shadow: 0 0 0 2px #7C3AED; } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The default container — gently rounded, softly lifted, hairline violet border.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Kings College</div><div class=\"ds-card-meta\">Retainer · <span class=\"ds-mono\">R24,500.00</span> / mo</div></div>",
+      "css": ".ds-card { border-radius: 1rem; border: 1px solid #EDE9FE; background: #fff; color: #09090B; padding: 24px; box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.04); font-family: 'Inter', system-ui, sans-serif; } .ds-card-title { font-size: 1.375rem; font-weight: 600; line-height: 1.75rem; } .ds-card-meta { margin-top: 4px; font-size: 0.875rem; color: #5B4A7A; } .ds-mono { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; color: #09090B; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Side-nav row — active carries the violet accent; hover raises the surface tone.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item--active\" href=\"#\">Briefs</a><a class=\"ds-nav-item\" href=\"#\">Projects</a><a class=\"ds-nav-item\" href=\"#\">Retainers</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px; background: #FAFAFA; border-radius: 1rem; width: 200px; font-family: 'Inter', system-ui, sans-serif; } .ds-nav-item { display: block; padding: 8px 12px; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.007em; color: #09090B; text-decoration: none; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item:hover { background: #EDE9FE; } .ds-nav-item--active { background: #EDE9FE; color: #6D28D9; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Warm Studio",
+    "overview": "Conductor is where Converted Click runs its business, and it should feel like the agency's own studio surface — human, considered, a little crafted — not generic internal software. Built on Material 3 role tokens (violet primary, Inter type, a tonal surface ramp) synced from Figma. Warmth lives in copy, empty states, and feedback; precision lives in the numbers, tables, and money-bearing flows. The signature violet→pink brand gradient is held in reserve for primary actions and identity moments, never sprayed as decoration. A product register for expert operators: density and speed over onboarding theatre, but always legible and unhurried. Components are soft and approachable — full-round pills, generous padding, gently lifted cards.",
+    "keyCharacteristics": [
+      "Violet-forward Material 3 palette with a violet→pink gradient reserved for primary actions",
+      "Inter as the single UI family; JetBrains Mono for figures and code",
+      "Fixed rem type scale (not fluid) — product density, consistent DPI",
+      "Soft, full-round controls and gently lifted cards; warm, not clinical",
+      "Light and dark modes, both first-class; WCAG AA baseline"
+    ],
+    "rules": [
+      { "name": "The Reserved Gradient Rule", "body": "The violet→pink bg-gradient-brand appears only on primary actions and identity moments — never a section background, hero wash, or decoration. Its scarcity keeps it from reading as the AI-SaaS cliché.", "section": "colors" },
+      { "name": "The Ink-Not-Gray Rule", "body": "Body text is Ink (#09090B), never a light elegance-gray. Secondary text is violet-tinted Muted Ink and still clears 4.5:1.", "section": "colors" },
+      { "name": "The Numbers-Are-Mono Rule", "body": "Currency, hours, percentages, and IDs render in JetBrains Mono so figures tabulate and read as exact.", "section": "typography" },
+      { "name": "The Fixed-Scale Rule", "body": "The type scale is fixed rem, never fluid clamp(). Product density depends on consistent sizing across every panel.", "section": "typography" },
+      { "name": "The Soft-Shadow Rule", "body": "Shadows are slate-tinted and low-opacity, layered subtly — never a hard 2014-era drop shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve the violet→pink bg-gradient-brand for primary actions and identity moments only.",
+      "Do set body text in Ink (#09090B) and keep secondary text at violet-tinted Muted Ink that clears 4.5:1.",
+      "Do use full-round pills for buttons and rounded-lg cards with a soft elev-1 resting shadow.",
+      "Do render currency, hours, and IDs in JetBrains Mono so figures tabulate.",
+      "Do bring hierarchy to dense data — group, summarize, right-align numbers — instead of raw grids.",
+      "Do use the m- / shadcn token classes, never hardcoded hex; tokens are Figma-synced and generated.",
+      "Do provide every interactive state and teach-the-interface empty states."
+    ],
+    "donts": [
+      "Don't recreate enterprise/SAP heaviness — gray, joyless, form-on-every-screen legacy admin.",
+      "Don't ship the generic AI-SaaS template: no purple-gradient hero wash, identical card grids, tracked eyebrows, or big-number-metric cliché.",
+      "Don't allow spreadsheet sprawl — raw hierarchy-less grids are the mess Conductor replaces.",
+      "Don't use light elegance-gray for body text, or faint placeholders below 4.5:1.",
+      "Don't hand-edit src/styles/tokens.css or tokens.ts — they're generated from tokens/base.json.",
+      "Don't use fluid clamp() heading scales, hard/dark drop shadows, side-stripe borders, gradient text, or default glassmorphism.",
+      "Don't nest cards, or reach for a modal before exhausting inline/progressive alternatives."
+    ]
+  }
+}

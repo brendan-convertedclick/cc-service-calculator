@@ -116,3 +116,7 @@ The app's visual language (colors, typography, radius, elevation) is driven by *
 - AI beyond process-step generation.
 - Capacity/availability planning.
 - Per-user roles (single shared login only).
+
+## Design Context
+
+Design strategy lives in `PRODUCT.md` at the repo root — register (`product`), platform (`web`), users, positioning, brand personality, anti-references, and 5 design principles. The visual system (colors/type/components) is captured in `DESIGN.md` (generated from the Material 3 token system). Both are maintained by the **impeccable** skill (`.claude/skills/impeccable/`); run `/impeccable` for design/review/polish work — it reads these two files first. Note the token system is Figma-synced and generated (see "Design tokens" above); impeccable must use the `m-`/shadcn token classes, never hardcoded hex.
