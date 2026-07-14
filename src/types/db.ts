@@ -495,6 +495,8 @@ export type Database = {
           raw_subject: string | null
           received_at: string
           rejection_reason: string | null
+          scope_confirmed_at: string | null
+          scope_confirmed_by: string | null
           sender_email: string | null
           source: Database["public"]["Enums"]["brief_source"]
           status: Database["public"]["Enums"]["brief_status"]
@@ -522,6 +524,8 @@ export type Database = {
           raw_subject?: string | null
           received_at?: string
           rejection_reason?: string | null
+          scope_confirmed_at?: string | null
+          scope_confirmed_by?: string | null
           sender_email?: string | null
           source: Database["public"]["Enums"]["brief_source"]
           status?: Database["public"]["Enums"]["brief_status"]
@@ -549,6 +553,8 @@ export type Database = {
           raw_subject?: string | null
           received_at?: string
           rejection_reason?: string | null
+          scope_confirmed_at?: string | null
+          scope_confirmed_by?: string | null
           sender_email?: string | null
           source?: Database["public"]["Enums"]["brief_source"]
           status?: Database["public"]["Enums"]["brief_status"]
