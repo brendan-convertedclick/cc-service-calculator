@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CardActionsMenu, CardActionItem } from "@/components/CardActionsMenu";
 import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
-import { STATUS_LABEL, resumeHref, type BriefStatus } from "@/lib/brief-routing";
+import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
 
 type Bucket = "all" | "backlog" | "in_progress" | "completed";
 
@@ -51,6 +51,7 @@ export function Briefs() {
   const [bucket, setBucket] = useState<Bucket>("all");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<BriefStatus>>(new Set());
+  const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(new Set());
 
   const handleArchiveToggle = async (
     id: string,
@@ -102,6 +103,14 @@ export function Briefs() {
     return Array.from(set).sort();
   }, [visibleBriefs]);
 
+  const billingOptions = useMemo(() => {
+    const set = new Set<BillingType>();
+    for (const b of visibleBriefs) {
+      set.add(b.billing_type === "adhoc" ? "adhoc" : "retainer");
+    }
+    return Array.from(set).sort();
+  }, [visibleBriefs]);
+
   const filteredBriefs = useMemo(
     () =>
       visibleBriefs.filter((b) => {
@@ -114,12 +123,17 @@ export function Briefs() {
         if (selectedStatuses.size > 0 && !selectedStatuses.has(b.status as BriefStatus)) {
           return false;
         }
+        if (selectedBilling.size > 0) {
+          const billing: BillingType = b.billing_type === "adhoc" ? "adhoc" : "retainer";
+          if (!selectedBilling.has(billing)) return false;
+        }
         return true;
       }),
-    [visibleBriefs, bucket, selectedClients, selectedStatuses],
+    [visibleBriefs, bucket, selectedClients, selectedStatuses, selectedBilling],
   );
 
-  const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
+  const hasFilters =
+    selectedClients.size > 0 || selectedStatuses.size > 0 || selectedBilling.size > 0;
 
   const toggleClient = (id: string) => {
     setSelectedClients((prev) => {
@@ -135,6 +149,15 @@ export function Briefs() {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s);
       else next.add(s);
+      return next;
+    });
+  };
+
+  const toggleBilling = (t: BillingType) => {
+    setSelectedBilling((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
       return next;
     });
   };
@@ -179,6 +202,7 @@ export function Briefs() {
                       onClick={() => {
                         setSelectedClients(new Set());
                         setSelectedStatuses(new Set());
+                        setSelectedBilling(new Set());
                       }}
                       className="text-label-small text-m-primary hover:underline"
                     >
@@ -263,6 +287,44 @@ export function Briefs() {
                   </div>
                 </div>
               )}
+
+              {billingOptions.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-label-medium text-m-on-surface-variant">Billing</h4>
+                  <div className="space-y-2">
+                    {billingOptions.map((t) => {
+                      const active = selectedBilling.has(t);
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleBilling(t)}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
+                            active
+                              ? "bg-m-secondary-container text-m-on-secondary-container"
+                              : "text-m-on-surface hover:bg-m-surface-container"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                              active
+                                ? "border-m-primary bg-m-primary text-m-on-primary"
+                                : "border-m-outline"
+                            }`}
+                          >
+                            {active && (
+                              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="truncate">{BILLING_LABEL[t]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </aside>
 
             <div className="min-w-0 flex-1">
@@ -289,6 +351,9 @@ export function Briefs() {
                             </Link>
                             <div className="flex shrink-0 items-center gap-2">
                               <Badge>{STATUS_LABEL[b.status]}</Badge>
+                              {b.billing_type === "adhoc" && (
+                                <Badge variant="warning">Adhoc</Badge>
+                              )}
                               {isBriefed && (
                                 <a
                                   href={b.clickup_task_url!}

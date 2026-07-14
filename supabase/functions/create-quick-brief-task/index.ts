@@ -23,6 +23,7 @@ Deno.serve(async (req: Request) => {
       brief_id?: string; task_name?: string; assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
+      billing_type?: string;
     };
     if (!b.brief_id || !b.task_name || !b.work_stream || !b.sprint_points) {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
@@ -146,6 +147,7 @@ Deno.serve(async (req: Request) => {
 
     const { error: upErr } = await sb.from("briefs").update({
       status: "briefed", clickup_task_id: created.id, clickup_task_url: created.url,
+      billing_type: b.billing_type === "adhoc" ? "adhoc" : "retainer",
       updated_at: new Date().toISOString(),
     }).eq("id", brief.id);
     if (upErr) {

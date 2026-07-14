@@ -251,6 +251,7 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
               />
               <IntentBadge type={b.intent_type ?? null} />
               <Badge variant="secondary">{STATUS_LABEL[b.status]}</Badge>
+              {b.billing_type === "adhoc" && <Badge variant="warning">Adhoc</Badge>}
               <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -329,6 +330,7 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
           quick_task_suggestion: b.quick_task_suggestion as
             | QuickBriefSheetBrief["quick_task_suggestion"]
             | null,
+          billing_type: b.billing_type as QuickBriefSheetBrief["billing_type"],
         }}
       />
     </>

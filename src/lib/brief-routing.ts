@@ -16,6 +16,13 @@ export const STATUS_LABEL: Record<BriefStatus, string> = {
   briefed: "Briefed",
 };
 
+export type BillingType = "retainer" | "adhoc";
+
+export const BILLING_LABEL: Record<BillingType, string> = {
+  retainer: "Retainer",
+  adhoc: "Adhoc",
+};
+
 export function resumeHref(b: Brief): string {
   switch (b.status) {
     case "triaged":

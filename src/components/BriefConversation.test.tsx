@@ -55,6 +55,10 @@ vi.mock("@/hooks/useAssignBriefToProject", () => ({
   useAssignBriefToProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+vi.mock("@/hooks/useBriefs", () => ({
+  useUpdateBrief: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+}));
+
 vi.mock("@/components/scope/InboxAssignModal", () => ({
   InboxAssignModal: () => null,
 }));
@@ -93,6 +97,7 @@ const brief: Brief = {
   quick_task_suggestion: null,
   clickup_task_id: null,
   clickup_task_url: null,
+  billing_type: "retainer",
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };

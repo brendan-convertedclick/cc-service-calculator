@@ -10,6 +10,13 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AssigneePicker } from "@/components/AssigneePicker";
 import { BriefThreadView } from "@/components/BriefThreadView";
 import { BriefHandlingButtons } from "@/components/BriefHandlingButtons";
@@ -20,6 +27,8 @@ import {
   useRollbackBriefStage,
 } from "@/hooks/useBriefActions";
 import { useAssignBriefToProject } from "@/hooks/useAssignBriefToProject";
+import { useUpdateBrief } from "@/hooks/useBriefs";
+import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
 import { toast } from "sonner";
 import type { Database } from "@/types/db";
 
@@ -44,11 +53,21 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const { data: downstream } = useBriefDownstream(brief.id);
   const rollback = useRollbackBriefStage();
   const unlink = useAssignBriefToProject();
+  const updateBrief = useUpdateBrief();
   const [assignOpen, setAssignOpen] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
 
   const isLinkedToProject = downstream?.kind === "project";
   const isBriefed = brief.status === "briefed" && Boolean(brief.clickup_task_id);
+
+  async function handleBillingChange(next: BillingType) {
+    try {
+      await updateBrief.mutateAsync({ id: brief.id, patch: { billing_type: next } });
+      toast.success(`Billing set to ${BILLING_LABEL[next]}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update billing");
+    }
+  }
 
   async function handleUnlink() {
     try {
@@ -186,6 +205,21 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
               </Badge>
             )}
             <AssigneePicker briefId={brief.id} assigneeId={brief.assignee_id ?? null} />
+            <Select
+              value={brief.billing_type === "adhoc" ? "adhoc" : "retainer"}
+              onValueChange={(v) => handleBillingChange(v as BillingType)}
+            >
+              <SelectTrigger
+                aria-label="Billing"
+                className="h-7 w-[110px] text-label-small"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="retainer">{BILLING_LABEL.retainer}</SelectItem>
+                <SelectItem value="adhoc">{BILLING_LABEL.adhoc}</SelectItem>
+              </SelectContent>
+            </Select>
             {linkControls}
             {isBriefed ? (
               <a
@@ -232,6 +266,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             quick_task_suggestion: brief.quick_task_suggestion as
               | QuickBriefSheetBrief["quick_task_suggestion"]
               | null,
+            billing_type: brief.billing_type as QuickBriefSheetBrief["billing_type"],
           }}
         />
       </SheetContent>

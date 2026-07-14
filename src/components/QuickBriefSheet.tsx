@@ -33,6 +33,7 @@ export interface QuickBriefSheetBrief {
   intent_type: string | null;
   raw_subject: string | null;
   quick_task_suggestion: QuickTaskSuggestion | null;
+  billing_type?: "retainer" | "adhoc" | null;
 }
 
 export interface QuickBriefSheetProps {
@@ -57,6 +58,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [workStream, setWorkStream] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
+  const [billingType, setBillingType] = useState<"retainer" | "adhoc">("retainer");
 
   const [lists, setLists] = useState<QuickBriefListOption[]>([]);
   const [workStreamOptions, setWorkStreamOptions] = useState<QuickBriefWorkStreamOption[]>([]);
@@ -76,7 +78,8 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setDueDate(draft.due_date ?? "");
     setBriefedBy(UNASSIGNED);
     setStatus(STATUS_DEFAULT);
-  }, [open, brief.quick_task_suggestion, brief.raw_subject]);
+    setBillingType(brief.billing_type === "adhoc" ? "adhoc" : "retainer");
+  }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type]);
 
   // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors
   // the fetch pattern in BriefFormBody.tsx. Gated on `open` so a brief that's
@@ -168,6 +171,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         list_id: listId || undefined,
         status: status === STATUS_DEFAULT ? undefined : status,
         briefed_by_member_id: briefedBy === UNASSIGNED ? null : briefedBy,
+        billing_type: billingType,
       });
       toast.success("Task created in ClickUp", {
         action: clickup_task_url
@@ -262,25 +266,39 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="qb-work-stream">Work stream</Label>
-            <Select value={workStream} onValueChange={setWorkStream}>
-              <SelectTrigger id="qb-work-stream">
-                <SelectValue placeholder="Choose a work stream…" />
-              </SelectTrigger>
-              <SelectContent>
-                {workStreamSource.map((d) => (
-                  <SelectItem key={d.id} value={d.name}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!workStreamValid && (
-              <p className="text-body-small text-m-on-surface-variant">
-                Pick a work stream — it sets the ClickUp dropdown and the invoice trail.
-              </p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="qb-work-stream">Work stream</Label>
+              <Select value={workStream} onValueChange={setWorkStream}>
+                <SelectTrigger id="qb-work-stream">
+                  <SelectValue placeholder="Choose a work stream…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workStreamSource.map((d) => (
+                    <SelectItem key={d.id} value={d.name}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!workStreamValid && (
+                <p className="text-body-small text-m-on-surface-variant">
+                  Pick a work stream — it sets the ClickUp dropdown and the invoice trail.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="qb-billing">Billing</Label>
+              <Select value={billingType} onValueChange={(v) => setBillingType(v as "retainer" | "adhoc")}>
+                <SelectTrigger id="qb-billing">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retainer">Retainer</SelectItem>
+                  <SelectItem value="adhoc">Adhoc</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

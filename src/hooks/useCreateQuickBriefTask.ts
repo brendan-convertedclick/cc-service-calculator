@@ -11,6 +11,7 @@ export type CreateQuickBriefArgs = {
   list_id?: string;
   status?: string;
   briefed_by_member_id?: string | null;
+  billing_type?: "retainer" | "adhoc";
 };
 
 type CreateQuickBriefResult = { clickup_task_id: string; clickup_task_url: string };
