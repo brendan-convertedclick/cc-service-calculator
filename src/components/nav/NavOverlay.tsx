@@ -30,9 +30,10 @@ function NavRow({
       className={cn(
         "flex items-center gap-3 rounded-full py-2.5 text-label-large transition-all",
         indent ? "pl-7 pr-4" : "px-4",
-        isActive ? "text-white shadow-sm" : "hover:bg-m-surface-container",
+        isActive
+          ? "bg-gradient-brand text-white shadow-sm"
+          : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
       )}
-      style={isActive ? { background: item.gradient } : { color: item.color }}
     >
       <item.icon className="h-[18px] w-[18px] shrink-0" />
       {item.label}
@@ -61,8 +62,7 @@ function SectionGroup({ section, onClose }: { section: NavSection; onClose: () =
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={section.label}
-        className="flex items-center w-full gap-3 rounded-full px-4 py-2.5 text-label-large transition-all hover:bg-m-surface-container"
-        style={{ color: section.color }}
+        className="flex items-center w-full gap-3 rounded-full px-4 py-2.5 text-label-large transition-all text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1 text-left">{section.label}</span>
@@ -128,7 +128,7 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
           borderRight: "2px solid transparent",
           backgroundClip: "padding-box, border-box",
           backgroundOrigin: "padding-box, border-box",
-          backgroundImage: "linear-gradient(white, white), linear-gradient(135deg, #7C3AED, #EC4899)",
+          backgroundImage: "linear-gradient(hsl(var(--surface)), hsl(var(--surface))), linear-gradient(135deg, #7C3AED, #EC4899)",
         }}
       >
         <p className="px-3 pb-2 text-label-small uppercase tracking-wide text-m-on-surface-variant">

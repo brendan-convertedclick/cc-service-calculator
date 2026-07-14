@@ -43,14 +43,17 @@ const NavRow = forwardRef<
           ? cn(
               "w-full gap-3 rounded-full py-2 text-label-large",
               indent ? "pl-6 pr-3" : "px-3",
-              isActive ? "text-white" : "hover:bg-m-surface-container",
+              isActive
+                ? "bg-gradient-brand text-white"
+                : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
             )
           : cn(
               "h-9 w-9 justify-center rounded-md",
-              isActive ? "text-white shadow-sm" : "hover:bg-m-surface-container",
+              isActive
+                ? "bg-gradient-brand text-white shadow-sm"
+                : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
             ),
       )}
-      style={isActive ? { background: item.gradient } : { color: item.color }}
     >
       <item.icon className="h-[18px] w-[18px] shrink-0" />
       <span
@@ -85,8 +88,7 @@ function SectionGroup({ section }: { section: NavSection }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={section.label}
-        className="flex items-center w-full gap-3 rounded-full px-3 py-2 text-label-large transition-all duration-200 ease-out shrink-0 hover:bg-m-surface-container"
-        style={{ color: section.color }}
+        className="flex items-center w-full gap-3 rounded-full px-3 py-2 text-label-large transition-all duration-200 ease-out shrink-0 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1 text-left whitespace-nowrap">{section.label}</span>
@@ -145,9 +147,10 @@ function CollapsedSection({ section }: { section: NavSection }) {
           onMouseLeave={scheduleClose}
           className={cn(
             "grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors",
-            hasActiveChild ? "text-white shadow-sm" : "hover:bg-m-surface-container",
+            hasActiveChild
+              ? "bg-gradient-brand text-white shadow-sm"
+              : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
           )}
-          style={hasActiveChild ? { background: section.gradient } : { color: section.color }}
         >
           <Icon className="h-[18px] w-[18px]" />
         </button>
@@ -161,10 +164,7 @@ function CollapsedSection({ section }: { section: NavSection }) {
         onMouseLeave={scheduleClose}
         className="w-56 p-1.5"
       >
-        <p
-          className="px-3 pb-1.5 pt-1 text-label-small uppercase tracking-wide"
-          style={{ color: section.color }}
-        >
+        <p className="px-3 pb-1.5 pt-1 text-label-small uppercase tracking-wide text-m-on-surface-variant">
           {section.label}
         </p>
         <div className="flex flex-col gap-0.5">
@@ -216,7 +216,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                 backgroundClip: "padding-box, border-box",
                 backgroundOrigin: "padding-box, border-box",
                 backgroundImage:
-                  "linear-gradient(white, white), linear-gradient(135deg, #7C3AED, #EC4899)",
+                  "linear-gradient(hsl(var(--surface)), hsl(var(--surface))), linear-gradient(135deg, #7C3AED, #EC4899)",
               }
             : undefined
         }
