@@ -34,6 +34,10 @@ export interface ScopeReceiptProps {
    * locally regardless; pass this to also write the change back to the server.
    */
   onOverride?: (taskRef: string, disposition: Disposition) => void;
+  /** Persist an inline quantity edit (optional). Local re-total happens regardless. */
+  onPersistQty?: (taskRef: string, qty: number) => void;
+  /** Persist an inline unit-price edit in cents (optional). Enables price editing. */
+  onPersistPrice?: (taskRef: string, unitCents: number) => void;
   className?: string;
 }
 
@@ -53,22 +57,28 @@ export function ScopeReceipt({
   meter,
   onBuildEstimate,
   onOverride,
+  onPersistQty,
+  onPersistPrice,
   className,
 }: ScopeReceiptProps) {
   const [clientView, setClientView] = useState(false);
-  // Local, non-destructive override + qty edits — re-bucket / re-total without
-  // a round-trip. onOverride (if supplied) persists the disposition too.
+  // Local, non-destructive override + qty/price edits — re-bucket / re-total
+  // without a round-trip. The onPersist* callbacks (if supplied) also write the
+  // change back to the server.
   const [overrides, setOverrides] = useState<Record<string, Disposition>>({});
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
 
   const adjusted = useMemo(
     () =>
-      placements.map((p) =>
-        p.task_ref in qtyOverrides
-          ? { ...p, quantity: qtyOverrides[p.task_ref] }
-          : p,
-      ),
-    [placements, qtyOverrides],
+      placements.map((p) => {
+        let next = p;
+        if (p.task_ref in qtyOverrides) next = { ...next, quantity: qtyOverrides[p.task_ref] };
+        if (p.task_ref in priceOverrides)
+          next = { ...next, estimated_cents: priceOverrides[p.task_ref] };
+        return next;
+      }),
+    [placements, qtyOverrides, priceOverrides],
   );
 
   const model = useMemo(
@@ -83,6 +93,12 @@ export function ScopeReceipt({
 
   const handleQtyChange = (taskRef: string, qty: number) => {
     setQtyOverrides((prev) => ({ ...prev, [taskRef]: qty }));
+    onPersistQty?.(taskRef, qty);
+  };
+
+  const handlePriceChange = (taskRef: string, unitCents: number) => {
+    setPriceOverrides((prev) => ({ ...prev, [taskRef]: unitCents }));
+    onPersistPrice?.(taskRef, unitCents);
   };
 
   const clientMode = clientView;
@@ -135,6 +151,7 @@ export function ScopeReceipt({
               showSubtotal={isBillable}
               clientMode={clientMode}
               onQtyChange={isBillable ? handleQtyChange : undefined}
+              onPriceChange={isBillable ? handlePriceChange : undefined}
               onOverride={handleOverride}
             />
           );

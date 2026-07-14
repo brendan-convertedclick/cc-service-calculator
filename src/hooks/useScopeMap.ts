@@ -177,6 +177,50 @@ export function useOverridePlacement(briefId: string | undefined) {
   });
 }
 
+export type PlacementValuePatch = {
+  task_ref: string;
+  /** Per-unit sell price in cents. */
+  estimated_cents?: number;
+  /** Quantity (supports fractional, e.g. 1.5). */
+  quantity?: number;
+};
+
+/**
+ * Persist an operator's inline edit of a placement's price and/or quantity.
+ * Optimistic: the row updates immediately and rolls back on error. Update (not
+ * upsert) — the row always exists (it's on screen) so we only touch the given
+ * numeric fields and never clobber disposition/is_inside.
+ */
+export function useUpdatePlacementValue(briefId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ task_ref, ...fields }: PlacementValuePatch) => {
+      if (!briefId) throw new Error("Missing brief id");
+      const { error } = await sb
+        .from("brief_task_sow_placements")
+        .update(fields)
+        .eq("brief_id", briefId)
+        .eq("task_ref", task_ref);
+      if (error) throw error;
+    },
+    onMutate: async ({ task_ref, ...fields }) => {
+      if (!briefId) return { previous: undefined as BriefTaskSowPlacement[] | undefined };
+      await qc.cancelQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
+      const previous = qc.getQueryData<BriefTaskSowPlacement[]>(SCOPE_MAP_KEY(briefId));
+      qc.setQueryData<BriefTaskSowPlacement[]>(SCOPE_MAP_KEY(briefId), (rows) =>
+        (rows ?? []).map((r) => (r.task_ref === task_ref ? { ...r, ...fields } : r)),
+      );
+      return { previous };
+    },
+    onError: (_err, _patch, ctx) => {
+      if (briefId && ctx?.previous) qc.setQueryData(SCOPE_MAP_KEY(briefId), ctx.previous);
+    },
+    onSettled: () => {
+      if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
+    },
+  });
+}
+
 /**
  * Stamp every placement on the brief as approved. approved_by stays null
  * under the shared team@ login (no team_members row) — allowed by 0061.

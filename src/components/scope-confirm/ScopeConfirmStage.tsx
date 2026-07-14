@@ -12,6 +12,7 @@ import {
   useClientSows,
   useOverridePlacement,
   useScopeMapPlacements,
+  useUpdatePlacementValue,
   type AnalyzeBriefInput,
   type SowOption,
 } from "@/hooks/useScopeMap";
@@ -42,6 +43,7 @@ export function ScopeConfirmStage({ briefId, clientId, confirmed, confirming, on
   const clientSowsQuery = useClientSows(clientId);
   const analyze = useAnalyzeBrief(briefId);
   const override = useOverridePlacement(briefId);
+  const updateValue = useUpdatePlacementValue(briefId);
 
   const { data: services } = useServices();
   const serviceById = useMemo(
@@ -196,6 +198,24 @@ export function ScopeConfirmStage({ briefId, clientId, confirmed, confirming, on
         placements={placements}
         serviceById={serviceById}
         onOverride={handleOverride}
+        onPersistQty={(ref, qty) =>
+          updateValue.mutate(
+            { task_ref: ref, quantity: qty },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update quantity"),
+            },
+          )
+        }
+        onPersistPrice={(ref, unitCents) =>
+          updateValue.mutate(
+            { task_ref: ref, estimated_cents: unitCents },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update price"),
+            },
+          )
+        }
       />
 
       <div className="flex items-center justify-end gap-3 border-t border-m-outline-variant pt-4">
