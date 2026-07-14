@@ -18,13 +18,15 @@ export function ScopeEditor({ value, onChange, disabled }: Props) {
   const section = (key: keyof ScopeValues, label: string, rows = 6) => (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <MDEditor
-        value={value[key]}
-        onChange={(v) => onChange({ [key]: v ?? "" })}
-        height={rows * 28}
-        textareaProps={{ disabled }}
-        preview="edit"
-      />
+      <div data-color-mode="light">
+        <MDEditor
+          value={value[key]}
+          onChange={(v) => onChange({ [key]: v ?? "" })}
+          height={rows * 28}
+          textareaProps={{ disabled }}
+          preview="edit"
+        />
+      </div>
     </div>
   );
 
