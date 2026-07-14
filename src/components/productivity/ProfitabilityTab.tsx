@@ -73,14 +73,14 @@ export function ProfitabilityTab() {
         </div>
 
         {/* Best Margin */}
-        <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant border-l-4 border-l-green-600">
+        <div className="rounded-xl p-4 border border-emerald-200 bg-emerald-50/50">
           <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{bestRow.marginPct != null ? formatPct(bestRow.marginPct) : "—"}</p>
           <p className="text-label-medium text-m-on-surface-variant">{bestRow.projectName}</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">highest margin project</p>
         </div>
 
         {/* Needs Attention */}
-        <div className="bg-m-surface rounded-xl p-4 border border-m-outline-variant border-l-4 border-l-red-700">
+        <div className="rounded-xl p-4 border border-red-200 bg-red-50/50">
           <p className="text-headline-medium text-m-on-surface font-mono tabular-nums">{redRow.marginPct != null ? formatPct(redRow.marginPct) : "—"}</p>
           <p className="text-label-medium text-m-on-surface-variant">{redRow.projectName}</p>
           <p className="text-body-medium text-m-on-surface-variant mt-1">needs attention</p>

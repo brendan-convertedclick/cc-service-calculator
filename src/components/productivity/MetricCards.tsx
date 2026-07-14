@@ -9,7 +9,7 @@ interface Props {
 export function MetricCards({ meta, goalPoints }: Props) {
   const pct = goalPoints > 0 ? meta.dailyAvg / goalPoints : 0;
   const avgColor =
-    pct >= 1 ? "text-[#34d399]" : pct >= 0.9 ? "text-[#fbbf24]" : "text-[#f87171]";
+    pct >= 1 ? "text-emerald-500" : pct >= 0.9 ? "text-amber-400" : "text-red-400";
 
   return (
     <div className="grid grid-cols-4 gap-3">

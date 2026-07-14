@@ -69,7 +69,7 @@ export function PassiveView({ data }: Props) {
                 {/* Progress bar */}
                 <div className="flex-1 mx-3 h-1.5 rounded-full bg-m-surface-container-high overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-500/70"
+                    className="h-full rounded-full bg-m-primary"
                     style={{ width: `${(agent.estimated_human_hours / maxHours) * 100}%` }}
                   />
                 </div>
