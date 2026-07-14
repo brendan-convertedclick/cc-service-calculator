@@ -98,6 +98,8 @@ const brief: Brief = {
   clickup_task_id: null,
   clickup_task_url: null,
   billing_type: "retainer",
+  scope_confirmed_at: null,
+  scope_confirmed_by: null,
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };
