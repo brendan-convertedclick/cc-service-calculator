@@ -23,6 +23,7 @@ interface Props {
 export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isSelected, isCompleted, lastActivityAt, onSelect, onHide }: Props) {
   return (
     <div className={cn("group relative", isCompleted && "opacity-60")}>
+
       <button
         aria-label={name}
         onClick={() => onSelect(id)}
@@ -49,6 +50,7 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
           {engagementType}
         </span>
       </button>
+
 
       <button
         aria-label="dismiss"

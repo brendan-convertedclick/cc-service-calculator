@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/timeAgo";
 import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
@@ -151,16 +151,8 @@ function Lane({
   );
 }
 
-const ACTIVITY_ICON = (
-  <svg viewBox="0 0 24 24" className="h-3 w-3 opacity-70" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 4h16v14H7l-3 3z" />
-  </svg>
-);
-const CHECK_ICON = (
-  <svg viewBox="0 0 24 24" className="h-3 w-3 opacity-70" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
+const ACTIVITY_ICON = <MessageSquare className="h-3 w-3 opacity-70" />;
+const CHECK_ICON = <Check className="h-3 w-3 opacity-70" />;
 
 export function BoardOverview({
   opsData,
