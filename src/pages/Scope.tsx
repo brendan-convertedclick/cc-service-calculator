@@ -1,5 +1,5 @@
 // src/pages/Scope.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -9,11 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { StageSection, type StageStatus } from "@/components/StageSection";
 import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage";
+import { TaskBreakdownStage } from "@/components/task-breakdown/TaskBreakdownStage";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
+import { useScopeMapPlacements } from "@/hooks/useScopeMap";
+import { useLineTasks } from "@/hooks/usePlacementTasks";
+import { placementDisposition } from "@/types/sow-placements";
 import {
   useBriefIntelligence,
   useApproveBriefIntelligence,
@@ -98,13 +102,43 @@ export function Scope() {
   const scopeConfirmed = !!brief?.scope_confirmed_at;
   const scopeLocked = brief?.status === "scoped";
 
+  // Task breakdown (Stage 3) is "done" once every billable quote line has at
+  // least one task with a department assigned. Shared query keys with the stage
+  // body, so this doesn't double-fetch.
+  const { data: placements } = useScopeMapPlacements(id);
+  const { data: lineTasks } = useLineTasks(id);
+  const breakdownComplete = useMemo(() => {
+    const billable = (placements ?? []).filter(
+      (p) => placementDisposition(p) === "new_billable",
+    );
+    if (billable.length === 0) return false;
+    const tasksByPlacement = new Map<string, typeof lineTasks>();
+    for (const t of lineTasks ?? []) {
+      const arr = tasksByPlacement.get(t.placement_id) ?? [];
+      arr.push(t);
+      tasksByPlacement.set(t.placement_id, arr);
+    }
+    return billable.every((p) =>
+      (tasksByPlacement.get(p.id) ?? []).some((t) => !!t.department_id),
+    );
+  }, [placements, lineTasks]);
+
   const s1status: StageStatus = scopeConfirmed ? "done" : "active";
   const s2status: StageStatus = !scopeConfirmed ? "locked" : isApproved ? "done" : "active";
-  const s3status: StageStatus = !isApproved ? "locked" : scopeLocked ? "done" : "active";
+  const s3status: StageStatus = !isApproved ? "locked" : breakdownComplete ? "done" : "active";
+  const s4status: StageStatus = !isApproved ? "locked" : scopeLocked ? "done" : "active";
 
   // Auto-open the first actionable (active) stage, and advance as gates clear.
   const activeStage =
-    s1status === "active" ? 1 : s2status === "active" ? 2 : s3status === "active" ? 3 : 0;
+    s1status === "active"
+      ? 1
+      : s2status === "active"
+        ? 2
+        : s3status === "active"
+          ? 3
+          : s4status === "active"
+            ? 4
+            : 0;
   const prevActiveRef = useRef<number | null>(null);
   useEffect(() => {
     if (activeStage !== prevActiveRef.current) {
@@ -327,14 +361,39 @@ export function Scope() {
           </div>
         </StageSection>
 
-        {/* Stage 3 — Scope Edit */}
+        {/* Stage 3 — Task Breakdown */}
         <StageSection
           index={3}
-          title="Scope Edit"
-          subtitle="Finalise the written scope"
+          title="Task Breakdown"
+          subtitle="Map tasks, departments, time & sprint points per quote item"
           status={s3status}
           open={openStage === 3}
           onToggle={() => toggleStage(3)}
+        >
+          <div className="space-y-4">
+            <TaskBreakdownStage briefId={id!} />
+            <div className="flex border-t border-m-outline-variant pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => setOpenStage(2)}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to brief
+              </Button>
+            </div>
+          </div>
+        </StageSection>
+
+        {/* Stage 4 — Scope Edit */}
+        <StageSection
+          index={4}
+          title="Scope Edit"
+          subtitle="Finalise the written scope"
+          status={s4status}
+          open={openStage === 4}
+          onToggle={() => toggleStage(4)}
         >
           <div className="space-y-4">
             <ScopeEditor
@@ -346,10 +405,10 @@ export function Scope() {
                 variant="ghost"
                 size="sm"
                 className="gap-1"
-                onClick={() => setOpenStage(2)}
+                onClick={() => setOpenStage(3)}
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to brief
+                Back to breakdown
               </Button>
               <div className="ml-auto flex gap-2">
                 <Button
