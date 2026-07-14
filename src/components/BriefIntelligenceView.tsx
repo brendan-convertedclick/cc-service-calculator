@@ -1,9 +1,16 @@
 // src/components/BriefIntelligenceView.tsx
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CornerDownRight, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Database } from "@/types/db";
@@ -22,10 +29,13 @@ type BriefIntelligence =
 type BriefIntelligenceUpdate =
   Database["public"]["Tables"]["brief_intelligence"]["Update"];
 
-const CONFIDENCE_COLOURS: Record<string, string> = {
-  high:   "bg-green-100 text-green-800 border-green-200",
-  medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  low:    "bg-red-100 text-red-800 border-red-200",
+// Confidence uses the house Badge semantic language (emerald / amber / neutral),
+// the same vocabulary as the Scope Receipt's ConfidenceChip — one colour system
+// for "confidence" across the page rather than a second green/yellow/red set.
+const CONFIDENCE_VARIANT: Record<string, "success" | "warning" | "muted"> = {
+  high: "success",
+  medium: "warning",
+  low: "muted",
 };
 
 const zar = (cents: number) =>
@@ -114,9 +124,8 @@ export function BriefIntelligenceView({
   const workBreakdown = (intelligence.work_breakdown as DeptBreakdown[] | null) ?? [];
   const openQuestions = (intelligence.open_questions as OpenQuestion[] | null) ?? [];
 
-  const confidenceClass =
-    CONFIDENCE_COLOURS[intelligence.confidence_level ?? "low"] ??
-    CONFIDENCE_COLOURS.low;
+  const confidenceVariant =
+    CONFIDENCE_VARIANT[intelligence.confidence_level ?? "low"] ?? "muted";
 
   const canEdit = !!onSave;
 
@@ -185,11 +194,11 @@ export function BriefIntelligenceView({
         {(intelligence.summary || intelligence.business_objective) && (
           <div className="rounded-lg border bg-m-surface-container p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+              <span className="text-title-small font-medium text-m-on-surface">
                 Brief Summary
               </span>
               {intelligence.confidence_level && (
-                <Badge variant="outline" className={`text-label-small ${confidenceClass}`}>
+                <Badge variant={confidenceVariant} className="text-label-small">
                   {intelligence.confidence_level} confidence
                 </Badge>
               )}
@@ -209,16 +218,13 @@ export function BriefIntelligenceView({
         {/* Requirements */}
         {requirements.length > 0 && (
           <div className="rounded-lg border p-4 space-y-3">
-            <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+            <span className="text-title-small font-medium text-m-on-surface">
               Requirements
             </span>
-            <ul className="space-y-3">
+            <ul className="list-disc space-y-3 pl-5 marker:text-m-outline">
               {requirements.map((req, i) => (
                 <li key={i} className="space-y-1">
-                  <p className="text-body-medium">
-                    <span className="text-m-on-surface-variant mr-1">●</span>
-                    &ldquo;{req.text}&rdquo;
-                  </p>
+                  <p className="text-body-medium">&ldquo;{req.text}&rdquo;</p>
                   {req.interpretation && (
                     <p className="ml-4 text-body-small text-m-on-surface-variant">
                       {req.interpretation}
@@ -233,7 +239,7 @@ export function BriefIntelligenceView({
         {/* Work Breakdown */}
         {workBreakdown.length > 0 && (
           <div className="rounded-lg border p-4 space-y-4">
-            <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+            <span className="text-title-small font-medium text-m-on-surface">
               Work Breakdown
             </span>
             {workBreakdown.map((dept, i) => (
@@ -253,7 +259,8 @@ export function BriefIntelligenceView({
                   <ul className="ml-3 space-y-1">
                     {dept.deliverables.map((d, j) => (
                       <li key={j} className="text-body-small text-m-on-surface-variant">
-                        ∟ {d.name}
+                        <CornerDownRight className="mr-1 inline h-3 w-3 text-m-outline" aria-hidden />
+                        {d.name}
                         {d.format && <span className="ml-1 text-m-outline">({d.format})</span>}
                       </li>
                     ))}
@@ -296,14 +303,15 @@ export function BriefIntelligenceView({
 
         {/* Open Questions */}
         {openQuestions.length > 0 && (
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 space-y-2">
-            <span className="text-label-small font-medium text-yellow-800 uppercase tracking-wide">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
+            <span className="text-title-small font-medium text-amber-800">
               Open Questions
             </span>
             <ul className="space-y-1">
               {openQuestions.map((q, i) => (
-                <li key={i} className="text-body-small text-yellow-900">
-                  ⚠ {q.question}
+                <li key={i} className="flex items-start gap-1.5 text-body-small text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden />
+                  {q.question}
                 </li>
               ))}
             </ul>
@@ -332,18 +340,22 @@ export function BriefIntelligenceView({
       {/* Summary */}
       <div className="rounded-lg border bg-m-surface-container p-4 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+          <span className="text-title-small font-medium text-m-on-surface">
             Brief Summary
           </span>
-          <select
-            className="text-label-small rounded border bg-transparent px-2 py-1"
+          <Select
             value={draft.confidence_level}
-            onChange={(e) => update({ confidence_level: e.target.value })}
+            onValueChange={(v) => update({ confidence_level: v })}
           >
-            <option value="low">low confidence</option>
-            <option value="medium">medium confidence</option>
-            <option value="high">high confidence</option>
-          </select>
+            <SelectTrigger className="h-8 w-40 shrink-0 text-label-small" aria-label="Confidence level">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">low confidence</SelectItem>
+              <SelectItem value="medium">medium confidence</SelectItem>
+              <SelectItem value="high">high confidence</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Textarea
           rows={3}
@@ -362,7 +374,7 @@ export function BriefIntelligenceView({
       {/* Requirements */}
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+          <span className="text-title-small font-medium text-m-on-surface">
             Requirements
           </span>
           <Button
@@ -421,7 +433,7 @@ export function BriefIntelligenceView({
 
       {/* Work Breakdown */}
       <div className="rounded-lg border p-4 space-y-4">
-        <span className="text-label-small font-medium text-m-on-surface-variant uppercase tracking-wide">
+        <span className="text-title-small font-medium text-m-on-surface">
           Work Breakdown
         </span>
         {draft.workBreakdown.map((dept, i) => (
@@ -573,7 +585,7 @@ export function BriefIntelligenceView({
       {/* Open Questions */}
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-label-small font-medium text-yellow-800 uppercase tracking-wide">
+          <span className="text-title-small font-medium text-amber-800">
             Open Questions
           </span>
           <Button

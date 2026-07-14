@@ -314,7 +314,7 @@ export function Scope() {
 
             {/* Rejected state */}
             {isRejected && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-body-small text-red-800">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-body-small text-destructive">
                 Rejected. Intake will regenerate the intelligence on the next run.
                 {intelligence?.am_notes && (
                   <p className="mt-1 font-medium">Notes: {intelligence.am_notes}</p>
