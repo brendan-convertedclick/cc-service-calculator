@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,8 @@ interface Props {
   /** True while the confirm mutation is in flight. */
   confirming: boolean;
   onConfirm: () => void;
+  /** Advance to the next stage once scope is already confirmed. */
+  onContinue?: () => void;
 }
 
 /**
@@ -37,7 +39,14 @@ interface Props {
  * no client→SOW link). Per-line In/New/Out corrections persist immediately; a
  * required "Confirm scope" click gates the rest of the flow.
  */
-export function ScopeConfirmStage({ briefId, clientId, confirmed, confirming, onConfirm }: Props) {
+export function ScopeConfirmStage({
+  briefId,
+  clientId,
+  confirmed,
+  confirming,
+  onConfirm,
+  onContinue,
+}: Props) {
   const placementsQuery = useScopeMapPlacements(briefId);
   const placements = placementsQuery.data;
   const clientSowsQuery = useClientSows(clientId);
@@ -220,10 +229,18 @@ export function ScopeConfirmStage({ briefId, clientId, confirmed, confirming, on
 
       <div className="flex items-center justify-end gap-3 border-t border-m-outline-variant pt-4">
         {confirmed ? (
-          <span className="flex items-center gap-1.5 text-body-small text-m-primary">
-            <CheckCircle2 className="h-4 w-4" />
-            Scope confirmed
-          </span>
+          <>
+            <span className="flex items-center gap-1.5 text-body-small text-m-primary">
+              <CheckCircle2 className="h-4 w-4" />
+              Scope confirmed
+            </span>
+            {onContinue && (
+              <Button variant="outline" onClick={onContinue} className="gap-2">
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+          </>
         ) : (
           <Button onClick={onConfirm} disabled={confirming} className="gap-2">
             {confirming ? "Confirming…" : "Confirm scope →"}
