@@ -1,10 +1,10 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen, Zap } from "lucide-react";
+import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen, Zap, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
@@ -26,27 +26,18 @@ const INTENT_LABEL: Record<IntentType, string> = {
   quick_response: "QUICK",
 };
 
-const INTENT_CLASS: Record<IntentType, string> = {
-  new_brief: "bg-blue-100 text-blue-800",
-  project_thread: "bg-purple-100 text-purple-800",
-  retainer_thread: "bg-orange-100 text-orange-800",
-  general_query: "bg-gray-100 text-gray-700",
-  quick_response: "bg-green-100 text-green-800",
-};
-
 function IntentBadge({ type }: { type: string | null }) {
   if (!type) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5 text-label-small text-gray-400">
-        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300" />
+      <span className="inline-flex items-center gap-1 text-label-small text-m-on-surface-variant">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-m-outline" />
         pending
       </span>
     );
   }
-  const cls = INTENT_CLASS[type as IntentType] ?? "bg-gray-100 text-gray-700";
   const label = INTENT_LABEL[type as IntentType] ?? type;
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-label-small font-medium ${cls}`}>
+    <span className="text-label-small font-medium uppercase tracking-wide text-m-on-surface-variant">
       {label}
     </span>
   );
@@ -117,7 +108,7 @@ function ProjectChip({
         onAssignClick();
       }}
       title="Link to project"
-      className="inline-flex items-center gap-1 rounded-full border border-dashed border-m-outline-variant px-2 py-0.5 text-label-small text-m-on-surface-variant hover:border-m-primary hover:bg-m-surface-container hover:text-m-on-surface"
+      className="inline-flex items-center gap-1 rounded-full border border-dashed border-m-outline-variant px-2 py-0.5 text-label-small text-m-on-surface-variant opacity-0 transition-opacity hover:border-m-primary hover:bg-m-surface-container hover:text-m-on-surface focus-visible:opacity-100 group-hover:opacity-100"
     >
       <Link2 className="h-3 w-3" />
       Link
@@ -148,14 +139,31 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
   }, [clients]);
 
   if (isLoading) {
-    return <div className="text-body-medium text-m-on-surface-variant p-4">Loading…</div>;
+    return (
+      <div className="divide-y divide-m-outline-variant overflow-hidden rounded-lg border border-m-outline-variant bg-card">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-4 px-4 py-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/5" />
+              <Skeleton className="h-3 w-1/4" />
+            </div>
+            <Skeleton className="h-4 w-14" />
+          </div>
+        ))}
+      </div>
+    );
   }
   if (briefs.length === 0) {
-    return <div className="text-body-medium text-m-on-surface-variant p-4">{EMPTY[scope]}</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-m-outline-variant bg-card px-6 py-14 text-center">
+        <Inbox className="h-6 w-6 text-m-on-surface-variant" aria-hidden />
+        <p className="text-body-medium text-m-on-surface-variant">{EMPTY[scope]}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="divide-y divide-m-outline-variant overflow-hidden rounded-lg border border-m-outline-variant bg-card">
       {briefs.map((b: Brief) => (
         <BriefRow
           key={b.id}
@@ -223,51 +231,54 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
     setQuickBriefOpen(true);
   }
 
+  const showStatus = b.status !== "new" && b.status !== "archived";
+
   return (
     <>
-      <Link to={`/inbox/${b.id}`} className="block">
-        <Card
-          className={`transition-colors hover:bg-m-surface-container ${
-            selected ? "ring-2 ring-m-primary" : ""
-          }`}
-        >
-          <CardContent className="flex items-center justify-between gap-4 p-4">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-title-small">
-                {b.raw_subject ?? "(no subject)"}
-              </div>
-              <div className="text-label-small text-m-on-surface-variant">
-                {b.sender_email ?? "manual"}
-                {b.message_count > 0 &&
-                  ` · ${b.message_count} msg${b.message_count !== 1 ? "s" : ""}`}
-                {b.last_message_at && ` · ${relativeTime(b.last_message_at)}`}
-              </div>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <ProjectChip
-                project={project}
-                hasProjectId={!!b.parent_project_id}
-                onAssignClick={() => setAssignOpen(true)}
-              />
-              <IntentBadge type={b.intent_type ?? null} />
-              <Badge variant="secondary">{STATUS_LABEL[b.status]}</Badge>
-              {b.billing_type === "adhoc" && <Badge variant="warning">Adhoc</Badge>}
-              <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMenuOpen((o) => !o);
-                    }}
-                    aria-label="Brief actions"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
+      <Link
+        to={`/inbox/${b.id}`}
+        className={`group flex items-center justify-between gap-4 px-4 py-3 transition-colors ${
+          selected ? "bg-m-primary-container/40" : "hover:bg-m-surface-container"
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-title-small">
+            {b.raw_subject ?? "(no subject)"}
+          </div>
+          <div className="text-label-small text-m-on-surface-variant">
+            {b.sender_email ?? "manual"}
+            {b.message_count > 0 &&
+              ` · ${b.message_count} msg${b.message_count !== 1 ? "s" : ""}`}
+            {b.last_message_at && ` · ${relativeTime(b.last_message_at)}`}
+          </div>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2.5">
+          <ProjectChip
+            project={project}
+            hasProjectId={!!b.parent_project_id}
+            onAssignClick={() => setAssignOpen(true)}
+          />
+          {b.billing_type === "adhoc" && <Badge variant="warning">Adhoc</Badge>}
+          {showStatus && <Badge variant="secondary">{STATUS_LABEL[b.status]}</Badge>}
+          <IntentBadge type={b.intent_type ?? null} />
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 ${
+                  menuOpen ? "opacity-100" : "opacity-0"
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuOpen((o) => !o);
+                }}
+                aria-label="Brief actions"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
                 <PopoverContent
                   align="end"
                   className="w-48 p-1"
@@ -312,9 +323,7 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
                   )}
                 </PopoverContent>
               </Popover>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
       </Link>
       {assignOpen && (
         <InboxAssignModal brief={b} open={assignOpen} onClose={() => setAssignOpen(false)} />

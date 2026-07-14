@@ -1,6 +1,5 @@
 import { useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
-import { Eye, Wrench } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -40,11 +39,6 @@ export function SowDocPreview({
       <div className="flex items-center justify-between border-b border-m-outline-variant px-4 py-2.5">
         <span className="text-title-small text-m-on-surface">Preview</span>
         <div className="flex items-center gap-2">
-          {clientView ? (
-            <Eye className="h-4 w-4 text-m-on-surface-variant" />
-          ) : (
-            <Wrench className="h-4 w-4 text-m-on-surface-variant" />
-          )}
           <Label htmlFor="sow-client-view" className="text-label-medium text-m-on-surface-variant">
             Client view
           </Label>

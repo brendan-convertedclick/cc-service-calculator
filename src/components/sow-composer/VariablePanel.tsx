@@ -3,7 +3,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -75,11 +74,8 @@ export function VariablePanel({
   };
 
   return (
-    <div className="space-y-3 rounded-lg border border-m-outline-variant bg-m-surface p-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-title-small text-m-on-surface">Variables</h3>
-        <span className="text-label-small text-m-on-surface-variant">Fill once · applies everywhere</span>
-      </div>
+    <div className="space-y-3 border-t border-m-outline-variant pt-4">
+      <h3 className="text-title-small text-m-on-surface">Variables</h3>
 
       <div className="space-y-2.5">
         {manual.map((def) => {
@@ -90,11 +86,11 @@ export function VariablePanel({
                 <Label htmlFor={`var-${def.key}`} className="text-label-medium text-m-on-surface">
                   {def.label ?? def.key}
                 </Label>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   {resolved && (
-                    <Badge variant="outline" className="text-label-small">
+                    <span className="text-label-small text-m-on-surface-variant">
                       {SOURCE_BADGE[resolved.source]}
-                    </Badge>
+                    </span>
                   )}
                   {onSetClientOverride && (
                     <TooltipProvider>

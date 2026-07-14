@@ -10,8 +10,7 @@ export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }
     return (
       <section>
         <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">Revenue Trend</h2>
-        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-4 text-body-small text-m-on-surface-variant">
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
+        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container-low p-4 text-body-small text-m-on-surface-variant">
           <Link to="/settings?connect=xero" className="underline">Connect Xero</Link> to see revenue trends.
         </div>
       </section>
@@ -33,7 +32,7 @@ export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }
                 {r.months.map((m, i) => (
                   <div
                     key={m.label}
-                    className={i === 2 ? 'w-2 rounded-sm bg-indigo-500' : 'w-2 rounded-sm bg-indigo-300'}
+                    className={i === 2 ? 'w-2 rounded-sm bg-m-primary' : 'w-2 rounded-sm bg-m-primary/40'}
                     style={{ height: `${Math.max((m.cents / maxCents) * 20, 2)}px` }}
                     title={`${m.label}: ${fmt(m.cents)}`}
                   />

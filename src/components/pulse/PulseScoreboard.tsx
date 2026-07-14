@@ -17,9 +17,9 @@ const INVOICE_LIMIT = 2
 const CHIP_LIMIT = 5
 const BURN_BAR_LIMIT = 3
 
-// Same canonical order and palette as WipFunnelSection.
+// Same canonical order and one-hue treatment as WipFunnelSection: primary bars, green terminal stage.
 const WIP_STAGES = ['Received', 'Scoping', 'Quoted', 'Accepted', 'Delivered'] as const
-const WIP_STAGE_COLORS = ['bg-indigo-500', 'bg-violet-500', 'bg-violet-400', 'bg-violet-300', 'bg-green-500']
+const wipStageColor = (idx: number) => (idx === WIP_STAGES.length - 1 ? 'bg-green-500' : 'bg-m-primary')
 
 // Same rag → bar colour mapping as RetainerBurnSection.
 const burnBarColor: Record<RetainerBurnRow['rag'], string> = {
@@ -188,7 +188,7 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
               <span
                 key={stage}
                 title={`${stage}: ${count}`}
-                className={cn('block flex-1 rounded-t', WIP_STAGE_COLORS[idx], count === 0 && 'opacity-25')}
+                className={cn('block flex-1 rounded-t', wipStageColor(idx), count === 0 && 'opacity-25')}
                 style={{ height: `${Math.max((count / maxStageCount) * 100, 6)}%` }}
               />
             )

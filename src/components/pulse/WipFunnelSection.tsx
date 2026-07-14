@@ -1,7 +1,8 @@
 import type { WipFunnelData } from '@/types/pulse'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-const stageColors = ['bg-indigo-500', 'bg-violet-500', 'bg-violet-400', 'bg-violet-300', 'bg-green-500']
+// Height + label carry the data; colour only marks the terminal "won" stage. One hue, not a decorative ramp.
+const stageColor = (i: number, last: number) => (i === last ? 'bg-green-500' : 'bg-m-primary')
 
 const MAX_TOOLTIP_ITEMS = 8
 
@@ -21,7 +22,7 @@ export function WipFunnelSection({ data }: { data: WipFunnelData }) {
                 <div className="flex flex-1 cursor-default flex-col items-center gap-1">
                   <span className="text-label-small font-bold text-m-on-surface">{s.count}</span>
                   <div
-                    className={`w-full rounded-t ${stageColors[i]}`}
+                    className={`w-full rounded-t ${stageColor(i, data.stages.length - 1)}`}
                     style={{ height: `${Math.max((s.count / max) * 48, 4)}px` }}
                   />
                 </div>
@@ -52,15 +53,14 @@ export function WipFunnelSection({ data }: { data: WipFunnelData }) {
           </div>
         ))}
       </div>
-      <div className="relative overflow-hidden mt-3 rounded-lg border border-m-outline-variant bg-white px-3 py-2 text-body-small text-m-on-surface-variant">
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
+      <div className="mt-3 rounded-lg border border-m-outline-variant bg-m-surface-container-low px-3 py-2 text-body-small text-m-on-surface-variant">
         Conversion:{' '}
-        <strong className="text-m-on-surface">
+        <strong className="font-mono font-semibold tabular-nums text-m-on-surface">
           {data.conversionRate !== null ? `${data.conversionRate}%` : '—'}
         </strong>{' '}
         brief→accepted
         {data.avgCycleDays !== null && (
-          <> · Avg cycle: <strong className="text-m-on-surface">{data.avgCycleDays}d</strong></>
+          <> · Avg cycle: <strong className="font-mono font-semibold tabular-nums text-m-on-surface">{data.avgCycleDays}d</strong></>
         )}
       </div>
     </section>

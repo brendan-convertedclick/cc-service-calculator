@@ -1,6 +1,5 @@
 import { ArrowDown, ArrowUp, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import type { ReceiptCatalogService } from "@/lib/scope-receipt";
 import type { Section } from "@/types/sow-composer";
 import { ProseSectionEditor } from "./ProseSectionEditor";
@@ -41,12 +40,15 @@ export function SectionCard({
   variableKeys,
 }: SectionCardProps) {
   return (
-    <Card data-testid={`section-${section.id}`} className="border-m-outline-variant">
-      <div className="flex items-center justify-between border-b border-m-outline-variant px-3 py-1.5">
+    <div
+      data-testid={`section-${section.id}`}
+      className="rounded-lg border border-m-outline-variant bg-m-surface"
+    >
+      <div className="flex items-center justify-between px-3 pt-2">
         <span className="text-label-medium font-medium text-m-on-surface-variant">
           {TYPE_LABEL[section.type]}
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="-mr-1 flex items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
@@ -91,7 +93,7 @@ export function SectionCard({
           </Button>
         </div>
       </div>
-      <CardContent className="p-3">
+      <div className="px-3 pb-3 pt-2">
         {section.type === "prose" && (
           <ProseSectionEditor section={section} onChange={onChangeProps} variableKeys={variableKeys} />
         )}
@@ -106,14 +108,17 @@ export function SectionCard({
         {section.type === "list" && <ListSectionEditor section={section} onChange={onChangeProps} />}
         {section.type === "clause" && (
           <p className="text-body-small text-m-on-surface-variant">
-            Clause <span className="font-mono">{section.props.clauseKey || "(unset)"}</span> —
-            inherited via resolve_sow_clause (phase 2).
+            Inherited clause{" "}
+            <span className="font-mono">{section.props.clauseKey || "(unset)"}</span> — resolved on
+            render.
           </p>
         )}
         {section.type === "signature" && (
-          <p className="text-body-small text-m-on-surface-variant">Signature block.</p>
+          <p className="text-body-small text-m-on-surface-variant">
+            Signature block — renders in the preview.
+          </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

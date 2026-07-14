@@ -40,16 +40,16 @@ export function InboxFilterPanel({
   const unassignedActive = activeClientId === null;
 
   return (
-    <div className="flex w-48 flex-shrink-0 flex-col border-r border-m-outline-variant bg-[#f7f7fb]">
-      <div className="px-3 pb-2 pt-3.5 text-[10px] font-bold uppercase tracking-[0.6px] text-m-on-surface-variant">
+    <div className="flex w-48 flex-shrink-0 flex-col border-r border-m-outline-variant bg-m-surface-container-low">
+      <div className="px-3 pb-2 pt-4 text-label-small font-medium text-m-on-surface-variant">
         Filter by client
       </div>
 
       {/* All clients */}
       <button
         onClick={onSelectAll}
-        className={`px-3 py-1.5 text-left text-xs transition-colors hover:bg-m-surface-container-high ${
-          noneActive ? "font-semibold text-m-primary" : "text-m-on-surface-variant"
+        className={`mx-2 rounded-md py-1.5 pl-7 pr-3 text-left text-xs transition-colors hover:bg-m-surface-container-high ${
+          noneActive ? "bg-m-primary-container/50 font-semibold text-m-on-surface" : "text-m-on-surface-variant"
         }`}
       >
         All clients
@@ -65,10 +65,8 @@ export function InboxFilterPanel({
             <div key={client.id} className="mt-0.5">
               {/* Client header row */}
               <div
-                className={`flex items-center gap-1.5 border-l-2 transition-colors ${
-                  isClientActive
-                    ? "border-m-primary bg-m-primary-container/30"
-                    : "border-transparent"
+                className={`mx-2 flex items-center gap-1.5 rounded-md transition-colors ${
+                  isClientActive ? "bg-m-primary-container/40" : ""
                 }`}
               >
                 {/* Chevron — toggles expand only */}
@@ -97,7 +95,7 @@ export function InboxFilterPanel({
                     {client.name}
                   </span>
                   <span
-                    className={`flex-shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${
+                    className={`flex-shrink-0 rounded-full px-1.5 py-px text-label-small font-semibold ${
                       isClientActive
                         ? "bg-gradient-brand text-white"
                         : "bg-muted text-muted-foreground"
@@ -125,7 +123,7 @@ export function InboxFilterPanel({
                         }`}
                       >
                         <span
-                          className={`min-w-0 truncate text-[10px] ${
+                          className={`min-w-0 truncate text-label-small ${
                             isContactActive
                               ? "font-medium text-m-on-surface"
                               : "text-m-on-surface-variant"
@@ -134,7 +132,7 @@ export function InboxFilterPanel({
                           {contact.email}
                         </span>
                         <span
-                          className={`flex-shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold ${
+                          className={`flex-shrink-0 rounded-full px-1.5 py-px text-label-small font-semibold ${
                             isContactActive
                               ? "bg-m-primary text-white"
                               : "bg-muted text-muted-foreground"
@@ -156,15 +154,13 @@ export function InboxFilterPanel({
       {tree.unassigned.count > 0 && (
         <button
           onClick={onSelectUnassigned}
-          className={`flex items-center gap-2 border-t px-3 py-2 text-left transition-colors ${
-            unassignedActive
-              ? "border-red-200 bg-red-100"
-              : "border-red-100 bg-red-50 hover:bg-red-100"
+          className={`flex items-center gap-2 border-t border-m-outline-variant px-3 py-2 text-left transition-colors ${
+            unassignedActive ? "bg-destructive/15" : "hover:bg-destructive/10"
           }`}
         >
           <ChevronRight className="h-3 w-3 flex-shrink-0 text-destructive" />
           <span className="flex-1 text-xs font-semibold text-destructive">Unassigned</span>
-          <span className="rounded-full bg-destructive px-1.5 py-px text-[9px] font-semibold text-white">
+          <span className="rounded-full bg-destructive px-1.5 py-px text-label-small font-semibold text-white">
             {tree.unassigned.count}
           </span>
         </button>

@@ -14,20 +14,18 @@ export function PricingHealthSection({ data }: { data: PricingHealthData | null 
   return (
     <section>
       <h2 className="mb-3 text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">Pricing Health</h2>
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-3">
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small font-bold bg-gradient-brand bg-clip-text text-transparent">{data.scopeCreepRate}%</div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">Scope creep rate</div>
-          <div className="mt-0.5 text-label-small text-m-on-surface-variant">projects &gt;10% over quote</div>
+      <div className="mb-4 grid grid-cols-2 gap-4">
+        <div>
+          <div className="font-mono text-headline-small font-semibold tabular-nums text-m-on-surface">{data.scopeCreepRate}%</div>
+          <div className="mt-1 text-label-medium font-medium text-m-on-surface">Scope creep rate</div>
+          <div className="text-label-small text-m-on-surface-variant">projects &gt;10% over quote</div>
         </div>
-        <div className="relative overflow-hidden rounded-lg border border-m-outline-variant bg-white p-3">
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-brand" />
-          <div className="text-display-small font-bold bg-gradient-brand bg-clip-text text-transparent">
+        <div>
+          <div className="font-mono text-headline-small font-semibold tabular-nums text-m-on-surface">
             {data.conversionRate !== null ? `${data.conversionRate}%` : '—'}
           </div>
-          <div className="mt-1 text-label-small font-semibold text-m-on-surface-variant">Brief conversion</div>
-          <div className="mt-0.5 text-label-small text-m-on-surface-variant">brief → accepted quote</div>
+          <div className="mt-1 text-label-medium font-medium text-m-on-surface">Brief conversion</div>
+          <div className="text-label-small text-m-on-surface-variant">brief → accepted quote</div>
         </div>
       </div>
       {data.byClient.length > 0 && (

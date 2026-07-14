@@ -7,7 +7,7 @@ import { usePulseClientHealth } from '@/hooks/usePulseClientHealth'
 import { usePulsePricingHealth } from '@/hooks/usePulsePricingHealth'
 import { usePulseRevenueTrend } from '@/hooks/usePulseRevenueTrend'
 import { computeAlerts } from '@/hooks/usePulseAlerts'
-import { AlertsStrip } from '@/components/pulse/AlertsStrip'
+import { cn } from '@/lib/utils'
 import { PulseScoreboard } from '@/components/pulse/PulseScoreboard'
 import { RetainerBurnSection } from '@/components/pulse/RetainerBurnSection'
 import { WipFunnelSection } from '@/components/pulse/WipFunnelSection'
@@ -31,13 +31,29 @@ export function PulseView() {
   const wipWithCycle = { ...wipFunnel, avgCycleDays: dftCycle?.avgDays ?? null }
   const alerts = computeAlerts(currentBurn, arAging ?? [], clientHealth, [])
 
+  // The scoreboard tiles carry the drill-down; the page just needs the one-line verdict.
+  const overdueCount = alerts.filter(a => a.level === 'overdue').length
+  const watchCount = alerts.filter(a => a.level === 'watch').length
+  const verdict = overdueCount > 0
+    ? { text: `${overdueCount} urgent item${overdueCount !== 1 ? 's' : ''} need${overdueCount === 1 ? 's' : ''} action`, dot: 'bg-m-error', tone: 'text-m-error' }
+    : watchCount > 0
+      ? { text: `Nothing urgent — ${watchCount} to watch`, dot: 'bg-amber-400', tone: 'text-amber-700' }
+      : { text: 'All clear today', dot: 'bg-green-500', tone: 'text-green-700' }
+
   return (
     <div className="flex flex-col gap-6 overflow-auto p-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-headline-medium text-m-on-surface">Business Pulse</h1>
-          <p className="text-body-small text-m-on-surface-variant">
-            {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body-small">
+            <span className="text-m-on-surface-variant">
+              {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            <span aria-hidden="true" className="text-m-on-surface-variant">·</span>
+            <span className={cn('inline-flex items-center gap-1.5 font-medium', verdict.tone)}>
+              <span className={cn('h-1.5 w-1.5 rounded-full', verdict.dot)} />
+              {verdict.text}
+            </span>
           </p>
         </div>
         <label className="flex flex-col gap-1 text-label-small font-medium text-m-on-surface-variant">
@@ -53,8 +69,6 @@ export function PulseView() {
       </div>
 
       <PulseScoreboard arBands={arAging} retainers={currentBurn} clientHealth={clientHealth} wip={wipWithCycle} />
-
-      <AlertsStrip alerts={alerts} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-xl border border-m-outline-variant bg-m-surface p-5">
