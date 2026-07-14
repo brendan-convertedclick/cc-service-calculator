@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StageSection, type StageStatus } from "@/components/StageSection";
 import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage";
 import { ScopeEditor } from "@/components/ScopeEditor";
@@ -57,6 +65,7 @@ export function Scope() {
 
   const [editingIntel, setEditingIntel] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
   const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
@@ -363,12 +372,38 @@ export function Scope() {
                 >
                   Save draft
                 </Button>
-                <Button onClick={lockScope}>Lock scope</Button>
+                <Button onClick={() => setLockConfirmOpen(true)}>Lock scope</Button>
               </div>
             </div>
           </div>
         </StageSection>
       </div>
+
+      <Dialog open={lockConfirmOpen} onOpenChange={setLockConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Lock this scope?</DialogTitle>
+            <DialogDescription>
+              This confirms the written scope as final and moves the brief on to the
+              SOW step. Save a draft first if you&apos;re not ready to commit.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLockConfirmOpen(false)}>
+              Keep editing
+            </Button>
+            <Button
+              disabled={upsertScope.isPending || updateBrief.isPending}
+              onClick={async () => {
+                setLockConfirmOpen(false);
+                await lockScope();
+              }}
+            >
+              {upsertScope.isPending ? "Locking…" : "Lock scope"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
