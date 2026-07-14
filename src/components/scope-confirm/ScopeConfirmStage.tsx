@@ -272,8 +272,8 @@ export function ScopeConfirmStage({
 
   return (
     <div className="space-y-4">
-      <p className="text-body-small text-m-on-surface-variant">
-        Review how each request maps to the client&apos;s scope. Use the ⋮ menu on any
+      <p className="max-w-prose text-body-small text-m-on-surface-variant">
+        Review how each request maps to the client&apos;s scope. Use the menu on any
         line to move it between <strong>In</strong>, <strong>New</strong> and{" "}
         <strong>Out</strong> if the classification is wrong.
       </p>
