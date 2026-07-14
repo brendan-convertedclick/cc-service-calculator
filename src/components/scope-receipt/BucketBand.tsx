@@ -38,6 +38,7 @@ export interface BucketBandProps {
   showSubtotal?: boolean;
   clientMode?: boolean;
   onQtyChange?: (taskRef: string, qty: number) => void;
+  onPriceChange?: (taskRef: string, unitCents: number) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
 }
 
@@ -54,6 +55,7 @@ export function BucketBand({
   showSubtotal = false,
   clientMode = false,
   onQtyChange,
+  onPriceChange,
   onOverride,
 }: BucketBandProps) {
   const empty = bucket.lines.length === 0;
@@ -132,6 +134,7 @@ export function BucketBand({
               clientMode={clientMode}
               showConfidence={showConfidence}
               onQtyChange={onQtyChange}
+              onPriceChange={onPriceChange}
               onOverride={onOverride}
             />
           ))}

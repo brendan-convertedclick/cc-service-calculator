@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { Minus, MoreVertical, Plus, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,77 @@ const OVERRIDE_LABEL: Record<Disposition, string> = {
   out_of_scope: "Out",
 };
 
+/** Always show at least one decimal place (1 → "1.0", 1.5 → "1.5"). */
+function formatQty(n: number): string {
+  return Number.isInteger(n) ? n.toFixed(1) : String(n);
+}
+
+/**
+ * Inline-editable number cell. Shows a formatted display value when idle; on
+ * focus it swaps to a raw, editable seed (selected whole so a keystroke
+ * replaces it), and commits the parsed value on blur / Enter — Escape cancels.
+ * Kept uncontrolled-by-display so external re-renders (optimistic writes) never
+ * fight the operator's keystrokes.
+ */
+function InlineNumber({
+  display,
+  seed,
+  onCommit,
+  ariaLabel,
+  align = "right",
+  widthClass,
+}: {
+  display: string;
+  seed: string;
+  onCommit: (text: string) => void;
+  ariaLabel: string;
+  align?: "right" | "center";
+  widthClass?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  // null = not editing (show formatted display); string = the in-flight draft.
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  const editing = draft !== null;
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={editing ? draft : display}
+      onFocus={() => {
+        setDraft(seed);
+        // Select after React has swapped the value to the seed, so the first
+        // keystroke replaces the whole number instead of inserting mid-string.
+        requestAnimationFrame(() => ref.current?.select());
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const value = draft ?? "";
+        const cancelled = cancelledRef.current;
+        cancelledRef.current = false;
+        setDraft(null);
+        if (!cancelled) onCommit(value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        else if (e.key === "Escape") {
+          cancelledRef.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      className={cn(
+        "rounded border border-transparent bg-transparent px-1 py-0.5 tabular-nums",
+        "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
+        align === "right" ? "text-right" : "text-center",
+        widthClass,
+      )}
+    />
+  );
+}
+
 export interface ServiceLineRowProps {
   line: ReceiptLine;
   /** out_of_scope rows render the line total struck through. */
@@ -31,6 +103,8 @@ export interface ServiceLineRowProps {
   /** Whether to show the confidence chip for this row (amber/grey med-low). */
   showConfidence?: boolean;
   onQtyChange?: (taskRef: string, qty: number) => void;
+  /** Inline unit-price edit (cents). Enables the editable price cell. */
+  onPriceChange?: (taskRef: string, unitCents: number) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
 }
 
@@ -45,10 +119,21 @@ export function ServiceLineRow({
   clientMode = false,
   showConfidence = false,
   onQtyChange,
+  onPriceChange,
   onOverride,
 }: ServiceLineRowProps) {
   const editableQty = !clientMode && !!onQtyChange;
+  const editablePrice = !clientMode && !!onPriceChange;
   const step = () => (line.qty % 1 === 0 ? 1 : 0.25);
+
+  const commitQty = (t: string) => {
+    const n = parseFloat(t.replace(",", "."));
+    if (Number.isFinite(n) && n > 0) onQtyChange?.(line.taskRef, Math.round(n * 100) / 100);
+  };
+  const commitPrice = (t: string) => {
+    const rands = parseFloat(t.replace(/[^\d.,]/g, "").replace(",", "."));
+    if (Number.isFinite(rands) && rands >= 0) onPriceChange?.(line.taskRef, Math.round(rands * 100));
+  };
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5">
@@ -90,9 +175,20 @@ export function ServiceLineRow({
             <Minus className="h-3.5 w-3.5" />
           </Button>
         )}
-        <span className="min-w-[2ch] text-center text-body-small tabular-nums text-m-on-surface">
-          {line.qty}
-        </span>
+        {editableQty ? (
+          <InlineNumber
+            display={formatQty(line.qty)}
+            seed={String(line.qty)}
+            onCommit={commitQty}
+            ariaLabel={`Quantity for ${line.name}`}
+            align="center"
+            widthClass="w-12 text-body-small text-m-on-surface"
+          />
+        ) : (
+          <span className="min-w-[2ch] text-center text-body-small tabular-nums text-m-on-surface">
+            {formatQty(line.qty)}
+          </span>
+        )}
         {editableQty && (
           <Button
             type="button"
@@ -113,9 +209,19 @@ export function ServiceLineRow({
       </div>
 
       {/* unit price */}
-      <span className="w-20 shrink-0 text-right text-label-small tabular-nums text-m-on-surface-variant">
-        {formatCurrency(line.unitCents / 100)}
-      </span>
+      {editablePrice ? (
+        <InlineNumber
+          display={formatCurrency(line.unitCents / 100)}
+          seed={String(line.unitCents / 100)}
+          onCommit={commitPrice}
+          ariaLabel={`Unit price for ${line.name}`}
+          widthClass="w-20 shrink-0 text-label-small text-m-on-surface-variant"
+        />
+      ) : (
+        <span className="w-20 shrink-0 text-right text-label-small tabular-nums text-m-on-surface-variant">
+          {formatCurrency(line.unitCents / 100)}
+        </span>
+      )}
 
       {/* line total */}
       <span
