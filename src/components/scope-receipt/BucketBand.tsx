@@ -8,10 +8,13 @@ import { ServiceLineRow } from "./ServiceLineRow";
 
 // Band accent styling by tone. emerald=included, amber=billable, grey=out.
 // Deliberately NOT the violet m-primary-container (reserved for the map chip).
+// Distilled: tinted zones, not bordered cards — the band already sits inside
+// the stage card, so a second card border reads as nesting. Colour + dot +
+// title carry the grouping instead.
 const TONE_ACCENT: Record<ReceiptBucket["tone"], string> = {
-  included: "border-emerald-200 bg-emerald-50/60",
-  billable: "border-amber-200 bg-amber-50/60",
-  out: "border-m-outline-variant bg-m-surface-container/40",
+  included: "bg-emerald-50/60",
+  billable: "bg-amber-50/60",
+  out: "bg-m-surface-container/40",
 };
 
 const TONE_DOT: Record<ReceiptBucket["tone"], string> = {
@@ -75,7 +78,7 @@ export function BucketBand({
     return (
       <div
         className={cn(
-          "flex items-center gap-2 rounded-lg border px-4 py-2",
+          "flex items-center gap-2 rounded-lg px-4 py-2",
           TONE_ACCENT[bucket.tone],
         )}
       >
@@ -89,7 +92,7 @@ export function BucketBand({
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-lg border", TONE_ACCENT[bucket.tone])}>
+    <div className={cn("overflow-hidden rounded-lg", TONE_ACCENT[bucket.tone])}>
       <button
         type="button"
         disabled={!collapsible}
