@@ -78,8 +78,6 @@ export function DashboardShell() {
             monthlyHours={monthlyHours}
             deliveryRate={deliveryRate}
             dftCycleTime={dftCycleTime}
-            scopeFilter={scopeFilter}
-            onScopeFilterChange={setScopeFilter}
           />
         )}
       </main>

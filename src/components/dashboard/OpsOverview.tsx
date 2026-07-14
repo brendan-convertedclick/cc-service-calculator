@@ -6,7 +6,6 @@ import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useDashboardView } from "@/hooks/useDashboardView";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import type { ClaudePrompt } from "@/types/claude";
-import type { ScopeFilter } from "./ProjectTree";
 import { DashboardViewToggle } from "./DashboardViewToggle";
 import { BentoOverview } from "./BentoOverview";
 import { BoardOverview, type DeliveredProject } from "./BoardOverview";
@@ -19,8 +18,6 @@ interface Props {
   monthlyHours: number | null;
   deliveryRate: DeliveryRate | null;
   dftCycleTime: DftCycleTime | null;
-  scopeFilter: ScopeFilter;
-  onScopeFilterChange: (f: ScopeFilter) => void;
 }
 
 export function OpsOverview({
@@ -31,8 +28,6 @@ export function OpsOverview({
   monthlyHours,
   deliveryRate,
   dftCycleTime,
-  scopeFilter,
-  onScopeFilterChange,
 }: Props) {
   const [view, setView] = useDashboardView();
 
@@ -118,8 +113,6 @@ Output: A formatted weekly ops summary in markdown, with sections: Overview, Pro
             monthlyHours={monthlyHours}
             deliveryRate={deliveryRate}
             dftCycleTime={dftCycleTime}
-            scopeFilter={scopeFilter}
-            onScopeFilterChange={onScopeFilterChange}
             onSelect={onSelect}
           />
         ) : (

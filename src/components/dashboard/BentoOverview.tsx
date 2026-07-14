@@ -1,9 +1,8 @@
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
 import type { DeliveryRate } from "@/hooks/useDeliveryRate";
 import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
-import type { ScopeFilter } from "./ProjectTree";
 import { ClientMarginContent } from "./ClientMarginContent";
 import { scopeBadge, scopeDot, scopeLabel } from "./dashboardFormat";
 
@@ -12,8 +11,6 @@ interface Props {
   monthlyHours: number | null;
   deliveryRate: DeliveryRate | null;
   dftCycleTime: DftCycleTime | null;
-  scopeFilter: ScopeFilter;
-  onScopeFilterChange: (f: ScopeFilter) => void;
   onSelect: (id: string) => void;
 }
 
@@ -74,7 +71,7 @@ function ProjectItem({ p, onSelect }: { p: OpsProject; onSelect: (id: string) =>
   );
 }
 
-/** A single figure in the top metric strip. Value + unit in mono, calm label, optional gauge + caption. */
+/** A single figure in the health line. Value + unit in mono, calm label, optional gauge + caption. */
 function MetricTile({
   value,
   unit,
@@ -105,66 +102,14 @@ function MetricTile({
   );
 }
 
-/** A scope-count tile that cross-filters the Recent band when pressed. */
-function FilterTile({
-  active,
-  count,
-  label,
-  dot,
-  numClass,
-  onClick,
-}: {
-  active: boolean;
-  count: number;
-  label: string;
-  dot: string;
-  numClass: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        TILE,
-        "justify-between gap-3 text-left transition-all hover:shadow-elev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-m-primary",
-        active && "ring-2 ring-m-primary",
-      )}
-    >
-      <div className={cn("text-[30px] font-bold leading-none font-mono tabular-nums", numClass)}>{count}</div>
-      <div className="flex items-center gap-1.5 text-label-medium font-semibold text-m-on-surface-variant">
-        <span className={cn("h-2 w-2 rounded-full", dot)} />
-        {label}
-      </div>
-    </button>
-  );
-}
-
-export function BentoOverview({
-  opsData,
-  monthlyHours,
-  deliveryRate,
-  dftCycleTime,
-  scopeFilter,
-  onScopeFilterChange,
-  onSelect,
-}: Props) {
-  const toggle = (f: ScopeFilter) => onScopeFilterChange(scopeFilter === f ? "all" : f);
-
+export function BentoOverview({ opsData, monthlyHours, deliveryRate, dftCycleTime, onSelect }: Props) {
   const rate = deliveryRate && deliveryRate.total > 0 ? deliveryRate.rate : null;
   const avgDays = dftCycleTime?.avgDays ?? null;
 
-  // The recent tile doubles as the cross-filter target.
-  const filtered =
-    scopeFilter === "all"
-      ? opsData.recentProjects
-      : opsData.projects.filter((p) => p.scopeStatus === scopeFilter);
-
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-auto px-6 pb-6 pt-1">
-      {/* Metric strip — capacity, delivery, and scope counts at a glance */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {/* Health line — capacity and delivery at a glance */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <MetricTile
           value={monthlyHours !== null ? monthlyHours : "—"}
           unit={monthlyHours !== null ? "h" : undefined}
@@ -205,22 +150,6 @@ export function BentoOverview({
               : "No baseline yet"
           }
         />
-        <FilterTile
-          active={scopeFilter === "on_track"}
-          count={opsData.onTrackCount}
-          label="On track"
-          dot="bg-m-tertiary"
-          numClass="text-m-on-tertiary-container"
-          onClick={() => toggle("on_track")}
-        />
-        <FilterTile
-          active={scopeFilter === "overdue"}
-          count={opsData.overdueCount}
-          label="Overdue"
-          dot="bg-m-error"
-          numClass="text-m-on-error-container"
-          onClick={() => toggle("overdue")}
-        />
       </div>
 
       {/* Working row — what needs a human, and how margins are trending */}
@@ -254,23 +183,6 @@ export function BentoOverview({
           </div>
         </section>
       </div>
-
-      {/* Recent / cross-filtered projects */}
-      <section className={TILE}>
-        <TileHead
-          title={scopeFilter === "all" ? "Recent projects" : `Filtered · ${scopeLabel[scopeFilter] ?? scopeFilter}`}
-          aside={scopeFilter === "all" ? "most recently started" : `${filtered.length} shown`}
-        />
-        {filtered.length === 0 ? (
-          <TileEmpty icon={Clock}>No projects match this filter.</TileEmpty>
-        ) : (
-          <div className="grid max-h-[300px] gap-2 overflow-y-auto pr-0.5 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
-            {filtered.map((p) => (
-              <ProjectItem key={p.id} p={p} onSelect={onSelect} />
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

@@ -110,6 +110,8 @@ function Lane({
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={false}
+          aria-label={`Expand ${name} lane`}
           className={cn("relative flex h-full flex-col items-center gap-2 rounded-2xl py-3", s.head)}
         >
           <span className={cn("absolute inset-y-3 left-0 w-0.5 rounded-r", s.tick)} />
@@ -133,6 +135,8 @@ function Lane({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={true}
+        aria-label={`Collapse ${name} lane`}
         className={cn("relative flex items-center gap-2 border-b border-m-outline-variant px-3 py-3", s.head)}
       >
         <span className={cn("absolute inset-x-3 top-0 h-0.5 rounded-b", s.tick)} />
@@ -163,7 +167,9 @@ export function BoardOverview({
   lastBriefActivity,
   onSelect,
 }: Props) {
-  const [collapsed, setCollapsed] = useState<Set<LaneKey>>(new Set());
+  // "On track" is healthy, no-action work that the project rail already lists in
+  // full — collapse it by default so the board leads with what needs a human.
+  const [collapsed, setCollapsed] = useState<Set<LaneKey>>(() => new Set<LaneKey>(["ontrack"]));
   const toggle = (k: LaneKey) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
