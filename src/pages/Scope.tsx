@@ -1,5 +1,5 @@
 // src/pages/Scope.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { StageSection, type StageStatus } from "@/components/StageSection";
+import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
-import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
+import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
   useBriefIntelligence,
@@ -64,6 +66,7 @@ export function Scope() {
   const { data: scope } = useScope(id);
   const updateBrief = useUpdateBrief();
   const upsertScope = useUpsertScope();
+  const confirmScope = useConfirmScope(id);
   const approve = useApproveBriefIntelligence(id ?? "");
   const reject = useRejectBriefIntelligence(id ?? "");
   const updateIntel = useUpdateBriefIntelligence(id ?? "");
@@ -72,6 +75,7 @@ export function Scope() {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [scopeValues, setScopeValues] = useState<ScopeValues>(EMPTY);
   const [lastAiDraft, setLastAiDraft] = useState("");
+  const [openStage, setOpenStage] = useState<number | null>(null);
 
   // Pre-populate scopeValues from an existing scope row (e.g. on page reload).
   useEffect(() => {
@@ -87,11 +91,40 @@ export function Scope() {
     }
   }, [scope]);
 
-  if (!brief) return <div className="p-6 text-body-medium">Loading…</div>;
-
+  // Stage gating.
   const amStatus = intelligence?.am_status ?? "pending";
   const isApproved = amStatus === "approved";
   const isRejected = amStatus === "rejected";
+  const scopeConfirmed = !!brief?.scope_confirmed_at;
+  const scopeLocked = brief?.status === "scoped";
+
+  const s1status: StageStatus = scopeConfirmed ? "done" : "active";
+  const s2status: StageStatus = !scopeConfirmed ? "locked" : isApproved ? "done" : "active";
+  const s3status: StageStatus = !isApproved ? "locked" : scopeLocked ? "done" : "active";
+
+  // Auto-open the first actionable (active) stage, and advance as gates clear.
+  const activeStage =
+    s1status === "active" ? 1 : s2status === "active" ? 2 : s3status === "active" ? 3 : 0;
+  const prevActiveRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (activeStage !== prevActiveRef.current) {
+      prevActiveRef.current = activeStage;
+      if (activeStage) setOpenStage(activeStage);
+    }
+  }, [activeStage]);
+
+  if (!brief) return <div className="p-6 text-body-medium">Loading…</div>;
+
+  const toggleStage = (n: number) => setOpenStage((cur) => (cur === n ? null : n));
+
+  const handleConfirmScope = async () => {
+    try {
+      await confirmScope.mutateAsync({ confirmed: true, userId });
+      toast.success("Scope confirmed — review the brief next");
+    } catch {
+      toast.error("Failed to confirm scope");
+    }
+  };
 
   const handleApprove = async () => {
     try {
@@ -156,11 +189,7 @@ export function Scope() {
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setQuickBriefOpen(true)}
-        >
+        <Button variant="outline" size="sm" onClick={() => setQuickBriefOpen(true)}>
           Brief as-is
         </Button>
       </div>
@@ -179,107 +208,143 @@ export function Scope() {
         }}
       />
 
-      {/* Intelligence view — always visible */}
-      <BriefIntelligenceView
-        intelligence={intelligence ?? null}
-        isLoading={intelLoading}
-        departments={departments}
-        onEditingChange={setEditingIntel}
-        onSave={async (patch) => {
-          try {
-            await updateIntel.mutateAsync(patch);
-            toast.success("Brief updated");
-          } catch (e) {
-            toast.error("Failed to save changes");
-            throw e;
-          }
-        }}
-      />
+      <div className="space-y-3">
+        {/* Stage 1 — In / Out of Scope (the gate) */}
+        <StageSection
+          index={1}
+          title="In / Out of Scope"
+          subtitle="Confirm what's included, new, or out of scope"
+          status={s1status}
+          open={openStage === 1}
+          onToggle={() => toggleStage(1)}
+        >
+          <ScopeConfirmStage
+            key={id}
+            briefId={id!}
+            clientId={brief.client_id}
+            confirmed={scopeConfirmed}
+            confirming={confirmScope.isPending}
+            onConfirm={handleConfirmScope}
+          />
+        </StageSection>
 
-      {/* AM Review actions — only when pending and intelligence exists */}
-      {!isApproved && !isRejected && intelligence && !editingIntel && (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            {showRejectInput ? (
-              <div className="space-y-2">
-                <Textarea
-                  placeholder="What needs to change? The AI will use these notes when it regenerates…"
-                  rows={3}
-                  value={rejectNotes}
-                  onChange={(e) => setRejectNotes(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowRejectInput(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleReject}
-                    disabled={reject.isPending}
-                  >
-                    {reject.isPending ? "Rejecting…" : "Reject & regenerate"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRejectInput(true)}
-                >
-                  Reject — needs changes
-                </Button>
-                <Button
-                  onClick={handleApprove}
-                  disabled={approve.isPending}
-                >
-                  {approve.isPending ? "Approving…" : "Approve → build scope"}
-                </Button>
+        {/* Stage 2 — The Brief */}
+        <StageSection
+          index={2}
+          title="The Brief"
+          subtitle="Review the AI brief and approve"
+          status={s2status}
+          open={openStage === 2}
+          onToggle={() => toggleStage(2)}
+        >
+          <div className="space-y-4">
+            <BriefIntelligenceView
+              intelligence={intelligence ?? null}
+              isLoading={intelLoading}
+              departments={departments}
+              onEditingChange={setEditingIntel}
+              onSave={async (patch) => {
+                try {
+                  await updateIntel.mutateAsync(patch);
+                  toast.success("Brief updated");
+                } catch (e) {
+                  toast.error("Failed to save changes");
+                  throw e;
+                }
+              }}
+            />
+
+            {/* AM review actions — only when pending and intelligence exists */}
+            {!isApproved && !isRejected && intelligence && !editingIntel && (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  {showRejectInput ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        placeholder="What needs to change? The AI will use these notes when it regenerates…"
+                        rows={3}
+                        value={rejectNotes}
+                        onChange={(e) => setRejectNotes(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowRejectInput(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleReject}
+                          disabled={reject.isPending}
+                        >
+                          {reject.isPending ? "Rejecting…" : "Reject & regenerate"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowRejectInput(true)}
+                      >
+                        Reject — needs changes
+                      </Button>
+                      <Button onClick={handleApprove} disabled={approve.isPending}>
+                        {approve.isPending ? "Approving…" : "Approve → edit scope"}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Rejected state */}
+            {isRejected && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-body-small text-red-800">
+                Rejected. Intake will regenerate the intelligence on the next run.
+                {intelligence?.am_notes && (
+                  <p className="mt-1 font-medium">Notes: {intelligence.am_notes}</p>
+                )}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Rejected state */}
-      {isRejected && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-body-small text-red-800">
-          Rejected. Intake will regenerate the intelligence on the next run.
-          {intelligence?.am_notes && (
-            <p className="mt-1 font-medium">Notes: {intelligence.am_notes}</p>
-          )}
-        </div>
-      )}
-
-      {/* Scope editor — after approval, or when no intelligence exists */}
-      {(isApproved || !intelligence) && (
-        <div className="space-y-4 pt-2">
-          <h2 className="text-title-medium">Scope</h2>
-          <ScopeEditor
-            value={scopeValues}
-            onChange={(v) => setScopeValues({ ...scopeValues, ...v })}
-          />
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                upsertScope.mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
-                  .then(() => toast.success("Saved"))
-                  .catch(() => toast.error("Failed to save"))
-              }
-            >
-              Save draft
-            </Button>
-            <Button onClick={lockScope}>Lock scope</Button>
           </div>
-        </div>
-      )}
+        </StageSection>
+
+        {/* Stage 3 — Scope Edit */}
+        <StageSection
+          index={3}
+          title="Scope Edit"
+          subtitle="Finalise the written scope"
+          status={s3status}
+          open={openStage === 3}
+          onToggle={() => toggleStage(3)}
+        >
+          <div className="space-y-4">
+            <ScopeEditor
+              value={scopeValues}
+              onChange={(v) => setScopeValues({ ...scopeValues, ...v })}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  upsertScope
+                    .mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
+                    .then(() => toast.success("Saved"))
+                    .catch(() => toast.error("Failed to save"))
+                }
+              >
+                Save draft
+              </Button>
+              <Button onClick={lockScope}>Lock scope</Button>
+            </div>
+          </div>
+        </StageSection>
+      </div>
     </div>
   );
 }

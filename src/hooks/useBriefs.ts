@@ -145,3 +145,42 @@ export function useUpdateBrief() {
     },
   });
 }
+
+/**
+ * Stage-1 gate of the 3-stage brief flow: stamp scope_confirmed_at once the
+ * operator has confirmed the in/out-of-scope disposition. Pass confirmed:false
+ * to re-open Stage 1 (clears the stamp). scope_confirmed_by is nullable under
+ * the shared team@ login (no team_members row).
+ */
+export function useConfirmScope(briefId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      confirmed,
+      userId,
+    }: {
+      confirmed: boolean;
+      userId?: string | null;
+    }) => {
+      if (!briefId) throw new Error("Missing brief id");
+      const patch: BriefUpdate = confirmed
+        ? {
+            scope_confirmed_at: new Date().toISOString(),
+            scope_confirmed_by: userId ?? null,
+          }
+        : { scope_confirmed_at: null, scope_confirmed_by: null };
+      const { data, error } = await supabase
+        .from("briefs")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", briefId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["briefs"] });
+      if (briefId) qc.invalidateQueries({ queryKey: DETAIL(briefId) });
+    },
+  });
+}
