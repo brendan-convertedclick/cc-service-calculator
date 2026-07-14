@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { ChevronRight, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/hooks/useProjects";
@@ -180,9 +181,7 @@ Output: An updated scope of work document with a "Change log" section appended.`
           </Link>
           <ChevronRight className="h-4 w-4 text-m-on-surface-variant" />
           <span className="text-body-medium text-m-on-surface">{projectName}</span>
-          <span className="ml-2 rounded px-2 py-0.5 text-label-small bg-m-surface-container text-m-on-surface-variant">
-            {engagementType}
-          </span>
+          <Badge variant="muted" className="ml-2">{engagementType}</Badge>
           <span
             className={cn(
               "ml-auto rounded-full px-2 py-0.5 text-label-small",
@@ -239,9 +238,9 @@ Output: An updated scope of work document with a "Change log" section appended.`
                             {b.raw_subject ?? "(no subject)"}
                           </span>
                           {b.intent_type && (
-                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+                            <Badge variant="muted" className="shrink-0">
                               {b.intent_type === "project_thread" ? "Project thread" : b.intent_type}
-                            </span>
+                            </Badge>
                           )}
                         </div>
                         <div className="text-label-small text-m-on-surface-variant">
@@ -299,24 +298,37 @@ Output: An updated scope of work document with a "Change log" section appended.`
             <ActivityFeed events={events} isLoading={activityLoading} />
           </TabsContent>
 
-          <TabsContent value="tasks" className="flex-1 overflow-auto p-6">
-            <p className="text-body-medium text-m-on-surface-variant">
-              ClickUp task sync coming in a future phase.
-            </p>
+          <TabsContent value="tasks" className="flex-1 overflow-auto">
+            <div className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+              <p className="text-body-medium text-m-on-surface-variant">No tasks yet</p>
+              <p className="text-label-small text-m-on-surface-variant">
+                ClickUp task sync arrives in a later phase.
+              </p>
+            </div>
           </TabsContent>
 
-          <TabsContent value="quote" className="flex-1 overflow-auto p-6">
-            <p className="text-body-medium text-m-on-surface-variant">
-              {project?.quote_id
-                ? `Linked to quote ${project.quote_id}.`
-                : "No quote linked to this project yet."}
-            </p>
+          <TabsContent value="quote" className="flex-1 overflow-auto">
+            {project?.quote_id ? (
+              <p className="p-6 text-body-medium text-m-on-surface">
+                Linked to quote {project.quote_id}.
+              </p>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+                <p className="text-body-medium text-m-on-surface-variant">No quote linked</p>
+                <p className="text-label-small text-m-on-surface-variant">
+                  Quotes and SOWs for this project will appear here.
+                </p>
+              </div>
+            )}
           </TabsContent>
 
-          <TabsContent value="time" className="flex-1 overflow-auto p-6">
-            <p className="text-body-medium text-m-on-surface-variant">
-              Time breakdown by department.
-            </p>
+          <TabsContent value="time" className="flex-1 overflow-auto">
+            <div className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+              <p className="text-body-medium text-m-on-surface-variant">No time logged yet</p>
+              <p className="text-label-small text-m-on-surface-variant">
+                A breakdown by department will appear here as hours are tracked.
+              </p>
+            </div>
           </TabsContent>
 
           <TabsContent value="workflow" className="flex-1 overflow-auto">
