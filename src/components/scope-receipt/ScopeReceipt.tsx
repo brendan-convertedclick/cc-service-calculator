@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Eye, Wrench } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -38,6 +38,13 @@ export interface ScopeReceiptProps {
   onPersistQty?: (taskRef: string, qty: number) => void;
   /** Persist an inline unit-price edit in cents (optional). Enables price editing. */
   onPersistPrice?: (taskRef: string, unitCents: number) => void;
+  /**
+   * Expandable per-line detail for billable lines (the team task breakdown that
+   * goes to ClickUp). When provided, each billable line gets an expand chevron.
+   */
+  renderLineDetail?: (taskRef: string) => ReactNode;
+  /** One-line rollup under each billable line name (e.g. "2 tasks · 3.5h · 22pt"). */
+  lineSummary?: (taskRef: string) => string | undefined;
   className?: string;
 }
 
@@ -59,6 +66,8 @@ export function ScopeReceipt({
   onOverride,
   onPersistQty,
   onPersistPrice,
+  renderLineDetail,
+  lineSummary,
   className,
 }: ScopeReceiptProps) {
   const [clientView, setClientView] = useState(false);
@@ -153,6 +162,8 @@ export function ScopeReceipt({
               onQtyChange={isBillable ? handleQtyChange : undefined}
               onPriceChange={isBillable ? handlePriceChange : undefined}
               onOverride={handleOverride}
+              renderLineDetail={isBillable ? renderLineDetail : undefined}
+              lineSummary={isBillable ? lineSummary : undefined}
             />
           );
         })}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
@@ -40,6 +40,10 @@ export interface BucketBandProps {
   onQtyChange?: (taskRef: string, qty: number) => void;
   onPriceChange?: (taskRef: string, unitCents: number) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
+  /** Expandable per-line detail (team task breakdown). */
+  renderLineDetail?: (taskRef: string) => ReactNode;
+  /** One-line rollup shown under each line name. */
+  lineSummary?: (taskRef: string) => string | undefined;
 }
 
 /**
@@ -57,6 +61,8 @@ export function BucketBand({
   onQtyChange,
   onPriceChange,
   onOverride,
+  renderLineDetail,
+  lineSummary,
 }: BucketBandProps) {
   const empty = bucket.lines.length === 0;
   const [open, setOpen] = useState(!collapsible);
@@ -136,6 +142,8 @@ export function BucketBand({
               onQtyChange={onQtyChange}
               onPriceChange={onPriceChange}
               onOverride={onOverride}
+              renderDetail={renderLineDetail}
+              detailSummary={lineSummary?.(line.taskRef)}
             />
           ))}
         </div>

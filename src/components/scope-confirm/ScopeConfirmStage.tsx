@@ -16,8 +16,20 @@ import {
   type AnalyzeBriefInput,
   type SowOption,
 } from "@/hooks/useScopeMap";
+import { useDepartments } from "@/hooks/useDepartments";
+import {
+  useAddLineTask,
+  useDeleteLineTask,
+  useLineTasks,
+  useUpdateLineTask,
+} from "@/hooks/usePlacementTasks";
+import {
+  PlacementTaskEditor,
+  fmt,
+} from "@/components/task-breakdown/PlacementTaskEditor";
 import type { ReceiptCatalogService } from "@/lib/scope-receipt";
 import type { Disposition } from "@/types/sow-placements";
+import type { PlacementTask } from "@/types/placement-tasks";
 
 interface Props {
   briefId: string;
@@ -54,6 +66,13 @@ export function ScopeConfirmStage({
   const override = useOverridePlacement(briefId);
   const updateValue = useUpdatePlacementValue(briefId);
 
+  // Team task breakdown (Stage 1 drop-down per billable line → ClickUp).
+  const tasksQuery = useLineTasks(briefId);
+  const { data: departments } = useDepartments();
+  const addTask = useAddLineTask(briefId);
+  const updateTask = useUpdateLineTask(briefId);
+  const deleteTask = useDeleteLineTask(briefId);
+
   const { data: services } = useServices();
   const serviceById = useMemo(
     () =>
@@ -71,6 +90,62 @@ export function ScopeConfirmStage({
       ),
     [services],
   );
+
+  // task_ref → placement id, and placement id → its tasks, for the drop-down.
+  const placementIdByTaskRef = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of placements ?? []) m.set(p.task_ref, p.id);
+    return m;
+  }, [placements]);
+
+  const tasksByPlacement = useMemo(() => {
+    const m = new Map<string, PlacementTask[]>();
+    for (const t of tasksQuery.data ?? []) {
+      const arr = m.get(t.placement_id);
+      if (arr) arr.push(t);
+      else m.set(t.placement_id, [t]);
+    }
+    return m;
+  }, [tasksQuery.data]);
+
+  const deptOptions = useMemo(
+    () => (departments ?? []).map((d) => ({ id: d.id, name: d.name })),
+    [departments],
+  );
+
+  // Render the team task breakdown for a billable line (its ClickUp tasks).
+  const renderLineDetail = (taskRef: string) => {
+    const placementId = placementIdByTaskRef.get(taskRef);
+    if (!placementId) return null;
+    const tasks = tasksByPlacement.get(placementId) ?? [];
+    return (
+      <PlacementTaskEditor
+        tasks={tasks}
+        departments={deptOptions}
+        onAdd={() =>
+          addTask.mutate(
+            { placement_id: placementId, title: "", sort_order: tasks.length },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to add task"),
+            },
+          )
+        }
+        onPatch={(id, patch) => updateTask.mutate({ id, patch })}
+        onDelete={(id) => deleteTask.mutate(id)}
+      />
+    );
+  };
+
+  const lineSummary = (taskRef: string): string | undefined => {
+    const placementId = placementIdByTaskRef.get(taskRef);
+    if (!placementId) return undefined;
+    const tasks = tasksByPlacement.get(placementId) ?? [];
+    if (tasks.length === 0) return "+ Add team tasks";
+    const h = tasks.reduce((s, t) => s + t.hours, 0);
+    const p = tasks.reduce((s, t) => s + t.points, 0);
+    return `${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${fmt(h)}h · ${fmt(p)}pt`;
+  };
 
   const [selection, setSelection] = useState<{
     available: SowOption[];
@@ -206,6 +281,8 @@ export function ScopeConfirmStage({
       <ScopeReceipt
         placements={placements}
         serviceById={serviceById}
+        renderLineDetail={renderLineDetail}
+        lineSummary={lineSummary}
         onOverride={handleOverride}
         onPersistQty={(ref, qty) =>
           updateValue.mutate(
