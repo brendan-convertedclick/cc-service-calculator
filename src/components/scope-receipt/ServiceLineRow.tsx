@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Minus, MoreVertical, Plus, Quote } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { ChevronDown, Minus, MoreVertical, Plus, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -106,6 +106,13 @@ export interface ServiceLineRowProps {
   /** Inline unit-price edit (cents). Enables the editable price cell. */
   onPriceChange?: (taskRef: string, unitCents: number) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
+  /**
+   * Expandable drop-down content for this line (the team task breakdown that
+   * goes to ClickUp). When provided, the row gets an expand chevron.
+   */
+  renderDetail?: (taskRef: string) => ReactNode;
+  /** One-line rollup shown under the name (e.g. "2 tasks · 3.5h · 22pt"). */
+  detailSummary?: string;
 }
 
 /**
@@ -121,9 +128,13 @@ export function ServiceLineRow({
   onQtyChange,
   onPriceChange,
   onOverride,
+  renderDetail,
+  detailSummary,
 }: ServiceLineRowProps) {
   const editableQty = !clientMode && !!onQtyChange;
   const editablePrice = !clientMode && !!onPriceChange;
+  const hasDetail = !clientMode && !!renderDetail;
+  const [expanded, setExpanded] = useState(false);
   const step = () => (line.qty % 1 === 0 ? 1 : 0.25);
 
   const commitQty = (t: string) => {
@@ -136,7 +147,21 @@ export function ServiceLineRow({
   };
 
   return (
+    <div>
     <div className="flex items-center gap-3 px-4 py-2.5">
+      {hasDetail && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} team tasks for ${line.name}`}
+          className="shrink-0 rounded p-0.5 text-m-on-surface-variant hover:bg-m-surface-container"
+        >
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")}
+          />
+        </button>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {!clientMode && showConfidence && (
@@ -155,6 +180,15 @@ export function ServiceLineRow({
           <p className="mt-0.5 truncate text-label-small text-m-on-surface-variant">
             {line.description}
           </p>
+        )}
+        {hasDetail && detailSummary && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-0.5 text-label-small text-m-on-surface-variant hover:text-m-primary"
+          >
+            {detailSummary}
+          </button>
         )}
       </div>
 
@@ -292,6 +326,11 @@ export function ServiceLineRow({
             </div>
           </PopoverContent>
         </Popover>
+      )}
+    </div>
+
+      {hasDetail && expanded && (
+        <div className="px-4 pb-3 pl-11">{renderDetail!(line.taskRef)}</div>
       )}
     </div>
   );
