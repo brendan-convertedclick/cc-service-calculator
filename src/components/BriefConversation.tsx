@@ -57,7 +57,14 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const [assignOpen, setAssignOpen] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
 
-  const isLinkedToProject = downstream?.kind === "project";
+  // A brief is "linked to a project" either because a project was created from
+  // its scope pipeline (downstream.kind === "project") OR because it was
+  // directly linked via `parent_project_id` ("Link to project"). The latter is
+  // what the Link-to-project button sets — reflect it so the UI shows the
+  // linked state instead of still offering "Link to project".
+  const linkedProjectId =
+    downstream?.kind === "project" ? downstream.id : (brief.parent_project_id ?? null);
+  const isLinkedToProject = Boolean(linkedProjectId);
   const isBriefed = brief.status === "briefed" && Boolean(brief.clickup_task_id);
 
   async function handleBillingChange(next: BillingType) {
@@ -107,7 +114,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const linkControls = isLinkedToProject ? (
     <div className="flex items-center gap-1">
       <Button asChild variant="outline" size="sm" className="h-7 text-label-small">
-        <Link to={`/projects/${downstream!.id}`}>Project →</Link>
+        <Link to={`/projects/${linkedProjectId}`}>Project →</Link>
       </Button>
       <Button
         variant="ghost"
