@@ -225,6 +225,7 @@ export function Scope() {
             confirmed={scopeConfirmed}
             confirming={confirmScope.isPending}
             onConfirm={handleConfirmScope}
+            onContinue={() => setOpenStage(2)}
           />
         </StageSection>
 
@@ -311,6 +312,18 @@ export function Scope() {
                 )}
               </div>
             )}
+
+            <div className="flex border-t border-m-outline-variant pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => setOpenStage(1)}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to scope
+              </Button>
+            </div>
           </div>
         </StageSection>
 
@@ -328,19 +341,30 @@ export function Scope() {
               value={scopeValues}
               onChange={(v) => setScopeValues({ ...scopeValues, ...v })}
             />
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 border-t border-m-outline-variant pt-3">
               <Button
-                variant="secondary"
-                onClick={() =>
-                  upsertScope
-                    .mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
-                    .then(() => toast.success("Saved"))
-                    .catch(() => toast.error("Failed to save"))
-                }
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => setOpenStage(2)}
               >
-                Save draft
+                <ArrowLeft className="h-4 w-4" />
+                Back to brief
               </Button>
-              <Button onClick={lockScope}>Lock scope</Button>
+              <div className="ml-auto flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    upsertScope
+                      .mutateAsync({ brief_id: id!, ...scopeValues, ai_drafted: false })
+                      .then(() => toast.success("Saved"))
+                      .catch(() => toast.error("Failed to save"))
+                  }
+                >
+                  Save draft
+                </Button>
+                <Button onClick={lockScope}>Lock scope</Button>
+              </div>
             </div>
           </div>
         </StageSection>
