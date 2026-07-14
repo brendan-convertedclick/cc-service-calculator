@@ -477,6 +477,7 @@ export type Database = {
       briefs: {
         Row: {
           assignee_id: string | null
+          billing_type: string
           clickup_task_id: string | null
           clickup_task_url: string | null
           client_id: string | null
@@ -504,6 +505,7 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
+          billing_type?: string
           clickup_task_id?: string | null
           clickup_task_url?: string | null
           client_id?: string | null
@@ -531,6 +533,7 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
+          billing_type?: string
           clickup_task_id?: string | null
           clickup_task_url?: string | null
           client_id?: string | null
