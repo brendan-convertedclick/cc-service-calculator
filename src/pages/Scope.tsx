@@ -1,7 +1,7 @@
 // src/pages/Scope.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage"
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
+import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
@@ -65,6 +66,7 @@ export function Scope() {
 
   const [editingIntel, setEditingIntel] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
@@ -198,10 +200,20 @@ export function Scope() {
             )}
           </div>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
+          <Copy className="mr-1.5 h-3.5 w-3.5" />
+          Duplicate
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setQuickBriefOpen(true)}>
           Brief as-is
         </Button>
       </div>
+
+      <DuplicateBriefDialog
+        brief={brief}
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
+      />
 
       <QuickBriefSheet
         open={quickBriefOpen}

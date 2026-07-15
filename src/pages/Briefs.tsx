@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, ChevronRight, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Copy, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   type PipelineSelection,
 } from "@/components/briefs/StatusPipeline";
 import { BriefConversation } from "@/components/BriefConversation";
+import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { useBrief, useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
@@ -46,6 +47,7 @@ export function Briefs() {
   const updateBrief = useUpdateBrief();
 
   const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>("all");
+  const [duplicating, setDuplicating] = useState<(typeof allBriefs)[number] | null>(null);
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(new Set());
@@ -383,19 +385,34 @@ export function Briefs() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={updateBrief.isPending}
-                                    aria-label={isArchived ? "Restore brief" : "Archive brief"}
-                                    onClick={(e) => handleArchiveToggle(b.id, isArchived, e)}
-                                  >
-                                    {isArchived ? (
-                                      <ArchiveRestore className="h-4 w-4" />
-                                    ) : (
-                                      <Archive className="h-4 w-4" />
-                                    )}
-                                  </Button>
+                                  <div className="flex items-center justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label="Duplicate brief"
+                                      title="Duplicate brief"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDuplicating(b);
+                                      }}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={updateBrief.isPending}
+                                      aria-label={isArchived ? "Restore brief" : "Archive brief"}
+                                      onClick={(e) => handleArchiveToggle(b.id, isArchived, e)}
+                                    >
+                                      {isArchived ? (
+                                        <ArchiveRestore className="h-4 w-4" />
+                                      ) : (
+                                        <Archive className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -421,6 +438,14 @@ export function Briefs() {
             onClose={() => navigate("/briefs")}
           />
         )}
+
+        <DuplicateBriefDialog
+          brief={duplicating}
+          open={!!duplicating}
+          onOpenChange={(o) => {
+            if (!o) setDuplicating(null);
+          }}
+        />
       </div>
     </div>
   );
