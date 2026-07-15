@@ -70,7 +70,7 @@ export function NewBrief() {
     }
 
     toast.success("Brief created");
-    navigate("/inbox");
+    navigate("/briefs");
   };
 
   return (

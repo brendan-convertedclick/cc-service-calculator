@@ -410,8 +410,8 @@ export function Briefs() {
                                 <TableCell className="w-px pr-0 text-m-on-surface-variant">
                                   <ChevronRight className="h-4 w-4" />
                                 </TableCell>
-                                <TableCell>
-                                  <div className="truncate text-body-medium text-m-on-surface">
+                                <TableCell className="max-w-[420px]">
+                                  <div className="whitespace-normal break-words text-body-medium text-m-on-surface">
                                     {b.raw_subject ?? "(no subject)"}
                                   </div>
                                   <div className="text-label-small text-m-on-surface-variant">
