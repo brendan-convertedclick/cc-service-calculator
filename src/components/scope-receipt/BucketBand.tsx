@@ -29,6 +29,14 @@ const TONE_TITLE: Record<ReceiptBucket["tone"], string> = {
   out: "text-m-on-surface-variant",
 };
 
+// A 1px tone-matched border delineates the band from the stage card behind it.
+// Billable (the quote) gets the most visible outline; the others stay quiet.
+const TONE_BORDER: Record<ReceiptBucket["tone"], string> = {
+  included: "border border-emerald-200/70",
+  billable: "border border-amber-300/80",
+  out: "border border-m-outline-variant",
+};
+
 export interface BucketBandProps {
   bucket: ReceiptBucket;
   /** Show R0 covered hint instead of selling prices (included band). */
@@ -85,6 +93,7 @@ export function BucketBand({
         className={cn(
           "flex items-center gap-2 rounded-lg px-4 py-2",
           TONE_ACCENT[bucket.tone],
+          TONE_BORDER[bucket.tone],
         )}
       >
         <span className={cn("h-2 w-2 rounded-full", TONE_DOT[bucket.tone])} />
@@ -97,7 +106,13 @@ export function BucketBand({
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-lg", TONE_ACCENT[bucket.tone])}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg",
+        TONE_ACCENT[bucket.tone],
+        TONE_BORDER[bucket.tone],
+      )}
+    >
       <button
         type="button"
         disabled={!collapsible}

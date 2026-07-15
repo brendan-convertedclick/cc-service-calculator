@@ -85,7 +85,7 @@ function TitleField({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className="h-8"
+      className="h-8 text-body-small"
     />
   );
 }
@@ -112,7 +112,7 @@ function TaskRow({
         onValueChange={(v) => onPatch({ department_id: v })}
       >
         <SelectTrigger
-          className="h-8 w-40 shrink-0 border-m-on-surface-variant/40"
+          className="h-8 w-40 shrink-0 border-m-on-surface-variant/40 text-body-small"
           aria-label="Department"
         >
           <SelectValue placeholder="Department" />

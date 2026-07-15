@@ -212,25 +212,25 @@ export function ServiceLineRow({
 
   return (
     <div>
-    <div className="flex items-center gap-3 px-4 py-2.5">
+    <div className="flex items-start gap-3 px-4 py-3">
       {hasDetail && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} team tasks for ${line.name}`}
-          className="shrink-0 rounded p-0.5 text-m-on-surface-variant hover:bg-m-surface-container"
+          className="mt-0.5 shrink-0 rounded p-0.5 text-m-on-surface-variant hover:bg-m-surface-container"
         >
           <ChevronDown
             className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")}
           />
         </button>
       )}
+
+      {/* content column — all prose stacks here: title (+ code + confidence),
+          description, then the team-task rollup */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          {!clientMode && showConfidence && (
-            <ConfidenceChip confidence={line.confidence} />
-          )}
           {editableText ? (
             <InlineText
               value={line.name}
@@ -249,6 +249,9 @@ export function ServiceLineRow({
               {line.code}
             </span>
           )}
+          {!clientMode && showConfidence && (
+            <ConfidenceChip confidence={line.confidence} />
+          )}
         </div>
         {editableText && onPersistDescription ? (
           <InlineText
@@ -256,11 +259,11 @@ export function ServiceLineRow({
             onCommit={(t) => onPersistDescription(line.taskRef, t)}
             ariaLabel={`Description for ${line.name}`}
             placeholder="Add a description…"
-            className="mt-0.5 text-label-small text-m-on-surface-variant"
+            className="mt-1.5 text-label-small text-m-on-surface-variant"
           />
         ) : (
           line.description && (
-            <p className="mt-0.5 truncate text-label-small text-m-on-surface-variant">
+            <p className="mt-1.5 line-clamp-2 text-label-small text-m-on-surface-variant">
               {line.description}
             </p>
           )
@@ -269,89 +272,92 @@ export function ServiceLineRow({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="mt-0.5 text-label-small text-m-on-surface-variant hover:text-m-primary"
+            className="mt-1.5 text-label-small text-m-on-surface-variant hover:text-m-primary"
           >
             {detailSummary}
           </button>
         )}
       </div>
 
-      {/* qty stepper */}
-      <div className="flex shrink-0 items-center gap-1">
-        {editableQty && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            aria-label={`Decrease quantity for ${line.name}`}
-            disabled={line.qty <= step()}
-            onClick={() =>
-              onQtyChange?.(line.taskRef, Math.max(step(), line.qty - step()))
-            }
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {editableQty ? (
-          <InlineNumber
-            display={formatQty(line.qty)}
-            seed={String(line.qty)}
-            onCommit={commitQty}
-            ariaLabel={`Quantity for ${line.name}`}
-            align="center"
-            widthClass="w-12 text-body-small text-m-on-surface"
-          />
-        ) : (
-          <span className="min-w-[2ch] text-center text-body-small font-mono tabular-nums text-m-on-surface">
-            {formatQty(line.qty)}
-          </span>
-        )}
-        {editableQty && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            aria-label={`Increase quantity for ${line.name}`}
-            onClick={() => onQtyChange?.(line.taskRef, line.qty + step())}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {line.unit && (
-          <span className="text-label-small text-m-on-surface-variant">
-            {line.unit}
-          </span>
-        )}
-      </div>
+      {/* price cell — every figure lives here, divided from the content: qty
+          stepper + unit on top, the line total as the hero, unit price beneath */}
+      <div className="flex shrink-0 flex-col items-end gap-1 self-stretch border-l border-m-outline-variant pl-4">
+        <div className="flex items-center gap-1">
+          {editableQty && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              aria-label={`Decrease quantity for ${line.name}`}
+              disabled={line.qty <= step()}
+              onClick={() =>
+                onQtyChange?.(line.taskRef, Math.max(step(), line.qty - step()))
+              }
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {editableQty ? (
+            <InlineNumber
+              display={formatQty(line.qty)}
+              seed={String(line.qty)}
+              onCommit={commitQty}
+              ariaLabel={`Quantity for ${line.name}`}
+              align="center"
+              widthClass="w-12 text-body-small text-m-on-surface"
+            />
+          ) : (
+            <span className="min-w-[2ch] text-center text-body-small font-mono tabular-nums text-m-on-surface">
+              {formatQty(line.qty)}
+            </span>
+          )}
+          {editableQty && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              aria-label={`Increase quantity for ${line.name}`}
+              onClick={() => onQtyChange?.(line.taskRef, line.qty + step())}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {line.unit && (
+            <span className="text-label-small text-m-on-surface-variant">
+              {line.unit}
+            </span>
+          )}
+        </div>
 
-      {/* unit price */}
-      {editablePrice ? (
-        <InlineNumber
-          display={formatCurrency(line.unitCents / 100)}
-          seed={String(line.unitCents / 100)}
-          onCommit={commitPrice}
-          ariaLabel={`Unit price for ${line.name}`}
-          widthClass="w-20 shrink-0 text-label-small text-m-on-surface-variant"
-        />
-      ) : (
+        {/* line total — the hero */}
         <Money
-          cents={line.unitCents}
-          className="w-20 shrink-0 text-right text-label-small text-m-on-surface-variant"
+          cents={line.lineCents}
+          className={cn(
+            "text-right text-body-medium",
+            struck
+              ? "text-m-on-surface-variant line-through"
+              : "font-semibold text-m-on-surface",
+          )}
         />
-      )}
 
-      {/* line total */}
-      <Money
-        cents={line.lineCents}
-        className={cn(
-          "w-24 shrink-0 text-right text-body-medium",
-          struck
-            ? "text-m-on-surface-variant line-through"
-            : "font-medium text-m-on-surface",
-        )}
-      />
+        {/* unit price — quiet caption beneath the total */}
+        <div className="flex items-center gap-1 text-label-small text-m-on-surface-variant">
+          {editablePrice ? (
+            <InlineNumber
+              display={formatCurrency(line.unitCents / 100)}
+              seed={String(line.unitCents / 100)}
+              onCommit={commitPrice}
+              ariaLabel={`Unit price for ${line.name}`}
+              widthClass="w-20 text-label-small text-m-on-surface-variant"
+            />
+          ) : (
+            <Money cents={line.unitCents} className="text-right text-label-small" />
+          )}
+          <span>each</span>
+        </div>
+      </div>
 
       {/* ⋮ override */}
       {!clientMode && onOverride && (
