@@ -181,7 +181,7 @@ export function Scope() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/inbox"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link to="/briefs"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-title-large truncate">{brief.raw_subject ?? "(no subject)"}</h1>

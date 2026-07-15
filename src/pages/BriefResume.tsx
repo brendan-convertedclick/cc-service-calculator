@@ -25,9 +25,9 @@ export function BriefResume() {
     if (error) console.error("BriefResume: failed to load brief", error);
   }, [error]);
 
-  if (!id) return <Navigate to="/inbox" replace />;
+  if (!id) return <Navigate to="/briefs" replace />;
   if (isLoading) return null;
-  if (error || !data) return <Navigate to="/inbox" replace />;
+  if (error || !data) return <Navigate to="/briefs" replace />;
 
   return <Navigate to={resumeHref(data as Brief)} replace />;
 }
