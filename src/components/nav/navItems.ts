@@ -12,6 +12,7 @@ import {
   Network,
   PackageSearch,
   Receipt,
+  ReceiptText,
   Repeat,
   Rocket,
   ScrollText,
@@ -64,6 +65,7 @@ const reconciliation: NavItem = { to: "/reconciliation",label: "Reconciliation",
 const rules: NavItem          = { to: "/rules",         label: "Rules",         icon: SlidersHorizontal, end: false }
 const guides: NavItem         = { to: "/guides",        label: "Guides",        icon: BookOpen,          end: false }
 
+const reports: NavItem        = { to: "/reports",       label: "Reports",       icon: ReceiptText,       end: false }
 const settings: NavItem       = { to: "/settings",      label: "Settings",      icon: SettingsIcon,      end: false }
 
 const deliverySection: NavSection = {
@@ -103,6 +105,7 @@ export const navEntries: NavEntry[] = [
   { kind: "item", item: pulse },
   { kind: "section", section: organizationSection },
   { kind: "section", section: operationsSection },
+  { kind: "item", item: reports },
   { kind: "item", item: settings },
 ]
 

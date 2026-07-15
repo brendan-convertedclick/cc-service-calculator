@@ -487,6 +487,8 @@ export type Database = {
           gmail_thread_id_unique: string | null
           id: string
           intent_type: string | null
+          invoiced_at: string | null
+          invoiced_by: string | null
           last_message_at: string | null
           message_count: number
           parent_project_id: string | null
@@ -517,6 +519,8 @@ export type Database = {
           gmail_thread_id_unique?: string | null
           id?: string
           intent_type?: string | null
+          invoiced_at?: string | null
+          invoiced_by?: string | null
           last_message_at?: string | null
           message_count?: number
           parent_project_id?: string | null
@@ -547,6 +551,8 @@ export type Database = {
           gmail_thread_id_unique?: string | null
           id?: string
           intent_type?: string | null
+          invoiced_at?: string | null
+          invoiced_by?: string | null
           last_message_at?: string | null
           message_count?: number
           parent_project_id?: string | null
@@ -2137,6 +2143,8 @@ export type Database = {
           first_delivery_at: string | null
           git_remote_url: string | null
           id: string
+          invoiced_at: string | null
+          invoiced_by: string | null
           is_recurring: boolean
           last_recurring_cycle_at: string | null
           name: string
@@ -2167,6 +2175,8 @@ export type Database = {
           first_delivery_at?: string | null
           git_remote_url?: string | null
           id?: string
+          invoiced_at?: string | null
+          invoiced_by?: string | null
           is_recurring?: boolean
           last_recurring_cycle_at?: string | null
           name: string
@@ -2197,6 +2207,8 @@ export type Database = {
           first_delivery_at?: string | null
           git_remote_url?: string | null
           id?: string
+          invoiced_at?: string | null
+          invoiced_by?: string | null
           is_recurring?: boolean
           last_recurring_cycle_at?: string | null
           name?: string
