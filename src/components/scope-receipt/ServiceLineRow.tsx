@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Minus, MoreVertical, Plus, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,10 +96,11 @@ function InlineNumber({
 }
 
 /**
- * Inline-editable text cell. Reads as plain text when idle (truncated to fit);
- * on focus it becomes an editable field seeded with the full value, committing
- * the trimmed text on blur / Enter and cancelling on Escape. Only fires
- * onCommit when the value actually changed, so a focus-blur is a no-op.
+ * Inline-editable text cell. Rendered as a single-row textarea that auto-grows
+ * with its content so long titles wrap instead of clipping. On focus it seeds
+ * an editable draft, committing the trimmed text on blur / Enter and cancelling
+ * on Escape. Only fires onCommit when the value actually changed, so a
+ * focus-blur is a no-op.
  */
 function InlineText({
   value,
@@ -114,18 +115,26 @@ function InlineText({
   placeholder?: string;
   className?: string;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const cancelledRef = useRef(false);
   const editing = draft !== null;
+  const text = editing ? draft : value;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
 
   return (
-    <input
+    <textarea
       ref={ref}
-      type="text"
+      rows={1}
       aria-label={ariaLabel}
       placeholder={placeholder}
-      value={editing ? draft : value}
+      value={text}
       onFocus={() => setDraft(value)}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
@@ -136,14 +145,16 @@ function InlineText({
         if (!cancelled && next !== value.trim()) onCommit(next);
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        else if (e.key === "Escape") {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
           cancelledRef.current = true;
           e.currentTarget.blur();
         }
       }}
       className={cn(
-        "w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5",
+        "w-full resize-none overflow-hidden break-words rounded border border-transparent bg-transparent px-1 py-0.5",
         "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
         className,
       )}
@@ -240,7 +251,7 @@ export function ServiceLineRow({
               className="min-w-0 flex-1 text-body-medium text-m-on-surface"
             />
           ) : (
-            <span className="truncate text-body-medium text-m-on-surface">
+            <span className="min-w-0 break-words text-body-medium text-m-on-surface">
               {line.name}
             </span>
           )}

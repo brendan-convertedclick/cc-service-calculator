@@ -1,7 +1,6 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -64,7 +63,7 @@ function NumField({
   );
 }
 
-/** Editable task title — commits on blur. */
+/** Editable task title — auto-grows so long names wrap; commits on blur. */
 function TitleField({
   value,
   onCommit,
@@ -72,10 +71,22 @@ function TitleField({
   value: string;
   onCommit: (v: string) => void;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? value;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
+
   return (
-    <Input
-      value={draft ?? value}
+    <textarea
+      ref={ref}
+      rows={1}
+      value={text}
       placeholder="Task name…"
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
@@ -83,9 +94,12 @@ function TitleField({
         setDraft(null);
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
       }}
-      className="h-8 text-body-small"
+      className="min-h-8 w-full resize-none overflow-hidden break-words rounded-md border border-input bg-transparent px-3 py-1.5 text-body-small shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     />
   );
 }
