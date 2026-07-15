@@ -14,6 +14,8 @@ type Interval = Database["public"]["Enums"]["recurrence_interval"];
 export type EditorLine = {
   service_id: string;
   qty: number;
+  /** Unit price carried from the scope receipt; null = catalogue sell price. */
+  unit_price_override_cents: number | null;
   allocation: Record<string, number>;
   hours: Record<string, number>;
   is_recurring: boolean;
@@ -46,7 +48,10 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
   const sumOutOfTolerance = sumPct < SUM_TOLERANCE_MIN || sumPct > SUM_TOLERANCE_MAX;
   const activeDepts = depts.filter((d) => (line.allocation[d.id] ?? 0) > 0);
   const totalHours = Object.values(line.hours).reduce((a, b) => a + b, 0) * line.qty;
-  const unitCents = service.sell_price_cents ?? 0;
+  const unitCents = line.unit_price_override_cents ?? service.sell_price_cents ?? 0;
+  const isCustomPrice =
+    line.unit_price_override_cents != null &&
+    line.unit_price_override_cents !== (service.sell_price_cents ?? 0);
   const totalCents = unitCents * line.qty;
   const topDepts = activeDepts
     .map((d) => ({ name: d.name, pct: line.allocation[d.id] ?? 0 }))
@@ -98,6 +103,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
           </div>
           <div className="text-label-small font-mono tabular-nums text-m-on-surface-variant">
             {line.qty} × {formatZar(unitCents)}
+            {isCustomPrice && <span className="font-sans"> · custom</span>}
           </div>
         </div>
         {perServiceRecurrence && line.is_recurring && (

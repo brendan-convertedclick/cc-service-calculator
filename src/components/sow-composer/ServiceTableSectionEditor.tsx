@@ -30,6 +30,7 @@ function toReceiptLine(l: ServiceTableLine, svc?: ReceiptCatalogService): Receip
     taskRef: l.taskRef,
     name: l.name,
     description: l.description ?? null,
+    serviceId: svc?.id ?? null,
     code: svc?.code ?? null,
     unit: svc?.unit_of_sale ?? null,
     qty: l.qty,

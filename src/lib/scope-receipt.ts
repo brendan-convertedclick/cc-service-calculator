@@ -49,6 +49,9 @@ export interface ReceiptLine {
   taskRef: string;
   name: string;
   description: string | null;
+  /** Catalog id of the linked service, or null when the line has none — a
+   * billable line without one cannot become a quote line. */
+  serviceId: string | null;
   /** Xero catalog code of the matched service, if any. */
   code: string | null;
   /** Unit of sale label (e.g. "per page"), if known. */
@@ -130,6 +133,7 @@ export function buildScopeReceipt(
       taskRef: p.task_ref,
       name: p.item_name ?? p.task_ref,
       description: p.item_description,
+      serviceId: svc?.id ?? null,
       code: svc?.code ?? null,
       unit: svc?.unit_of_sale ?? null,
       qty,

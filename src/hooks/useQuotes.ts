@@ -169,6 +169,7 @@ export function useUpdateQuote() {
 export type ReplaceQuoteServiceRow = {
   service_id: string;
   qty: number;
+  unit_price_override_cents?: number | null;
   ordinal: number;
   notes: string | null;
   allocation_override: Record<string, number>;
@@ -199,6 +200,7 @@ export function useReplaceQuoteServices() {
         quote_id: quoteId,
         service_id: r.service_id,
         qty: r.qty,
+        unit_price_override_cents: r.unit_price_override_cents ?? null,
         ordinal: r.ordinal,
         notes: r.notes,
         is_recurring: r.is_recurring ?? false,

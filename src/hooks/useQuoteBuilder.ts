@@ -17,8 +17,10 @@ import {
   useReplaceQuoteServices,
   useUpdateQuote,
 } from "@/hooks/useQuotes";
+import { useScopeMapPlacements } from "@/hooks/useScopeMap";
 import type { EditorLine } from "@/components/QuoteLineEditor";
 import { aggregateTotals, buildLineItems, type QuoteLine } from "@/lib/quotes";
+import { placementsToQuoteSeed } from "@/lib/quote-prefill";
 import type { Suggestion } from "@/components/AISuggestModal";
 import type { RecurrenceState } from "@/components/quote-builder/RecurrencePanel";
 
@@ -84,6 +86,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
   const { data: matrix } = useAllocationMatrix();
   const { data: liveQuote } = useLiveQuoteForScope(scope?.id);
   const { data: quoteData } = useQuote(liveQuote?.id);
+  const { data: placements } = useScopeMapPlacements(briefId);
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
   const replaceSvcs = useReplaceQuoteServices();
@@ -129,6 +132,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       quoteData.services.map((r): EditorLine => ({
         service_id: r.service_id,
         qty: Number(r.qty),
+        unit_price_override_cents: r.unit_price_override_cents,
         allocation: r.allocation_override,
         hours: r.hours_override,
         is_recurring: r.is_recurring,
@@ -140,53 +144,102 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
     setHydratedForQuote(liveQuote.id);
   }, [liveQuote, hydratedForQuote, quoteData]);
 
-  // Auto-fill from intake's pre-computed suggestions:
-  // when this quote has just been hydrated with zero saved lines AND the brief has
-  // suggested_services from /intake, drop them straight in as editor lines. The user
-  // can still edit or remove. We only do this once per quote — if they delete every
-  // line on purpose, we don't re-add.
+  // Auto-fill a freshly hydrated, empty quote — once per quote, so deleting
+  // every line on purpose doesn't re-add them. Seed priority:
+  //   1. Confirmed Scope Receipt placements (new_billable lines): the operator
+  //      already confirmed service, quantity and price there — carry them over
+  //      verbatim (edited prices become per-line overrides).
+  //   2. Intake's suggested_services rollup (briefs that never ran the receipt).
   const [autoFilledForQuote, setAutoFilledForQuote] = useState<string | null>(null);
   useEffect(() => {
-    if (!liveQuote || !quoteData || !briefIntel) return;
+    if (!liveQuote || !quoteData || placements === undefined) return;
     if (hydratedForQuote !== liveQuote.id) return;
     if (autoFilledForQuote === liveQuote.id) return;
     if (quoteData.services.length > 0) {
       setAutoFilledForQuote(liveQuote.id);
       return;
     }
-    const suggested = briefIntel.suggested_services as
-      | Array<{ service_id: string; qty: number }>
-      | null;
-    if (!Array.isArray(suggested) || suggested.length === 0) {
-      setAutoFilledForQuote(liveQuote.id);
-      return;
-    }
-    const knownIds = new Set(services.map((s) => s.id));
-    const next: EditorLine[] = [];
-    for (const s of suggested) {
-      if (!s.service_id || !knownIds.has(s.service_id)) continue;
-      if (next.some((l) => l.service_id === s.service_id)) continue;
-      const byDept = matrix?.resolved[s.service_id] ?? {};
+    if (services.length === 0) return; // catalogue not loaded yet — try again
+
+    const withAllocation = (seed: {
+      service_id: string;
+      qty: number;
+      unit_price_override_cents: number | null;
+    }): EditorLine => {
+      const byDept = matrix?.resolved[seed.service_id] ?? {};
       const allocation: Record<string, number> = {};
       const hours: Record<string, number> = {};
       for (const [deptId, entry] of Object.entries(byDept)) {
         allocation[deptId] = Number(entry.pct ?? 0);
         hours[deptId] = Number(entry.hours ?? 0);
       }
-      next.push({
-        service_id: s.service_id,
-        qty: Math.max(0.25, Number(s.qty ?? 1)),
+      return {
+        ...seed,
         allocation,
         hours,
         is_recurring: false,
         recurrence_interval: null,
         recurrence_start: "",
         recurrence_end: "",
-      });
+      };
+    };
+
+    const catalog = new Map(
+      services.map((s) => [s.id, { id: s.id, sell_price_cents: s.sell_price_cents }]),
+    );
+    const { lines: seeded, skipped } = placementsToQuoteSeed(placements, catalog);
+
+    if (seeded.length > 0) {
+      setLines(seeded.map(withAllocation));
+      toast.success(
+        `${seeded.length} line${seeded.length === 1 ? "" : "s"} carried over from the confirmed scope.`,
+      );
+      if (skipped.length > 0) {
+        toast.warning(
+          `Not carried over (no linked service): ${skipped.join(", ")}. Link a service on the scope receipt or add it here manually.`,
+        );
+      }
+      setAutoFilledForQuote(liveQuote.id);
+      return;
     }
-    if (next.length > 0) setLines(next);
+    // Nothing seeded from placements — fall back to intake's suggestions.
+    // briefIntel is undefined while loading, null once loaded with no row.
+    if (briefIntel === undefined) return;
+    if (skipped.length > 0) {
+      toast.warning(
+        `No billable line could be carried over — none has a linked service: ${skipped.join(", ")}.`,
+      );
+    }
+    const suggested = briefIntel?.suggested_services as
+      | Array<{ service_id: string; qty: number }>
+      | null
+      | undefined;
+    if (Array.isArray(suggested) && suggested.length > 0) {
+      const next: EditorLine[] = [];
+      for (const s of suggested) {
+        if (!s.service_id || !catalog.has(s.service_id)) continue;
+        if (next.some((l) => l.service_id === s.service_id)) continue;
+        next.push(
+          withAllocation({
+            service_id: s.service_id,
+            qty: Math.max(0.25, Number(s.qty ?? 1)),
+            unit_price_override_cents: null,
+          }),
+        );
+      }
+      if (next.length > 0) setLines(next);
+    }
     setAutoFilledForQuote(liveQuote.id);
-  }, [liveQuote, quoteData, briefIntel, hydratedForQuote, autoFilledForQuote, services, matrix]);
+  }, [
+    liveQuote,
+    quoteData,
+    placements,
+    briefIntel,
+    hydratedForQuote,
+    autoFilledForQuote,
+    services,
+    matrix,
+  ]);
 
   const lineTotals = useMemo<QuoteLine[]>(() => {
     return lines.map((l) => {
@@ -196,7 +249,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
         service_name: svc?.name ?? "Unknown",
         xero_code: svc?.code ?? null,
         qty: l.qty,
-        unit_price_cents: svc?.sell_price_cents ?? 0,
+        unit_price_cents: l.unit_price_override_cents ?? svc?.sell_price_cents ?? 0,
         allocation: Object.entries(l.allocation).map(([dept_id, pct]) => ({ dept_id, pct })),
       };
     });
@@ -221,6 +274,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       {
         service_id: serviceId,
         qty: 1,
+        unit_price_override_cents: null,
         allocation,
         hours,
         is_recurring: false,
@@ -257,6 +311,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
         rows: lines.map((l, i) => ({
           service_id: l.service_id,
           qty: l.qty,
+          unit_price_override_cents: l.unit_price_override_cents,
           allocation_override: l.allocation,
           hours_override: l.hours,
           ordinal: i + 1,
