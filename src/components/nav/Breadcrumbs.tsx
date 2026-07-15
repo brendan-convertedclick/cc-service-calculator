@@ -47,13 +47,16 @@ export function Breadcrumbs() {
   const { pathname } = useLocation();
   const segments = pathname.split("/").filter(Boolean);
 
-  if (segments.length === 0) return null;
-
-  const crumbs = segments.map((seg, i) => {
-    const to = "/" + segments.slice(0, i + 1).join("/");
-    const label = labelFor(seg, segments[i - 1]);
-    return { to, label, isLast: i === segments.length - 1 };
-  });
+  // Root path is the Dashboard — surface it as the current-page crumb so the
+  // dashboard carries the same breadcrumb bar as every other page.
+  const crumbs =
+    segments.length === 0
+      ? [{ to: "/", label: "Dashboard", isLast: true }]
+      : segments.map((seg, i) => {
+          const to = "/" + segments.slice(0, i + 1).join("/");
+          const label = labelFor(seg, segments[i - 1]);
+          return { to, label, isLast: i === segments.length - 1 };
+        });
 
   return (
     <nav

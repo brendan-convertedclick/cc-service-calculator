@@ -66,31 +66,44 @@ const guides: NavItem         = { to: "/guides",        label: "Guides",        
 
 const settings: NavItem       = { to: "/settings",      label: "Settings",      icon: SettingsIcon,      end: false }
 
-export const topNavItems: NavItem[] = [dashboard, inbox, pulse, productivity]
+const deliverySection: NavSection = {
+  label: "Delivery",
+  icon: Rocket,
+  items: [services, briefs, projects, sow, retainers],
+}
+const scaffoldSection: NavSection = {
+  label: "Scaffold",
+  icon: CalendarRange,
+  items: [liveTasks, foundations, invoicePreview],
+}
+const organizationSection: NavSection = {
+  label: "Organization",
+  icon: Network,
+  items: [clients, departments, team],
+}
+const operationsSection: NavSection = {
+  label: "Operations",
+  icon: Wrench,
+  items: [reconciliation, rules, guides],
+}
 
-export const navSections: NavSection[] = [
-  {
-    label: "Delivery",
-    icon: Rocket,
-    items: [services, briefs, projects, sow, retainers],
-  },
-  {
-    label: "Scaffold",
-    icon: CalendarRange,
-    items: [liveTasks, foundations, invoicePreview],
-  },
-  {
-    label: "Organization",
-    icon: Network,
-    items: [clients, departments, team],
-  },
-  {
-    label: "Operations",
-    icon: Wrench,
-    items: [reconciliation, rules, guides],
-  },
+// A single ordered nav list so standalone items and section groups can be
+// interleaved freely — Pulse sits below the Scaffold section, not up with the
+// other top-level shortcuts.
+export type NavEntry =
+  | { kind: "item"; item: NavItem }
+  | { kind: "section"; section: NavSection }
+
+export const navEntries: NavEntry[] = [
+  { kind: "item", item: dashboard },
+  { kind: "item", item: inbox },
+  { kind: "item", item: productivity },
+  { kind: "section", section: deliverySection },
+  { kind: "section", section: scaffoldSection },
+  { kind: "item", item: pulse },
+  { kind: "section", section: organizationSection },
+  { kind: "section", section: operationsSection },
+  { kind: "item", item: settings },
 ]
-
-export const bottomNavItems: NavItem[] = [settings]
 
 export const ICON_RAIL_WIDTH = 56

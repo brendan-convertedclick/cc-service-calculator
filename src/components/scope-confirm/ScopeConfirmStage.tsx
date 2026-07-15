@@ -308,6 +308,24 @@ export function ScopeConfirmStage({
             },
           )
         }
+        onPersistName={(ref, name) =>
+          updateValue.mutate(
+            { task_ref: ref, item_name: name },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update title"),
+            },
+          )
+        }
+        onPersistDescription={(ref, description) =>
+          updateValue.mutate(
+            { task_ref: ref, item_description: description || null },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update description"),
+            },
+          )
+        }
       />
 
       <div className="flex items-center justify-end gap-3 border-t border-m-outline-variant pt-4">

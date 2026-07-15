@@ -24,6 +24,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Ghost table-cell field. Strips the border and fill off an inline-edit input or
+ * dropdown trigger so a value reads as plain text in a data table, then reveals the
+ * editable affordance — a soft violet-tinted fill on hover, a solid surface + ring on
+ * focus. Keeps the Organization tables from reading as boxes-within-boxes. Compose
+ * with `text-right` etc.; twMerge lets these win over the primitive's own classes.
+ */
+export const cellField =
+  "h-9 rounded-md border-transparent bg-transparent px-2 shadow-none transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:bg-m-surface";
+
 const zarFormatter = new Intl.NumberFormat("en-ZA", {
   style: "currency",
   currency: "ZAR",

@@ -3,12 +3,18 @@ import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
 import {
   buildAnalyzeSystem,
   buildAnalyzeUser,
+  buildSeedTasksForPlacement,
   buildSuggestUser,
+  extractHeuristicAsks,
   extractText,
+  heuristicQuantity,
+  heuristicScopeItems,
+  heuristicTitle,
   makeTaskRef,
   MAX_ESTIMATED_CENTS,
   parseScopeMapItems,
   parseSuggestedSlugs,
+  pointsFromHours,
   truncate,
   type CatalogueService,
 } from "./scope-map-logic.ts";
@@ -206,6 +212,221 @@ Deno.test("parseScopeMapItems: drops malformed elements, keeps valid ones", () =
 
 Deno.test("parseScopeMapItems: returns null on non-JSON output", () => {
   assertEquals(parseScopeMapItems("Sorry, I cannot help.", PARSE_OPTS), null);
+});
+
+// --- heuristic (no-AI) extraction ---
+
+Deno.test("extractHeuristicAsks: pulls bullet items verbatim", () => {
+  const body = "Hi team,\n\n- Build a new landing page\n- Set up a signup form\n\nThanks";
+  const asks = extractHeuristicAsks("Winter campaign", body);
+  assertEquals(asks.map((a) => a.text), ["Build a new landing page", "Set up a signup form"]);
+  assertEquals(asks[0].quote, "- Build a new landing page");
+});
+
+Deno.test("extractHeuristicAsks: keeps prose sentences with an ask verb, drops sign-offs", () => {
+  const body =
+    "We'd like to build a new landing page for the winter campaign. It should match our brand styling. Kind regards, Sam.";
+  const asks = extractHeuristicAsks("New landing page", body);
+  const texts = asks.map((a) => a.text);
+  assertEquals(texts.some((t) => t.includes("build a new landing page")), true);
+  assertEquals(texts.some((t) => t.includes("match our brand styling")), true);
+  assertEquals(texts.some((t) => t.toLowerCase().includes("kind regards")), false);
+});
+
+Deno.test("extractHeuristicAsks: falls back to the subject when nothing looks like an ask", () => {
+  const asks = extractHeuristicAsks("Quarterly report question", "FYI. See attached. Cheers.");
+  assertEquals(asks.length, 1);
+  assertEquals(asks[0].text, "Quarterly report question");
+  assertEquals(asks[0].quote, null);
+});
+
+Deno.test("extractHeuristicAsks: dedupes and caps at 25", () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `- Build widget ${i % 5}`);
+  const asks = extractHeuristicAsks("S", lines.join("\n"));
+  assertEquals(asks.length, 5); // 5 unique, rest deduped
+});
+
+Deno.test("heuristicQuantity: parses leading counts, defaults to 1", () => {
+  assertEquals(heuristicQuantity("3 landing pages"), 3);
+  assertEquals(heuristicQuantity("three blog posts"), 3);
+  assertEquals(heuristicQuantity("a signup form"), 1);
+  assertEquals(heuristicQuantity("Build a landing page"), 1);
+});
+
+Deno.test("heuristicScopeItems: matches catalogue by keyword, flags needs_review via low confidence", () => {
+  const items = heuristicScopeItems({
+    subject: "Winter campaign",
+    body: "- Build a new landing page\n- Send over the ad budget",
+    services: SERVICES,
+    slugs: ["seo-retainer"],
+  });
+  assertEquals(items.length, 2);
+
+  const lp = items[0];
+  assertEquals(lp.matched_service_code, "LP-BUILD");
+  assertEquals(lp.suggested_service_id, "svc-2");
+  assertEquals(lp.estimated_cents, 1200000);
+  assertEquals(lp.sow_slug, "seo-retainer"); // sole slug groups matched items
+  assertEquals(lp.grounding_quote, "- Build a new landing page");
+  assertEquals(lp.confidence < 0.6, true); // always surfaced for human review
+
+  // No deliverable keyword match → null code (→ out_of_scope downstream).
+  assertEquals(items[1].matched_service_code, null);
+  assertEquals(items[1].sow_slug, null);
+});
+
+Deno.test("heuristicScopeItems: never matches a non-deliverable SKU", () => {
+  const items = heuristicScopeItems({
+    subject: "S",
+    body: "- Please cover the ad spend for us",
+    services: SERVICES,
+    slugs: [],
+  });
+  assertEquals(items.length, 1);
+  assertEquals(items[0].matched_service_code, null); // AD-SPEND is non-deliverable
+});
+
+Deno.test("heuristicTitle: strips request preamble + lead verb, capitalises", () => {
+  assertEquals(
+    heuristicTitle("We'd like to put together a new landing page for our upcoming winter campaign"),
+    "New landing page for our upcoming winter campaign",
+  );
+  assertEquals(heuristicTitle("Please set up Google Analytics"), "Google Analytics");
+  assertEquals(heuristicTitle("We need a monthly SEO report"), "Monthly SEO report");
+  assertEquals(heuristicTitle("Could you build the checkout flow"), "Checkout flow");
+});
+
+Deno.test("heuristicTitle: keeps a bare noun phrase and preserves internal filler words", () => {
+  // No leading filler → returned as-is (just capitalised).
+  assertEquals(heuristicTitle("Blog posts for the launch"), "Blog posts for the launch");
+});
+
+Deno.test("heuristicTitle: falls back to the cleaned ask when stripping leaves too little", () => {
+  // All-filler-ish ask: <2 content words survive, so the original is kept.
+  assertEquals(heuristicTitle("Please help us"), "Please help us");
+});
+
+Deno.test("heuristicTitle: trims to <=60 chars on a word boundary, no ellipsis", () => {
+  const title = heuristicTitle(
+    "Build a comprehensive multi-channel marketing dashboard with realtime revenue tracking",
+  );
+  assertEquals(title.length <= 60, true);
+  assertEquals(title.endsWith("…"), false);
+  assertEquals(title.endsWith(" "), false);
+});
+
+Deno.test("heuristicScopeItems: title is distinct from the full-sentence description", () => {
+  const items = heuristicScopeItems({
+    subject: "Winter campaign",
+    body: "We'd like to put together a new landing page for our upcoming winter campaign",
+    services: SERVICES,
+    slugs: [],
+  });
+  assertEquals(items.length, 1);
+  assertEquals(items[0].item_name, "New landing page for our upcoming winter campaign");
+  assertEquals(
+    items[0].item_description,
+    "We'd like to put together a new landing page for our upcoming winter campaign",
+  );
+  assertEquals(items[0].item_name === items[0].item_description, false);
+});
+
+Deno.test("heuristicScopeItems: leaves sow_slug null when multiple SOWs are selected", () => {
+  const items = heuristicScopeItems({
+    subject: "S",
+    body: "- Build a new landing page",
+    services: SERVICES,
+    slugs: ["seo-retainer", "web-dev"],
+  });
+  assertEquals(items[0].matched_service_code, "LP-BUILD");
+  assertEquals(items[0].sow_slug, null);
+});
+
+// --- team-task seeding ---
+
+Deno.test("pointsFromHours: 4 pt/hr, 2dp, non-positive → 0", () => {
+  assertEquals(pointsFromHours(5.12), 20.48);
+  assertEquals(pointsFromHours(1), 4);
+  assertEquals(pointsFromHours(0), 0);
+  assertEquals(pointsFromHours(-3), 0);
+});
+
+Deno.test("buildSeedTasksForPlacement: prefers authored process steps, scales by quantity", () => {
+  const rows = buildSeedTasksForPlacement({
+    placementId: "pl-1",
+    briefId: "br-1",
+    quantity: 2,
+    serviceName: "Landing page build",
+    steps: [
+      { ordinal: 2, title: "Build", department_id: "dev", estimated_hours: 3 },
+      { ordinal: 1, title: "Design", department_id: "creative", estimated_hours: 1.5 },
+    ],
+    allocation: [{ department_id: "dev", hours: 5 }],
+  });
+  // Ordered by ordinal; allocation ignored when steps exist.
+  assertEquals(rows.map((r) => r.title), ["Design", "Build"]);
+  assertEquals(rows[0].hours, 3); // 1.5 × 2
+  assertEquals(rows[0].points, 12);
+  assertEquals(rows[1].hours, 6); // 3 × 2
+  assertEquals(rows[1].points, 24);
+  assertEquals(rows[0].sort_order, 0);
+  assertEquals(rows[0].brief_id, "br-1");
+  assertEquals(rows[0].placement_id, "pl-1");
+});
+
+Deno.test("buildSeedTasksForPlacement: falls back to department allocation, hours desc", () => {
+  const rows = buildSeedTasksForPlacement({
+    placementId: "pl-1",
+    briefId: "br-1",
+    quantity: 1,
+    serviceName: "Landing page build",
+    steps: [],
+    allocation: [
+      { department_id: "pm", hours: 0 }, // dropped (0h)
+      { department_id: "dev", hours: 5.12 },
+      { department_id: "creative", hours: 2 },
+    ],
+  });
+  assertEquals(rows.length, 2);
+  assertEquals(rows[0].department_id, "dev"); // highest hours first
+  assertEquals(rows[0].hours, 5.12);
+  assertEquals(rows[0].points, 20.48);
+  assertEquals(rows[0].title, "Landing page build");
+  assertEquals(rows[1].department_id, "creative");
+});
+
+Deno.test("buildSeedTasksForPlacement: ignores hourless placeholder steps, uses allocation", () => {
+  // A service whose only process_step is an empty "New step" stub must not seed
+  // a useless 0h task — the real department allocation should win.
+  const rows = buildSeedTasksForPlacement({
+    placementId: "pl-1",
+    briefId: "br-1",
+    quantity: 1,
+    serviceName: "Landing page build",
+    steps: [{ ordinal: 1, title: "New step", department_id: null, estimated_hours: null }],
+    allocation: [{ department_id: "dev", hours: 5.12 }],
+  });
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].department_id, "dev");
+  assertEquals(rows[0].hours, 5.12);
+  assertEquals(rows[0].points, 20.48);
+  assertEquals(rows[0].title, "Landing page build");
+});
+
+Deno.test("buildSeedTasksForPlacement: last-resort single task when no steps or allocation", () => {
+  const rows = buildSeedTasksForPlacement({
+    placementId: "pl-1",
+    briefId: "br-1",
+    quantity: 3,
+    serviceName: "Mystery deliverable",
+    steps: [],
+    allocation: [],
+  });
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].title, "Mystery deliverable");
+  assertEquals(rows[0].hours, 0);
+  assertEquals(rows[0].points, 0);
+  assertEquals(rows[0].department_id, null);
 });
 
 // --- prompt builders ---

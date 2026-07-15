@@ -1,11 +1,12 @@
-import { Check } from "lucide-react";
+import { Check, CheckCheck, CheckCircle, TriangleAlert, CircleAlert } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/timeAgo";
 
-const statusDot: Record<string, string> = {
-  on_track: "bg-m-tertiary",
-  needs_attention: "bg-amber-400",
-  overdue: "bg-m-error",
+const statusIcon: Record<string, { icon: LucideIcon; color: string }> = {
+  on_track: { icon: CheckCircle, color: "text-m-tertiary" },
+  needs_attention: { icon: TriangleAlert, color: "text-amber-500" },
+  overdue: { icon: CircleAlert, color: "text-m-error" },
 };
 
 interface Props {
@@ -21,6 +22,11 @@ interface Props {
 }
 
 export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isSelected, isCompleted, lastActivityAt, onSelect, onHide }: Props) {
+  const status = isCompleted
+    ? { icon: CheckCheck, color: "text-green-600" }
+    : statusIcon[scopeStatus] ?? { icon: CircleAlert, color: "text-gray-400" };
+  const StatusIcon = status.icon;
+
   return (
     <div className={cn("group relative", isCompleted && "opacity-60")}>
 
@@ -33,12 +39,12 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
             ? "bg-m-primary-container text-m-on-primary-container"
             : isCompleted
             ? "cursor-default text-m-on-surface-variant"
-            : "text-m-on-surface-variant/60 hover:bg-m-surface-container hover:text-m-on-surface"
+            : "text-m-on-surface hover:bg-m-surface-container"
         )}
       >
-        <span
+        <StatusIcon
           data-testid="status-dot"
-          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot[scopeStatus] ?? "bg-gray-400")}
+          className={cn("h-3.5 w-3.5 shrink-0", status.color)}
         />
         <span className="flex-1 truncate text-label-medium">{name}</span>
         {lastActivityAt && (

@@ -3,6 +3,9 @@
  * (Bento grid and Status board). Keeps the two layouts visually consistent.
  */
 
+import { CheckCircle, TriangleAlert, CircleAlert } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
 const zarFormat = new Intl.NumberFormat("en-ZA", {
   style: "currency",
   currency: "ZAR",
@@ -19,6 +22,13 @@ export const scopeDot: Record<string, string> = {
   on_track: "bg-m-tertiary",
   needs_attention: "bg-amber-400",
   overdue: "bg-m-error",
+};
+
+/** scope_status → status icon + colour class (mirrors the project rail). */
+export const scopeIcon: Record<string, { icon: LucideIcon; color: string }> = {
+  on_track: { icon: CheckCircle, color: "text-m-tertiary" },
+  needs_attention: { icon: TriangleAlert, color: "text-amber-500" },
+  overdue: { icon: CircleAlert, color: "text-m-error" },
 };
 
 /** scope_status → pill badge colour classes. */

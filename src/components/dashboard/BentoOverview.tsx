@@ -4,7 +4,8 @@ import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
 import type { DeliveryRate } from "@/hooks/useDeliveryRate";
 import type { DftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { ClientMarginContent } from "./ClientMarginContent";
-import { scopeBadge, scopeDot, scopeLabel } from "./dashboardFormat";
+import { scopeBadge, scopeIcon, scopeLabel } from "./dashboardFormat";
+import { CircleAlert } from "lucide-react";
 
 interface Props {
   opsData: OpsOverviewData;
@@ -52,7 +53,11 @@ function ProjectItem({ p, onSelect }: { p: OpsProject; onSelect: (id: string) =>
       className="rounded-lg border border-m-outline-variant bg-m-surface-container-low p-2.5 text-left transition-all hover:border-m-outline hover:bg-m-surface hover:shadow-elev-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
     >
       <div className="flex items-center gap-2">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", scopeDot[p.scopeStatus] ?? "bg-gray-400")} />
+        {(() => {
+          const s = scopeIcon[p.scopeStatus] ?? { icon: CircleAlert, color: "text-gray-400" };
+          const Icon = s.icon;
+          return <Icon className={cn("h-3.5 w-3.5 shrink-0", s.color)} />;
+        })()}
         <span className="truncate text-label-medium font-semibold text-m-on-surface">
           <span className="text-m-on-surface-variant">{p.clientName} — </span>
           {p.name}

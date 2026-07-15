@@ -5,9 +5,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
 import { useTeam } from "@/hooks/useTeam"
 import {
-  bottomNavItems,
-  navSections,
-  topNavItems,
+  navEntries,
   type NavItem,
   type NavSection,
 } from "./navItems"
@@ -41,7 +39,7 @@ const NavRow = forwardRef<
         "flex items-center shrink-0 transition-all duration-200 ease-out",
         navOpen
           ? cn(
-              "w-full gap-3 rounded-full py-2 text-label-large",
+              "w-full gap-3 rounded-full py-1.5 text-label-medium tracking-normal",
               indent ? "pl-6 pr-3" : "px-3",
               isActive
                 ? "bg-gradient-brand text-white"
@@ -88,7 +86,7 @@ function SectionGroup({ section }: { section: NavSection }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={section.label}
-        className="flex items-center w-full gap-3 rounded-full px-3 py-2 text-label-large transition-all duration-200 ease-out shrink-0 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+        className="flex items-center w-full gap-3 rounded-full px-3 py-1.5 text-label-medium tracking-normal transition-all duration-200 ease-out shrink-0 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1 text-left whitespace-nowrap">{section.label}</span>
@@ -255,37 +253,28 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
         {/* Nav items */}
         {navOpen ? (
           <>
-            {topNavItems.map((item) => (
-              <NavRow key={item.to} item={item} navOpen={true} />
-            ))}
-            {navSections.map((section) => (
-              <SectionGroup key={section.label} section={section} />
-            ))}
-            {bottomNavItems.map((item) => (
-              <NavRow key={item.to} item={item} navOpen={true} />
-            ))}
+            {navEntries.map((entry) =>
+              entry.kind === "item" ? (
+                <NavRow key={entry.item.to} item={entry.item} navOpen={true} />
+              ) : (
+                <SectionGroup key={entry.section.label} section={entry.section} />
+              ),
+            )}
           </>
         ) : (
           <>
-            {topNavItems.map((item) => (
-              <Tooltip key={item.to}>
-                <TooltipTrigger asChild>
-                  <NavRow item={item} navOpen={false} />
-                </TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
-              </Tooltip>
-            ))}
-            {navSections.map((section) => (
-              <CollapsedSection key={section.label} section={section} />
-            ))}
-            {bottomNavItems.map((item) => (
-              <Tooltip key={item.to}>
-                <TooltipTrigger asChild>
-                  <NavRow item={item} navOpen={false} />
-                </TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
-              </Tooltip>
-            ))}
+            {navEntries.map((entry) =>
+              entry.kind === "item" ? (
+                <Tooltip key={entry.item.to}>
+                  <TooltipTrigger asChild>
+                    <NavRow item={entry.item} navOpen={false} />
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{entry.item.label}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <CollapsedSection key={entry.section.label} section={entry.section} />
+              ),
+            )}
           </>
         )}
 
@@ -296,7 +285,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
               <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-m-primary-container text-label-medium font-medium text-m-on-primary-container">
                 {initials}
               </div>
-              <span className="truncate text-label-large text-m-on-surface">{displayName}</span>
+              <span className="truncate text-label-medium tracking-normal text-m-on-surface">{displayName}</span>
             </div>
           ) : (
             <Tooltip>
@@ -315,7 +304,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                 await signOut()
                 navigate("/login", { replace: true })
               }}
-              className="flex w-full items-center gap-3 rounded-full px-3 py-2 text-label-large text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
+              className="flex w-full items-center gap-3 rounded-full px-3 py-1.5 text-label-medium tracking-normal text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
             >
               <LogOut className="h-[18px] w-[18px] shrink-0" />
               <span

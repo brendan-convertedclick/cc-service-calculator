@@ -12,14 +12,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { MultiSelect } from "@/components/ui/multi-select";
 import { cn, formatZar } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
@@ -46,6 +38,13 @@ const DEPT_FALLBACK_COLORS = [
 function deptColor(d: Department, idx: number): string {
   return d.color ?? DEPT_FALLBACK_COLORS[idx % DEPT_FALLBACK_COLORS.length];
 }
+
+const STATUS_FILTERS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "draft", label: "Draft" },
+  { value: "archived", label: "Archived" },
+] as const;
 
 function roundToQuarter(h: number): number {
   if (h <= 0) return 0;
@@ -156,141 +155,194 @@ export function ServicesList() {
     setGroupFilter(new Set());
   }
 
+  function toggleGroup(value: string) {
+    setGroupFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
   return (
-    <div className="container mx-auto max-w-[1200px] p-6">
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-headline-medium">Services</h1>
-          <p className="text-body-small text-m-on-surface-variant">
-            {filtered.length === services.length ? (
-              <>{services.length} services</>
-            ) : (
-              <>
-                <span className="font-medium text-m-on-surface">{filtered.length}</span> of {services.length} services
-              </>
-            )}
-            {" · "}Click any allocation to edit hours by department — changes save as an override.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/services/new">
-            <Plus className="h-4 w-4" /> New service
-          </Link>
-        </Button>
-      </div>
-
-      <div className="mb-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[280px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name or code…"
-              className="h-10 pl-9 pr-9"
-            />
-            {q && (
-              <button
-                type="button"
-                onClick={() => setQ("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
-                aria-label="Clear search"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          <Select value={ruleFilter || "__all__"} onValueChange={(v) => setRuleFilter(v === "__all__" ? "" : v)}>
-            <SelectTrigger className="h-10 w-[200px]">
-              <SelectValue placeholder="All rules" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All rules</SelectItem>
-              {rules.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFilter || "__all__"} onValueChange={(v) => setStatusFilter(v === "__all__" ? "" : v)}>
-            <SelectTrigger className="h-10 w-[140px]">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {groupOptions.length > 0 && (
-            <MultiSelect
-              options={groupOptions}
-              values={[...groupFilter]}
-              onChange={(vals) => setGroupFilter(new Set(vals))}
-              placeholder="All groups"
-              searchPlaceholder="Search groups…"
-              className="h-10 w-[220px]"
-            />
+    <div className="flex h-full">
+      {/* ── Left filter rail: search on top → divider → filter groups below ── */}
+      <aside className="w-56 shrink-0 space-y-5 overflow-y-auto border-r border-m-outline-variant p-4">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
+          <Input
+            aria-label="Search services"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search…"
+            className="h-8 pl-8 pr-8"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
+        </div>
 
+        <div className="flex items-center justify-between">
+          <h3 className="text-label-large text-m-on-surface">Filters</h3>
           {activeFilterCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearAll} className="h-10 text-m-on-surface-variant">
-              <X className="h-3.5 w-3.5" /> Clear filters
-            </Button>
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-label-small text-m-primary hover:underline"
+            >
+              Clear
+            </button>
           )}
         </div>
 
-      </div>
+        <div className="space-y-2">
+          <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
+          <ul className="space-y-0.5">
+            {STATUS_FILTERS.map((opt) => (
+              <FilterRow
+                key={opt.value}
+                label={opt.label}
+                active={statusFilter === opt.value}
+                onClick={() => setStatusFilter(opt.value)}
+              />
+            ))}
+          </ul>
+        </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-10 text-center text-sm text-muted-foreground">
-              No services match your filters.
+        {rules.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-label-medium text-m-on-surface-variant">Rule</h4>
+            <ul className="space-y-0.5">
+              <FilterRow label="All rules" active={ruleFilter === ""} onClick={() => setRuleFilter("")} />
+              {rules.map((r) => (
+                <FilterRow
+                  key={r.id}
+                  label={r.name}
+                  active={ruleFilter === r.id}
+                  onClick={() => setRuleFilter(r.id)}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {groupOptions.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-label-medium text-m-on-surface-variant">Group</h4>
+            <div className="space-y-0.5">
+              {groupOptions.map((opt) => {
+                const active = groupFilter.has(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleGroup(opt.value)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+                      active
+                        ? "bg-m-secondary-container text-m-on-secondary-container"
+                        : "text-m-on-surface hover:bg-m-surface-container"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        active
+                          ? "border-m-primary bg-m-primary text-m-on-primary"
+                          : "border-m-outline"
+                      }`}
+                    >
+                      {active && (
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="flex-1 truncate">{opt.label}</span>
+                    <span className="tabular-nums text-label-small text-m-on-surface-variant">{opt.count}</span>
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            <table className="w-full border-separate border-spacing-0 text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="px-4 py-2.5 w-[150px] border-b">Group</th>
-                  <th className="px-3 py-2.5 w-20 border-b">Code</th>
-                  <th className="px-3 py-2.5 min-w-[220px] border-b">Name</th>
-                  <th className="px-3 py-2.5 w-[150px] border-b">Rule</th>
-                  <th className="px-3 py-2.5 text-right w-24 border-b">Price</th>
-                  <th className="px-3 py-2.5 w-[260px] border-b">Allocation</th>
-                  <th className="px-3 py-2.5 w-[120px] border-b">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => {
-                  const groupId = primaryDeptByService[s.id];
-                  return (
-                    <ServiceRow
-                      key={s.id}
-                      service={s}
-                      departments={depts}
-                      deptColorById={deptColorById}
-                      ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
-                      groupName={groupId ? deptMap.get(groupId)?.name ?? null : null}
-                      groupColor={groupId ? deptColorById.get(groupId) ?? null : null}
-                      matrix={matrix}
-                      setChecklistMutate={setChecklistMutate}
-                      setChecklistPending={setChecklistPending}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </aside>
+
+      {/* ── Main ─────────────────────────────────────────────────────────── */}
+      <div className="min-w-0 flex-1 overflow-y-auto p-6">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-headline-medium">Services</h1>
+            <p className="text-body-small text-m-on-surface-variant">
+              {filtered.length === services.length ? (
+                <>{services.length} services</>
+              ) : (
+                <>
+                  <span className="font-medium text-m-on-surface">{filtered.length}</span> of {services.length} services
+                </>
+              )}
+              {" · "}Click any allocation to edit hours by department — changes save as an override.
+            </p>
+          </div>
+          <Button asChild>
+            <Link to="/services/new">
+              <Plus className="h-4 w-4" /> New service
+            </Link>
+          </Button>
+        </div>
+
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-10 text-center text-sm text-muted-foreground">
+                No services match your filters.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[1076px] border-separate border-spacing-0 text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-4 py-2.5 w-[150px] border-b">Group</th>
+                    <th className="px-3 py-2.5 w-20 border-b">Code</th>
+                    <th className="px-3 py-2.5 min-w-[220px] border-b">Name</th>
+                    <th className="px-3 py-2.5 w-[150px] border-b">Rule</th>
+                    <th className="px-3 py-2.5 text-right w-24 border-b">Price</th>
+                    <th className="px-3 py-2.5 w-[260px] border-b">Allocation</th>
+                    <th className="px-3 py-2.5 w-[120px] border-b">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => {
+                    const groupId = primaryDeptByService[s.id];
+                    return (
+                      <ServiceRow
+                        key={s.id}
+                        service={s}
+                        departments={depts}
+                        deptColorById={deptColorById}
+                        ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
+                        groupName={groupId ? deptMap.get(groupId)?.name ?? null : null}
+                        groupColor={groupId ? deptColorById.get(groupId) ?? null : null}
+                        matrix={matrix}
+                        setChecklistMutate={setChecklistMutate}
+                        setChecklistPending={setChecklistPending}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -726,5 +778,38 @@ function AllocationBar({
         ))}
       </span>
     </>
+  );
+}
+
+/** Single-select filter row for the rail (Status, Rule). Matches SowList. */
+function FilterRow({
+  label,
+  active,
+  onClick,
+  count,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  count?: number;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors",
+          active
+            ? "bg-m-secondary-container text-m-on-secondary-container"
+            : "text-m-on-surface hover:bg-m-surface-container",
+        )}
+      >
+        <span className="truncate">{label}</span>
+        {count !== undefined && (
+          <span className="tabular-nums text-label-small text-m-on-surface-variant">{count}</span>
+        )}
+      </button>
+    </li>
   );
 }

@@ -30,19 +30,19 @@ describe("DashboardProjectRow", () => {
     expect(onSelect).toHaveBeenCalledWith("proj-1");
   });
 
-  it("shows tertiary dot for on_track", () => {
+  it("shows tertiary icon for on_track", () => {
     render(<DashboardProjectRow {...baseProps} scopeStatus="on_track" />);
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-m-tertiary");
+    expect(screen.getByTestId("status-dot")).toHaveClass("text-m-tertiary");
   });
 
-  it("shows amber dot for needs_attention", () => {
+  it("shows amber icon for needs_attention", () => {
     render(<DashboardProjectRow {...baseProps} scopeStatus="needs_attention" />);
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-amber-400");
+    expect(screen.getByTestId("status-dot")).toHaveClass("text-amber-500");
   });
 
-  it("shows error dot for overdue", () => {
+  it("shows error icon for overdue", () => {
     render(<DashboardProjectRow {...baseProps} scopeStatus="overdue" />);
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-m-error");
+    expect(screen.getByTestId("status-dot")).toHaveClass("text-m-error");
   });
 
   it("applies selected styles when isSelected=true", () => {

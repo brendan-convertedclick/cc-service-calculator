@@ -183,10 +183,15 @@ export type PlacementValuePatch = {
   estimated_cents?: number;
   /** Quantity (supports fractional, e.g. 1.5). */
   quantity?: number;
+  /** Short display label for the line. */
+  item_name?: string;
+  /** Full-sentence description under the label. */
+  item_description?: string | null;
 };
 
 /**
- * Persist an operator's inline edit of a placement's price and/or quantity.
+ * Persist an operator's inline edit of a placement's price, quantity, name or
+ * description.
  * Optimistic: the row updates immediately and rolls back on error. Update (not
  * upsert) — the row always exists (it's on screen) so we only touch the given
  * numeric fields and never clobber disposition/is_inside.

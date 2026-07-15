@@ -164,9 +164,6 @@ export default function App() {
             {/* Phase 1: staff-only single-page surface */}
             <Route path="/staff" element={<StaffBriefForm />} />
 
-            {/* Index decides based on role: staff → /staff, admin/owner → Dashboard */}
-            <Route index element={<RoleAwareIndex />} />
-
             {/* Everything below requires admin or owner. Staff bounce to /staff. */}
             <Route element={<RequireAdmin />}>
               <Route path="approvals" element={<Approvals />} />
@@ -178,6 +175,8 @@ export default function App() {
               </Route>
               {/* All other routes — AppShell without sidebar */}
               <Route element={<AppShell />}>
+                {/* Index decides based on role: staff → /staff, admin/owner → Dashboard */}
+                <Route index element={<RoleAwareIndex />} />
                 <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs" element={<Briefs />} />

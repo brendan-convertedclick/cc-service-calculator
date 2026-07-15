@@ -24,11 +24,15 @@ import { callAnthropic } from "../_shared/anthropic.ts";
 import {
   buildAnalyzeSystem,
   buildAnalyzeUser,
+  buildSeedTasksForPlacement,
   buildSuggestUser,
   extractText,
+  heuristicScopeItems,
   makeTaskRef,
   parseScopeMapItems,
   parseSuggestedSlugs,
+  type SeedAllocation,
+  type SeedProcessStep,
   SUGGEST_SYSTEM,
   type CatalogueService,
   type ScopeRow,
@@ -50,6 +54,80 @@ type Body = {
   persist_client_sows?: boolean;
   force?: boolean;
 };
+
+/**
+ * Seed placement_tasks (the per-line "Team tasks · scheduled in ClickUp"
+ * breakdown) for every matched billable placement that has no tasks yet.
+ * Deterministic — sourced from each service's authored process_steps, else its
+ * resolved department allocation. No AI. Idempotent + non-destructive: lines
+ * that already carry tasks are skipped.
+ */
+async function seedPlacementTasks(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  briefId: string,
+  placements: Array<Record<string, unknown>>,
+  serviceNameById: Map<string, string>,
+): Promise<void> {
+  const targets = placements.filter(
+    (p) => typeof p.suggested_service_id === "string" && typeof p.id === "string",
+  );
+  if (targets.length === 0) return;
+
+  const placementIds = targets.map((p) => p.id as string);
+  const serviceIds = [...new Set(targets.map((p) => p.suggested_service_id as string))];
+
+  // Skip placements that already have tasks (operator edits / prior seed).
+  const { data: existing } = await sb
+    .from("placement_tasks")
+    .select("placement_id")
+    .in("placement_id", placementIds);
+  const hasTasks = new Set(
+    ((existing ?? []) as Array<{ placement_id: string }>).map((t) => t.placement_id),
+  );
+
+  const [stepsRes, allocRes] = await Promise.all([
+    sb.from("process_steps")
+      .select("service_id, ordinal, title, department_id, estimated_hours")
+      .in("service_id", serviceIds),
+    sb.from("service_allocation_resolved")
+      .select("service_id, department_id, hours")
+      .in("service_id", serviceIds),
+  ]);
+
+  const stepsBySvc = new Map<string, SeedProcessStep[]>();
+  for (const s of (stepsRes.data ?? []) as Array<{ service_id: string } & SeedProcessStep>) {
+    const arr = stepsBySvc.get(s.service_id) ?? [];
+    arr.push({ ordinal: s.ordinal, title: s.title, department_id: s.department_id, estimated_hours: s.estimated_hours });
+    stepsBySvc.set(s.service_id, arr);
+  }
+  const allocBySvc = new Map<string, SeedAllocation[]>();
+  for (const a of (allocRes.data ?? []) as Array<{ service_id: string } & SeedAllocation>) {
+    const arr = allocBySvc.get(a.service_id) ?? [];
+    arr.push({ department_id: a.department_id, hours: a.hours });
+    allocBySvc.set(a.service_id, arr);
+  }
+
+  const rows = targets
+    .filter((p) => !hasTasks.has(p.id as string))
+    .flatMap((p) => {
+      const svcId = p.suggested_service_id as string;
+      const qtyNum = Number(p.quantity);
+      return buildSeedTasksForPlacement({
+        placementId: p.id as string,
+        briefId,
+        quantity: Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1,
+        steps: stepsBySvc.get(svcId) ?? [],
+        allocation: allocBySvc.get(svcId) ?? [],
+        serviceName: serviceNameById.get(svcId) ?? (typeof p.item_name === "string" ? p.item_name : "Deliverable"),
+      });
+    });
+
+  if (rows.length > 0) {
+    const { error } = await sb.from("placement_tasks").insert(rows);
+    if (error) console.error("[analyze-brief-sow] placement_tasks insert failed:", error.message);
+  }
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -177,6 +255,8 @@ Deno.serve(async (req: Request) => {
         },
       ]),
     );
+    // service id → name, for labelling seeded team tasks (step 7).
+    const serviceNameById = new Map<string, string>(services.map((s) => [s.id, s.name]));
 
     // The client's coverage ledger (retainer entitlements + fixed-project
     // membership). Empty when the brief has no client — every deliverable ask
@@ -192,30 +272,45 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const raw = await callAnthropic({
-      model: MODEL,
-      system: buildAnalyzeSystem({ sows, serviceAreas, services }),
-      messages: [{
-        role: "user",
-        content: buildAnalyzeUser({ subject, body: briefBody, scope: (scope ?? null) as ScopeRow | null }),
-      }],
-      maxTokens: 8000,
-      cacheSystem: true,
-    });
-
-    if (raw.stop_reason === "max_tokens") {
-      return json({ error: "AI response truncated — brief has too many asks" }, 502);
+    // Extract asks + match catalogue codes. Prefer Claude; fall back to a
+    // deterministic keyword heuristic when ANTHROPIC_API_KEY is unavailable or
+    // the call fails, so a brief can always be built with no AI. Either way the
+    // three-way disposition is assigned deterministically by resolveDisposition
+    // below — the model (or heuristic) only extracts and catalogue-matches.
+    let items: ReturnType<typeof parseScopeMapItems>;
+    if (Deno.env.get("ANTHROPIC_API_KEY")) {
+      try {
+        const raw = await callAnthropic({
+          model: MODEL,
+          system: buildAnalyzeSystem({ sows, serviceAreas, services }),
+          messages: [{
+            role: "user",
+            content: buildAnalyzeUser({ subject, body: briefBody, scope: (scope ?? null) as ScopeRow | null }),
+          }],
+          maxTokens: 8000,
+          cacheSystem: true,
+        });
+        if (raw.stop_reason === "max_tokens") {
+          return json({ error: "AI response truncated — brief has too many asks" }, 502);
+        }
+        items = parseScopeMapItems(extractText(raw), {
+          allowedSlugs: new Set(sows.map((s) => s.slug)),
+          serviceAreaIds: new Set(serviceAreas.map((a) => a.id)),
+          services,
+        });
+        if (!items) return json({ error: "AI returned non-JSON output" }, 502);
+      } catch (e) {
+        console.error("[analyze-brief-sow] AI analyze failed — using heuristic:", e);
+        items = heuristicScopeItems({ subject, body: briefBody, services, slugs });
+      }
+    } else {
+      console.warn("[analyze-brief-sow] ANTHROPIC_API_KEY not set — heuristic extraction");
+      items = heuristicScopeItems({ subject, body: briefBody, services, slugs });
     }
 
-    const text = extractText(raw);
-    const items = parseScopeMapItems(text, {
-      allowedSlugs: new Set(sows.map((s) => s.slug)),
-      serviceAreaIds: new Set(serviceAreas.map((a) => a.id)),
-      services,
-    });
-    if (!items) return json({ error: "AI returned non-JSON output", raw: text }, 502);
-    // Guard BEFORE any write — an empty extraction must never wipe an existing map.
-    if (items.length === 0) {
+    // Guard BEFORE any write — an empty extraction must never wipe an existing
+    // map. The heuristic always returns ≥1 item, so this only trips the AI path.
+    if (!items || items.length === 0) {
       return json({ error: "no asks extracted from the brief" }, 422);
     }
 
@@ -304,11 +399,22 @@ Deno.serve(async (req: Request) => {
     const { error: delErr } = await delQuery;
     if (delErr) return json({ error: delErr.message }, 500);
 
-    return json({
-      ok: true,
-      sow_slugs: sows.map((s) => s.slug),
-      placements: [...upserted, ...kept],
-    });
+    const placements = [...upserted, ...kept];
+
+    // 7. Seed the per-line team-task breakdown (placement_tasks) — deterministic,
+    //    NO AI. Every billable line matched to a service gets its ClickUp work
+    //    breakdown from the service's authored process_steps, or its resolved
+    //    department allocation. Only lines with zero tasks are seeded, so operator
+    //    edits and re-runs are never clobbered (placement_tasks cascade-delete with
+    //    their placement). Failure here never fails the analysis — the breakdown
+    //    can still be added by hand.
+    try {
+      await seedPlacementTasks(sb, body.brief_id, placements, serviceNameById);
+    } catch (e) {
+      console.error("[analyze-brief-sow] placement_tasks seeding failed:", e);
+    }
+
+    return json({ ok: true, sow_slugs: sows.map((s) => s.slug), placements });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

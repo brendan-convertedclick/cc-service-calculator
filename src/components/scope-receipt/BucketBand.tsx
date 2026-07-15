@@ -42,6 +42,9 @@ export interface BucketBandProps {
   clientMode?: boolean;
   onQtyChange?: (taskRef: string, qty: number) => void;
   onPriceChange?: (taskRef: string, unitCents: number) => void;
+  /** Inline title edit — enables the editable name + description fields. */
+  onPersistName?: (taskRef: string, name: string) => void;
+  onPersistDescription?: (taskRef: string, description: string) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
   /** Expandable per-line detail (team task breakdown). */
   renderLineDetail?: (taskRef: string) => ReactNode;
@@ -63,6 +66,8 @@ export function BucketBand({
   clientMode = false,
   onQtyChange,
   onPriceChange,
+  onPersistName,
+  onPersistDescription,
   onOverride,
   renderLineDetail,
   lineSummary,
@@ -144,6 +149,8 @@ export function BucketBand({
               showConfidence={showConfidence}
               onQtyChange={onQtyChange}
               onPriceChange={onPriceChange}
+              onPersistName={onPersistName}
+              onPersistDescription={onPersistDescription}
               onOverride={onOverride}
               renderDetail={renderLineDetail}
               detailSummary={lineSummary?.(line.taskRef)}

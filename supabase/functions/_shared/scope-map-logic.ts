@@ -353,3 +353,373 @@ export function parseScopeMapItems(
   }
   return items;
 }
+
+// ---------------------------------------------------------------------------
+// Heuristic (no-AI) extraction — deterministic fallback used when
+// ANTHROPIC_API_KEY is unavailable or the analyze call fails. It extracts
+// discrete asks from the brief text and keyword-matches each to a deliverable
+// catalogue code, producing the SAME ParsedScopeItem[] shape the LLM path
+// yields. resolveDisposition then assigns the in/new/out bucket identically for
+// heuristic and AI output. Every item is emitted with confidence < 0.6 so the
+// downstream needs_review flag is set — heuristic matches are always surfaced
+// for a human to confirm.
+// ---------------------------------------------------------------------------
+
+const HEURISTIC_STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "for", "to", "of", "in", "on", "at", "by",
+  "with", "our", "your", "their", "we", "you", "they", "it", "this", "that",
+  "these", "those", "is", "are", "be", "been", "being", "have", "has", "had",
+  "do", "does", "did", "will", "would", "should", "could", "can", "may", "might",
+  "must", "us", "me", "as", "from", "into", "via", "per", "new", "also", "please",
+  "some", "any", "all", "more", "if", "so", "then", "want", "need", "like", "get",
+  "make", "let", "would", "well", "just",
+]);
+
+// Words that signal a client is asking for something (used to keep prose
+// sentences that read like an ask and drop pleasantries/sign-offs).
+const HEURISTIC_ASK_VERBS = [
+  "build", "create", "design", "develop", "set up", "setup", "add", "update",
+  "refresh", "revamp", "redesign", "produce", "write", "launch", "run",
+  "optimise", "optimize", "manage", "capture", "migrate", "integrate", "install",
+  "configure", "generate", "deliver", "provide", "require", "request", "prepare",
+  "plan", "need", "want", "would like", "put together", "help", "roll out",
+  "implement", "fix", "improve", "highlight", "match", "make",
+];
+
+const HEURISTIC_ASK_VERB_RE = new RegExp(
+  `\\b(?:${HEURISTIC_ASK_VERBS.map((v) => v.replace(/ /g, "\\s+")).join("|")})(?:s|d|ing)?\\b`,
+  "i",
+);
+
+const HEURISTIC_NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+function heuristicNormalize(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function heuristicTokens(s: string): string[] {
+  return heuristicNormalize(s)
+    .split(" ")
+    .filter((t) => t.length >= 3 && !HEURISTIC_STOPWORDS.has(t));
+}
+
+function heuristicCleanAsk(s: string): string {
+  return s.replace(/\s+/g, " ").trim().replace(/[.;:,\s]+$/, "");
+}
+
+// Leading filler the heuristic strips when synthesising a short title from an
+// ask sentence: greetings, pronouns, politeness, auxiliaries, desire verbs,
+// prepositions, determiners — plus every lead action verb (so "We'd like to
+// put together a new landing page…" → "New landing page…"). Only a LEADING run
+// of these is removed; the first content word stops the strip, so words that
+// double as filler ("for", "our") survive mid-phrase.
+const HEURISTIC_TITLE_FILLER = new Set<string>([
+  "hi", "hello", "hey", "please", "kindly", "just", "also", "really", "so",
+  "we", "i", "you", "they", "our", "my", "your", "us", "team",
+  "we'd", "i'd", "we'll", "i'll", "you'd", "we're", "we've",
+  "would", "will", "d", "ll", "do", "does", "are", "were", "was", "have",
+  "has", "had", "can", "could", "should", "keen",
+  "need", "want", "like", "love", "hope", "hoping", "looking", "wondering",
+  "to", "for", "on", "with", "a", "an", "the", "some", "this", "that",
+  ...HEURISTIC_ASK_VERBS.flatMap((v) => v.split(" ")),
+]);
+
+/**
+ * Synthesise a short, distinct title from a full ask sentence — used by the
+ * heuristic (no-AI) path so the item's name isn't just a truncation of its
+ * description. Strips a leading run of filler/politeness/lead-verb words, one
+ * leading determiner, capitalises the first letter (preserving acronyms), and
+ * trims to <=60 chars on a word boundary. Falls back to the cleaned ask when
+ * stripping would leave fewer than two words.
+ */
+export function heuristicTitle(ask: string): string {
+  const clean = heuristicCleanAsk(ask);
+  const words = clean.split(/\s+/).filter(Boolean);
+
+  let start = 0;
+  while (start < words.length) {
+    const w = words[start]
+      .toLowerCase()
+      .replace(/[’]/g, "'")
+      .replace(/^[^a-z']+|[^a-z']+$/g, "");
+    if (HEURISTIC_TITLE_FILLER.has(w)) start += 1;
+    else break;
+  }
+
+  // Keep the original when nothing was stripped or too little survives.
+  let kept = start > 0 && words.length - start >= 2 ? words.slice(start) : words;
+
+  // Drop a single leading determiner left over after verb stripping.
+  if (kept.length > 2 && /^(?:a|an|the|some)$/i.test(kept[0])) kept = kept.slice(1);
+
+  let title = kept.join(" ");
+  if (title.length > 60) {
+    const cut = title.slice(0, 60);
+    const lastSpace = cut.lastIndexOf(" ");
+    title = (lastSpace > 20 ? cut.slice(0, lastSpace) : cut).replace(/[.;:,\s]+$/, "");
+  }
+  // Capitalise the first alphabetic character; leave the rest (SEO, Google…).
+  return title.replace(/[a-z]/i, (c) => c.toUpperCase());
+}
+
+/** Parse a leading small count ("3 blog posts", "three pages") → quantity, else 1. */
+export function heuristicQuantity(ask: string): number {
+  const t = ask.trim();
+  if (/^(?:a|an)\s+/i.test(t)) return 1;
+  const digit = t.match(/^(\d{1,3})\b/);
+  if (digit) {
+    const n = Number(digit[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 999) return n;
+  }
+  const word = t.toLowerCase().match(/^([a-z]+)\b/);
+  if (word && HEURISTIC_NUMBER_WORDS[word[1]]) return HEURISTIC_NUMBER_WORDS[word[1]];
+  return 1;
+}
+
+/**
+ * Split the brief into candidate asks: every bullet / numbered list item, plus
+ * every prose sentence that contains an action verb. Returns { text, quote }
+ * where `text` is cleaned for display and `quote` is the verbatim body substring
+ * proving the ask (null only for the subject fallback). Deduped
+ * case-insensitively, capped at 25. Always returns at least one candidate.
+ */
+export function extractHeuristicAsks(
+  subject: string,
+  body: string,
+): Array<{ text: string; quote: string | null }> {
+  const out: Array<{ text: string; quote: string | null }> = [];
+  const seen = new Set<string>();
+
+  const push = (raw: string) => {
+    if (out.length >= 25) return;
+    const quote = raw.replace(/\s+/g, " ").trim();
+    const text = heuristicCleanAsk(raw.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, ""));
+    if (text.length < 6 || text.length > 300) return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ text, quote: quote.slice(0, 2000) });
+  };
+
+  for (const rawLine of body.split(/\r?\n/)) {
+    if (out.length >= 25) break;
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (/^\s*(?:[-*•]|\d+[.)])\s+/.test(rawLine)) {
+      push(rawLine);
+      continue;
+    }
+    // Prose line — keep sentences that read like an ask.
+    for (const sentence of line.split(/(?<=[.!?])\s+/)) {
+      const s = sentence.trim();
+      if (s && HEURISTIC_ASK_VERB_RE.test(s)) push(s);
+    }
+  }
+
+  // Fallback: nothing looked like an ask → use the subject (or a body slice) so
+  // the caller never sees an empty extraction (which would 422).
+  if (out.length === 0) {
+    const subj = heuristicCleanAsk(subject);
+    if (subj) out.push({ text: subj.slice(0, 120), quote: null });
+    else {
+      const slice = heuristicCleanAsk(body).slice(0, 120);
+      if (slice) out.push({ text: slice, quote: heuristicCleanAsk(body).slice(0, 2000) });
+    }
+  }
+
+  return out.slice(0, 25);
+}
+
+/** Best deliverable catalogue match for one ask, or null. Requires ≥2 shared
+ *  significant tokens or a full service-name substring hit to avoid noise. */
+function heuristicMatchService(
+  ask: string,
+  services: CatalogueService[],
+): { service: CatalogueService; score: number } | null {
+  const askTokens = new Set(heuristicTokens(ask));
+  if (askTokens.size === 0) return null;
+  const askNorm = ` ${heuristicNormalize(ask)} `;
+
+  let best: { service: CatalogueService; score: number; ratio: number } | null = null;
+  for (const svc of services) {
+    // Mirror the LLM path: only real deliverable codes are matchable.
+    if (svc.is_deliverable === false || !svc.code) continue;
+    const nameTokens = new Set(heuristicTokens(svc.name));
+    if (nameTokens.size === 0) continue;
+
+    let shared = 0;
+    for (const t of nameTokens) if (askTokens.has(t)) shared++;
+    const nameNorm = heuristicNormalize(svc.name);
+    const substring = nameNorm.length >= 4 && askNorm.includes(` ${nameNorm} `);
+    if (shared < 2 && !substring) continue;
+
+    const ratio = shared / nameTokens.size;
+    const score = shared + (substring ? 5 : 0);
+    if (!best || score > best.score || (score === best.score && ratio > best.ratio)) {
+      best = { service: svc, score, ratio };
+    }
+  }
+  return best ? { service: best.service, score: best.score } : null;
+}
+
+/**
+ * Deterministic, no-AI equivalent of the analyze-mode extraction. Produces
+ * insert-ready ParsedScopeItem rows from the brief text alone. Confidence is
+ * always < 0.6 so resolveDisposition flags every row needs_review.
+ */
+// ---------------------------------------------------------------------------
+// Team-task seeding — deterministic per-line ClickUp work breakdown.
+//
+// When a billable placement is matched to a service, its placement_tasks rows
+// (the "Team tasks · scheduled in ClickUp" panel) are seeded from the service's
+// own cost structure — its authored process_steps when present, otherwise its
+// resolved department allocation. NO AI: this is pure catalogue data, so the
+// breakdown always builds even with ANTHROPIC_API_KEY absent.
+// ---------------------------------------------------------------------------
+
+/** Sprint-point convention: 1 pt = 15 min → 4 pt/hr (mirrors src/lib/sprint-points.ts). */
+export function pointsFromHours(hours: number): number {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return 0;
+  return Math.round(h * 4 * 100) / 100;
+}
+
+export type SeedProcessStep = {
+  ordinal: number;
+  title: string;
+  department_id: string | null;
+  estimated_hours: number | null;
+};
+
+export type SeedAllocation = {
+  department_id: string;
+  hours: number | null;
+};
+
+/** An insert-ready placement_tasks row (brief_id/placement_id filled by caller). */
+export type SeedTaskRow = {
+  brief_id: string;
+  placement_id: string;
+  title: string;
+  department_id: string | null;
+  hours: number;
+  points: number;
+  sort_order: number;
+  ai_generated: boolean;
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Build the team-task rows for one matched placement, deterministically:
+ *  1. authored process_steps (ordered) → one task each, or
+ *  2. resolved department allocation (hours > 0) → one task per department, or
+ *  3. a single unestimated task so the line still carries a ClickUp task.
+ * Hours scale by the ask quantity; points derive via pointsFromHours.
+ */
+export function buildSeedTasksForPlacement(opts: {
+  placementId: string;
+  briefId: string;
+  quantity: number;
+  steps: SeedProcessStep[];
+  allocation: SeedAllocation[];
+  serviceName: string;
+}): SeedTaskRow[] {
+  const qty = Number.isFinite(opts.quantity) && opts.quantity > 0 ? opts.quantity : 1;
+  const name = (opts.serviceName || "Deliverable").slice(0, 200);
+
+  // Authored process steps are used only when they carry real budgeted hours —
+  // many services hold a single empty "New step" placeholder that would seed a
+  // useless 0h task and hide the service's actual allocation. When steps have no
+  // hours, fall through to the department allocation (which does).
+  const steps = [...opts.steps].sort((a, b) => a.ordinal - b.ordinal);
+  const stepsHours = steps.reduce((sum, s) => sum + (Number(s.estimated_hours) || 0), 0);
+  if (steps.length > 0 && stepsHours > 0) {
+    return steps.map((s, i) => {
+      const hours = round2((Number(s.estimated_hours) || 0) * qty);
+      return {
+        brief_id: opts.briefId,
+        placement_id: opts.placementId,
+        title: (s.title?.trim() || name).slice(0, 200),
+        department_id: s.department_id ?? null,
+        hours,
+        points: pointsFromHours(hours),
+        sort_order: i,
+        ai_generated: false,
+      };
+    });
+  }
+
+  const alloc = opts.allocation
+    .filter((a) => (Number(a.hours) || 0) > 0)
+    .sort((a, b) => (Number(b.hours) || 0) - (Number(a.hours) || 0));
+  if (alloc.length > 0) {
+    return alloc.map((a, i) => {
+      const hours = round2((Number(a.hours) || 0) * qty);
+      return {
+        brief_id: opts.briefId,
+        placement_id: opts.placementId,
+        title: name,
+        department_id: a.department_id,
+        hours,
+        points: pointsFromHours(hours),
+        sort_order: i,
+        ai_generated: false,
+      };
+    });
+  }
+
+  return [{
+    brief_id: opts.briefId,
+    placement_id: opts.placementId,
+    title: name,
+    department_id: null,
+    hours: 0,
+    points: 0,
+    sort_order: 0,
+    ai_generated: false,
+  }];
+}
+
+export function heuristicScopeItems(opts: {
+  subject: string;
+  body: string;
+  services: CatalogueService[];
+  /** Selected SOW slugs — the sole slug groups matched items when there's one. */
+  slugs: string[];
+}): ParsedScopeItem[] {
+  const deliverable = opts.services.filter((s) => s.is_deliverable !== false && !!s.code);
+  const soleSlug = opts.slugs.length === 1 ? opts.slugs[0] : null;
+
+  return extractHeuristicAsks(opts.subject, opts.body).map(({ text, quote }) => {
+    const match = heuristicMatchService(text, deliverable);
+    const service = match?.service ?? null;
+    const confidence = match
+      ? match.score >= 5 ? 0.55 : match.score >= 3 ? 0.5 : 0.45
+      : 0.3;
+    return {
+      item_name: heuristicTitle(text),
+      item_description: text,
+      // Recomputed downstream from the deterministic disposition; value here is
+      // never persisted directly.
+      is_inside: false,
+      sow_slug: service ? soleSlug : null,
+      service_area_id: null,
+      ai_confidence: confidence,
+      ai_match_quote: service
+        ? `Heuristic keyword match → ${service.code} ${service.name} (no AI; confirm)`
+        : "No catalogue match found by keyword heuristic (no AI; confirm)",
+      suggested_service_id: service?.id ?? null,
+      estimated_cents: service?.sell_price_cents ?? null,
+      matched_service_code: service?.code ?? null,
+      quantity: heuristicQuantity(text),
+      grounding_quote: quote,
+      confidence,
+    };
+  });
+}

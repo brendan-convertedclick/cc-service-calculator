@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Search, Shield, Trash2 } from "lucide-react";
+import { Check, Search, Shield, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   useClients,
@@ -11,17 +11,10 @@ import {
 } from "@/hooks/useClients";
 import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { cn, cellField } from "@/lib/utils";
 import { DetectedInboxButton } from "@/components/clients/DetectedInboxButton";
 import { NewClientDialog, UNLINKED } from "@/components/clients/NewClientDialog";
 
@@ -48,61 +41,70 @@ export function Clients() {
     : clients;
 
   return (
-    <div className="w-full p-6">
-      <div className="mb-6 flex items-end justify-between">
+    <div className="container mx-auto max-w-[1400px] p-6">
+      <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="text-sm text-muted-foreground">
-            The companies you do work for. Each client maps to a ClickUp folder so
-            quote acceptance creates tasks in the right place.
+          <h1 className="text-headline-medium">Clients</h1>
+          <p className="text-body-small text-m-on-surface-variant">
+            {q && filtered.length !== clients.length ? (
+              <>
+                <span className="font-medium text-m-on-surface">{filtered.length}</span> of {clients.length} clients
+              </>
+            ) : (
+              <>{clients.length} clients</>
+            )}
+            {" · "}Each maps to a ClickUp folder, so accepting a quote creates tasks in the right place.
           </p>
         </div>
-        <NewClientDialog folderOptions={folderOptions} disabled={!clientsSpaceConfigured} />
+        <div className="flex items-center gap-2">
+          <DetectedInboxButton />
+          <NewClientDialog folderOptions={folderOptions} disabled={!clientsSpaceConfigured} />
+        </div>
       </div>
 
       {!clientsSpaceConfigured && (
-        <Card className="mb-4">
-          <CardContent className="py-4 text-sm">
-            Configure a <strong>Clients space</strong> on the{" "}
-            <Link to="/settings" className="underline">
-              Settings page
-            </Link>{" "}
-            before linking clients to ClickUp folders.
-          </CardContent>
-        </Card>
+        <div className="mb-4 rounded-lg border border-m-outline-variant bg-m-surface-container px-4 py-3 text-body-small text-m-on-surface">
+          Configure a <strong className="font-medium">Clients space</strong> on the{" "}
+          <Link to="/settings" className="font-medium text-primary hover:underline">
+            Settings page
+          </Link>{" "}
+          before linking clients to ClickUp folders.
+        </div>
       )}
 
-      <Card className="mb-4">
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name or domain..."
-              className="pl-9"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="mb-4 relative min-w-[280px] max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by name or domain…"
+          className="h-10 pl-9 pr-9"
+        />
+        {q && (
+          <button
+            type="button"
+            onClick={() => setQ("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+            aria-label="Clear search"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>All clients</CardTitle>
-          <DetectedInboxButton />
-        </CardHeader>
-        <CardContent>
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <div className="p-10 text-center text-sm text-muted-foreground">
               {q
                 ? "No clients match your search."
                 : "No clients yet. Clients are created automatically when you log a new brief, or add one above."}
-            </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-            <table className="text-sm table-fixed" style={{ width: "1396px" }}>
+            <table className="table-fixed text-sm" style={{ width: "1396px" }}>
               <colgroup>
                 <col style={{ width: "240px" }} />
                 <col style={{ width: "160px" }} />
@@ -114,15 +116,15 @@ export function Clients() {
                 <col style={{ width: "56px" }} />
               </colgroup>
               <thead>
-                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                  <th className="py-2">Name</th>
-                  <th className="py-2 pl-2">Primary domain</th>
-                  <th className="py-2 pl-2">ClickUp folder</th>
-                  <th className="py-2 pl-2">Wiki path</th>
-                  <th className="py-2 pl-2">Margin target</th>
-                  <th className="py-2 pl-2">Xero Contact ID</th>
-                  <th className="py-2 pl-2">Status</th>
-                  <th className="py-2"></th>
+                <tr className="text-left text-xs uppercase text-muted-foreground">
+                  <th className="border-b px-4 py-2.5">Name</th>
+                  <th className="border-b px-3 py-2.5">Primary domain</th>
+                  <th className="border-b px-3 py-2.5">ClickUp folder</th>
+                  <th className="border-b px-3 py-2.5">Wiki path</th>
+                  <th className="border-b px-3 py-2.5 text-right">Margin target</th>
+                  <th className="border-b px-3 py-2.5">Xero Contact ID</th>
+                  <th className="border-b px-3 py-2.5">Status</th>
+                  <th className="border-b px-3 py-2.5"></th>
                 </tr>
               </thead>
               <tbody>
@@ -169,9 +171,10 @@ function ClientRow({
   clientsSpaceConfigured: boolean;
 }) {
   return (
-    <tr className="border-b">
-      <td className="py-3 pr-2">
+    <tr className="border-b transition-colors hover:bg-m-surface-container-low">
+      <td className="px-2 py-1.5">
         <Input
+          className={cellField}
           defaultValue={c.name}
           onBlur={(e) => {
             const v = e.target.value.trim();
@@ -179,8 +182,9 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2">
+      <td className="px-1 py-1.5">
         <Input
+          className={cellField}
           defaultValue={c.primary_domain ?? ""}
           placeholder="example.co.za"
           onBlur={(e) => {
@@ -190,19 +194,20 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2">
+      <td className="px-1 py-1.5">
         {foldersError ? (
-          <span className="text-xs text-destructive">
+          <span className="px-2 text-xs text-destructive">
             Couldn't load folders — check Settings
           </span>
         ) : foldersLoading ? (
-          <span className="text-xs text-muted-foreground">Loading...</span>
+          <span className="px-2 text-xs text-muted-foreground">Loading…</span>
         ) : !clientsSpaceConfigured ? (
-          <span className="text-xs text-muted-foreground">
+          <span className="px-2 text-xs text-muted-foreground">
             Configure Clients space first
           </span>
         ) : (
           <Combobox
+            className={cellField}
             options={folderOptions}
             value={c.clickup_folder_id ?? UNLINKED}
             onChange={(v) => {
@@ -213,14 +218,15 @@ function ClientRow({
                   { onSuccess: () => toast.success("Saved") },
                 );
             }}
-            placeholder="Pick a folder..."
+            placeholder="Pick a folder…"
           />
         )}
       </td>
-      <td className="py-3 pl-2 pr-2">
+      <td className="px-1 py-1.5">
         <Input
+          className={cellField}
           defaultValue={c.wiki_path ?? `wiki/clients/${c.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`}
-          placeholder="wiki/clients/..."
+          placeholder="wiki/clients/…"
           onBlur={(e) => {
             const v = e.target.value.trim() || null;
             if (v !== c.wiki_path)
@@ -228,12 +234,13 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2">
+      <td className="px-1 py-1.5">
         <Input
           type="number"
           min="0"
           max="100"
           step="0.5"
+          className={cn(cellField, "text-right")}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           defaultValue={(c as any).margin_target_pct ?? 40}
           onBlur={(e) => {
@@ -245,8 +252,9 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 pr-2">
+      <td className="px-1 py-1.5">
         <Input
+          className={cn(cellField, "font-mono text-xs")}
           defaultValue={c.xero_contact_id ?? ""}
           placeholder="Xero UUID"
           onBlur={(e) => {
@@ -256,7 +264,7 @@ function ClientRow({
           }}
         />
       </td>
-      <td className="py-3 pl-2 text-xs">
+      <td className="px-3 py-1.5 text-xs">
         {c.clickup_folder_id ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
@@ -271,7 +279,7 @@ function ClientRow({
           <span className="text-muted-foreground">Unlinked</span>
         )}
       </td>
-      <td className="py-3 pl-2">
+      <td className="px-3 py-1.5">
         <div className="flex items-center gap-1">
           <Link
             to={`/clients/${c.id}`}

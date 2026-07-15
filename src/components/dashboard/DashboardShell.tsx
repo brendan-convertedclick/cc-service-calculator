@@ -6,8 +6,6 @@ import { useMonthlyHoursBurned } from "@/hooks/useMonthlyHoursBurned";
 import { useDeliveryRate } from "@/hooks/useDeliveryRate";
 import { useAvgDftCycleTime } from "@/hooks/useAvgDftCycleTime";
 import { useLastBriefActivity } from "@/hooks/useLastBriefActivity";
-import { IconRail } from "@/components/nav/IconRail";
-import { useNavOpen } from "@/hooks/useNavOpen";
 import { ProjectTree } from "./ProjectTree";
 import { OpsOverview } from "./OpsOverview";
 import { DashboardProjectView } from "./DashboardProjectView";
@@ -23,7 +21,6 @@ export function DashboardShell() {
   const dftCycleTime = useAvgDftCycleTime();
   const lastBriefActivity = useLastBriefActivity();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [navOpen, toggleNav] = useNavOpen();
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   const selectedClient = clientsData.find((c) =>
@@ -45,9 +42,7 @@ export function DashboardShell() {
   }
 
   return (
-    <div className="flex h-screen bg-m-surface-container-low overflow-hidden">
-      <IconRail navOpen={navOpen} onToggle={toggleNav} />
-
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* Project tree */}
       <ProjectTree
         clientsData={clientsData}
@@ -61,7 +56,7 @@ export function DashboardShell() {
         onHide={handleHide}
       />
 
-      <main className="flex-1 flex min-h-0 flex-col overflow-hidden bg-m-surface">
+      <main className="flex-1 flex min-h-0 flex-col overflow-hidden">
         {selectedProjectId ? (
           <DashboardProjectView
             key={selectedProjectId}

@@ -95,6 +95,62 @@ function InlineNumber({
   );
 }
 
+/**
+ * Inline-editable text cell. Reads as plain text when idle (truncated to fit);
+ * on focus it becomes an editable field seeded with the full value, committing
+ * the trimmed text on blur / Enter and cancelling on Escape. Only fires
+ * onCommit when the value actually changed, so a focus-blur is a no-op.
+ */
+function InlineText({
+  value,
+  onCommit,
+  ariaLabel,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onCommit: (text: string) => void;
+  ariaLabel: string;
+  placeholder?: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  const editing = draft !== null;
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      value={editing ? draft : value}
+      onFocus={() => setDraft(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = (draft ?? "").trim();
+        const cancelled = cancelledRef.current;
+        cancelledRef.current = false;
+        setDraft(null);
+        if (!cancelled && next !== value.trim()) onCommit(next);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        else if (e.key === "Escape") {
+          cancelledRef.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      className={cn(
+        "w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5",
+        "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
+        className,
+      )}
+    />
+  );
+}
+
 export interface ServiceLineRowProps {
   line: ReceiptLine;
   /** out_of_scope rows render the line total struck through. */
@@ -106,6 +162,10 @@ export interface ServiceLineRowProps {
   onQtyChange?: (taskRef: string, qty: number) => void;
   /** Inline unit-price edit (cents). Enables the editable price cell. */
   onPriceChange?: (taskRef: string, unitCents: number) => void;
+  /** Inline title edit. Enables the editable name (+ description) fields. */
+  onPersistName?: (taskRef: string, name: string) => void;
+  /** Inline description edit. Passing "" clears it to null upstream. */
+  onPersistDescription?: (taskRef: string, description: string) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
   /**
    * Expandable drop-down content for this line (the team task breakdown that
@@ -128,12 +188,15 @@ export function ServiceLineRow({
   showConfidence = false,
   onQtyChange,
   onPriceChange,
+  onPersistName,
+  onPersistDescription,
   onOverride,
   renderDetail,
   detailSummary,
 }: ServiceLineRowProps) {
   const editableQty = !clientMode && !!onQtyChange;
   const editablePrice = !clientMode && !!onPriceChange;
+  const editableText = !clientMode && !!onPersistName;
   const hasDetail = !clientMode && !!renderDetail;
   const [expanded, setExpanded] = useState(false);
   const step = () => (line.qty % 1 === 0 ? 1 : 0.25);
@@ -168,19 +231,39 @@ export function ServiceLineRow({
           {!clientMode && showConfidence && (
             <ConfidenceChip confidence={line.confidence} />
           )}
-          <span className="truncate text-body-medium text-m-on-surface">
-            {line.name}
-          </span>
+          {editableText ? (
+            <InlineText
+              value={line.name}
+              onCommit={(t) => t && onPersistName!(line.taskRef, t)}
+              ariaLabel={`Title for ${line.name}`}
+              placeholder="Add a title…"
+              className="min-w-0 flex-1 text-body-medium text-m-on-surface"
+            />
+          ) : (
+            <span className="truncate text-body-medium text-m-on-surface">
+              {line.name}
+            </span>
+          )}
           {line.code && (
             <span className="rounded bg-m-surface-container px-1.5 py-0.5 font-mono text-label-small text-m-on-surface-variant">
               {line.code}
             </span>
           )}
         </div>
-        {line.description && (
-          <p className="mt-0.5 truncate text-label-small text-m-on-surface-variant">
-            {line.description}
-          </p>
+        {editableText && onPersistDescription ? (
+          <InlineText
+            value={line.description ?? ""}
+            onCommit={(t) => onPersistDescription(line.taskRef, t)}
+            ariaLabel={`Description for ${line.name}`}
+            placeholder="Add a description…"
+            className="mt-0.5 text-label-small text-m-on-surface-variant"
+          />
+        ) : (
+          line.description && (
+            <p className="mt-0.5 truncate text-label-small text-m-on-surface-variant">
+              {line.description}
+            </p>
+          )
         )}
         {hasDetail && detailSummary && (
           <button

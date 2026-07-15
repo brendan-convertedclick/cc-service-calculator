@@ -111,7 +111,10 @@ function TaskRow({
         value={task.department_id ?? undefined}
         onValueChange={(v) => onPatch({ department_id: v })}
       >
-        <SelectTrigger className="h-8 w-40 shrink-0" aria-label="Department">
+        <SelectTrigger
+          className="h-8 w-40 shrink-0 border-m-on-surface-variant/40"
+          aria-label="Department"
+        >
           <SelectValue placeholder="Department" />
         </SelectTrigger>
         <SelectContent>

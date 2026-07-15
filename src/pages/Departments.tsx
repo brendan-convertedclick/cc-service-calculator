@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { useCreateDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from "@/hooks/useDepartments";
 import { useTeam } from "@/hooks/useTeam";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { formatZar } from "@/lib/utils";
+import { cn, cellField, formatZar } from "@/lib/utils";
 
 export function Departments() {
   const { data = [], isLoading } = useDepartments();
@@ -19,38 +19,43 @@ export function Departments() {
 
   return (
     <div className="container mx-auto max-w-5xl p-6">
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Departments</h1>
-          <p className="text-sm text-muted-foreground">Teams that get allocated a share of each service. Hourly rate drives the price-to-hours math.</p>
+          <h1 className="text-headline-medium">Departments</h1>
+          <p className="text-body-small text-m-on-surface-variant">
+            {data.length} departments · Each takes a share of every service; the sell rate drives the price-to-hours math.
+          </p>
         </div>
         <NewDeptDialog />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All departments</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+          ) : data.length === 0 ? (
+            <div className="p-10 text-center text-sm text-muted-foreground">
+              No departments yet. Add one with “New department”.
+            </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                  <th className="py-2">Name</th>
-                  <th className="py-2">Primary member</th>
-                  <th className="py-2 text-right">Sell rate / hr</th>
-                  <th className="py-2 text-right">Cost rate / hr</th>
-                  <th className="py-2 text-right">Order</th>
-                  <th className="py-2"></th>
+                <tr className="text-left text-xs uppercase text-muted-foreground">
+                  <th className="border-b px-4 py-2.5">Name</th>
+                  <th className="border-b px-3 py-2.5">Primary member</th>
+                  <th className="border-b px-3 py-2.5 text-right">Sell rate / hr</th>
+                  <th className="border-b px-3 py-2.5 text-right">Cost rate / hr</th>
+                  <th className="border-b px-3 py-2.5">Order</th>
+                  <th className="border-b px-3 py-2.5"></th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((d) => (
-                  <tr key={d.id} className="border-b">
-                    <td className="py-3">
+                  <tr key={d.id} className="border-b transition-colors hover:bg-m-surface-container-low">
+                    <td className="px-2 py-1.5">
                       <Input
+                        className={cellField}
                         defaultValue={d.name}
                         onBlur={(e) => {
                           if (e.target.value !== d.name)
@@ -58,7 +63,7 @@ export function Departments() {
                         }}
                       />
                     </td>
-                    <td className="py-3 pl-2">
+                    <td className="px-1 py-1.5">
                       <Select
                         value={d.primary_team_member_id ?? "__none__"}
                         onValueChange={(v) => {
@@ -67,7 +72,7 @@ export function Departments() {
                             update.mutate({ id: d.id, patch: { primary_team_member_id: val } });
                         }}
                       >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className={cn(cellField, "w-full")}>
                           <SelectValue placeholder="Unassigned" />
                         </SelectTrigger>
                         <SelectContent>
@@ -78,10 +83,10 @@ export function Departments() {
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="py-3 pl-2">
+                    <td className="px-1 py-1.5">
                       <Input
                         type="number"
-                        className="text-right"
+                        className={cn(cellField, "text-right")}
                         defaultValue={(d.hourly_rate_cents / 100).toString()}
                         onBlur={(e) => {
                           const cents = Math.round(Number(e.target.value) * 100);
@@ -89,12 +94,12 @@ export function Departments() {
                             update.mutate({ id: d.id, patch: { hourly_rate_cents: cents } });
                         }}
                       />
-                      <div className="mt-1 text-right text-xs text-muted-foreground font-mono tabular-nums">{formatZar(d.hourly_rate_cents)}</div>
+                      <div className="mt-0.5 px-2 text-right text-xs text-muted-foreground font-mono tabular-nums">{formatZar(d.hourly_rate_cents)}</div>
                     </td>
-                    <td className="py-3 pl-2">
+                    <td className="px-1 py-1.5">
                       <Input
                         type="number"
-                        className="text-right"
+                        className={cn(cellField, "text-right")}
                         defaultValue={d.cost_rate_cents != null ? (d.cost_rate_cents / 100).toString() : ""}
                         placeholder="—"
                         onBlur={(e) => {
@@ -105,10 +110,10 @@ export function Departments() {
                         }}
                       />
                     </td>
-                    <td className="py-3 pl-2 w-20">
+                    <td className="w-24 px-1 py-1.5">
                       <Input
                         type="number"
-                        className="text-right"
+                        className={cellField}
                         defaultValue={d.display_order.toString()}
                         onBlur={(e) => {
                           const n = Number(e.target.value);
@@ -117,7 +122,7 @@ export function Departments() {
                         }}
                       />
                     </td>
-                    <td className="py-3 pl-2">
+                    <td className="px-3 py-1.5">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -137,6 +142,7 @@ export function Departments() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>

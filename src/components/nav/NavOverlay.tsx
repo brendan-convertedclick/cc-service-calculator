@@ -3,9 +3,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  bottomNavItems,
-  navSections,
-  topNavItems,
+  navEntries,
   ICON_RAIL_WIDTH,
   type NavItem,
   type NavSection,
@@ -135,15 +133,13 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
           Navigation
         </p>
 
-        {topNavItems.map((item) => (
-          <NavRow key={item.to} item={item} onClose={onClose} />
-        ))}
-        {navSections.map((section) => (
-          <SectionGroup key={section.label} section={section} onClose={onClose} />
-        ))}
-        {bottomNavItems.map((item) => (
-          <NavRow key={item.to} item={item} onClose={onClose} />
-        ))}
+        {navEntries.map((entry) =>
+          entry.kind === "item" ? (
+            <NavRow key={entry.item.to} item={entry.item} onClose={onClose} />
+          ) : (
+            <SectionGroup key={entry.section.label} section={entry.section} onClose={onClose} />
+          ),
+        )}
       </nav>
     </>
   )

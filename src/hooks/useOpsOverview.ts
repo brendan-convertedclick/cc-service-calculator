@@ -9,6 +9,7 @@ export type OpsProject = {
   scopeStatus: string;
   engagementType: string;
   startedAt: string;
+  dueDate: string | null;
   reasonText: string;
 };
 
@@ -23,6 +24,19 @@ export type OpsOverviewData = {
   recentProjects: OpsProject[];
 };
 
+// A project past its due date is treated as overdue for lane placement,
+// regardless of its stored scope_status.
+const DAY_MS = 1000 * 60 * 60 * 24;
+export const isPastDue = (dueDate: string | null): boolean =>
+  dueDate != null && Math.ceil((new Date(dueDate).getTime() - Date.now()) / DAY_MS) < 0;
+
+// The scope status used everywhere for lane/rollup placement: a past-due
+// project counts as overdue no matter what its stored scope_status says.
+export const effectiveScopeStatus = (project: {
+  scope_status: string | null;
+  due_date: string | null;
+}): string => (isPastDue(project.due_date) ? "overdue" : project.scope_status ?? "on_track");
+
 export function useOpsOverview(clientsData: ClientWithProjects[]): OpsOverviewData {
   return useMemo(() => {
     const activeProjects: OpsProject[] = clientsData.flatMap((c) =>
@@ -33,9 +47,10 @@ export function useOpsOverview(clientsData: ClientWithProjects[]): OpsOverviewDa
           name: p.name ?? "Untitled",
           clientId: c.id,
           clientName: c.name,
-          scopeStatus: p.scope_status ?? "on_track",
+          scopeStatus: effectiveScopeStatus(p),
           engagementType: p.engagement_type ?? "fixed",
           startedAt: p.started_at,
+          dueDate: p.due_date,
           reasonText: "",
         }))
     );

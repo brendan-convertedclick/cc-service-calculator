@@ -1,12 +1,20 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Fragment, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CardActionsMenu, CardActionItem } from "@/components/CardActionsMenu";
 import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
@@ -44,11 +52,13 @@ function rowHref(b: { id: string; status: BriefStatus }): string {
 }
 
 export function Briefs() {
+  const navigate = useNavigate();
   const { data: allBriefs = [] } = useBriefs("all");
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
 
   const [bucket, setBucket] = useState<Bucket>("all");
+  const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<BriefStatus>>(new Set());
   const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(new Set());
@@ -57,11 +67,9 @@ export function Briefs() {
     id: string,
     isArchived: boolean,
     e: React.MouseEvent,
-    close: () => void,
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    close();
     try {
       await updateBrief.mutateAsync({
         id,
@@ -111,6 +119,8 @@ export function Briefs() {
     return Array.from(set).sort();
   }, [visibleBriefs]);
 
+  const q = search.trim().toLowerCase();
+
   const filteredBriefs = useMemo(
     () =>
       visibleBriefs.filter((b) => {
@@ -127,10 +137,28 @@ export function Briefs() {
           const billing: BillingType = b.billing_type === "adhoc" ? "adhoc" : "retainer";
           if (!selectedBilling.has(billing)) return false;
         }
+        if (q) {
+          const clientName = b.client_id ? clientById.get(b.client_id) ?? "" : "";
+          const hay = `${b.raw_subject ?? ""} ${b.sender_email ?? ""} ${clientName}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
         return true;
       }),
-    [visibleBriefs, bucket, selectedClients, selectedStatuses, selectedBilling],
+    [visibleBriefs, bucket, selectedClients, selectedStatuses, selectedBilling, q, clientById],
   );
+
+  // Collapse the client column into per-client groups (matches the Retainers
+  // list); rows keep their newest-first order within each client.
+  const briefGroups = useMemo(() => {
+    const map = new Map<string, typeof filteredBriefs>();
+    for (const b of filteredBriefs) {
+      const key = b.client_id ? clientById.get(b.client_id) ?? "Unknown" : "Unassigned";
+      (map.get(key) ?? map.set(key, []).get(key)!).push(b);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([clientName, rows]) => ({ clientName, rows }));
+  }, [filteredBriefs, clientById]);
 
   const hasFilters =
     selectedClients.size > 0 || selectedStatuses.size > 0 || selectedBilling.size > 0;
@@ -163,242 +191,287 @@ export function Briefs() {
   };
 
   return (
-    <div className="max-w-6xl p-6">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-headline-medium">Briefs</h1>
-        <Button asChild>
-          <Link to="/briefs/new">+ New Brief</Link>
-        </Button>
-      </div>
-
-      {visibleBriefs.length === 0 ? (
-        <div className="text-body-medium text-m-on-surface-variant">
-          No open briefs. New briefs land in the Inbox and become in-flight once triaged.
+    <div className="flex h-full">
+      {/* ── Left filter rail: search on top → divider → filter groups below ── */}
+      <aside className="w-56 shrink-0 space-y-5 overflow-y-auto border-r border-m-outline-variant p-4">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
+          <Input
+            aria-label="Search briefs"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8"
+          />
         </div>
-      ) : (
-        <>
-          <Tabs
-            value={bucket}
-            onValueChange={(v) => setBucket(v as Bucket)}
-            className="mb-6"
-          >
-            <TabsList>
-              {BUCKETS.map((b) => (
-                <TabsTrigger key={b} value={b}>
-                  {BUCKET_LABEL[b]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
 
-          <div className="flex gap-8">
-            <aside className="w-56 shrink-0 space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-label-large text-m-on-surface">Filters</h3>
-                  {hasFilters && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedClients(new Set());
-                        setSelectedStatuses(new Set());
-                        setSelectedBilling(new Set());
-                      }}
-                      className="text-label-small text-m-primary hover:underline"
+        <div className="flex items-center justify-between">
+          <h3 className="text-label-large text-m-on-surface">Filters</h3>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedClients(new Set());
+                setSelectedStatuses(new Set());
+                setSelectedBilling(new Set());
+              }}
+              className="text-label-small text-m-primary hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {clientOptions.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
+            <div className="space-y-0.5">
+              {clientOptions.map((c) => {
+                const active = selectedClients.has(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleClient(c.id)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+                      active
+                        ? "bg-m-secondary-container text-m-on-secondary-container"
+                        : "text-m-on-surface hover:bg-m-surface-container"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        active
+                          ? "border-m-primary bg-m-primary text-m-on-primary"
+                          : "border-m-outline"
+                      }`}
                     >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {clientOptions.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
-                  <div className="space-y-2">
-                    {clientOptions.map((c) => {
-                      const active = selectedClients.has(c.id);
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => toggleClient(c.id)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
-                            active
-                              ? "bg-m-secondary-container text-m-on-secondary-container"
-                              : "text-m-on-surface hover:bg-m-surface-container"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                              active
-                                ? "border-m-primary bg-m-primary text-m-on-primary"
-                                : "border-m-outline"
-                            }`}
-                          >
-                            {active && (
-                              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          <span className="truncate">{c.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {statusOptions.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
-                  <div className="space-y-2">
-                    {statusOptions.map((s) => {
-                      const active = selectedStatuses.has(s);
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleStatus(s)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
-                            active
-                              ? "bg-m-secondary-container text-m-on-secondary-container"
-                              : "text-m-on-surface hover:bg-m-surface-container"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                              active
-                                ? "border-m-primary bg-m-primary text-m-on-primary"
-                                : "border-m-outline"
-                            }`}
-                          >
-                            {active && (
-                              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          <span className="truncate">{STATUS_LABEL[s]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {billingOptions.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-label-medium text-m-on-surface-variant">Billing</h4>
-                  <div className="space-y-2">
-                    {billingOptions.map((t) => {
-                      const active = selectedBilling.has(t);
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => toggleBilling(t)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors ${
-                            active
-                              ? "bg-m-secondary-container text-m-on-secondary-container"
-                              : "text-m-on-surface hover:bg-m-surface-container"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                              active
-                                ? "border-m-primary bg-m-primary text-m-on-primary"
-                                : "border-m-outline"
-                            }`}
-                          >
-                            {active && (
-                              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          <span className="truncate">{BILLING_LABEL[t]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </aside>
-
-            <div className="min-w-0 flex-1">
-              {filteredBriefs.length > 0 ? (
-                <section className="space-y-3">
-                  <h2 className="text-title-medium">
-                    {BUCKET_LABEL[bucket]} ({filteredBriefs.length})
-                  </h2>
-                  <div className="space-y-2">
-                    {filteredBriefs.map((b) => {
-                      const clientName = b.client_id ? clientById.get(b.client_id) : undefined;
-                      const isBriefed = b.status === "briefed" && !!b.clickup_task_url;
-                      return (
-                        <Card key={b.id} className="transition-colors hover:bg-m-surface-container">
-                          <CardContent className="flex items-center justify-between gap-4 p-4">
-                            <Link to={rowHref(b)} className="block min-w-0 flex-1">
-                              <div className="truncate text-title-small">
-                                {b.raw_subject ?? "(no subject)"}
-                              </div>
-                              <div className="text-label-small text-m-on-surface-variant">
-                                {clientName ?? b.sender_email ?? "manual"} ·{" "}
-                                {new Date(b.created_at).toLocaleDateString("en-ZA")}
-                              </div>
-                            </Link>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <Badge>{STATUS_LABEL[b.status]}</Badge>
-                              {b.billing_type === "adhoc" && (
-                                <Badge variant="warning">Adhoc</Badge>
-                              )}
-                              {isBriefed && (
-                                <a
-                                  href={b.clickup_task_url!}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-label-small font-medium text-m-primary hover:underline"
-                                >
-                                  View task ↗
-                                </a>
-                              )}
-                              <CardActionsMenu ariaLabel="Brief actions">
-                                {(close) => {
-                                  const isArchived = b.status === "archived";
-                                  return (
-                                    <CardActionItem
-                                      onClick={(e) => handleArchiveToggle(b.id, isArchived, e, close)}
-                                      disabled={updateBrief.isPending}
-                                      icon={
-                                        isArchived ? (
-                                          <ArchiveRestore className="h-4 w-4" />
-                                        ) : (
-                                          <Archive className="h-4 w-4" />
-                                        )
-                                      }
-                                      label={isArchived ? "Restore" : "Archive"}
-                                    />
-                                  );
-                                }}
-                              </CardActionsMenu>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : (
-                <div className="text-body-medium text-m-on-surface-variant">
-                  No briefs match the current filters.
-                </div>
-              )}
+                      {active && (
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="truncate">{c.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        {statusOptions.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
+            <div className="space-y-0.5">
+              {statusOptions.map((s) => {
+                const active = selectedStatuses.has(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleStatus(s)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+                      active
+                        ? "bg-m-secondary-container text-m-on-secondary-container"
+                        : "text-m-on-surface hover:bg-m-surface-container"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        active
+                          ? "border-m-primary bg-m-primary text-m-on-primary"
+                          : "border-m-outline"
+                      }`}
+                    >
+                      {active && (
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="truncate">{STATUS_LABEL[s]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {billingOptions.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-label-medium text-m-on-surface-variant">Billing</h4>
+            <div className="space-y-0.5">
+              {billingOptions.map((t) => {
+                const active = selectedBilling.has(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => toggleBilling(t)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+                      active
+                        ? "bg-m-secondary-container text-m-on-secondary-container"
+                        : "text-m-on-surface hover:bg-m-surface-container"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        active
+                          ? "border-m-primary bg-m-primary text-m-on-primary"
+                          : "border-m-outline"
+                      }`}
+                    >
+                      {active && (
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="truncate">{BILLING_LABEL[t]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* ── Main ─────────────────────────────────────────────────────────── */}
+      <div className="min-w-0 flex-1 overflow-y-auto p-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-headline-medium">Briefs</h1>
+          <Button asChild>
+            <Link to="/briefs/new">+ New Brief</Link>
+          </Button>
+        </div>
+
+        {visibleBriefs.length === 0 ? (
+          <div className="text-body-medium text-m-on-surface-variant">
+            No open briefs. New briefs land in the Inbox and become in-flight once triaged.
+          </div>
+        ) : (
+          <>
+            <Tabs
+              value={bucket}
+              onValueChange={(v) => setBucket(v as Bucket)}
+              className="mb-6"
+            >
+              <TabsList>
+                {BUCKETS.map((b) => (
+                  <TabsTrigger key={b} value={b}>
+                    {BUCKET_LABEL[b]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            {filteredBriefs.length > 0 ? (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-px" />
+                        <TableHead>Name</TableHead>
+                        <TableHead>Billing</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-px" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {briefGroups.map((group) => (
+                        <Fragment key={group.clientName}>
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell
+                              colSpan={5}
+                              className="border-b border-m-outline-variant bg-m-surface-container-low py-2"
+                            >
+                              <div className="flex items-baseline justify-between gap-4">
+                                <span className="text-title-small font-semibold text-m-on-surface">
+                                  {group.clientName}
+                                </span>
+                                <span className="text-label-small text-m-on-surface-variant">
+                                  {group.rows.length} brief{group.rows.length !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {group.rows.map((b) => {
+                            const isBriefed = b.status === "briefed" && !!b.clickup_task_url;
+                            const isArchived = b.status === "archived";
+                            const isAdhoc = b.billing_type === "adhoc";
+                            return (
+                              <TableRow
+                                key={b.id}
+                                onClick={() => navigate(rowHref(b))}
+                                className="cursor-pointer [&>td]:py-2"
+                              >
+                                <TableCell className="w-px pr-0 text-m-on-surface-variant">
+                                  <ChevronRight className="h-4 w-4" />
+                                </TableCell>
+                                <TableCell>
+                                  <div className="truncate text-body-medium text-m-on-surface">
+                                    {b.raw_subject ?? "(no subject)"}
+                                  </div>
+                                  <div className="text-label-small text-m-on-surface-variant">
+                                    {b.sender_email ?? "manual"} ·{" "}
+                                    {new Date(b.created_at).toLocaleDateString("en-ZA")}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={isAdhoc ? "warning" : "muted"} className="whitespace-nowrap">
+                                    {isAdhoc ? "Adhoc" : "Retainer"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className="whitespace-nowrap">{STATUS_LABEL[b.status]}</Badge>
+                                    {isBriefed && (
+                                      <a
+                                        href={b.clickup_task_url!}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="whitespace-nowrap text-label-small font-medium text-m-primary hover:underline"
+                                      >
+                                        View task ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={updateBrief.isPending}
+                                    aria-label={isArchived ? "Restore brief" : "Archive brief"}
+                                    onClick={(e) => handleArchiveToggle(b.id, isArchived, e)}
+                                  >
+                                    {isArchived ? (
+                                      <ArchiveRestore className="h-4 w-4" />
+                                    ) : (
+                                      <Archive className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="text-body-medium text-m-on-surface-variant">
+                No briefs match the current filters.
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

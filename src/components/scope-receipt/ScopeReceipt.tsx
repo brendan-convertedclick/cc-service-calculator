@@ -39,6 +39,13 @@ export interface ScopeReceiptProps {
   /** Persist an inline unit-price edit in cents (optional). Enables price editing. */
   onPersistPrice?: (taskRef: string, unitCents: number) => void;
   /**
+   * Persist an inline title edit (optional). Enables editable name + description
+   * fields on every band in operator view.
+   */
+  onPersistName?: (taskRef: string, name: string) => void;
+  /** Persist an inline description edit (optional). Empty string clears it. */
+  onPersistDescription?: (taskRef: string, description: string) => void;
+  /**
    * Expandable per-line detail for billable lines (the team task breakdown that
    * goes to ClickUp). When provided, each billable line gets an expand chevron.
    */
@@ -66,6 +73,8 @@ export function ScopeReceipt({
   onOverride,
   onPersistQty,
   onPersistPrice,
+  onPersistName,
+  onPersistDescription,
   renderLineDetail,
   lineSummary,
   className,
@@ -161,6 +170,8 @@ export function ScopeReceipt({
               clientMode={clientMode}
               onQtyChange={isBillable ? handleQtyChange : undefined}
               onPriceChange={isBillable ? handlePriceChange : undefined}
+              onPersistName={onPersistName}
+              onPersistDescription={onPersistDescription}
               onOverride={handleOverride}
               renderLineDetail={isBillable ? renderLineDetail : undefined}
               lineSummary={isBillable ? lineSummary : undefined}

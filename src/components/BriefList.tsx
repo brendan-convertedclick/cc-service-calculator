@@ -1,7 +1,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen, Zap, Inbox } from "lucide-react";
+import { Settings, Archive, ArchiveRestore, Ban, FolderPlus, Link2, FolderOpen, Zap, Inbox, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +52,21 @@ function relativeTime(iso: string | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return new Date(iso).toLocaleDateString("en-ZA");
+}
+
+/** Compact leading-column date: "15 Jul", plus the year when it's not the current one. */
+function briefDate(iso: string | null): { label: string; title: string } {
+  if (!iso) return { label: "—", title: "" };
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return {
+    label: d.toLocaleDateString("en-ZA", {
+      day: "2-digit",
+      month: "short",
+      ...(sameYear ? {} : { year: "2-digit" }),
+    }),
+    title: d.toLocaleString("en-ZA"),
+  };
 }
 
 const EMPTY: Record<BriefScope, string> = {
@@ -138,16 +153,22 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
     return map;
   }, [clients]);
 
+  const clientNameById = useMemo(
+    () => new Map(clients.map((c) => [c.id, c.name])),
+    [clients],
+  );
+
   if (isLoading) {
     return (
       <div className="divide-y divide-m-outline-variant overflow-hidden rounded-lg border border-m-outline-variant bg-card">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between gap-4 px-4 py-3">
+          <div key={i} className="flex items-center gap-4 px-4 py-3">
+            <Skeleton className="h-3 w-20 shrink-0" />
             <div className="min-w-0 flex-1 space-y-2">
               <Skeleton className="h-4 w-2/5" />
               <Skeleton className="h-3 w-1/4" />
             </div>
-            <Skeleton className="h-4 w-14" />
+            <Skeleton className="hidden h-3 w-28 shrink-0 sm:block" />
           </div>
         ))}
       </div>
@@ -170,13 +191,14 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
           brief={b}
           selected={selectedBriefId === b.id}
           project={b.parent_project_id ? projectsById.get(b.parent_project_id) : undefined}
+          clientName={b.client_id ? clientNameById.get(b.client_id) : undefined}
         />
       ))}
     </div>
   );
 }
 
-function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boolean; project: ProjectLookupEntry | undefined }) {
+function BriefRow({ brief: b, selected, project, clientName }: { brief: Brief; selected: boolean; project: ProjectLookupEntry | undefined; clientName: string | undefined }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
@@ -232,15 +254,23 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
   }
 
   const showStatus = b.status !== "new" && b.status !== "archived";
+  const date = briefDate(b.last_message_at ?? b.received_at);
 
   return (
     <>
       <Link
         to={`/inbox/${b.id}`}
-        className={`group flex items-center justify-between gap-4 px-4 py-3 transition-colors ${
+        className={`group flex items-center gap-4 px-4 py-3 transition-colors ${
           selected ? "bg-m-primary-container/40" : "hover:bg-m-surface-container"
         }`}
       >
+        <time
+          title={date.title}
+          className="flex w-20 shrink-0 items-center gap-1.5 font-mono text-label-small tabular-nums text-m-on-surface-variant"
+        >
+          <Calendar className="h-3.5 w-3.5 shrink-0 text-m-outline" aria-hidden />
+          {date.label}
+        </time>
         <div className="min-w-0 flex-1">
           <div className="truncate text-title-small">
             {b.raw_subject ?? "(no subject)"}
@@ -252,7 +282,13 @@ function BriefRow({ brief: b, selected, project }: { brief: Brief; selected: boo
             {b.last_message_at && ` · ${relativeTime(b.last_message_at)}`}
           </div>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2.5">
+        <div
+          className="hidden w-40 shrink-0 truncate text-left text-body-small text-m-on-surface-variant sm:block"
+          title={clientName ?? undefined}
+        >
+          {clientName ?? <span className="text-m-outline">—</span>}
+        </div>
+        <div className="flex w-44 shrink-0 items-center justify-end gap-2.5">
           <ProjectChip
             project={project}
             hasProjectId={!!b.parent_project_id}
