@@ -13,6 +13,7 @@ export type BriefScope = "new" | "mine" | "unassigned" | "waiting" | "all" | "ar
 export type BriefFilterOptions = {
   clientId?: string | null;   // undefined = no filter; null = unassigned only
   contactEmail?: string;
+  status?: Brief["status"];   // undefined = no filter (used by the status pipeline)
 };
 
 export type BriefSortDirection = "desc" | "asc";
@@ -31,6 +32,7 @@ export function useBriefs(
       currentUserId ?? "anon",
       filterOptions?.clientId ?? "any",
       filterOptions?.contactEmail ?? "any",
+      filterOptions?.status ?? "any",
       sortDirection,
     ],
     queryFn: async (): Promise<Brief[]> => {
@@ -64,6 +66,9 @@ export function useBriefs(
       }
       if (filterOptions?.contactEmail !== undefined) {
         q = q.eq("sender_email", filterOptions.contactEmail);
+      }
+      if (filterOptions?.status !== undefined) {
+        q = q.eq("status", filterOptions.status);
       }
 
       const { data, error } = await q;

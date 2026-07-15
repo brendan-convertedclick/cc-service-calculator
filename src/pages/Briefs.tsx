@@ -14,35 +14,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  PIPELINE_STATUSES,
+  StatusPipeline,
+  type PipelineSelection,
+} from "@/components/briefs/StatusPipeline";
 import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
 
-type Bucket = "all" | "backlog" | "in_progress" | "completed";
-
-const BUCKETS: Bucket[] = ["all", "backlog", "in_progress", "completed"];
-
-const BUCKET_LABEL: Record<Bucket, string> = {
-  all: "All",
-  backlog: "Backlog",
-  in_progress: "In Progress",
-  completed: "Completed",
-};
-
-const BUCKET_STATUSES: Record<Exclude<Bucket, "all">, BriefStatus[]> = {
-  backlog: ["new", "needs_info"],
-  in_progress: ["triaged", "scoped", "quoted", "accepted"],
-  completed: ["briefed"],
-};
-
-// Every status shown anywhere on this page. `rejected`/`spam` are deliberately
-// excluded (dead-end noise); `archived` is already excluded by useBriefs("all").
-const VISIBLE_STATUSES: BriefStatus[] = [
-  ...BUCKET_STATUSES.backlog,
-  ...BUCKET_STATUSES.in_progress,
-  ...BUCKET_STATUSES.completed,
-];
+// Every status shown anywhere on this page — the lifecycle pipeline order.
+// `rejected`/`spam` are deliberately excluded (dead-end noise); `archived` is
+// already excluded by useBriefs("all").
+const VISIBLE_STATUSES: BriefStatus[] = PIPELINE_STATUSES;
 
 // Briefed items are "done" — send them back to the conversation view rather
 // than into a scoping/build tool. Everything else resumes wherever it left off.
@@ -57,10 +41,9 @@ export function Briefs() {
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
 
-  const [bucket, setBucket] = useState<Bucket>("all");
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>("all");
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<BriefStatus>>(new Set());
   const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(new Set());
 
   const handleArchiveToggle = async (
@@ -105,12 +88,6 @@ export function Briefs() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [visibleBriefs, clientById]);
 
-  const statusOptions = useMemo(() => {
-    const set = new Set<BriefStatus>();
-    for (const b of visibleBriefs) set.add(b.status as BriefStatus);
-    return Array.from(set).sort();
-  }, [visibleBriefs]);
-
   const billingOptions = useMemo(() => {
     const set = new Set<BillingType>();
     for (const b of visibleBriefs) {
@@ -121,16 +98,12 @@ export function Briefs() {
 
   const q = search.trim().toLowerCase();
 
-  const filteredBriefs = useMemo(
+  // Everything matching the rail filters + search, before the pipeline's
+  // status selection — this is the population the pipeline counts reflect.
+  const pipelineBriefs = useMemo(
     () =>
       visibleBriefs.filter((b) => {
-        if (bucket !== "all" && !BUCKET_STATUSES[bucket].includes(b.status as BriefStatus)) {
-          return false;
-        }
         if (selectedClients.size > 0 && (!b.client_id || !selectedClients.has(b.client_id))) {
-          return false;
-        }
-        if (selectedStatuses.size > 0 && !selectedStatuses.has(b.status as BriefStatus)) {
           return false;
         }
         if (selectedBilling.size > 0) {
@@ -144,7 +117,24 @@ export function Briefs() {
         }
         return true;
       }),
-    [visibleBriefs, bucket, selectedClients, selectedStatuses, selectedBilling, q, clientById],
+    [visibleBriefs, selectedClients, selectedBilling, q, clientById],
+  );
+
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<BriefStatus, number>> = {};
+    for (const b of pipelineBriefs) {
+      const s = b.status as BriefStatus;
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return counts;
+  }, [pipelineBriefs]);
+
+  const filteredBriefs = useMemo(
+    () =>
+      pipelineStatus === "all"
+        ? pipelineBriefs
+        : pipelineBriefs.filter((b) => b.status === pipelineStatus),
+    [pipelineBriefs, pipelineStatus],
   );
 
   // Collapse the client column into per-client groups (matches the Retainers
@@ -160,23 +150,13 @@ export function Briefs() {
       .map(([clientName, rows]) => ({ clientName, rows }));
   }, [filteredBriefs, clientById]);
 
-  const hasFilters =
-    selectedClients.size > 0 || selectedStatuses.size > 0 || selectedBilling.size > 0;
+  const hasFilters = selectedClients.size > 0 || selectedBilling.size > 0;
 
   const toggleClient = (id: string) => {
     setSelectedClients((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleStatus = (s: BriefStatus) => {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
       return next;
     });
   };
@@ -212,7 +192,6 @@ export function Briefs() {
               type="button"
               onClick={() => {
                 setSelectedClients(new Set());
-                setSelectedStatuses(new Set());
                 setSelectedBilling(new Set());
               }}
               className="text-label-small text-m-primary hover:underline"
@@ -253,44 +232,6 @@ export function Briefs() {
                       )}
                     </span>
                     <span className="truncate">{c.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {statusOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
-            <div className="space-y-0.5">
-              {statusOptions.map((s) => {
-                const active = selectedStatuses.has(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleStatus(s)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{STATUS_LABEL[s]}</span>
                   </button>
                 );
               })}
@@ -352,19 +293,12 @@ export function Briefs() {
           </div>
         ) : (
           <>
-            <Tabs
-              value={bucket}
-              onValueChange={(v) => setBucket(v as Bucket)}
+            <StatusPipeline
+              counts={statusCounts}
+              active={pipelineStatus}
+              onSelect={setPipelineStatus}
               className="mb-6"
-            >
-              <TabsList>
-                {BUCKETS.map((b) => (
-                  <TabsTrigger key={b} value={b}>
-                    {BUCKET_LABEL[b]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            />
 
             {filteredBriefs.length > 0 ? (
               <Card>

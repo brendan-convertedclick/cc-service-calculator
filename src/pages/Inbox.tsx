@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Plus, ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,12 @@ import { BriefList } from "@/components/BriefList";
 import { BriefConversation } from "@/components/BriefConversation";
 import { InboxFilterPanel } from "@/components/InboxFilterPanel";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
-import { useBrief } from "@/hooks/useBriefs";
+import { StatusPipeline, type PipelineSelection } from "@/components/briefs/StatusPipeline";
+import { useBrief, useBriefs } from "@/hooks/useBriefs";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
 import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks/useBriefs";
+import type { BriefStatus } from "@/lib/brief-routing";
 import type { ClaudePrompt } from "@/types/claude";
 
 const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
@@ -40,6 +42,7 @@ export function Inbox() {
   const [activeClientId, setActiveClientId] = useState<string | null | undefined>(undefined);
   const [activeContactEmail, setActiveContactEmail] = useState<string | undefined>(undefined);
   const [sortDirection, setSortDirection] = useState<BriefSortDirection>("desc");
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>("all");
 
   function handleSelectAll() {
     setActiveClientId(undefined);
@@ -62,9 +65,30 @@ export function Inbox() {
   }
 
   const filterOptions: BriefFilterOptions | undefined =
-    activeClientId !== undefined || activeContactEmail !== undefined
-      ? { clientId: activeClientId, contactEmail: activeContactEmail }
+    activeClientId !== undefined ||
+    activeContactEmail !== undefined ||
+    pipelineStatus !== "all"
+      ? {
+          clientId: activeClientId,
+          contactEmail: activeContactEmail,
+          status: pipelineStatus === "all" ? undefined : pipelineStatus,
+        }
       : undefined;
+
+  // Pipeline counts: the full non-archived population under the current
+  // client/contact filter, regardless of the scope tab or status selection.
+  const { data: pipelinePopulation = [] } = useBriefs("all", currentUserId, {
+    clientId: activeClientId,
+    contactEmail: activeContactEmail,
+  });
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<BriefStatus, number>> = {};
+    for (const b of pipelinePopulation) {
+      const s = b.status as BriefStatus;
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return counts;
+  }, [pipelinePopulation]);
 
   // Heading breadcrumb
   const filterLabel = activeContactEmail
@@ -127,6 +151,13 @@ Output: Confirmation of brief created or updated, with intent classification and
             </Link>
           </Button>
         </div>
+
+        <StatusPipeline
+          counts={statusCounts}
+          active={pipelineStatus}
+          onSelect={setPipelineStatus}
+          className="mb-4"
+        />
 
         <Tabs defaultValue={defaultTab}>
           <div className="mb-4 flex items-center justify-between gap-2">
