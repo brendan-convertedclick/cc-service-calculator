@@ -25,6 +25,8 @@ interface StatusPipelineProps {
   counts: Partial<Record<BriefStatus, number>>;
   active: PipelineSelection;
   onSelect: (s: PipelineSelection) => void;
+  /** Append an Archived pill after a divider (off the arrow flow — it's a dead-end, not a stage). */
+  showArchived?: boolean;
   className?: string;
 }
 
@@ -62,7 +64,13 @@ function Pill({
   );
 }
 
-export function StatusPipeline({ counts, active, onSelect, className }: StatusPipelineProps) {
+export function StatusPipeline({
+  counts,
+  active,
+  onSelect,
+  showArchived = false,
+  className,
+}: StatusPipelineProps) {
   const total = PIPELINE_STATUSES.reduce((s, st) => s + (counts[st] ?? 0), 0);
   return (
     <div
@@ -93,6 +101,20 @@ export function StatusPipeline({ counts, active, onSelect, className }: StatusPi
           />
         </div>
       ))}
+      {showArchived && (
+        <div className="flex items-center">
+          <span
+            className="mx-2.5 h-4 w-px shrink-0 bg-m-outline-variant"
+            aria-hidden="true"
+          />
+          <Pill
+            label={STATUS_LABEL.archived}
+            count={counts.archived ?? 0}
+            active={active === "archived"}
+            onClick={() => onSelect(active === "archived" ? "all" : "archived")}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Archive, ArchiveRestore, ChevronRight, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,8 @@ import {
   StatusPipeline,
   type PipelineSelection,
 } from "@/components/briefs/StatusPipeline";
-import { useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
+import { BriefConversation } from "@/components/BriefConversation";
+import { useBrief, useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
 
@@ -28,16 +29,19 @@ import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type Billing
 // already excluded by useBriefs("all").
 const VISIBLE_STATUSES: BriefStatus[] = PIPELINE_STATUSES;
 
-// Briefed items are "done" — send them back to the conversation view rather
-// than into a scoping/build tool. Everything else resumes wherever it left off.
+// Briefed items are "done" — open them in the conversation drawer right here
+// on the Briefs page. Everything else resumes wherever it left off.
 function rowHref(b: { id: string; status: BriefStatus }): string {
-  if (b.status === "briefed") return `/inbox/${b.id}`;
+  if (b.status === "briefed") return `/briefs/view/${b.id}`;
   return resumeHref(b as Parameters<typeof resumeHref>[0]);
 }
 
 export function Briefs() {
   const navigate = useNavigate();
+  const { briefId } = useParams<{ briefId?: string }>();
+  const { data: selectedBrief } = useBrief(briefId);
   const { data: allBriefs = [] } = useBriefs("all");
+  const { data: archivedBriefs = [] } = useBriefs("archived");
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
 
@@ -69,15 +73,17 @@ export function Briefs() {
     [clients],
   );
 
-  // Everything the page can ever show, newest first.
+  // Everything the page can ever show, newest first. Archived briefs ride
+  // along so the pipeline's Archived pill can filter to them.
   const visibleBriefs = useMemo(
     () =>
-      allBriefs
-        .filter((b) => VISIBLE_STATUSES.includes(b.status as BriefStatus))
-        .sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        ),
-    [allBriefs],
+      [
+        ...allBriefs.filter((b) => VISIBLE_STATUSES.includes(b.status as BriefStatus)),
+        ...archivedBriefs,
+      ].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ),
+    [allBriefs, archivedBriefs],
   );
 
   const clientOptions = useMemo(() => {
@@ -129,10 +135,11 @@ export function Briefs() {
     return counts;
   }, [pipelineBriefs]);
 
+  // "All" means the live pipeline — archived only shows via its own pill.
   const filteredBriefs = useMemo(
     () =>
       pipelineStatus === "all"
-        ? pipelineBriefs
+        ? pipelineBriefs.filter((b) => b.status !== "archived")
         : pipelineBriefs.filter((b) => b.status === pipelineStatus),
     [pipelineBriefs, pipelineStatus],
   );
@@ -297,6 +304,7 @@ export function Briefs() {
               counts={statusCounts}
               active={pipelineStatus}
               onSelect={setPipelineStatus}
+              showArchived
               className="mb-6"
             />
 
@@ -404,6 +412,14 @@ export function Briefs() {
               </div>
             )}
           </>
+        )}
+
+        {selectedBrief && (
+          <BriefConversation
+            brief={selectedBrief}
+            open={!!briefId}
+            onClose={() => navigate("/briefs")}
+          />
         )}
       </div>
     </div>

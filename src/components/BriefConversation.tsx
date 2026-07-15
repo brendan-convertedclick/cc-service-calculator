@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Link2, Unlink, Pencil, Settings, Trash2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -65,6 +67,22 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
   const linkedProjectId =
     downstream?.kind === "project" ? downstream.id : (brief.parent_project_id ?? null);
   const isLinkedToProject = Boolean(linkedProjectId);
+
+  // Name-only lookup so the project chip reads "Price Lock Campaign →"
+  // instead of a bare "Project →".
+  const { data: linkedProject } = useQuery({
+    enabled: !!linkedProjectId,
+    queryKey: ["project-name", linkedProjectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("id", linkedProjectId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
   const isBriefed = brief.status === "briefed" && Boolean(brief.clickup_task_id);
 
   async function handleBillingChange(next: BillingType) {
@@ -113,8 +131,11 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
 
   const linkControls = isLinkedToProject ? (
     <div className="flex items-center gap-1">
-      <Button asChild variant="outline" size="sm" className="h-7 text-label-small">
-        <Link to={`/projects/${linkedProjectId}`}>Project →</Link>
+      <Button asChild variant="outline" size="sm" className="h-7 max-w-56 text-label-small">
+        <Link to={`/projects/${linkedProjectId}`} title={linkedProject?.name ?? "Project"}>
+          <span className="truncate">{linkedProject?.name ?? "Project"}</span>
+          <span className="shrink-0">→</span>
+        </Link>
       </Button>
       <Button
         variant="ghost"

@@ -183,6 +183,7 @@ export default function App() {
                 <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs" element={<Briefs />} />
+              <Route path="briefs/view/:briefId" element={<Briefs />} />
               <Route path="briefs/new" element={<NewBrief />} />
               <Route path="briefs/:id" element={<BriefResume />} />
               <Route path="briefs/:id/scope" element={<Scope />} />
