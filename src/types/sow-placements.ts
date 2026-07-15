@@ -68,3 +68,28 @@ export function placementDisposition(p: BriefTaskSowPlacement): Disposition {
 export function isBillablePlacement(p: BriefTaskSowPlacement): boolean {
   return placementDisposition(p) === "new_billable";
 }
+
+/**
+ * Build a stable, per-brief-unique task_ref for a manually-added billable line.
+ * Mirrors the edge function's makeTaskRef charset ([a-z0-9_-] only — the
+ * analyze-brief-sow delete path quotes refs assuming that set) but uses a
+ * `manual_` prefix so hand-added lines are distinguishable from `item_N_…` AI
+ * rows. Slug is the first three words of the name; collisions against refs
+ * already on the brief get a numeric `-2`, `-3`… suffix.
+ */
+export function makeManualTaskRef(name: string, existingRefs: Iterable<string>): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .split("-")
+    .filter(Boolean)
+    .slice(0, 3)
+    .join("-");
+  const base = slug ? `manual_${slug}` : "manual";
+  const taken = new Set(existingRefs);
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}

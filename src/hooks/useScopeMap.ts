@@ -9,7 +9,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import type { BriefTaskSowPlacement, ClientSow } from "@/types/sow-placements";
+import {
+  makeManualTaskRef,
+  type BriefTaskSowPlacement,
+  type ClientSow,
+} from "@/types/sow-placements";
 
 // brief_task_sow_placements (0059, item columns 0061) and client_sows (0061)
 // aren't in the generated Database types yet — query untyped and cast rows
@@ -170,6 +174,56 @@ export function useOverridePlacement(briefId: string | undefined) {
     },
     onError: (_err, _patch, ctx) => {
       if (briefId && ctx?.previous) qc.setQueryData(SCOPE_MAP_KEY(briefId), ctx.previous);
+    },
+    onSettled: () => {
+      if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
+    },
+  });
+}
+
+export type NewBillableLine = {
+  /** Catalogue service seeding the line. */
+  suggested_service_id: string;
+  /** Display label (defaults to the service name; editable inline afterward). */
+  item_name: string;
+  /** Per-unit sell price in cents from the catalogue (null → operator sets it). */
+  estimated_cents: number | null;
+};
+
+/**
+ * Insert a manually-added billable line (a new brief_task_sow_placements row)
+ * seeded from the catalogue. Always lands in the new_billable band; quantity
+ * defaults to 1 and everything is editable inline afterward exactly like an
+ * AI-analysed line. Non-optimistic: insert → refetch (the row needs a
+ * server-generated id/created_at). task_ref is derived from the item name and
+ * deduped against the refs already cached for this brief.
+ */
+export function useAddPlacement(briefId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewBillableLine) => {
+      if (!briefId) throw new Error("Missing brief id");
+      const existing = qc.getQueryData<BriefTaskSowPlacement[]>(SCOPE_MAP_KEY(briefId)) ?? [];
+      const task_ref = makeManualTaskRef(
+        input.item_name,
+        existing.map((r) => r.task_ref),
+      );
+      const { error } = await sb.from("brief_task_sow_placements").insert({
+        brief_id: briefId,
+        task_ref,
+        item_name: input.item_name,
+        suggested_service_id: input.suggested_service_id,
+        estimated_cents: input.estimated_cents,
+        quantity: 1,
+        disposition: "new_billable",
+        // is_inside mirrors disposition for the legacy map visual; a billable
+        // line is never inside agreed scope.
+        is_inside: false,
+        // Human-picked, so there's no AI confidence to sanity-check.
+        ai_confidence: null,
+        needs_review: false,
+      });
+      if (error) throw error;
     },
     onSettled: () => {
       if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });

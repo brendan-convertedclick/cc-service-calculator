@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isBillablePlacement,
+  makeManualTaskRef,
   placementDisposition,
   type BriefTaskSowPlacement,
 } from "./sow-placements";
@@ -94,5 +95,39 @@ describe("isBillablePlacement", () => {
   it("treats legacy outside rows as billable (back-compat)", () => {
     expect(isBillablePlacement(p({ disposition: null, is_inside: false }))).toBe(true);
     expect(isBillablePlacement(p({ disposition: null, is_inside: true }))).toBe(false);
+  });
+});
+
+describe("makeManualTaskRef", () => {
+  it("builds a manual_ prefixed kebab slug from the first three words", () => {
+    expect(makeManualTaskRef("Landing Page Build Page - No SEO", [])).toBe(
+      "manual_landing-page-build",
+    );
+  });
+
+  it("keeps the charset to [a-z0-9_-] (strips punctuation and accents collapse)", () => {
+    expect(makeManualTaskRef("SEO Audit & Report!!", [])).toBe("manual_seo-audit-report");
+  });
+
+  it("falls back to a bare manual ref when the name yields no slug", () => {
+    expect(makeManualTaskRef("", [])).toBe("manual");
+    expect(makeManualTaskRef("   —  ", [])).toBe("manual");
+  });
+
+  it("suffixes -2, -3… to avoid colliding with existing refs on the brief", () => {
+    const existing = ["manual_landing-page-build"];
+    expect(makeManualTaskRef("Landing Page Build", existing)).toBe("manual_landing-page-build-2");
+    expect(
+      makeManualTaskRef("Landing Page Build", [...existing, "manual_landing-page-build-2"]),
+    ).toBe("manual_landing-page-build-3");
+  });
+
+  it("suffixes the bare fallback too", () => {
+    expect(makeManualTaskRef("", ["manual"])).toBe("manual-2");
+  });
+
+  it("never collides regardless of insertion order (accepts any iterable of refs)", () => {
+    const taken = new Set(["manual_a", "manual_a-2"]);
+    expect(makeManualTaskRef("A", taken)).toBe("manual_a-3");
   });
 });

@@ -52,6 +52,11 @@ export interface ScopeReceiptProps {
   renderLineDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup under each billable line name (e.g. "2 tasks · 3.5h · 22pt"). */
   lineSummary?: (taskRef: string) => ReactNode;
+  /**
+   * Operator affordance to manually add a billable line, rendered as the footer
+   * of the New billable band. Hidden in client view.
+   */
+  addBillableLine?: ReactNode;
   className?: string;
 }
 
@@ -77,6 +82,7 @@ export function ScopeReceipt({
   onPersistDescription,
   renderLineDetail,
   lineSummary,
+  addBillableLine,
   className,
 }: ScopeReceiptProps) {
   const [clientView, setClientView] = useState(false);
@@ -175,6 +181,7 @@ export function ScopeReceipt({
               onOverride={handleOverride}
               renderLineDetail={isBillable ? renderLineDetail : undefined}
               lineSummary={isBillable ? lineSummary : undefined}
+              footer={isBillable && !clientMode ? addBillableLine : undefined}
             />
           );
         })}

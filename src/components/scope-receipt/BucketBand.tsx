@@ -58,6 +58,12 @@ export interface BucketBandProps {
   renderLineDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup shown under each line name. */
   lineSummary?: (taskRef: string) => ReactNode;
+  /**
+   * Footer slot under the line stack (e.g. "+ Add billable line"). When present,
+   * the band always renders in full — even with zero lines — so the affordance
+   * stays reachable on an empty band.
+   */
+  footer?: ReactNode;
 }
 
 /**
@@ -79,8 +85,11 @@ export function BucketBand({
   onOverride,
   renderLineDetail,
   lineSummary,
+  footer,
 }: BucketBandProps) {
-  const empty = bucket.lines.length === 0;
+  // A footer (e.g. "+ Add billable line") keeps the band in its full form even
+  // with no lines, so the empty "None" degradation only applies without one.
+  const empty = bucket.lines.length === 0 && !footer;
   const [open, setOpen] = useState(!collapsible);
 
   // Confidence chips only matter on the lines the operator should sanity-check
@@ -171,6 +180,7 @@ export function BucketBand({
               detailSummary={lineSummary?.(line.taskRef)}
             />
           ))}
+          {footer}
         </div>
       )}
     </div>

@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScopeReceipt } from "@/components/scope-receipt/ScopeReceipt";
+import { AddBillableLine } from "@/components/scope-receipt/AddBillableLine";
 import { SowSelectionCard } from "@/components/scope-map/SowSelectionCard";
 import { useServices } from "@/hooks/useServices";
 import {
+  useAddPlacement,
   useAnalyzeBrief,
   useClientSows,
   useOverridePlacement,
@@ -65,6 +67,7 @@ export function ScopeConfirmStage({
   const analyze = useAnalyzeBrief(briefId);
   const override = useOverridePlacement(briefId);
   const updateValue = useUpdatePlacementValue(briefId);
+  const addPlacement = useAddPlacement(briefId);
 
   // Team task breakdown (Stage 1 drop-down per billable line → ClickUp).
   const tasksQuery = useLineTasks(briefId);
@@ -204,6 +207,28 @@ export function ScopeConfirmStage({
     );
   };
 
+  // Seed a new billable line from a picked catalogue service. serviceById is
+  // populated for every catalogue service; a just-created (inline) service may
+  // lag a refetch, so guard rather than insert a nameless line.
+  const handleAddLine = (serviceId: string) => {
+    const svc = serviceById.get(serviceId);
+    if (!svc) {
+      toast.error("That service isn't loaded yet — pick it again from the list.");
+      return;
+    }
+    addPlacement.mutate(
+      {
+        suggested_service_id: svc.id,
+        item_name: svc.name,
+        estimated_cents: svc.sell_price_cents,
+      },
+      {
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : "Failed to add billable line"),
+      },
+    );
+  };
+
   const analyzing = analyze.isPending;
   const hasPlacements = (placements?.length ?? 0) > 0;
 
@@ -289,6 +314,9 @@ export function ScopeConfirmStage({
         serviceById={serviceById}
         renderLineDetail={renderLineDetail}
         lineSummary={lineSummary}
+        addBillableLine={
+          <AddBillableLine onPick={handleAddLine} pending={addPlacement.isPending} />
+        }
         onOverride={handleOverride}
         onPersistQty={(ref, qty) =>
           updateValue.mutate(
