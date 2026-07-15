@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Minus, MoreVertical, Plus, Quote } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -259,6 +260,14 @@ export function ServiceLineRow({
             <span className="rounded bg-m-surface-container px-1.5 py-0.5 font-mono text-label-small text-m-on-surface-variant">
               {line.code}
             </span>
+          )}
+          {!clientMode && line.disposition === "new_billable" && !line.serviceId && (
+            <Badge
+              variant="warning"
+              title="This billable line isn't linked to a catalogue service, so it won't carry over to the quote. Re-add it from the catalogue, or add the service manually in the quote builder."
+            >
+              No linked service
+            </Badge>
           )}
           {!clientMode && showConfidence && (
             <ConfidenceChip confidence={line.confidence} />

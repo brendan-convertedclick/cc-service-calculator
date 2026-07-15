@@ -2447,6 +2447,7 @@ export type Database = {
             | null
           recurrence_start: string | null
           service_id: string
+          unit_price_override_cents: number | null
         }
         Insert: {
           created_at?: string
@@ -2462,6 +2463,7 @@ export type Database = {
             | null
           recurrence_start?: string | null
           service_id: string
+          unit_price_override_cents?: number | null
         }
         Update: {
           created_at?: string
@@ -2477,6 +2479,7 @@ export type Database = {
             | null
           recurrence_start?: string | null
           service_id?: string
+          unit_price_override_cents?: number | null
         }
         Relationships: [
           {
