@@ -75,6 +75,15 @@ Deno.serve(async (req: Request) => {
     const overrides = Array.isArray(b.tasks)
       ? new Map(b.tasks.map((o) => [o.placement_task_id, o]))
       : null;
+    if (overrides) {
+      const missingDue = [...overrides.values()].filter((o) => dueDateToMs(o.due_date) === null);
+      if (missingDue.length > 0) {
+        return json(
+          { error: `Due date is required on every task (missing on ${missingDue.length}).` },
+          400,
+        );
+      }
+    }
 
     const sb = createServiceRoleClient();
     const { token: clickupPat } = await getOperatorClickupToken(req);

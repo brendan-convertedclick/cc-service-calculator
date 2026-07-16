@@ -116,6 +116,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
 
   const unpushed = teamTasks.filter((t) => !t.clickup_task_id);
   const confirmed = unpushed.filter((t) => !deselected.has(t.id));
+  const missingDueCount = confirmed.filter((t) => !(edits[t.id]?.dueDate ?? "")).length;
   const scheduled = briefStatus === "briefed" || (teamTasks.length > 0 && unpushed.length === 0);
 
   type TeamTask = (typeof teamTasks)[number];
@@ -124,12 +125,17 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
   // preview IS the payload (the fn appends its audit stamp to the description).
   const defaultEdit = (t: TeamTask): TaskEdit => {
     const dept = t.department_id ? deptById.get(t.department_id) : null;
+    // Default assignee: the department's primary team member (if they're
+    // linked to a ClickUp user).
+    const primary = dept?.primary_team_member_id
+      ? assignableMembers.find((m) => m.id === dept.primary_team_member_id)
+      : null;
     return {
       name: `${t.lineName} — ${t.title}`,
       description: `${t.title}\n\nDeliverable: ${t.lineName}\nBrief: ${brief?.raw_subject ?? briefId}`,
       workStream: dept ? (dept.clickup_work_stream ?? dept.name) : "Ad-hoc",
       points: String(Math.max(1, Math.round(Number(t.points) || 1))),
-      assignee: "",
+      assignee: primary ? String(primary.clickup_user_id) : "",
       dueDate: "",
     };
   };
@@ -331,7 +337,13 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
                         <p className="text-label-small text-m-on-surface-variant">
                           {e.workStream}
                           {assigneeName ? ` · ${assigneeName}` : " · Unassigned"}
-                          {e.dueDate ? ` · due ${e.dueDate}` : ""}
+                          {e.dueDate ? (
+                            ` · due ${e.dueDate}`
+                          ) : included ? (
+                            <span className="text-destructive"> · due date needed</span>
+                          ) : (
+                            ""
+                          )}
                         </p>
                       </div>
                       <span className="shrink-0 font-mono tabular-nums text-label-small text-m-on-surface-variant">
@@ -410,13 +422,23 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <Label htmlFor={`cu-due-${t.id}`}>Due date</Label>
+                            <Label htmlFor={`cu-due-${t.id}`}>
+                              Due date <span className="text-destructive">*</span>
+                            </Label>
                             <Input
                               id={`cu-due-${t.id}`}
                               type="date"
+                              required
+                              aria-invalid={!e.dueDate}
                               value={e.dueDate}
+                              className={cn(!e.dueDate && "border-destructive")}
                               onChange={(ev) => patchEdit(t, { dueDate: ev.target.value })}
                             />
+                            {!e.dueDate && (
+                              <p className="text-label-small text-destructive">
+                                Required before scheduling
+                              </p>
+                            )}
                           </div>
                           <div className="space-y-1.5">
                             <Label>Work stream</Label>
@@ -486,15 +508,21 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
             </p>
           ) : (
             <div className="flex items-center justify-end gap-3">
-              {unpushed.length > confirmed.length && (
-                <p className="text-label-small text-m-on-surface-variant">
-                  {unpushed.length - confirmed.length} unticked task
-                  {unpushed.length - confirmed.length === 1 ? "" : "s"} will be left out
+              {missingDueCount > 0 ? (
+                <p className="text-label-small text-destructive">
+                  Set a due date on {missingDueCount} task{missingDueCount === 1 ? "" : "s"} first
                 </p>
+              ) : (
+                unpushed.length > confirmed.length && (
+                  <p className="text-label-small text-m-on-surface-variant">
+                    {unpushed.length - confirmed.length} unticked task
+                    {unpushed.length - confirmed.length === 1 ? "" : "s"} will be left out
+                  </p>
+                )
               )}
               <Button
                 className="gap-2"
-                disabled={schedule.isPending || confirmed.length === 0}
+                disabled={schedule.isPending || confirmed.length === 0 || missingDueCount > 0}
                 onClick={runSchedule}
               >
                 <CalendarCheck className="h-4 w-4" />
