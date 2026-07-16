@@ -504,3 +504,78 @@ Deno.test("extractText: joins content text blocks", () => {
 Deno.test("truncate: passes short text through unchanged", () => {
   assertEquals(truncate("short", 100), "short");
 });
+
+// ---------------------------------------------------------------------------
+// intelligenceScopeItems — intake-seeded extraction (no AI, no heuristic)
+// ---------------------------------------------------------------------------
+
+import { intelligenceScopeItems, serviceCodeKey } from "./scope-map-logic.ts";
+
+const INTEL_SERVICES = [
+  { id: "svc-coded", code: "065", name: "Social Media Scheduling", sell_price_cents: 0, unit_of_sale: null, is_deliverable: true },
+  { id: "svc-codeless", code: null, name: "GMB Scheduling Posts", sell_price_cents: 115000, unit_of_sale: null, is_deliverable: true },
+];
+
+Deno.test("intelligenceScopeItems: one item per requirement × mapped service, code + pseudo-code", () => {
+  const items = intelligenceScopeItems({
+    requirements: [
+      {
+        text: "Can you schedule the social posts?",
+        interpretation: "Schedule the client-supplied social posts",
+        confidence: "high",
+        mapped_services: [{ service_id: "svc-coded", qty: 1 }],
+      },
+      {
+        text: "I received the Price Lock GMB's from OMD.",
+        interpretation: "Schedule the OMD-supplied GMB posts",
+        confidence: "medium",
+        mapped_services: [{ service_id: "svc-codeless", qty: 2 }],
+      },
+    ],
+    services: INTEL_SERVICES,
+    slugs: ["seo-content"],
+  });
+  assertEquals(items.length, 2);
+  assertEquals(items[0].matched_service_code, "065");
+  assertEquals(items[0].suggested_service_id, "svc-coded");
+  assertEquals(items[0].ai_confidence, 0.9);
+  assertEquals(items[0].sow_slug, "seo-content");
+  assertEquals(items[0].grounding_quote, "Can you schedule the social posts?");
+  assertEquals(items[1].matched_service_code, "id:svc-codeless");
+  assertEquals(items[1].quantity, 2);
+  assertEquals(items[1].estimated_cents, 115000);
+});
+
+Deno.test("intelligenceScopeItems: unmapped requirement stays visible as an unmatched item", () => {
+  const items = intelligenceScopeItems({
+    requirements: [
+      { text: "Something with no service", interpretation: "Unknown ask", confidence: "low", mapped_services: [] },
+    ],
+    services: INTEL_SERVICES,
+    slugs: [],
+  });
+  assertEquals(items.length, 1);
+  assertEquals(items[0].matched_service_code, null);
+  assertEquals(items[0].suggested_service_id, null);
+  assertStringIncludes(items[0].ai_match_quote, "no catalogue service");
+});
+
+Deno.test("intelligenceScopeItems: legacy mapped_service_ids shape still seeds, unknown ids fall to unmatched", () => {
+  const items = intelligenceScopeItems({
+    requirements: [
+      { text: "Legacy shape", interpretation: "Legacy mapped ids", confidence: "high", mapped_service_ids: ["svc-coded"] },
+      { text: "Ghost", interpretation: "Maps to a deleted service", mapped_service_ids: ["gone"] },
+    ],
+    services: INTEL_SERVICES,
+    slugs: [],
+  });
+  assertEquals(items.length, 2);
+  assertEquals(items[0].suggested_service_id, "svc-coded");
+  assertEquals(items[0].quantity, 1);
+  assertEquals(items[1].suggested_service_id, null);
+});
+
+Deno.test("serviceCodeKey: passes real codes through, pseudo-keys codeless services", () => {
+  assertEquals(serviceCodeKey({ id: "x", code: "042" }), "042");
+  assertEquals(serviceCodeKey({ id: "x", code: null }), "id:x");
+});

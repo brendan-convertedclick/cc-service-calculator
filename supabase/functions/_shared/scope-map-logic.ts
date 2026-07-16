@@ -6,7 +6,8 @@ export type SowWithBody = { slug: string; title: string; body_md: string };
 export type ServiceArea = { id: string; name: string; sow_slug: string };
 export type CatalogueService = {
   id: string;
-  code: string;
+  /** Xero code; null for internal-only SKUs (matchable via serviceCodeKey). */
+  code: string | null;
   name: string;
   sell_price_cents: number;
   /** Unit the SKU is sold by (e.g. "page", "month", "hour"). Optional for legacy callers. */
@@ -164,7 +165,7 @@ export function buildAnalyzeSystem(opts: {
   // Only deliverable services are offered to the model: it must never match an
   // ask to a spend / pass-through / software SKU.
   const catalogue = opts.services
-    .filter((s) => s.is_deliverable !== false)
+    .filter((s) => s.is_deliverable !== false && s.code)
     .map(
       (s) =>
         `${s.code} | ${s.name} | ${s.unit_of_sale ?? "unit"} | R${(s.sell_price_cents / 100).toFixed(0)}`,
@@ -280,7 +281,9 @@ export function parseScopeMapItems(
   // Whitelist target: only DELIVERABLE codes are matchable. A matched_service_code
   // that isn't here (invented or non-deliverable) is dropped to null.
   const byCode = new Map(
-    opts.services.filter((s) => s.is_deliverable !== false).map((s) => [s.code, s]),
+    opts.services
+      .filter((s) => s.is_deliverable !== false && s.code)
+      .map((s) => [s.code as string, s]),
   );
   const items: ParsedScopeItem[] = [];
 
@@ -722,4 +725,109 @@ export function heuristicScopeItems(opts: {
       confidence,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Intelligence-seeded extraction — for briefs created by the /intake skill.
+//
+// Intake already extracted requirements from the full email thread (with far
+// more context than this function ever sees) and mapped them to catalogue
+// services in brief_intelligence.requirements. When that data exists, placement
+// items are built deterministically from it — NO AI call, NO keyword heuristic.
+// resolveDisposition still assigns in/new/out downstream from the allowance
+// ledger, exactly as for AI-extracted items.
+// ---------------------------------------------------------------------------
+
+/** One requirement row from brief_intelligence.requirements (intake Stage 2). */
+export type IntelligenceRequirement = {
+  text?: string;
+  interpretation?: string;
+  /** 'high' | 'medium' | 'low' from the intake pipeline. */
+  confidence?: string;
+  mapped_services?: Array<{ service_id: string; qty?: number }>;
+  /** Backwards-compat flat shape (unique service ids, qty 1). */
+  mapped_service_ids?: string[];
+};
+
+const REQ_CONFIDENCE: Record<string, number> = { high: 0.9, medium: 0.65, low: 0.4 };
+
+/**
+ * Pseudo catalogue code for services that have no Xero code. The disposition
+ * resolver matches by code; keying codeless services as `id:<uuid>` lets an
+ * intelligence-mapped service resolve instead of falling to out_of_scope.
+ */
+export function serviceCodeKey(svc: { id: string; code: string | null }): string {
+  return svc.code ?? `id:${svc.id}`;
+}
+
+/**
+ * Build insert-ready placement items from intake's pre-extracted requirements.
+ * One item per (requirement × mapped service); a requirement with no mapped
+ * service still yields one unmatched item so the ask stays visible on the
+ * receipt (it will resolve to out_of_scope for the operator to triage).
+ */
+export function intelligenceScopeItems(opts: {
+  requirements: IntelligenceRequirement[];
+  services: CatalogueService[];
+  /** Selected SOW slugs — the sole slug groups matched items when there's one. */
+  slugs: string[];
+}): ParsedScopeItem[] {
+  const byId = new Map(opts.services.map((s) => [s.id, s]));
+  const soleSlug = opts.slugs.length === 1 ? opts.slugs[0] : null;
+  const items: ParsedScopeItem[] = [];
+
+  for (const req of opts.requirements ?? []) {
+    const ask = (req.interpretation || req.text || "").trim();
+    if (!ask) continue;
+    const confidence = REQ_CONFIDENCE[req.confidence ?? ""] ?? 0.65;
+
+    const mapped: Array<{ service_id: string; qty?: number }> =
+      Array.isArray(req.mapped_services) && req.mapped_services.length > 0
+        ? req.mapped_services
+        : (req.mapped_service_ids ?? []).map((service_id) => ({ service_id }));
+
+    const resolved = mapped
+      .map((m) => ({ svc: byId.get(m.service_id), qty: m.qty }))
+      .filter((m): m is { svc: CatalogueService; qty: number | undefined } => !!m.svc);
+
+    if (resolved.length === 0) {
+      items.push({
+        item_name: heuristicTitle(ask),
+        item_description: req.text && req.interpretation ? req.text : "",
+        is_inside: false,
+        sow_slug: null,
+        service_area_id: null,
+        ai_confidence: Math.min(confidence, 0.4),
+        ai_match_quote: "Intake requirement with no catalogue service mapped (no AI; confirm)",
+        suggested_service_id: null,
+        estimated_cents: null,
+        matched_service_code: null,
+        quantity: 1,
+        grounding_quote: req.text ?? null,
+        confidence: Math.min(confidence, 0.4),
+      });
+      continue;
+    }
+
+    for (const { svc, qty } of resolved) {
+      const quantity = typeof qty === "number" && Number.isFinite(qty) && qty > 0 ? qty : 1;
+      items.push({
+        item_name: heuristicTitle(ask),
+        item_description: req.text && req.interpretation ? req.text : "",
+        is_inside: false,
+        sow_slug: soleSlug,
+        service_area_id: null,
+        ai_confidence: confidence,
+        ai_match_quote: `Mapped by intake intelligence → ${serviceCodeKey(svc)} ${svc.name}`,
+        suggested_service_id: svc.id,
+        estimated_cents: svc.sell_price_cents ?? null,
+        matched_service_code: serviceCodeKey(svc),
+        quantity,
+        grounding_quote: req.text ?? null,
+        confidence,
+      });
+    }
+  }
+
+  return items;
 }

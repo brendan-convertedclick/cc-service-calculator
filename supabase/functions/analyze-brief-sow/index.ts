@@ -13,9 +13,12 @@
 //   404 brief / SOWs not found · 422 no asks extracted ·
 //   502 AI returned non-JSON / response truncated · 4xx/5xx { error }
 //
-// Extracts discrete asks from the brief itself (brief_intelligence.requirements
-// is null in practice) and classifies each against the selected master SOW
-// bodies via Claude. Approved placements survive re-analysis unless force=true.
+// Extraction source, in priority order:
+//   1. brief_intelligence.requirements (intake-created briefs) — deterministic,
+//      no AI call, and no SOW-selection gate; intake already mapped services.
+//   2. Claude extraction against the selected master SOW bodies.
+//   3. Keyword heuristic when ANTHROPIC_API_KEY is unavailable.
+// Approved placements survive re-analysis unless force=true.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -28,9 +31,12 @@ import {
   buildSuggestUser,
   extractText,
   heuristicScopeItems,
+  intelligenceScopeItems,
   makeTaskRef,
   parseScopeMapItems,
   parseSuggestedSlugs,
+  serviceCodeKey,
+  type IntelligenceRequirement,
   type SeedAllocation,
   type SeedProcessStep,
   SUGGEST_SYSTEM,
@@ -158,6 +164,26 @@ Deno.serve(async (req: Request) => {
     const subject = (brief.raw_subject as string | null) ?? "";
     const briefBody = (brief.raw_body as string | null) ?? "";
 
+    // 1b. Intake-created briefs carry pre-extracted, service-mapped requirements
+    //     in brief_intelligence — the source of truth for scope items. When
+    //     present, extraction below is deterministic (no AI, no heuristic) and
+    //     the SOW-selection gate is skipped: intake did all the work already.
+    const { data: intel } = await sb
+      .from("brief_intelligence")
+      .select("requirements")
+      .eq("brief_id", body.brief_id)
+      .maybeSingle();
+    const intelRequirements = (intel?.requirements ?? null) as
+      | IntelligenceRequirement[]
+      | null;
+    const hasIntel =
+      Array.isArray(intelRequirements) &&
+      intelRequirements.some(
+        (r) =>
+          (r.mapped_services?.length ?? 0) > 0 ||
+          (r.mapped_service_ids?.length ?? 0) > 0,
+      );
+
     // 2. Resolve SOW slugs: explicit selection wins, else the client's saved link.
     let slugs: string[] = Array.isArray(body.sow_slugs) ? body.sow_slugs.filter(Boolean) : [];
     if (slugs.length === 0 && brief.client_id) {
@@ -171,7 +197,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Suggest mode — no SOW link yet: propose slugs, write nothing.
-    if (slugs.length === 0) {
+    //    Skipped for intelligence-seeded briefs: their items don't need a SOW
+    //    body to classify (disposition comes from the allowance ledger), so
+    //    the operator is never blocked on a selection card.
+    if (slugs.length === 0 && !hasIntel) {
       const { data: allSows, error: sowsErr } = await sb
         .from("master_sows")
         .select("slug, title")
@@ -234,7 +263,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const sows = (sowsRes.data ?? []) as SowWithBody[];
-    if (sows.length === 0) {
+    if (sows.length === 0 && !hasIntel) {
       return json({ error: "No master SOWs found for the given slugs" }, 404);
     }
     const serviceAreas = (areasRes.data ?? []) as ServiceArea[];
@@ -244,9 +273,12 @@ Deno.serve(async (req: Request) => {
     // disposition resolver. Only deliverable services are loaded above, so a
     // whitelisted matched_service_code always resolves here; an unmatched ask
     // (null code) falls through to out_of_scope inside resolveDisposition.
+    // Codeless services key as `id:<uuid>` (serviceCodeKey) so intelligence-
+    // mapped items can resolve; the LLM/heuristic paths only ever emit real
+    // Xero codes, which serviceCodeKey passes through unchanged.
     const catalogByCode = new Map<string, CatalogService>(
       services.map((s) => [
-        s.code,
+        serviceCodeKey(s),
         {
           id: s.id,
           code: s.code,
@@ -277,8 +309,20 @@ Deno.serve(async (req: Request) => {
     // the call fails, so a brief can always be built with no AI. Either way the
     // three-way disposition is assigned deterministically by resolveDisposition
     // below — the model (or heuristic) only extracts and catalogue-matches.
-    let items: ReturnType<typeof parseScopeMapItems>;
-    if (Deno.env.get("ANTHROPIC_API_KEY")) {
+    let items: ReturnType<typeof parseScopeMapItems> = null;
+    if (hasIntel) {
+      items = intelligenceScopeItems({
+        requirements: intelRequirements ?? [],
+        services,
+        slugs,
+      });
+      console.log(
+        `[analyze-brief-sow] seeded ${items.length} item(s) from brief_intelligence — no AI call`,
+      );
+    }
+    if (items && items.length > 0) {
+      // Intelligence path complete — skip AI/heuristic extraction entirely.
+    } else if (Deno.env.get("ANTHROPIC_API_KEY")) {
       try {
         const raw = await callAnthropic({
           model: MODEL,
