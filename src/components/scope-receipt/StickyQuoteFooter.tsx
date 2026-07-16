@@ -28,7 +28,9 @@ export function StickyQuoteFooter({
   disabled = false,
 }: StickyQuoteFooterProps) {
   const billable = model.buckets.find((b) => b.disposition === "new_billable");
-  const billableLines = billable?.lines ?? [];
+  // Excluded (operator-unticked) lines stay in the bucket for re-ticking but
+  // are not being quoted — they must not reach the money rollup.
+  const billableLines = (billable?.lines ?? []).filter((l) => !l.excluded);
 
   // Reuse the EstimateSheet rollup: every billable line is an `add` so the
   // delta_value_cents equals the receipt's amber subtotal — single source of
