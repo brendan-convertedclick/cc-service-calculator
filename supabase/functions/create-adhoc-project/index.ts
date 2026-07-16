@@ -37,6 +37,12 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import {
+  CLICKUP_WORKSPACE_ID,
+  CONVERTED_CLICK_CHANNEL_ID,
+  mentionToken,
+  postChatMessage,
+} from "../_shared/clickup-chat.ts";
 
 const POINT_TO_MIN = 15;
 
@@ -93,7 +99,7 @@ Deno.serve(async (req: Request) => {
     // --- Step 1: load the client (must have a ClickUp folder) ---
     const { data: client, error: cErr } = await sb
       .from("clients")
-      .select("id, name, clickup_client_name, clickup_folder_id")
+      .select("id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id")
       .eq("id", client_id)
       .single();
     if (cErr || !client) return json({ error: cErr?.message ?? "Client not found" }, 404);
@@ -220,19 +226,22 @@ Deno.serve(async (req: Request) => {
       ),
     ];
     const memberClickupById = new Map<string, number | null>();
+    const memberNameById = new Map<string, string>();
     if (memberIds.length > 0) {
       const { data: members } = await sb
         .from("team_members")
-        .select("id, clickup_user_id")
+        .select("id, clickup_user_id, full_name")
         .in("id", memberIds);
-      for (const m of (members ?? []) as Array<{ id: string; clickup_user_id: number | null }>) {
+      for (const m of (members ?? []) as Array<{ id: string; clickup_user_id: number | null; full_name: string | null }>) {
         memberClickupById.set(m.id, m.clickup_user_id ?? null);
+        if (m.full_name) memberNameById.set(m.id, m.full_name);
       }
     }
 
     // --- Step 6: create one child task per row ---
     const created_task_ids: string[] = [];
     const task_failures: Array<{ task_name: string; error: string }> = [];
+    const chatLines: string[] = [];
 
     for (const t of tasks) {
       const taskName = t.task_name!.trim();
@@ -317,8 +326,37 @@ Deno.serve(async (req: Request) => {
         }
 
         created_task_ids.push(createdTask.id);
+
+        const mention = mentionToken({
+          clickupUserId: assigneeClickupId,
+          name: t.assignee_member_id ? memberNameById.get(t.assignee_member_id) ?? null : null,
+        });
+        chatLines.push(
+          `• ${mention} — ${taskName} · ${t.sprint_points} pt · https://app.clickup.com/t/${createdTask.id}`,
+        );
       } catch (te) {
         task_failures.push({ task_name: taskName, error: te instanceof Error ? te.message : String(te) });
+      }
+    }
+
+    // Notify the client's ClickUp Chat channel (or the Converted Click fallback)
+    // that the project + its tasks exist — mirrors create-quick-brief-task.
+    // Best-effort: everything is already created, so a failed post must never
+    // fail the request — log and move on.
+    if (created_task_ids.length > 0) {
+      const chatChannelId =
+        (client as { clickup_chat_channel_id?: string | null }).clickup_chat_channel_id ??
+        CONVERTED_CLICK_CHANNEL_ID;
+      const listUrl = `https://app.clickup.com/${CLICKUP_WORKSPACE_ID}/v/li/${newListId}`;
+      const content =
+        `🆕 New project briefed: **${listName}** (${client.name}) · ` +
+        `${created_task_ids.length} task${created_task_ids.length !== 1 ? "s" : ""} · ${listUrl}\n` +
+        chatLines.join("\n");
+      const chatRes = await postChatMessage(clickupPat, chatChannelId, content);
+      if (!chatRes.ok) {
+        console.error(
+          `[create-adhoc-project] chat notify failed for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
       }
     }
 
