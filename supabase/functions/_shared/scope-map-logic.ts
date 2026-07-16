@@ -740,6 +740,8 @@ export function heuristicScopeItems(opts: {
 
 /** One requirement row from brief_intelligence.requirements (intake Stage 2). */
 export type IntelligenceRequirement = {
+  /** Deliverable-style display title aligned with the mapped service. */
+  item_title?: string;
   text?: string;
   interpretation?: string;
   /** 'high' | 'medium' | 'low' from the intake pipeline. */
@@ -780,6 +782,12 @@ export function intelligenceScopeItems(opts: {
     const ask = (req.interpretation || req.text || "").trim();
     if (!ask) continue;
     const confidence = REQ_CONFIDENCE[req.confidence ?? ""] ?? 0.65;
+    // Title = the deliverable, aligned with the service: intake's item_title
+    // first, else the mapped service's name, else a derived title. The client's
+    // sentence is never the title — it stays in the grounding quote, and the
+    // interpretation (the specifics) becomes the description.
+    const givenTitle = req.item_title?.trim() || null;
+    const description = (req.interpretation || req.text || "").trim();
 
     const mapped: Array<{ service_id: string; qty?: number }> =
       Array.isArray(req.mapped_services) && req.mapped_services.length > 0
@@ -792,8 +800,8 @@ export function intelligenceScopeItems(opts: {
 
     if (resolved.length === 0) {
       items.push({
-        item_name: heuristicTitle(ask),
-        item_description: req.text && req.interpretation ? req.text : "",
+        item_name: givenTitle ?? heuristicTitle(ask),
+        item_description: description,
         is_inside: false,
         sow_slug: null,
         service_area_id: null,
@@ -812,8 +820,8 @@ export function intelligenceScopeItems(opts: {
     for (const { svc, qty } of resolved) {
       const quantity = typeof qty === "number" && Number.isFinite(qty) && qty > 0 ? qty : 1;
       items.push({
-        item_name: heuristicTitle(ask),
-        item_description: req.text && req.interpretation ? req.text : "",
+        item_name: givenTitle ?? svc.name,
+        item_description: description,
         is_inside: false,
         sow_slug: soleSlug,
         service_area_id: null,

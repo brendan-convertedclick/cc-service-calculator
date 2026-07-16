@@ -526,6 +526,7 @@ Deno.test("intelligenceScopeItems: one item per requirement × mapped service, c
         mapped_services: [{ service_id: "svc-coded", qty: 1 }],
       },
       {
+        item_title: "GMB post scheduling — Price Lock",
         text: "I received the Price Lock GMB's from OMD.",
         interpretation: "Schedule the OMD-supplied GMB posts",
         confidence: "medium",
@@ -541,6 +542,12 @@ Deno.test("intelligenceScopeItems: one item per requirement × mapped service, c
   assertEquals(items[0].ai_confidence, 0.9);
   assertEquals(items[0].sow_slug, "seo-content");
   assertEquals(items[0].grounding_quote, "Can you schedule the social posts?");
+  // No item_title → the mapped service's name is the title; the client's
+  // sentence never is. The interpretation carries the specifics.
+  assertEquals(items[0].item_name, "Social Media Scheduling");
+  assertEquals(items[0].item_description, "Schedule the client-supplied social posts");
+  // item_title from intake wins when present.
+  assertEquals(items[1].item_name, "GMB post scheduling — Price Lock");
   assertEquals(items[1].matched_service_code, "id:svc-codeless");
   assertEquals(items[1].quantity, 2);
   assertEquals(items[1].estimated_cents, 115000);
