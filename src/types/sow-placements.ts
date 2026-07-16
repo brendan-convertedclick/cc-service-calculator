@@ -33,6 +33,13 @@ export type BriefTaskSowPlacement = {
   quantity: number | null;
   grounding_quote: string | null;
   needs_review: boolean | null;
+  // Scope coverage (migration 0087). client_reason is the client-safe "why"
+  // shown on the receipt and the CE PDF; is_assumed marks likely-assumed
+  // adjacent work intake flagged; excluded is an operator untick — kept for
+  // audit but omitted from client view, totals and the PDF.
+  client_reason: string | null;
+  is_assumed: boolean | null;
+  excluded: boolean | null;
 };
 
 // client_sows added by migration 0061 — which master SOW engagements a
@@ -64,9 +71,12 @@ export function placementDisposition(p: BriefTaskSowPlacement): Disposition {
   return p.is_inside ? "in_agreed_scope" : "new_billable";
 }
 
-/** New billable work the client must be quoted for (feeds the estimate). */
+/**
+ * New billable work the client must be quoted for (feeds the estimate).
+ * Operator-unticked (excluded) lines never reach the quote or CE.
+ */
 export function isBillablePlacement(p: BriefTaskSowPlacement): boolean {
-  return placementDisposition(p) === "new_billable";
+  return placementDisposition(p) === "new_billable" && p.excluded !== true;
 }
 
 /**

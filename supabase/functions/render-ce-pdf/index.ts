@@ -7,6 +7,12 @@
 // flow's Stage 4): description + qty + line total per line item, plus
 // subtotal / VAT (15%) / total inc. VAT. Mirrors render-cost-estimate-pdf
 // (which renders quotes) and stores the signed URL on change_estimates.pdf_url.
+//
+// Page 2 — "Scope of this estimate" (migration 0087): the coverage story from
+// the brief's confirmed placements. Three fixed bands — covered by the current
+// agreement, quoted in this estimate, not included — each line with its
+// client-facing reason. Operator-unticked (excluded) lines never render.
+// Skipped entirely when the brief has no placements.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -66,7 +72,73 @@ const styles = StyleSheet.create({
   grandLabel: { fontFamily: "Helvetica-Bold", fontSize: 11 },
   grandValue: { fontFamily: "Helvetica-Bold", fontSize: 11 },
   footer: { position: "absolute", bottom: 30, left: 40, right: 40, fontSize: 8, color: "#777", textAlign: "center" },
+  // --- Page 2: Scope of this estimate ---
+  scopeTitle: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 4 },
+  scopeIntro: { color: "#555", marginBottom: 14, lineHeight: 1.4 },
+  band: { marginBottom: 14, borderRadius: 4, overflow: "hidden" },
+  bandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+  },
+  bandTitle: { fontFamily: "Helvetica-Bold", fontSize: 10.5 },
+  bandLine: {
+    flexDirection: "row",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e5e5",
+  },
+  bandGlyph: { width: 14, fontFamily: "Helvetica-Bold" },
+  bandBody: { flex: 1 },
+  bandItemName: { fontFamily: "Helvetica-Bold" },
+  bandReason: { marginTop: 1.5, fontSize: 8.5, color: "#666", lineHeight: 1.35 },
+  assumedTag: { fontSize: 8, color: "#777" },
 });
+
+const COVERAGE_BANDS = [
+  {
+    disposition: "in_agreed_scope",
+    title: "Covered by your current agreement",
+    intro: null,
+    glyph: "✓",
+    headerBg: "#e8f4ec",
+    headerColor: "#1e6b3a",
+  },
+  {
+    disposition: "new_billable",
+    title: "Quoted in this estimate",
+    intro: null,
+    glyph: "+",
+    headerBg: "#fdf3e0",
+    headerColor: "#8a5a00",
+  },
+  {
+    disposition: "out_of_scope",
+    title: "Not included",
+    intro: null,
+    glyph: "–",
+    headerBg: "#efefef",
+    headerColor: "#555555",
+  },
+] as const;
+
+type CoveragePlacement = {
+  item_name: string | null;
+  task_ref: string;
+  quantity: number | string | null;
+  disposition: string | null;
+  is_inside: boolean | null;
+  client_reason: string | null;
+  is_assumed: boolean | null;
+};
+
+/** Mirror of the app's placementDisposition fallback for pre-0071 rows. */
+function coverageDisposition(p: CoveragePlacement): string {
+  if (p.disposition) return p.disposition;
+  return p.is_inside ? "in_agreed_scope" : "new_billable";
+}
 
 function fmtZar(cents: number): string {
   const n = cents / 100;
@@ -93,7 +165,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: ce, error: ceErr } = await supabase
       .from("change_estimates")
-      .select("id, summary, reason, delta_value_cents, client:clients(name), brief:briefs(raw_subject)")
+      .select("id, brief_id, summary, reason, delta_value_cents, client:clients(name), brief:briefs(raw_subject)")
       .eq("id", change_estimate_id)
       .single();
     if (ceErr || !ce) return json({ error: ceErr?.message ?? "Change estimate not found" }, 404);
@@ -125,6 +197,28 @@ Deno.serve(async (req: Request) => {
     const subtotal = lines.reduce((s, l) => s + l.line_cents, 0);
     const vat = Math.round(subtotal * VAT_RATE);
     const grand = subtotal + vat;
+
+    // Page 2 input: the brief's coverage story. Excluded (operator-unticked)
+    // lines never render. A read failure degrades to no coverage page — the
+    // estimate itself must always render.
+    let coverage: CoveragePlacement[] = [];
+    if (ce.brief_id) {
+      const { data: placementRows, error: pErr } = await supabase
+        .from("brief_task_sow_placements")
+        .select("task_ref, item_name, quantity, disposition, is_inside, client_reason, is_assumed")
+        .eq("brief_id", ce.brief_id)
+        .eq("excluded", false)
+        .order("created_at");
+      if (pErr) console.error("render-ce-pdf: coverage load failed:", pErr.message);
+      else coverage = (placementRows ?? []) as CoveragePlacement[];
+    }
+    const coverageByBand = new Map<string, CoveragePlacement[]>();
+    for (const p of coverage) {
+      const d = coverageDisposition(p);
+      const arr = coverageByBand.get(d);
+      if (arr) arr.push(p);
+      else coverageByBand.set(d, [p]);
+    }
 
     const today = new Date().toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" });
 
@@ -207,6 +301,83 @@ Deno.serve(async (req: Request) => {
           "Converted Click · convertedclick.co.za · Estimate valid for 30 days · Subject to signed SOW",
         ),
       ),
+      // Page 2 — Scope of this estimate. Skipped when the brief has no
+      // (non-excluded) placements so we never ship an empty page.
+      coverage.length > 0
+        ? React.createElement(
+            Page,
+            { size: "A4", style: styles.page },
+            React.createElement(Text, { style: styles.scopeTitle }, "Scope of this estimate"),
+            React.createElement(
+              Text,
+              { style: styles.scopeIntro },
+              "So there are no surprises: what your current agreement already covers, what this estimate adds, and what is explicitly not included.",
+            ),
+            ...COVERAGE_BANDS.map((band) => {
+              const items = coverageByBand.get(band.disposition) ?? [];
+              if (items.length === 0) return null;
+              return React.createElement(
+                View,
+                { key: band.disposition, style: styles.band },
+                React.createElement(
+                  View,
+                  {
+                    style: [
+                      styles.bandHeader,
+                      { backgroundColor: band.headerBg },
+                    ],
+                  },
+                  React.createElement(
+                    Text,
+                    { style: [styles.bandTitle, { color: band.headerColor }] },
+                    `${band.title}  ·  ${items.length}`,
+                  ),
+                ),
+                ...items.map((p, i) => {
+                  const qty = Number(p.quantity);
+                  const qtyLabel = Number.isFinite(qty) && qty > 1 ? ` × ${qty}` : "";
+                  return React.createElement(
+                    View,
+                    { key: `${band.disposition}-${i}`, style: styles.bandLine },
+                    React.createElement(
+                      Text,
+                      { style: [styles.bandGlyph, { color: band.headerColor }] },
+                      band.glyph,
+                    ),
+                    React.createElement(
+                      View,
+                      { style: styles.bandBody },
+                      React.createElement(
+                        Text,
+                        { style: styles.bandItemName },
+                        `${p.item_name?.trim() || p.task_ref}${qtyLabel}`,
+                        p.is_assumed
+                          ? React.createElement(
+                              Text,
+                              { style: styles.assumedTag },
+                              "   (often assumed — flagged so it's clear up front)",
+                            )
+                          : null,
+                      ),
+                      p.client_reason
+                        ? React.createElement(
+                            Text,
+                            { style: styles.bandReason },
+                            p.client_reason,
+                          )
+                        : null,
+                    ),
+                  );
+                }),
+              );
+            }),
+            React.createElement(
+              Text,
+              { style: styles.footer },
+              "Converted Click · convertedclick.co.za · Anything not listed as covered or quoted is not included in this estimate",
+            ),
+          )
+        : null,
     );
 
     const buf = await renderToBuffer(doc);

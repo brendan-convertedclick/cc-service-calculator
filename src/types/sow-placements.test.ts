@@ -31,6 +31,9 @@ const p = (overrides: Partial<BriefTaskSowPlacement>): BriefTaskSowPlacement => 
   quantity: null,
   grounding_quote: null,
   needs_review: null,
+  client_reason: null,
+  is_assumed: null,
+  excluded: null,
   ...overrides,
 });
 

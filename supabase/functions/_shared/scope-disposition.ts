@@ -46,6 +46,13 @@ export interface DispositionResult {
   needs_review: boolean;
   /** Short human-readable explanation of the branch taken. */
   reason: string;
+  /**
+   * Client-safe explanation of the same branch — no SKU codes, no internal
+   * ledger language. Used as the fallback `client_reason` on a placement when
+   * intake didn't write one (or its expected bucket disagreed with this
+   * resolver, in which case this template wins).
+   */
+  client_reason: string;
 }
 
 /**
@@ -84,7 +91,13 @@ export function resolveDisposition(
         ? `No catalog service for code "${ask.matched_service_code}"`
         : "No matched service code"
       : `Service ${svc.code} is non-deliverable (spend / pass-through)`;
-    return { disposition: "out_of_scope", needs_review, reason };
+    return {
+      disposition: "out_of_scope",
+      needs_review,
+      reason,
+      client_reason:
+        "This isn't a service under our current agreement — we're happy to discuss it as a separate engagement.",
+    };
   }
 
   const allow = allowances.find((a) => a.service_id === svc.id);
@@ -95,6 +108,8 @@ export function resolveDisposition(
         disposition: "in_agreed_scope",
         needs_review,
         reason: `Covered by fixed-price project membership for ${svc.code}`,
+        client_reason:
+          "Included in your current project — no additional charge.",
       };
     }
     // retainer
@@ -106,12 +121,14 @@ export function resolveDisposition(
           allow.allowance_qty == null
             ? `Covered by retainer (unlimited allowance) for ${svc.code}`
             : `Within retainer allowance (${ask.quantity} ≤ ${allow.allowance_qty}) for ${svc.code}`,
+        client_reason: "Covered by your retainer — no additional charge.",
       };
     }
     return {
       disposition: "new_billable",
       needs_review,
       reason: `Retainer allowance exhausted (${ask.quantity} > ${allow.allowance_qty}) for ${svc.code}`,
+      client_reason: `Your retainer covers ${allow.allowance_qty} of this per month — this request goes beyond that, so it's quoted as new work.`,
     };
   }
 
@@ -119,5 +136,7 @@ export function resolveDisposition(
     disposition: "new_billable",
     needs_review,
     reason: `Deliverable ${svc.code} not in client's agreed scope`,
+    client_reason:
+      "Not part of your current retainer or projects — quoted as new work in this estimate.",
   };
 }

@@ -36,6 +36,7 @@ import {
   parseScopeMapItems,
   parseSuggestedSlugs,
   serviceCodeKey,
+  type AssumedExclusion,
   type IntelligenceRequirement,
   type SeedAllocation,
   type SeedProcessStep,
@@ -170,11 +171,14 @@ Deno.serve(async (req: Request) => {
     //     the SOW-selection gate is skipped: intake did all the work already.
     const { data: intel } = await sb
       .from("brief_intelligence")
-      .select("requirements")
+      .select("requirements, assumed_exclusions")
       .eq("brief_id", body.brief_id)
       .maybeSingle();
     const intelRequirements = (intel?.requirements ?? null) as
       | IntelligenceRequirement[]
+      | null;
+    const assumedExclusions = (intel?.assumed_exclusions ?? null) as
+      | AssumedExclusion[]
       | null;
     const hasIntel =
       Array.isArray(intelRequirements) &&
@@ -315,6 +319,7 @@ Deno.serve(async (req: Request) => {
         requirements: intelRequirements ?? [],
         services,
         slugs,
+        assumedExclusions: Array.isArray(assumedExclusions) ? assumedExclusions : null,
       });
       console.log(
         `[analyze-brief-sow] seeded ${items.length} item(s) from brief_intelligence — no AI call`,
@@ -379,7 +384,7 @@ Deno.serve(async (req: Request) => {
         // Scope Ledger Rail: deterministically assign exactly one disposition
         // from the extracted ask + the client's allowance ledger. The LLM never
         // decides coverage — resolveDisposition is the single source of truth.
-        const { disposition, needs_review } = resolveDisposition(
+        const resolved = resolveDisposition(
           {
             item_name: item.item_name,
             matched_service_code: item.matched_service_code,
@@ -390,6 +395,18 @@ Deno.serve(async (req: Request) => {
           allowances,
           catalogByCode,
         );
+        const { disposition } = resolved;
+        // Resolver-wins rule: intake's prose reason is only trusted when its
+        // expected bucket matches the ledger verdict (or it made no claim).
+        // On disagreement the template reason ships and the line is flagged.
+        const intakeReasonOk =
+          !!item.coverage_reason &&
+          (item.expected_disposition == null ||
+            item.expected_disposition === disposition);
+        const dispositionMismatch =
+          item.expected_disposition != null &&
+          item.expected_disposition !== disposition;
+        const needs_review = resolved.needs_review || dispositionMismatch;
         return {
           brief_id: body.brief_id,
           task_ref: makeTaskRef(i, item.item_name),
@@ -409,6 +426,13 @@ Deno.serve(async (req: Request) => {
           needs_review,
           quantity: item.quantity,
           grounding_quote: item.grounding_quote,
+          // Scope coverage (0087): client-safe why + assumed-work flag.
+          // `excluded` is deliberately not written — operator unticks survive
+          // re-analysis because the upsert only updates supplied columns.
+          client_reason: intakeReasonOk
+            ? (item.coverage_reason as string)
+            : resolved.client_reason,
+          is_assumed: item.is_assumed === true,
           // force replaces approved placements — clear stale approval/override
           // stamps when an old row is overwritten via the upsert conflict path.
           ...(body.force

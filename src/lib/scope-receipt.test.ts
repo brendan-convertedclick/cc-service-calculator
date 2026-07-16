@@ -31,6 +31,9 @@ function placement(
     quantity: null,
     grounding_quote: null,
     needs_review: null,
+    client_reason: null,
+    is_assumed: null,
+    excluded: null,
     ...overrides,
   };
 }
@@ -199,5 +202,52 @@ describe("confidenceTier", () => {
     expect(confidenceTier(0.6)).toBe("med");
     expect(confidenceTier(0.4)).toBe("low");
     expect(confidenceTier(null)).toBeNull();
+  });
+});
+
+describe("scope coverage fields (migration 0087)", () => {
+  it("carries clientReason and isAssumed onto the line", () => {
+    const model = buildScopeReceipt(
+      [
+        placement({
+          task_ref: "a",
+          disposition: "out_of_scope",
+          client_reason: "Copywriting isn't part of a landing-page build.",
+          is_assumed: true,
+        }),
+      ],
+      new Map(),
+    );
+    const line = model.buckets[2].lines[0];
+    expect(line.clientReason).toMatch(/Copywriting/);
+    expect(line.isAssumed).toBe(true);
+    expect(line.excluded).toBe(false);
+  });
+
+  it("excluded lines stay in their bucket (to re-tick) but never count or total", () => {
+    const model = buildScopeReceipt(
+      [
+        placement({
+          task_ref: "kept",
+          disposition: "new_billable",
+          quantity: 1,
+          estimated_cents: 10000,
+        }),
+        placement({
+          task_ref: "unticked",
+          disposition: "new_billable",
+          quantity: 1,
+          estimated_cents: 99999,
+          excluded: true,
+        }),
+      ],
+      new Map(),
+    );
+    const billable = model.buckets[1];
+    expect(billable.lines).toHaveLength(2); // still rendered for the operator
+    expect(billable.subtotalCents).toBe(10000);
+    expect(model.billableTotalCents).toBe(10000);
+    expect(model.counts.new_billable).toBe(1);
+    expect(model.totalLines).toBe(1);
   });
 });

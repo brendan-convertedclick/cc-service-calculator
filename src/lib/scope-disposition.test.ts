@@ -106,3 +106,43 @@ describe("resolveDisposition", () => {
     expect(resolveDisposition(ask({ quantity: NaN }), [], catalogByCode).needs_review).toBe(true);
   });
 });
+
+describe("client_reason (scope coverage fallback templates)", () => {
+  it("every branch carries a non-empty, jargon-free client_reason", () => {
+    const cases = [
+      resolveDisposition(ask({ matched_service_code: null }), [], catalogByCode),
+      resolveDisposition(ask({ matched_service_code: "1000" }), [], catalogByCode),
+      resolveDisposition(
+        ask(),
+        [{ service_id: "svc-page", allowance_qty: null, source: "project" }],
+        catalogByCode,
+      ),
+      resolveDisposition(
+        ask(),
+        [{ service_id: "svc-page", allowance_qty: 5, source: "retainer" }],
+        catalogByCode,
+      ),
+      resolveDisposition(
+        ask({ quantity: 9 }),
+        [{ service_id: "svc-page", allowance_qty: 5, source: "retainer" }],
+        catalogByCode,
+      ),
+      resolveDisposition(ask(), [], catalogByCode),
+    ];
+    for (const r of cases) {
+      expect(r.client_reason.length).toBeGreaterThan(10);
+      // Never leak SKU codes or internal ledger language to the client.
+      expect(r.client_reason).not.toMatch(/002|1000|SKU|ledger|allowance_qty/);
+    }
+  });
+
+  it("retainer overage names the covered monthly quantity", () => {
+    const r = resolveDisposition(
+      ask({ quantity: 9 }),
+      [{ service_id: "svc-page", allowance_qty: 5, source: "retainer" }],
+      catalogByCode,
+    );
+    expect(r.disposition).toBe("new_billable");
+    expect(r.client_reason).toMatch(/covers 5/);
+  });
+});

@@ -70,6 +70,16 @@ export interface ReceiptLine {
   needsReview: boolean;
   /** The bucket this line currently sits in (after any local override). */
   disposition: Disposition;
+  /** Client-safe "why this bucket" — intake prose or the resolver template. */
+  clientReason: string | null;
+  /** Likely-assumed adjacent work intake flagged (not an explicit ask). */
+  isAssumed: boolean;
+  /**
+   * Operator unticked this line. It stays visible (dimmed) in operator view so
+   * it can be re-ticked, but contributes nothing to subtotals/counts and is
+   * omitted from client view and the CE PDF.
+   */
+  excluded: boolean;
 }
 
 export interface ReceiptBucket {
@@ -143,13 +153,20 @@ export function buildScopeReceipt(
       groundingQuote: p.grounding_quote ?? p.ai_match_quote,
       needsReview: p.needs_review === true,
       disposition,
+      clientReason: p.client_reason ?? null,
+      isAssumed: p.is_assumed === true,
+      excluded: p.excluded === true,
     };
     byDisposition[disposition].push(line);
   }
 
+  // Excluded (unticked) lines stay in their bucket for the operator to
+  // re-tick, but never count or total — they're already "not happening".
+  const active = (lines: ReceiptLine[]) => lines.filter((l) => !l.excluded);
+
   const buckets: ReceiptBucket[] = DISPOSITION_ORDER.map((d) => {
     const lines = byDisposition[d];
-    const subtotalCents = lines.reduce((s, l) => s + l.lineCents, 0);
+    const subtotalCents = active(lines).reduce((s, l) => s + l.lineCents, 0);
     return {
       disposition: d,
       tone: TONE_BY_DISPOSITION[d],
@@ -160,19 +177,19 @@ export function buildScopeReceipt(
   });
 
   const counts: Record<Disposition, number> = {
-    in_agreed_scope: byDisposition.in_agreed_scope.length,
-    new_billable: byDisposition.new_billable.length,
-    out_of_scope: byDisposition.out_of_scope.length,
+    in_agreed_scope: active(byDisposition.in_agreed_scope).length,
+    new_billable: active(byDisposition.new_billable).length,
+    out_of_scope: active(byDisposition.out_of_scope).length,
   };
 
   return {
     buckets,
-    billableTotalCents: byDisposition.new_billable.reduce(
+    billableTotalCents: active(byDisposition.new_billable).reduce(
       (s, l) => s + l.lineCents,
       0,
     ),
     counts,
-    totalLines: placements.length,
+    totalLines: placements.filter((p) => p.excluded !== true).length,
   };
 }
 

@@ -241,6 +241,10 @@ export type PlacementValuePatch = {
   item_name?: string;
   /** Full-sentence description under the label. */
   item_description?: string | null;
+  /** Client-facing coverage reason (receipt + CE PDF). Null clears it. */
+  client_reason?: string | null;
+  /** Operator untick — excluded lines drop out of totals, client view, PDF. */
+  excluded?: boolean;
 };
 
 /**

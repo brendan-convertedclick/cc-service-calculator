@@ -50,6 +50,17 @@ export type ParsedScopeItem = {
   grounding_quote: string | null;
   /** 0..1 model confidence (alias of ai_confidence under the Rail naming). */
   confidence: number;
+  // --- Scope coverage fields (migration 0087) — intelligence path only ---
+  /** Client-safe "why" written by intake; null falls back to the resolver's template. */
+  coverage_reason?: string | null;
+  /**
+   * The bucket intake expected. When it disagrees with resolveDisposition the
+   * resolver wins, the template reason replaces intake's prose, and the line
+   * is flagged needs_review.
+   */
+  expected_disposition?: "in_agreed_scope" | "new_billable" | "out_of_scope" | null;
+  /** Likely-assumed adjacent work (not an explicit ask). */
+  is_assumed?: boolean;
 };
 
 export const BRIEF_BODY_MAX_CHARS = 8000;
@@ -749,6 +760,28 @@ export type IntelligenceRequirement = {
   mapped_services?: Array<{ service_id: string; qty?: number }>;
   /** Backwards-compat flat shape (unique service ids, qty 1). */
   mapped_service_ids?: string[];
+  /** Client-safe coverage "why" written by the intake scope-coverage stage. */
+  coverage_reason?: string;
+  /** The bucket intake expected (resolver still wins on disagreement). */
+  expected_disposition?: string;
+};
+
+/**
+ * One likely-assumed adjacent task from brief_intelligence.assumed_exclusions:
+ * work the client didn't ask for but typically expects bundled with a
+ * requirement (landing page → copywriting, imagery, revision rounds). Written
+ * by the intake scope-coverage stage; seeded as is_assumed placements so the
+ * receipt and the CE PDF can state explicitly that they are not included.
+ */
+export type AssumedExclusion = {
+  /** Deliverable-style display title (like requirements[].item_title). */
+  item_title?: string;
+  /** What the client likely assumes ("Copy for the page is written for us"). */
+  assumption?: string;
+  /** Client-safe why-it's-not-included. */
+  reason?: string;
+  /** Optional catalog mapping so the resolver can classify it. */
+  mapped_services?: Array<{ service_id: string; qty?: number }>;
 };
 
 const REQ_CONFIDENCE: Record<string, number> = { high: 0.9, medium: 0.65, low: 0.4 };
@@ -768,11 +801,24 @@ export function serviceCodeKey(svc: { id: string; code: string | null }): string
  * service still yields one unmatched item so the ask stays visible on the
  * receipt (it will resolve to out_of_scope for the operator to triage).
  */
+const DISPOSITIONS = new Set(["in_agreed_scope", "new_billable", "out_of_scope"]);
+
+/** Narrow a free-string bucket claim to a valid disposition, else null. */
+function normalizeExpectedDisposition(
+  v: string | undefined,
+): "in_agreed_scope" | "new_billable" | "out_of_scope" | null {
+  return v && DISPOSITIONS.has(v)
+    ? (v as "in_agreed_scope" | "new_billable" | "out_of_scope")
+    : null;
+}
+
 export function intelligenceScopeItems(opts: {
   requirements: IntelligenceRequirement[];
   services: CatalogueService[];
   /** Selected SOW slugs — the sole slug groups matched items when there's one. */
   slugs: string[];
+  /** Likely-assumed adjacent work from brief_intelligence.assumed_exclusions. */
+  assumedExclusions?: AssumedExclusion[] | null;
 }): ParsedScopeItem[] {
   const byId = new Map(opts.services.map((s) => [s.id, s]));
   const soleSlug = opts.slugs.length === 1 ? opts.slugs[0] : null;
@@ -782,6 +828,8 @@ export function intelligenceScopeItems(opts: {
     const ask = (req.interpretation || req.text || "").trim();
     if (!ask) continue;
     const confidence = REQ_CONFIDENCE[req.confidence ?? ""] ?? 0.65;
+    const coverageReason = req.coverage_reason?.trim() || null;
+    const expectedDisposition = normalizeExpectedDisposition(req.expected_disposition);
     // Title = the deliverable, aligned with the service: intake's item_title
     // first, else the mapped service's name, else a derived title. The client's
     // sentence is never the title — it stays in the grounding quote, and the
@@ -813,6 +861,9 @@ export function intelligenceScopeItems(opts: {
         quantity: 1,
         grounding_quote: req.text ?? null,
         confidence: Math.min(confidence, 0.4),
+        coverage_reason: coverageReason,
+        expected_disposition: expectedDisposition,
+        is_assumed: false,
       });
       continue;
     }
@@ -833,6 +884,68 @@ export function intelligenceScopeItems(opts: {
         quantity,
         grounding_quote: req.text ?? null,
         confidence,
+        coverage_reason: coverageReason,
+        expected_disposition: expectedDisposition,
+        is_assumed: false,
+      });
+    }
+  }
+
+  // Likely-assumed adjacent work: one is_assumed item per exclusion. Mapped
+  // services classify through the resolver like any ask (an "exclusion" that
+  // the ledger actually covers correctly lands in Included — better news for
+  // the client); unmapped ones fall to out_of_scope, which is the point.
+  for (const ex of opts.assumedExclusions ?? []) {
+    const title = ex.item_title?.trim() || null;
+    const assumption = ex.assumption?.trim() || null;
+    if (!title && !assumption) continue;
+    const reason = ex.reason?.trim() || null;
+
+    const resolved = (ex.mapped_services ?? [])
+      .map((m) => ({ svc: byId.get(m.service_id), qty: m.qty }))
+      .filter((m): m is { svc: CatalogueService; qty: number | undefined } => !!m.svc);
+
+    if (resolved.length === 0) {
+      items.push({
+        item_name: title ?? heuristicTitle(assumption ?? ""),
+        item_description: assumption ?? "",
+        is_inside: false,
+        sow_slug: null,
+        service_area_id: null,
+        ai_confidence: 0.6,
+        ai_match_quote: "Assumed adjacent work flagged by intake (not requested)",
+        suggested_service_id: null,
+        estimated_cents: null,
+        matched_service_code: null,
+        quantity: 1,
+        grounding_quote: assumption,
+        confidence: 0.6,
+        coverage_reason: reason,
+        expected_disposition: null,
+        is_assumed: true,
+      });
+      continue;
+    }
+
+    for (const { svc, qty } of resolved) {
+      const quantity = typeof qty === "number" && Number.isFinite(qty) && qty > 0 ? qty : 1;
+      items.push({
+        item_name: title ?? svc.name,
+        item_description: assumption ?? "",
+        is_inside: false,
+        sow_slug: soleSlug,
+        service_area_id: null,
+        ai_confidence: 0.6,
+        ai_match_quote: `Assumed adjacent work flagged by intake → ${serviceCodeKey(svc)} ${svc.name}`,
+        suggested_service_id: svc.id,
+        estimated_cents: svc.sell_price_cents ?? null,
+        matched_service_code: serviceCodeKey(svc),
+        quantity,
+        grounding_quote: assumption,
+        confidence: 0.6,
+        coverage_reason: reason,
+        expected_disposition: null,
+        is_assumed: true,
       });
     }
   }

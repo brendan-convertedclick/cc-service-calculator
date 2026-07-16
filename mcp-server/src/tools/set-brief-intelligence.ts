@@ -6,7 +6,8 @@ export const schema = z.object({
   summary:              z.string().optional().describe('2–3 sentence synthesis in client language'),
   business_objective:   z.string().optional().describe('What success looks like for the client'),
   client_context_snap:  z.unknown().optional().describe('Snapshot of wiki client context at generation time'),
-  requirements:         z.unknown().optional().describe('Array of {text, interpretation, mapped_service_ids, confidence}'),
+  requirements:         z.unknown().optional().describe('Array of {text, interpretation, mapped_service_ids, confidence, coverage_reason?, expected_disposition?}'),
+  assumed_exclusions:   z.unknown().optional().describe('Array of {item_title, assumption, reason, mapped_services?} — adjacent work the client likely assumes is bundled but is not included'),
   suggested_services:   z.unknown().optional().describe('Array of {service_id, qty, confidence, reasoning} — quote-builder ready rollup'),
   work_breakdown:       z.unknown().optional().describe('Array of department breakdowns with tasks and hours'),
   total_human_hours_low:  z.number().optional(),
@@ -42,7 +43,7 @@ function parseIfJsonString(v: unknown): unknown {
   try { return JSON.parse(trimmed) } catch { return v }
 }
 
-const JSON_FIELDS = ['client_context_snap', 'requirements', 'suggested_services', 'work_breakdown', 'open_questions', 'services_snapshot'] as const
+const JSON_FIELDS = ['client_context_snap', 'requirements', 'suggested_services', 'assumed_exclusions', 'work_breakdown', 'open_questions', 'services_snapshot'] as const
 
 export async function handler(input: Input) {
   try {

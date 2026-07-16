@@ -132,7 +132,14 @@ export function ComposeEmail() {
       ...lineRows,
       "",
       `Total: ${formatZar(exVat)} ex VAT (${formatZar(incVat)} inc. VAT)`,
-      ...(ce.pdf_url ? ["", `Full estimate (PDF): ${ce.pdf_url}`] : []),
+      ...(ce.pdf_url
+        ? [
+            "",
+            `Full estimate (PDF): ${ce.pdf_url}`,
+            "",
+            "The second page of the PDF sets out exactly what your current agreement covers, what this estimate adds, and what isn't included — so there are no surprises later.",
+          ]
+        : []),
       "",
       "Reply to this email to confirm and we'll get the work scheduled.",
       "",
