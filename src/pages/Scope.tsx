@@ -110,7 +110,10 @@ export function Scope() {
   const isApproved = amStatus === "approved";
   const isRejected = amStatus === "rejected";
   const scopeConfirmed = !!brief?.scope_confirmed_at;
-  const scopeLocked = brief?.status === "scoped";
+  // "Locked" must be durable: the status moves on past "scoped" as the brief
+  // advances (quoted → briefed), but scopes.locked_at records that the staged
+  // flow locked a scope at some point. Quick-briefed ("as-is") briefs never do.
+  const scopeLocked = brief?.status === "scoped" || !!scope?.locked_at;
 
   const briefed = brief?.status === "briefed";
   // Quick-briefed ("Brief as-is") without ever locking a scope: the staged
