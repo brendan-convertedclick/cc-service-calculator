@@ -376,6 +376,7 @@ function BriefRow({ brief: b, selected, project, clientName }: { brief: Brief; s
             | QuickBriefSheetBrief["quick_task_suggestion"]
             | null,
           billing_type: b.billing_type as QuickBriefSheetBrief["billing_type"],
+          assignee_id: b.assignee_id,
         }}
       />
     </>

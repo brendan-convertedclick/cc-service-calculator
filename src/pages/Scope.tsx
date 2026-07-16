@@ -1,7 +1,7 @@
 // src/pages/Scope.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Copy } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +113,9 @@ export function Scope() {
   const scopeLocked = brief?.status === "scoped";
 
   const briefed = brief?.status === "briefed";
+  // Quick-briefed ("Brief as-is") without ever locking a scope: the staged
+  // scoping flow doesn't apply — the work is already in ClickUp.
+  const briefedAsIs = briefed && !scopeLocked;
 
   const s1status: StageStatus = scopeConfirmed ? "done" : "active";
   const s2status: StageStatus = !scopeConfirmed ? "locked" : isApproved ? "done" : "active";
@@ -203,6 +206,11 @@ export function Scope() {
         <div className="min-w-0 flex-1">
           <h1 className="text-title-large truncate">{brief.raw_subject ?? "(no subject)"}</h1>
           <div className="flex items-center gap-2 mt-1">
+            {briefed && (
+              <Badge variant="success" className="text-label-small">
+                Briefed
+              </Badge>
+            )}
             {brief.intent_type && (
               <Badge variant="muted" className="text-label-small">
                 {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
@@ -219,9 +227,11 @@ export function Scope() {
           <Copy className="mr-1.5 h-3.5 w-3.5" />
           Duplicate
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setQuickBriefOpen(true)}>
-          Brief as-is
-        </Button>
+        {!briefed && (
+          <Button variant="outline" size="sm" onClick={() => setQuickBriefOpen(true)}>
+            Brief as-is
+          </Button>
+        )}
       </div>
 
       <DuplicateBriefDialog
@@ -241,9 +251,36 @@ export function Scope() {
           quick_task_suggestion: brief.quick_task_suggestion as
             | QuickBriefSheetBrief["quick_task_suggestion"]
             | null,
+          billing_type: brief.billing_type as QuickBriefSheetBrief["billing_type"],
+          assignee_id: brief.assignee_id,
         }}
       />
 
+      {briefedAsIs ? (
+        /* Briefed as-is: the work is already a ClickUp task, so the staged
+           scoping flow doesn't apply. */
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-m-primary-container">
+              <CheckCircle2 className="h-6 w-6 text-m-on-primary-container" />
+            </div>
+            <h2 className="text-title-medium text-m-on-surface">Briefed as-is</h2>
+            <p className="max-w-md text-body-small text-m-on-surface-variant">
+              This brief was pushed straight to ClickUp as a task, so the scoping
+              flow doesn&apos;t apply. If it turns out to need scoping after all,
+              duplicate the brief and run the copy through the stages.
+            </p>
+            {brief.clickup_task_url && (
+              <Button asChild variant="outline" size="sm">
+                <a href={brief.clickup_task_url} target="_blank" rel="noreferrer">
+                  View task in ClickUp
+                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
       <div className="space-y-3">
         {/* Stage 1 — In / Out of Scope (the gate) */}
         <StageSection
@@ -436,6 +473,7 @@ export function Scope() {
           <ApproveScheduleStage briefId={id!} briefStatus={brief.status} />
         </StageSection>
       </div>
+      )}
 
       <Dialog open={lockConfirmOpen} onOpenChange={setLockConfirmOpen}>
         <DialogContent>

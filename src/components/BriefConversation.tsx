@@ -295,6 +295,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
               | QuickBriefSheetBrief["quick_task_suggestion"]
               | null,
             billing_type: brief.billing_type as QuickBriefSheetBrief["billing_type"],
+            assignee_id: brief.assignee_id,
           }}
         />
       </SheetContent>

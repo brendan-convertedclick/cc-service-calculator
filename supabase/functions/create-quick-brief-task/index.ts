@@ -148,6 +148,9 @@ Deno.serve(async (req: Request) => {
     const { error: upErr } = await sb.from("briefs").update({
       status: "briefed", clickup_task_id: created.id, clickup_task_url: created.url,
       billing_type: b.billing_type === "adhoc" ? "adhoc" : "retainer",
+      // Mirror the task's assignee onto the brief so the drawer/list don't
+      // read "Unassigned" for work that was briefed to someone.
+      ...(b.assignee_member_id ? { assignee_id: b.assignee_member_id } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", brief.id);
     if (upErr) {

@@ -34,6 +34,8 @@ export interface QuickBriefSheetBrief {
   raw_subject: string | null;
   quick_task_suggestion: QuickTaskSuggestion | null;
   billing_type?: "retainer" | "adhoc" | null;
+  /** Seeds the Assignee select so a pre-assigned brief doesn't open as Unassigned. */
+  assignee_id?: string | null;
 }
 
 export interface QuickBriefSheetProps {
@@ -72,14 +74,14 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     if (!open) return;
     const draft = draftFromSuggestion(brief.quick_task_suggestion, brief.raw_subject ?? "");
     setTaskName(draft.task_name);
-    setAssignee(UNASSIGNED);
+    setAssignee(brief.assignee_id ?? UNASSIGNED);
     setSprintPoints(draft.sprint_points);
     setWorkStream(draft.work_stream);
     setDueDate(draft.due_date ?? "");
     setBriefedBy(UNASSIGNED);
     setStatus(STATUS_DEFAULT);
     setBillingType(brief.billing_type === "adhoc" ? "adhoc" : "retainer");
-  }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type]);
+  }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type, brief.assignee_id]);
 
   // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors
   // the fetch pattern in BriefFormBody.tsx. Gated on `open` so a brief that's
