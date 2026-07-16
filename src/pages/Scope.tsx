@@ -1,6 +1,6 @@
 // src/pages/Scope.tsx
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { StageSection, type StageStatus } from "@/components/StageSection";
 import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage";
+import { CostEstimateStage } from "@/components/scope-stages/CostEstimateStage";
+import { ApproveScheduleStage } from "@/components/scope-stages/ApproveScheduleStage";
 import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
@@ -30,6 +32,7 @@ import {
   useUpdateBriefIntelligence,
 } from "@/hooks/useBriefIntelligence";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useBriefCE } from "@/hooks/useBriefCE";
 import { useCurrentUserId } from "@/context/AuthContext";
 import { isMostlyAi } from "@/lib/scope-overlap";
 
@@ -61,7 +64,6 @@ function concat(v: ScopeValues) {
 
 export function Scope() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const userId = useCurrentUserId();
 
   const [editingIntel, setEditingIntel] = useState(false);
@@ -75,6 +77,7 @@ export function Scope() {
   });
   const { data: departments } = useDepartments();
   const { data: scope } = useScope(id);
+  const { data: ce } = useBriefCE(id);
   const updateBrief = useUpdateBrief();
   const upsertScope = useUpsertScope();
   const confirmScope = useConfirmScope(id);
@@ -109,13 +112,22 @@ export function Scope() {
   const scopeConfirmed = !!brief?.scope_confirmed_at;
   const scopeLocked = brief?.status === "scoped";
 
+  const briefed = brief?.status === "briefed";
+
   const s1status: StageStatus = scopeConfirmed ? "done" : "active";
   const s2status: StageStatus = !scopeConfirmed ? "locked" : isApproved ? "done" : "active";
   const s3status: StageStatus = !isApproved ? "locked" : scopeLocked ? "done" : "active";
+  const s4status: StageStatus = !scopeLocked ? "locked" : ce ? "done" : "active";
+  const s5status: StageStatus = !ce ? "locked" : briefed ? "done" : "active";
 
   // Auto-open the first actionable (active) stage, and advance as gates clear.
   const activeStage =
-    s1status === "active" ? 1 : s2status === "active" ? 2 : s3status === "active" ? 3 : 0;
+    s1status === "active" ? 1
+    : s2status === "active" ? 2
+    : s3status === "active" ? 3
+    : s4status === "active" ? 4
+    : s5status === "active" ? 5
+    : 0;
   const prevActiveRef = useRef<number | null>(null);
   useEffect(() => {
     if (activeStage !== prevActiveRef.current) {
@@ -172,7 +184,10 @@ export function Scope() {
         locked_by: userId,
       });
       await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
-      navigate(`/briefs/${id}/sow-check`);
+      // Stay in the staged flow — the cost estimate is the next stage here,
+      // not a separate screen. The scope map remains at /briefs/:id/sow-check.
+      setOpenStage(4);
+      toast.success("Scope locked — build the cost estimate next");
     } catch {
       toast.error("Failed to lock scope");
     }
@@ -388,6 +403,37 @@ export function Scope() {
               </div>
             </div>
           </div>
+        </StageSection>
+
+        {/* Stage 4 — Cost Estimate */}
+        <StageSection
+          index={4}
+          title="Cost Estimate"
+          subtitle="Create the estimate, PDF and client response"
+          status={s4status}
+          open={openStage === 4}
+          onToggle={() => toggleStage(4)}
+        >
+          <CostEstimateStage
+            briefId={id!}
+            clientId={brief.client_id}
+            parentProjectId={brief.parent_project_id}
+            summaryPrefill={
+              scopeValues.enhanced_prose || (intelligence?.summary ?? "")
+            }
+          />
+        </StageSection>
+
+        {/* Stage 5 — Approve & Schedule */}
+        <StageSection
+          index={5}
+          title="Approve & Schedule"
+          subtitle="Record the approval and schedule work to the team"
+          status={s5status}
+          open={openStage === 5}
+          onToggle={() => toggleStage(5)}
+        >
+          <ApproveScheduleStage briefId={id!} briefStatus={brief.status} />
         </StageSection>
       </div>
 

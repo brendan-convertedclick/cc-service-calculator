@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Send, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { useBriefCE } from "@/hooks/useBriefCE";
+import { useBrief } from "@/hooks/useBriefs";
+import { formatZar } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +38,13 @@ export function ComposeEmail() {
   const projectId = params.get("project_id") ?? null;
   const clientIdParam = params.get("client_id") ?? null;
   const briefId = params.get("brief_id") ?? null;
+  const ceIdParam = params.get("ce_id") ?? null;
+
+  // Cost-estimate context (brief flow Stage 4 hand-off): prefill the email
+  // from the CE + brief, and mark the CE 'sent' when the email goes out.
+  const { data: briefCE } = useBriefCE(ceIdParam && briefId ? briefId : undefined);
+  const ce = ceIdParam && briefCE?.id === ceIdParam ? briefCE : null;
+  const { data: ceBrief } = useBrief(ceIdParam && briefId ? briefId : undefined);
 
   const [templates, setTemplates] = useState<EmailTemplateRow[]>([]);
   const [templateSlug, setTemplateSlug] = useState<string>("");
@@ -92,6 +102,47 @@ export function ComposeEmail() {
       cancelled = true;
     };
   }, [clientIdParam]);
+
+  // Prefill once from the CE context: recipient (the brief's sender), subject,
+  // and a plain-text body with summary, line items, totals and the PDF link.
+  // Only fills empty fields so it never clobbers operator edits.
+  const cePrefilled = useRef(false);
+  useEffect(() => {
+    if (cePrefilled.current || !ce) return;
+    if (ceBrief === undefined) return; // still loading — wait for the sender address
+    cePrefilled.current = true;
+    const localPart = (ceBrief?.sender_email ?? "").split("@")[0];
+    const firstName = localPart
+      ? localPart.charAt(0).toUpperCase() + localPart.slice(1)
+      : "there";
+    const subjectLine = ceBrief?.raw_subject
+      ? `Cost estimate — ${ceBrief.raw_subject.replace(/^re:\s*/i, "")}`
+      : "Cost estimate";
+    const lineRows = ce.lines.map(
+      (l) =>
+        `  • ${l.description} — ${l.qty} × ${formatZar(l.unit_value_cents)} = ${formatZar(Math.round(l.qty * l.unit_value_cents))}`,
+    );
+    const exVat = ce.delta_value_cents;
+    const incVat = Math.round(exVat * 1.15);
+    const bodyText = [
+      `Hi ${firstName},`,
+      "",
+      ce.summary ?? "Please find our cost estimate below.",
+      "",
+      ...lineRows,
+      "",
+      `Total: ${formatZar(exVat)} ex VAT (${formatZar(incVat)} inc. VAT)`,
+      ...(ce.pdf_url ? ["", `Full estimate (PDF): ${ce.pdf_url}`] : []),
+      "",
+      "Reply to this email to confirm and we'll get the work scheduled.",
+      "",
+      "Kind regards,",
+      "Converted Click",
+    ].join("\n");
+    setTo((cur) => cur || (ceBrief?.sender_email ?? ""));
+    setSubject((cur) => cur || subjectLine);
+    setBody((cur) => cur || bodyText);
+  }, [ce, ceBrief]);
 
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.slug === templateSlug) ?? null,
@@ -166,8 +217,33 @@ export function ComposeEmail() {
         toast.error(result.error ?? "Send failed");
         return;
       }
+      // CE hand-off: the send IS the "estimate sent to client" event — flip the
+      // CE to awaiting-approval and the brief to quoted, and link the email.
+      if (ce) {
+        const { error: ceErr } = await supabase
+          .from("change_estimates")
+          .update({
+            status: "sent",
+            outbound_email_id: id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ce.id)
+          .eq("status", "draft");
+        if (ceErr) toast.error(`Sent, but marking the estimate failed: ${ceErr.message}`);
+        if (briefId) {
+          await supabase
+            .from("briefs")
+            .update({ status: "quoted", updated_at: new Date().toISOString() })
+            .eq("id", briefId)
+            .eq("status", "scoped");
+        }
+      }
       toast.success("Email sent.");
-      navigate(projectId ? `/projects/${projectId}` : "/");
+      if (ce && briefId) {
+        navigate(`/briefs/${briefId}/scope`);
+      } else {
+        navigate(projectId ? `/projects/${projectId}` : "/");
+      }
     } finally {
       setSubmitting(false);
     }

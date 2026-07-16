@@ -205,7 +205,7 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
     toast.success("Estimate draft saved.");
     onOpenChange(false);
     navigate(
-      `/comms/new?project_id=${brief.parent_project_id}&client_id=${brief.client_id}&ce_id=${ceId}`,
+      `/comms/new?project_id=${brief.parent_project_id}&client_id=${brief.client_id}&ce_id=${ceId}&brief_id=${brief.id}`,
     );
   };
 

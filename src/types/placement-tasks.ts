@@ -13,6 +13,10 @@ export type PlacementTask = {
   points_overridden: boolean;
   sort_order: number;
   ai_generated: boolean;
+  // Stamped by schedule-brief-tasks when the task is pushed to ClickUp
+  // (migration 0085); doubles as the push-idempotency guard.
+  clickup_task_id: string | null;
+  clickup_task_url: string | null;
   created_at: string;
   updated_at: string;
 };

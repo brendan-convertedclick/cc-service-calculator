@@ -20,6 +20,8 @@ export type ChangeEstimateRow = {
   approval_note: string | null;
   rejected_at: string | null;
   rejected_reason: string | null;
+  /** Signed URL of the rendered CE PDF (render-ce-pdf, migration 0085). */
+  pdf_url: string | null;
   created_by: string | null; // relaxed by migration 0061 — shared login has no team_members row
   created_at: string;
   updated_at: string;
