@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e5e5e5",
   },
   colService: { width: 375, paddingRight: 8 },
+  itemDetail: { marginTop: 2, fontSize: 8.5, color: "#666", lineHeight: 1.35 },
   colQty: { width: 50, textAlign: "right", paddingRight: 8 },
   colTotal: { width: 90, textAlign: "right" },
   totalsBlock: { marginTop: 14, alignSelf: "flex-end", width: 220 },
@@ -74,6 +75,7 @@ function fmtZar(cents: number): string {
 
 type CELine = {
   description: string | null;
+  detail: string | null;
   qty: number | string;
   unit_value_cents: number | string;
   sort_order: number | null;
@@ -103,7 +105,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: lineRows, error: lErr } = await supabase
       .from("change_estimate_line_items")
-      .select("description, qty, unit_value_cents, sort_order")
+      .select("description, detail, qty, unit_value_cents, sort_order")
       .eq("change_estimate_id", change_estimate_id)
       .order("sort_order");
     if (lErr) return json({ error: lErr.message }, 500);
@@ -114,6 +116,7 @@ Deno.serve(async (req: Request) => {
       return {
         key: i,
         description: l.description?.trim() || "Line item",
+        detail: l.detail?.trim() || null,
         qty,
         line_cents: Math.round(qty * unit),
       };
@@ -164,7 +167,14 @@ Deno.serve(async (req: Request) => {
           React.createElement(
             View,
             { key: l.key, style: styles.row },
-            React.createElement(Text, { style: styles.colService }, l.description),
+            React.createElement(
+              View,
+              { style: styles.colService },
+              React.createElement(Text, null, l.description),
+              l.detail
+                ? React.createElement(Text, { style: styles.itemDetail }, l.detail)
+                : null,
+            ),
             React.createElement(Text, { style: styles.colQty }, String(l.qty)),
             React.createElement(Text, { style: styles.colTotal }, fmtZar(l.line_cents)),
           ),

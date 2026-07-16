@@ -32,6 +32,8 @@ export type ChangeEstimateLineItem = {
   change_estimate_id: string;
   service_id: string | null;
   description: string;
+  /** Line specifics (from the scope line's description) — shown on the PDF and in the client email. */
+  detail?: string | null;
   qty: number;
   unit_points: number;
   unit_value_cents: number;

@@ -118,10 +118,10 @@ export function ComposeEmail() {
     const subjectLine = ceBrief?.raw_subject
       ? `Cost estimate — ${ceBrief.raw_subject.replace(/^re:\s*/i, "")}`
       : "Cost estimate";
-    const lineRows = ce.lines.map(
-      (l) =>
-        `  • ${l.description} — ${l.qty} × ${formatZar(l.unit_value_cents)} = ${formatZar(Math.round(l.qty * l.unit_value_cents))}`,
-    );
+    const lineRows = ce.lines.flatMap((l) => [
+      `  • ${l.description} — ${l.qty} × ${formatZar(l.unit_value_cents)} = ${formatZar(Math.round(l.qty * l.unit_value_cents))}`,
+      ...(l.detail ? [`    ${l.detail}`] : []),
+    ]);
     const exVat = ce.delta_value_cents;
     const incVat = Math.round(exVat * 1.15);
     const bodyText = [

@@ -81,6 +81,7 @@ export function CostEstimateStage({ briefId, clientId, parentProjectId, summaryP
           tmpId: p.task_ref,
           service_id: p.suggested_service_id,
           description: p.item_name ?? p.task_ref,
+          detail: p.item_description ?? null,
           qty,
           unit_points: 1,
           unit_value_cents:
@@ -153,7 +154,14 @@ export function CostEstimateStage({ briefId, clientId, parentProjectId, summaryP
           <CardContent className="divide-y divide-m-outline-variant p-0">
             {ce.lines.map((l) => (
               <div key={l.id} className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-                <span className="min-w-0 flex-1 text-body-medium">{l.description}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-body-medium">{l.description}</span>
+                  {l.detail && (
+                    <span className="block text-label-small text-m-on-surface-variant">
+                      {l.detail}
+                    </span>
+                  )}
+                </span>
                 <span className="shrink-0 font-mono tabular-nums text-body-small text-m-on-surface-variant">
                   {l.qty} × {formatZar(l.unit_value_cents)}
                 </span>

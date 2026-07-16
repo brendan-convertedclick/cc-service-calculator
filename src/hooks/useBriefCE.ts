@@ -110,6 +110,7 @@ export function useCreateBriefCE(briefId: string | undefined) {
             change_estimate_id: ceId,
             service_id: l.service_id,
             description: l.description,
+            detail: l.detail ?? null,
             qty: l.qty,
             unit_points: l.unit_points,
             unit_value_cents: l.unit_value_cents,
