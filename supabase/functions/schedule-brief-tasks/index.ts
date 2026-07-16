@@ -1,6 +1,12 @@
 // supabase/functions/schedule-brief-tasks/index.ts
 //
-// Request:  POST { brief_id: string, briefed_by_member_id?: string | null }
+// Request:  POST { brief_id: string, briefed_by_member_id?: string | null,
+//                  tasks?: [{ placement_task_id, name?, description?, work_stream?,
+//                             points?, assignee_clickup_id?, due_date? }] }
+//           `tasks` (when present) is the operator's confirmed selection from
+//           Stage 5: only listed placement_tasks are scheduled, and each entry
+//           may override the payload defaults (title, description, work
+//           stream, sprint points, assignee, due date `YYYY-MM-DD`).
 // Response: 200 { created: [{ placement_task_id, clickup_task_id, clickup_task_url, name }],
 //                 skipped: number, list_id: string }
 //
@@ -40,6 +46,21 @@ type TaskRow = {
   clickup_task_id: string | null;
 };
 
+type TaskOverride = {
+  placement_task_id: string;
+  name?: string;
+  description?: string;
+  work_stream?: string;
+  points?: number;
+  assignee_clickup_id?: number | null;
+  due_date?: string | null; // YYYY-MM-DD
+};
+
+function dueDateToMs(d: string | null | undefined): number | null {
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -48,8 +69,12 @@ Deno.serve(async (req: Request) => {
     const b = (await req.json()) as {
       brief_id?: string;
       briefed_by_member_id?: string | null;
+      tasks?: TaskOverride[];
     };
     if (!b.brief_id) return json({ error: "brief_id required" }, 400);
+    const overrides = Array.isArray(b.tasks)
+      ? new Map(b.tasks.map((o) => [o.placement_task_id, o]))
+      : null;
 
     const sb = createServiceRoleClient();
     const { token: clickupPat } = await getOperatorClickupToken(req);
@@ -109,7 +134,12 @@ Deno.serve(async (req: Request) => {
       .in("placement_id", billable.map((p) => p.id))
       .order("sort_order");
     if (tErr) return json({ error: tErr.message }, 500);
-    const tasks = ((taskRows ?? []) as TaskRow[]).filter((t) => t.title.trim() !== "");
+    // `overrides` doubles as the confirmed selection: when the caller sends a
+    // task list, anything not on it was unticked by the operator and is left
+    // unscheduled (already-pushed rows still count as skipped below).
+    const tasks = ((taskRows ?? []) as TaskRow[]).filter(
+      (t) => t.title.trim() !== "" && (!overrides || overrides.has(t.id) || t.clickup_task_id),
+    );
     if (tasks.length === 0) {
       return json({ error: "No team tasks on the billable lines — add them on the scope receipt first." }, 400);
     }
@@ -166,13 +196,19 @@ Deno.serve(async (req: Request) => {
       }
       const placement = placementById.get(t.placement_id);
       const lineName = placement?.item_name ?? "Deliverable";
-      const name = `${lineName} — ${t.title}`;
-      const points = Math.max(1, Math.round(Number(t.points) || 1));
-      const workStream = (t.department_id && workStreamByDept.get(t.department_id)) || "Ad-hoc";
-      const description =
-        `${t.title}\n\nDeliverable: ${lineName}\nBrief: ${brief.raw_subject ?? brief.id}\n\n---\n` +
-        `_Scheduled from approved cost estimate ${(ce as { id: string }).id} on ${dateOfEngagement}` +
+      const o = overrides?.get(t.id);
+      const name = o?.name?.trim() || `${lineName} — ${t.title}`;
+      const points = Math.max(1, Math.round(Number(o?.points ?? t.points) || 1));
+      const workStream =
+        o?.work_stream?.trim() ||
+        (t.department_id && workStreamByDept.get(t.department_id)) ||
+        "Ad-hoc";
+      const stamp =
+        `\n\n---\n_Scheduled from approved cost estimate ${(ce as { id: string }).id} on ${dateOfEngagement}` +
         `${briefedByName ? ` by ${briefedByName}` : ""}._`;
+      const description =
+        (o?.description?.trim() ||
+          `${t.title}\n\nDeliverable: ${lineName}\nBrief: ${brief.raw_subject ?? brief.id}`) + stamp;
 
       const taskBody = buildBriefTaskBody(cuFields, {
         name,
@@ -182,8 +218,8 @@ Deno.serve(async (req: Request) => {
         engagementType: "Task",
         sprintPoints: points,
         dateOfEngagement,
-        assigneeClickupId: null,
-        dueDateMs: null,
+        assigneeClickupId: o?.assignee_clickup_id ?? null,
+        dueDateMs: dueDateToMs(o?.due_date),
       });
 
       const taskUrl = `https://api.clickup.com/api/v2/list/${list.id}/task`;

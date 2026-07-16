@@ -194,12 +194,25 @@ export type ScheduleResult = {
   list_name?: string;
 };
 
+/** Per-task payload override sent to schedule-brief-tasks (Stage 5 edits).
+ *  Only tasks listed are scheduled — the list IS the confirmed selection. */
+export type ScheduleTaskOverride = {
+  placement_task_id: string;
+  name?: string;
+  description?: string;
+  work_stream?: string;
+  points?: number;
+  assignee_clickup_id?: number | null;
+  due_date?: string | null; // YYYY-MM-DD
+};
+
 /** Stage 5: push the team-task breakdown to ClickUp via schedule-brief-tasks. */
 export function useScheduleBriefTasks(briefId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       briefed_by_member_id?: string | null;
+      tasks?: ScheduleTaskOverride[];
     }): Promise<ScheduleResult> => {
       if (!briefId) throw new Error("Missing brief id");
       const session = (await supabase.auth.getSession()).data.session;
