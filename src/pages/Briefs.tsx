@@ -1,7 +1,7 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, ChevronRight, Copy, MessageSquare, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Copy, MessageSquare, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { useBrief, useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
+import { briefDate } from "@/components/BriefList";
 
 // Every status shown anywhere on this page — the lifecycle pipeline order.
 // `rejected`/`spam` are deliberately excluded (dead-end noise); `archived` is
@@ -37,6 +38,23 @@ function rowHref(b: { id: string; status: BriefStatus }): string {
   return resumeHref(b as Parameters<typeof resumeHref>[0]);
 }
 
+// Rail filters survive navigating into a brief and back (component unmounts,
+// so plain state resets). Session-scoped on purpose: a fresh tab starts clean.
+const FILTERS_KEY = "briefs-filters-v1";
+type PersistedFilters = {
+  pipelineStatus: PipelineSelection;
+  search: string;
+  clients: string[];
+  billing: BillingType[];
+};
+function loadFilters(): Partial<PersistedFilters> {
+  try {
+    return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? "{}") as Partial<PersistedFilters>;
+  } catch {
+    return {};
+  }
+}
+
 export function Briefs() {
   const navigate = useNavigate();
   const { briefId } = useParams<{ briefId?: string }>();
@@ -46,11 +64,27 @@ export function Briefs() {
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
 
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>("all");
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>(
+    () => loadFilters().pipelineStatus ?? "all",
+  );
   const [duplicating, setDuplicating] = useState<(typeof allBriefs)[number] | null>(null);
-  const [search, setSearch] = useState("");
-  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
-  const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(new Set());
+  const [search, setSearch] = useState(() => loadFilters().search ?? "");
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(
+    () => new Set(loadFilters().clients ?? []),
+  );
+  const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(
+    () => new Set(loadFilters().billing ?? []),
+  );
+
+  useEffect(() => {
+    const filters: PersistedFilters = {
+      pipelineStatus,
+      search,
+      clients: Array.from(selectedClients),
+      billing: Array.from(selectedBilling),
+    };
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+  }, [pipelineStatus, search, selectedClients, selectedBilling]);
 
   const handleArchiveToggle = async (
     id: string,
@@ -351,16 +385,21 @@ export function Briefs() {
                                 onClick={() => navigate(rowHref(b))}
                                 className="cursor-pointer [&>td]:py-2"
                               >
-                                <TableCell className="w-px pr-0 text-m-on-surface-variant">
-                                  <ChevronRight className="h-4 w-4" />
+                                <TableCell className="w-px whitespace-nowrap pr-2">
+                                  <time
+                                    title={briefDate(b.created_at).title}
+                                    className="flex w-20 shrink-0 items-center gap-1.5 font-mono text-label-small tabular-nums text-m-on-surface-variant"
+                                  >
+                                    <Calendar className="h-3.5 w-3.5 shrink-0 text-m-outline" aria-hidden />
+                                    {briefDate(b.created_at).label}
+                                  </time>
                                 </TableCell>
                                 <TableCell className="max-w-[420px]">
                                   <div className="whitespace-normal break-words text-body-medium text-m-on-surface">
                                     {b.raw_subject ?? "(no subject)"}
                                   </div>
                                   <div className="text-label-small text-m-on-surface-variant">
-                                    {b.sender_email ?? "manual"} ·{" "}
-                                    {new Date(b.created_at).toLocaleDateString("en-ZA")}
+                                    {b.sender_email ?? "manual"}
                                   </div>
                                 </TableCell>
                                 <TableCell>

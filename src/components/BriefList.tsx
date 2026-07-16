@@ -55,7 +55,7 @@ function relativeTime(iso: string | null): string {
 }
 
 /** Compact leading-column date: "15 Jul", plus the year when it's not the current one. */
-function briefDate(iso: string | null): { label: string; title: string } {
+export function briefDate(iso: string | null): { label: string; title: string } {
   if (!iso) return { label: "—", title: "" };
   const d = new Date(iso);
   const sameYear = d.getFullYear() === new Date().getFullYear();
