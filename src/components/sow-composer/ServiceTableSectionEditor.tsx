@@ -40,6 +40,9 @@ function toReceiptLine(l: ServiceTableLine, svc?: ReceiptCatalogService): Receip
     groundingQuote: null,
     needsReview: false,
     disposition: l.disposition,
+    clientReason: null,
+    isAssumed: false,
+    excluded: false,
   };
 }
 

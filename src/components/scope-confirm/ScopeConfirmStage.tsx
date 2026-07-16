@@ -354,6 +354,24 @@ export function ScopeConfirmStage({
             },
           )
         }
+        onPersistReason={(ref, reason) =>
+          updateValue.mutate(
+            { task_ref: ref, client_reason: reason || null },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update reason"),
+            },
+          )
+        }
+        onToggleExcluded={(ref, excluded) =>
+          updateValue.mutate(
+            { task_ref: ref, excluded },
+            {
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : "Failed to update line"),
+            },
+          )
+        }
       />
 
       <div className="flex items-center justify-end gap-3 border-t border-m-outline-variant pt-4">

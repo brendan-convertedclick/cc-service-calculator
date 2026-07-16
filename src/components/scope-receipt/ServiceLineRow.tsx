@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Minus, MoreVertical, Plus, Quote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -180,6 +181,13 @@ export interface ServiceLineRowProps {
   onPersistDescription?: (taskRef: string, description: string) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
   /**
+   * Untick control: toggles the line's excluded flag. Unticked lines dim and
+   * drop out of totals, client view and the CE PDF. Operator view only.
+   */
+  onToggleExcluded?: (taskRef: string, excluded: boolean) => void;
+  /** Inline edit of the client-facing coverage reason. Passing "" clears it. */
+  onPersistReason?: (taskRef: string, reason: string) => void;
+  /**
    * Expandable drop-down content for this line (the team task breakdown that
    * goes to ClickUp). When provided, the row gets an expand chevron.
    */
@@ -203,13 +211,18 @@ export function ServiceLineRow({
   onPersistName,
   onPersistDescription,
   onOverride,
+  onToggleExcluded,
+  onPersistReason,
   renderDetail,
   detailSummary,
 }: ServiceLineRowProps) {
-  const editableQty = !clientMode && !!onQtyChange;
-  const editablePrice = !clientMode && !!onPriceChange;
-  const editableText = !clientMode && !!onPersistName;
-  const hasDetail = !clientMode && !!renderDetail;
+  // An unticked line is read-only until re-ticked — every edit affordance
+  // keys off `active`, so the dimmed row can't be silently reshaped.
+  const active = !line.excluded;
+  const editableQty = !clientMode && !!onQtyChange && active;
+  const editablePrice = !clientMode && !!onPriceChange && active;
+  const editableText = !clientMode && !!onPersistName && active;
+  const hasDetail = !clientMode && !!renderDetail && active;
   const [expanded, setExpanded] = useState(false);
   const step = () => (line.qty % 1 === 0 ? 1 : 0.25);
 
@@ -222,9 +235,25 @@ export function ServiceLineRow({
     if (Number.isFinite(rands) && rands >= 0) onPriceChange?.(line.taskRef, Math.round(rands * 100));
   };
 
+  // Client view: an unticked line is simply not part of the story.
+  if (clientMode && line.excluded) return null;
+
   return (
     <div>
-    <div className="flex items-start gap-3 px-4 py-3">
+    <div
+      className={cn(
+        "flex items-start gap-3 px-4 py-3",
+        line.excluded && "opacity-50",
+      )}
+    >
+      {!clientMode && onToggleExcluded && (
+        <Checkbox
+          checked={active}
+          onCheckedChange={(v) => onToggleExcluded(line.taskRef, v !== true)}
+          aria-label={`${active ? "Untick" : "Re-tick"} "${line.name}" — unticked lines are left out of the estimate and the client PDF`}
+          className="mt-1 shrink-0"
+        />
+      )}
       {hasDetail && (
         <button
           type="button"
@@ -269,6 +298,14 @@ export function ServiceLineRow({
               No linked service
             </Badge>
           )}
+          {!clientMode && line.isAssumed && (
+            <Badge
+              variant="muted"
+              title="Intake flagged this as work the client likely assumes is bundled — it was not explicitly requested. Untick it if it shouldn't appear on the coverage page."
+            >
+              Assumed
+            </Badge>
+          )}
           {!clientMode && showConfidence && (
             <ConfidenceChip confidence={line.confidence} />
           )}
@@ -285,6 +322,24 @@ export function ServiceLineRow({
           line.description && (
             <p className="mt-1.5 line-clamp-2 text-label-small text-m-on-surface-variant">
               {line.description}
+            </p>
+          )
+        )}
+        {/* coverage reason — the client-facing "why this bucket". Shown in
+            both views (it's the whole point of the coverage page); editable
+            inline in operator view so the PDF wording can be tuned here. */}
+        {!clientMode && onPersistReason && active ? (
+          <InlineText
+            value={line.clientReason ?? ""}
+            onCommit={(t) => onPersistReason(line.taskRef, t)}
+            ariaLabel={`Coverage reason for ${line.name}`}
+            placeholder="Add a client-facing reason…"
+            className="mt-1 text-label-small italic text-m-on-surface-variant"
+          />
+        ) : (
+          line.clientReason && (
+            <p className="mt-1 text-label-small italic text-m-on-surface-variant">
+              {line.clientReason}
             </p>
           )
         )}
@@ -356,7 +411,7 @@ export function ServiceLineRow({
           cents={line.lineCents}
           className={cn(
             "text-right text-body-medium",
-            struck
+            struck || line.excluded
               ? "text-m-on-surface-variant line-through"
               : "font-semibold text-m-on-surface",
           )}
@@ -380,7 +435,7 @@ export function ServiceLineRow({
       </div>
 
       {/* ⋮ override */}
-      {!clientMode && onOverride && (
+      {!clientMode && onOverride && active && (
         <Popover>
           <PopoverTrigger asChild>
             <Button

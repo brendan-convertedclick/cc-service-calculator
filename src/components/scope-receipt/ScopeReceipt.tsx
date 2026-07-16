@@ -46,6 +46,13 @@ export interface ScopeReceiptProps {
   /** Persist an inline description edit (optional). Empty string clears it. */
   onPersistDescription?: (taskRef: string, description: string) => void;
   /**
+   * Untick control (optional). Toggles a line's excluded flag — unticked lines
+   * dim in operator view and vanish from client view, totals and the CE PDF.
+   */
+  onToggleExcluded?: (taskRef: string, excluded: boolean) => void;
+  /** Persist an inline edit of the client-facing coverage reason (optional). */
+  onPersistReason?: (taskRef: string, reason: string) => void;
+  /**
    * Expandable per-line detail for billable lines (the team task breakdown that
    * goes to ClickUp). When provided, each billable line gets an expand chevron.
    */
@@ -80,6 +87,8 @@ export function ScopeReceipt({
   onPersistPrice,
   onPersistName,
   onPersistDescription,
+  onToggleExcluded,
+  onPersistReason,
   renderLineDetail,
   lineSummary,
   addBillableLine,
@@ -178,6 +187,8 @@ export function ScopeReceipt({
               onPriceChange={isBillable ? handlePriceChange : undefined}
               onPersistName={onPersistName}
               onPersistDescription={onPersistDescription}
+              onToggleExcluded={onToggleExcluded}
+              onPersistReason={onPersistReason}
               onOverride={handleOverride}
               renderLineDetail={isBillable ? renderLineDetail : undefined}
               lineSummary={isBillable ? lineSummary : undefined}

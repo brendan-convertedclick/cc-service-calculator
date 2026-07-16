@@ -54,6 +54,10 @@ export interface BucketBandProps {
   onPersistName?: (taskRef: string, name: string) => void;
   onPersistDescription?: (taskRef: string, description: string) => void;
   onOverride?: (taskRef: string, disposition: Disposition) => void;
+  /** Untick control — toggles a line's excluded flag (operator view). */
+  onToggleExcluded?: (taskRef: string, excluded: boolean) => void;
+  /** Inline edit of the client-facing coverage reason. */
+  onPersistReason?: (taskRef: string, reason: string) => void;
   /** Expandable per-line detail (team task breakdown). */
   renderLineDetail?: (taskRef: string) => ReactNode;
   /** One-line rollup shown under each line name. */
@@ -83,6 +87,8 @@ export function BucketBand({
   onPersistName,
   onPersistDescription,
   onOverride,
+  onToggleExcluded,
+  onPersistReason,
   renderLineDetail,
   lineSummary,
   footer,
@@ -176,6 +182,8 @@ export function BucketBand({
               onPersistName={onPersistName}
               onPersistDescription={onPersistDescription}
               onOverride={onOverride}
+              onToggleExcluded={onToggleExcluded}
+              onPersistReason={onPersistReason}
               renderDetail={renderLineDetail}
               detailSummary={lineSummary?.(line.taskRef)}
             />
