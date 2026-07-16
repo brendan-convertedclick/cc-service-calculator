@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, ChevronRight, Copy, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Copy, MessageSquare, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,10 @@ import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type Billing
 // already excluded by useBriefs("all").
 const VISIBLE_STATUSES: BriefStatus[] = PIPELINE_STATUSES;
 
-// Briefed items are "done" — open them in the conversation drawer right here
-// on the Briefs page. Everything else resumes wherever it left off.
+// Clicking a row always opens the brief's staged page (the full flow lives
+// there now, including Cost Estimate and Approve & Schedule). The email
+// conversation drawer is reached via the per-row thread button instead.
 function rowHref(b: { id: string; status: BriefStatus }): string {
-  if (b.status === "briefed") return `/briefs/view/${b.id}`;
   return resumeHref(b as Parameters<typeof resumeHref>[0]);
 }
 
@@ -386,6 +386,19 @@ export function Briefs() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label="Open email thread"
+                                      title="Open email thread"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        navigate(`/briefs/view/${b.id}`);
+                                      }}
+                                    >
+                                      <MessageSquare className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="icon"

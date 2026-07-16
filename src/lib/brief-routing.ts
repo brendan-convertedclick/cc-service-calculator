@@ -24,17 +24,10 @@ export const BILLING_LABEL: Record<BillingType, string> = {
 };
 
 export function resumeHref(b: Brief): string {
-  switch (b.status) {
-    case "triaged":
-      return `/briefs/${b.id}/scope`;
-    case "scoped":
-      // Scope lock routes through the scope map (placement approval) before
-      // the builder; resume there until the brief is quoted.
-      return `/briefs/${b.id}/sow-check`;
-    case "quoted":
-    case "accepted":
-      return `/briefs/${b.id}/builder`;
-    default:
-      return `/briefs/${b.id}/scope`;
-  }
+  // The staged brief page carries the whole journey now — In/Out of Scope,
+  // The Brief, Scope Edit, Cost Estimate, Approve & Schedule — and opens on
+  // the first actionable stage for the brief's state. Every status resumes
+  // there; the scope map (/sow-check) and quote builder (/builder) remain
+  // reachable from within the flow for the quote path.
+  return `/briefs/${b.id}/scope`;
 }

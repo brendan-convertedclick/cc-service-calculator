@@ -5,21 +5,21 @@ const brief = (status: Brief["status"]): Brief =>
   ({ id: "b1", status }) as Brief;
 
 describe("resumeHref", () => {
-  it("routes triaged briefs to the scope page", () => {
-    expect(resumeHref(brief("triaged"))).toBe("/briefs/b1/scope");
-  });
-
-  it("routes scoped briefs to the scope map (sow-check), not the builder", () => {
-    expect(resumeHref(brief("scoped"))).toBe("/briefs/b1/sow-check");
-  });
-
-  it("routes quoted and accepted briefs to the builder", () => {
-    expect(resumeHref(brief("quoted"))).toBe("/briefs/b1/builder");
-    expect(resumeHref(brief("accepted"))).toBe("/briefs/b1/builder");
-  });
-
-  it("falls back to the scope page for other statuses", () => {
-    expect(resumeHref(brief("new"))).toBe("/briefs/b1/scope");
-    expect(resumeHref(brief("needs_info"))).toBe("/briefs/b1/scope");
+  // The staged brief page hosts the whole journey (In/Out of Scope → The
+  // Brief → Scope Edit → Cost Estimate → Approve & Schedule) and opens on the
+  // first actionable stage, so every status resumes there.
+  it("routes every status to the staged brief page", () => {
+    const statuses: Array<Brief["status"]> = [
+      "new",
+      "needs_info",
+      "triaged",
+      "scoped",
+      "quoted",
+      "accepted",
+      "briefed",
+    ];
+    for (const status of statuses) {
+      expect(resumeHref(brief(status))).toBe("/briefs/b1/scope");
+    }
   });
 });
