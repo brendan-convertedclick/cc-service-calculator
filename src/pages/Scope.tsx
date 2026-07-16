@@ -31,7 +31,6 @@ import {
   useRejectBriefIntelligence,
   useUpdateBriefIntelligence,
 } from "@/hooks/useBriefIntelligence";
-import { useDepartments } from "@/hooks/useDepartments";
 import { useBriefCE } from "@/hooks/useBriefCE";
 import { useCurrentUserId } from "@/context/AuthContext";
 import { isMostlyAi } from "@/lib/scope-overlap";
@@ -75,7 +74,6 @@ export function Scope() {
   const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
     paused: editingIntel,
   });
-  const { data: departments } = useDepartments();
   const { data: scope } = useScope(id);
   const { data: ce } = useBriefCE(id);
   const updateBrief = useUpdateBrief();
@@ -316,9 +314,9 @@ export function Scope() {
         >
           <div className="space-y-4">
             <BriefIntelligenceView
+              briefId={id!}
               intelligence={intelligence ?? null}
               isLoading={intelLoading}
-              departments={departments}
               onEditingChange={setEditingIntel}
               onSave={async (patch) => {
                 try {

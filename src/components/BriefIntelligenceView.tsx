@@ -1,5 +1,5 @@
 // src/components/BriefIntelligenceView.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CornerDownRight, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,16 +13,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useLineTasks } from "@/hooks/usePlacementTasks";
+import { useScopeMapPlacements } from "@/hooks/useScopeMap";
+import { isBillablePlacement } from "@/types/sow-placements";
 import type { Database } from "@/types/db";
-import type {
-  Requirement,
-  DeptBreakdown,
-  OpenQuestion,
-} from "@/types/brief-intelligence";
-import {
-  recomputeTotals,
-  computeEstimatedPriceCents,
-} from "@/lib/brief-estimate";
+import type { Requirement, OpenQuestion } from "@/types/brief-intelligence";
 
 type BriefIntelligence =
   Database["public"]["Tables"]["brief_intelligence"]["Row"];
@@ -48,55 +44,125 @@ type Draft = {
   business_objective: string;
   confidence_level: string;
   requirements: Requirement[];
-  workBreakdown: DeptBreakdown[];
   openQuestions: OpenQuestion[];
   priceCents: number;
-  priceTouched: boolean;
 };
 
 interface Props {
+  /** Brief id — the work breakdown mirrors this brief's Stage-1 team tasks. */
+  briefId: string;
   intelligence: BriefIntelligence | null;
   isLoading: boolean;
-  departments?: { id: string; hourly_rate_cents: number }[];
   onSave?: (patch: BriefIntelligenceUpdate) => Promise<void>;
   onEditingChange?: (editing: boolean) => void;
 }
 
-function HoursField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
+type TeamDeptGroup = {
+  deptName: string;
+  tasks: Array<{ id: string; title: string; lineName: string; hours: number; points: number }>;
+  hours: number;
+  points: number;
+};
+
+const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+/**
+ * Read-only mirror of the Stage-1 team task breakdown (placement_tasks under
+ * billable lines), grouped by department. This is the single source of truth
+ * for time — it is edited on the scope receipt in step 1, never here.
+ */
+function TeamBreakdownCard({ groups }: { groups: TeamDeptGroup[] }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-label-small text-m-on-surface-variant">{label}</span>
-      <Input
-        type="number"
-        step="0.5"
-        min="0"
-        value={String(value ?? 0)}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          onChange(Number.isFinite(v) ? v : 0);
-        }}
-      />
-    </label>
+    <div className="rounded-lg border p-4 space-y-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-title-small font-medium text-m-on-surface">
+          Work Breakdown
+        </span>
+        <span className="text-label-small text-m-on-surface-variant">
+          From the team task breakdown — edit in step 1
+        </span>
+      </div>
+      {groups.length === 0 ? (
+        <p className="text-body-small text-m-on-surface-variant">
+          No team tasks yet — add them on the billable lines in step 1.
+        </p>
+      ) : (
+        groups.map((g) => (
+          <div key={g.deptName} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-title-small font-medium">{g.deptName}</span>
+              <span className="text-body-small text-m-on-surface-variant">
+                <span className="font-mono tabular-nums">{fmtNum(g.hours)}</span>h ·{" "}
+                <span className="font-mono tabular-nums">{fmtNum(g.points)}</span>pt
+              </span>
+            </div>
+            <ul className="ml-3 space-y-1">
+              {g.tasks.map((t) => (
+                <li key={t.id} className="text-body-small text-m-on-surface-variant">
+                  <CornerDownRight className="mr-1 inline h-3 w-3 text-m-outline" aria-hidden />
+                  {t.title}
+                  <span className="ml-1 text-m-outline">
+                    ({t.lineName} · <span className="font-mono tabular-nums">{fmtNum(t.hours)}</span>h)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 
 export function BriefIntelligenceView({
+  briefId,
   intelligence,
   isLoading,
-  departments,
   onSave,
   onEditingChange,
 }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Stage-1 team task breakdown — the source of truth for time.
+  const { data: placements } = useScopeMapPlacements(briefId);
+  const { data: lineTasks } = useLineTasks(briefId);
+  const { data: allDepts } = useDepartments();
+
+  const teamGroups = useMemo<TeamDeptGroup[]>(() => {
+    const billableIds = new Set(
+      (placements ?? []).filter(isBillablePlacement).map((p) => p.id),
+    );
+    const lineNameByPlacement = new Map(
+      (placements ?? []).map((p) => [p.id, p.item_name ?? p.task_ref]),
+    );
+    const deptName = new Map((allDepts ?? []).map((d) => [d.id, d.name]));
+    const groups = new Map<string, TeamDeptGroup>();
+    for (const t of lineTasks ?? []) {
+      if (!billableIds.has(t.placement_id) || t.title.trim() === "") continue;
+      const name = (t.department_id && deptName.get(t.department_id)) || "Unassigned";
+      const g = groups.get(name) ?? { deptName: name, tasks: [], hours: 0, points: 0 };
+      g.tasks.push({
+        id: t.id,
+        title: t.title,
+        lineName: lineNameByPlacement.get(t.placement_id) ?? "Deliverable",
+        hours: t.hours,
+        points: t.points,
+      });
+      g.hours += t.hours;
+      g.points += t.points;
+      groups.set(name, g);
+    }
+    return Array.from(groups.values()).sort((a, b) => a.deptName.localeCompare(b.deptName));
+  }, [placements, lineTasks, allDepts]);
+
+  const teamTotals = useMemo(
+    () => ({
+      hours: teamGroups.reduce((s, g) => s + g.hours, 0),
+      points: teamGroups.reduce((s, g) => s + g.points, 0),
+    }),
+    [teamGroups],
+  );
 
   useEffect(() => {
     onEditingChange?.(draft !== null);
@@ -116,12 +182,7 @@ export function BriefIntelligenceView({
     return null;
   }
 
-  const rateByDeptId = new Map<string, number>(
-    (departments ?? []).map((d) => [d.id, d.hourly_rate_cents]),
-  );
-
   const requirements = (intelligence.requirements as Requirement[] | null) ?? [];
-  const workBreakdown = (intelligence.work_breakdown as DeptBreakdown[] | null) ?? [];
   const openQuestions = (intelligence.open_questions as OpenQuestion[] | null) ?? [];
 
   const confidenceVariant =
@@ -135,10 +196,8 @@ export function BriefIntelligenceView({
       business_objective: intelligence.business_objective ?? "",
       confidence_level: intelligence.confidence_level ?? "low",
       requirements: structuredClone(requirements),
-      workBreakdown: structuredClone(workBreakdown),
       openQuestions: structuredClone(openQuestions),
       priceCents: intelligence.estimated_price_cents ?? 0,
-      priceTouched: false,
     });
 
   const cancelEdit = () => setDraft(null);
@@ -146,29 +205,18 @@ export function BriefIntelligenceView({
   const update = (patch: Partial<Draft>) =>
     setDraft((d) => (d ? { ...d, ...patch } : d));
 
-  const updateDept = (i: number, patch: Partial<DeptBreakdown>) =>
-    update({
-      workBreakdown: (draft?.workBreakdown ?? []).map((d, j) =>
-        j === i ? { ...d, ...patch } : d,
-      ),
-    });
-
   const handleSave = async () => {
     if (!draft || !onSave) return;
     setSaving(true);
     try {
-      const totals = recomputeTotals(draft.workBreakdown);
-      const computed = computeEstimatedPriceCents(draft.workBreakdown, rateByDeptId);
-      const priceCents = draft.priceTouched ? draft.priceCents : computed;
+      // Time lives in the Stage-1 team task breakdown — never written here.
       await onSave({
         summary: draft.summary,
         business_objective: draft.business_objective,
         confidence_level: draft.confidence_level,
         requirements: draft.requirements as unknown as BriefIntelligenceUpdate["requirements"],
-        work_breakdown: draft.workBreakdown as unknown as BriefIntelligenceUpdate["work_breakdown"],
         open_questions: draft.openQuestions as unknown as BriefIntelligenceUpdate["open_questions"],
-        estimated_price_cents: priceCents,
-        ...totals,
+        estimated_price_cents: draft.priceCents,
       });
       setDraft(null);
     } catch {
@@ -236,70 +284,25 @@ export function BriefIntelligenceView({
           </div>
         )}
 
-        {/* Work Breakdown */}
-        {workBreakdown.length > 0 && (
-          <div className="rounded-lg border p-4 space-y-4">
-            <span className="text-title-small font-medium text-m-on-surface">
-              Work Breakdown
-            </span>
-            {workBreakdown.map((dept, i) => (
-              <div key={i} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-title-small font-medium">
-                    {dept.department_name}
-                  </span>
-                  <span className="text-body-small text-m-on-surface-variant">
-                    <span className="font-mono tabular-nums">{dept.human_hours_low}–{dept.human_hours_high}</span> hrs human
-                    {dept.ai_hours > 0 && (
-                      <span className="ml-2 text-m-primary">· <span className="font-mono tabular-nums">{dept.ai_hours}</span> hrs AI</span>
-                    )}
-                  </span>
-                </div>
-                {dept.deliverables?.length > 0 && (
-                  <ul className="ml-3 space-y-1">
-                    {dept.deliverables.map((d, j) => (
-                      <li key={j} className="text-body-small text-m-on-surface-variant">
-                        <CornerDownRight className="mr-1 inline h-3 w-3 text-m-outline" aria-hidden />
-                        {d.name}
-                        {d.format && <span className="ml-1 text-m-outline">({d.format})</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Work Breakdown — mirror of the Stage-1 team task breakdown */}
+        <TeamBreakdownCard groups={teamGroups} />
 
         {/* Estimate */}
-        {(intelligence.total_human_hours_mid != null ||
-          intelligence.estimated_price_cents != null) && (
-          <div className="rounded-lg border bg-m-surface-container-high p-4 grid grid-cols-2 gap-4">
-            {intelligence.total_human_hours_mid != null && (
-              <div>
-                <div className="text-label-small text-m-on-surface-variant">Human hours</div>
-                <div className="text-title-medium">
-                  <span className="font-mono tabular-nums">
-                    {intelligence.total_human_hours_low ?? "?"}–
-                    {intelligence.total_human_hours_high ?? "?"}
-                  </span>{" "}
-                  hrs
-                </div>
-                {(intelligence.total_ai_hours ?? 0) > 0 && (
-                  <div className="text-body-small text-m-primary">
-                    + <span className="font-mono tabular-nums">{intelligence.total_ai_hours}</span> hrs AI
-                  </div>
-                )}
-              </div>
-            )}
-            {intelligence.estimated_price_cents != null && (
-              <div>
-                <div className="text-label-small text-m-on-surface-variant">Estimated price</div>
-                <div className="text-title-medium font-mono tabular-nums">{zar(intelligence.estimated_price_cents)}</div>
-              </div>
-            )}
+        <div className="rounded-lg border bg-m-surface-container-high p-4 grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-label-small text-m-on-surface-variant">Team time (step 1)</div>
+            <div className="text-title-medium">
+              <span className="font-mono tabular-nums">{fmtNum(teamTotals.hours)}</span> hrs ·{" "}
+              <span className="font-mono tabular-nums">{fmtNum(teamTotals.points)}</span> pts
+            </div>
           </div>
-        )}
+          {intelligence.estimated_price_cents != null && (
+            <div>
+              <div className="text-label-small text-m-on-surface-variant">Estimated price</div>
+              <div className="text-title-medium font-mono tabular-nums">{zar(intelligence.estimated_price_cents)}</div>
+            </div>
+          )}
+        </div>
 
         {/* Open Questions */}
         {openQuestions.length > 0 && (
@@ -322,10 +325,6 @@ export function BriefIntelligenceView({
   }
 
   // ---------- EDIT ----------
-  const totals = recomputeTotals(draft.workBreakdown);
-  const computedPrice = computeEstimatedPriceCents(draft.workBreakdown, rateByDeptId);
-  const displayPrice = draft.priceTouched ? draft.priceCents : computedPrice;
-
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
@@ -431,121 +430,17 @@ export function BriefIntelligenceView({
         ))}
       </div>
 
-      {/* Work Breakdown */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <span className="text-title-small font-medium text-m-on-surface">
-          Work Breakdown
-        </span>
-        {draft.workBreakdown.map((dept, i) => (
-          <div key={i} className="space-y-3 rounded border p-3">
-            <span className="text-title-small font-medium">{dept.department_name}</span>
-            <div className="grid grid-cols-4 gap-2">
-              <HoursField label="Low" value={dept.human_hours_low} onChange={(v) => updateDept(i, { human_hours_low: v })} />
-              <HoursField label="Mid" value={dept.human_hours_mid} onChange={(v) => updateDept(i, { human_hours_mid: v })} />
-              <HoursField label="High" value={dept.human_hours_high} onChange={(v) => updateDept(i, { human_hours_high: v })} />
-              <HoursField label="AI" value={dept.ai_hours} onChange={(v) => updateDept(i, { ai_hours: v })} />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-label-small text-m-on-surface-variant">Deliverables</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    updateDept(i, { deliverables: [...(dept.deliverables ?? []), { name: "" }] })
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {(dept.deliverables ?? []).map((d, j) => (
-                <div key={j} className="flex gap-2">
-                  <Input
-                    value={d.name}
-                    placeholder="Deliverable"
-                    onChange={(e) =>
-                      updateDept(i, {
-                        deliverables: dept.deliverables.map((x, k) =>
-                          k === j ? { ...x, name: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      updateDept(i, { deliverables: dept.deliverables.filter((_, k) => k !== j) })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-label-small text-m-on-surface-variant">Tasks</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => updateDept(i, { tasks: [...(dept.tasks ?? []), { title: "" }] })}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {(dept.tasks ?? []).map((t, j) => (
-                <div key={j} className="flex gap-2">
-                  <Input
-                    value={t.title}
-                    placeholder="Task title"
-                    onChange={(e) =>
-                      updateDept(i, {
-                        tasks: dept.tasks.map((x, k) =>
-                          k === j ? { ...x, title: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                  <Input
-                    value={t.description ?? ""}
-                    placeholder="Description"
-                    onChange={(e) =>
-                      updateDept(i, {
-                        tasks: dept.tasks.map((x, k) =>
-                          k === j ? { ...x, description: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      updateDept(i, { tasks: dept.tasks.filter((_, k) => k !== j) })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Work Breakdown — read-only mirror of step 1, even while editing */}
+      <TeamBreakdownCard groups={teamGroups} />
 
       {/* Estimate */}
       <div className="rounded-lg border bg-m-surface-container-high p-4 grid grid-cols-2 gap-4">
         <div>
-          <div className="text-label-small text-m-on-surface-variant">Human hours</div>
+          <div className="text-label-small text-m-on-surface-variant">Team time (step 1)</div>
           <div className="text-title-medium">
-            <span className="font-mono tabular-nums">{totals.total_human_hours_low}–{totals.total_human_hours_high}</span> hrs
+            <span className="font-mono tabular-nums">{fmtNum(teamTotals.hours)}</span> hrs ·{" "}
+            <span className="font-mono tabular-nums">{fmtNum(teamTotals.points)}</span> pts
           </div>
-          {totals.total_ai_hours > 0 && (
-            <div className="text-body-small text-m-primary">+ <span className="font-mono tabular-nums">{totals.total_ai_hours}</span> hrs AI</div>
-          )}
         </div>
         <div className="space-y-1">
           <div className="text-label-small text-m-on-surface-variant">Estimated price</div>
@@ -556,29 +451,13 @@ export function BriefIntelligenceView({
               step="0.01"
               min="0"
               className="max-w-[10rem]"
-              value={(displayPrice / 100).toString()}
+              value={(draft.priceCents / 100).toString()}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
-                update({
-                  priceCents: Number.isFinite(v) ? Math.round(v * 100) : 0,
-                  priceTouched: true,
-                });
+                update({ priceCents: Number.isFinite(v) ? Math.round(v * 100) : 0 });
               }}
             />
           </div>
-          {draft.priceTouched ? (
-            <button
-              type="button"
-              className="text-label-small text-m-primary underline"
-              onClick={() => update({ priceTouched: false })}
-            >
-              reset to computed (<span className="font-mono tabular-nums">{zar(computedPrice)}</span>)
-            </button>
-          ) : (
-            <div className="text-label-small text-m-on-surface-variant">
-              computed from hours × rate
-            </div>
-          )}
         </div>
       </div>
 
