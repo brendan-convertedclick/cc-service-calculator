@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, Calendar, Copy, MessageSquare, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Copy, MessageSquare, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ type PersistedFilters = {
   search: string;
   clients: string[];
   billing: BillingType[];
+  railOpen?: boolean;
 };
 function loadFilters(): Partial<PersistedFilters> {
   try {
@@ -76,6 +77,7 @@ export function Briefs() {
   const [selectedBilling, setSelectedBilling] = useState<Set<BillingType>>(
     () => new Set(loadFilters().billing ?? []),
   );
+  const [railOpen, setRailOpen] = useState(() => loadFilters().railOpen ?? true);
 
   useEffect(() => {
     const filters: PersistedFilters = {
@@ -83,9 +85,10 @@ export function Briefs() {
       search,
       clients: Array.from(selectedClients),
       billing: Array.from(selectedBilling),
+      railOpen,
     };
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
-  }, [pipelineStatus, search, selectedClients, selectedBilling]);
+  }, [pipelineStatus, search, selectedClients, selectedBilling, railOpen]);
 
   const handleArchiveToggle = async (
     id: string,
@@ -216,7 +219,27 @@ export function Briefs() {
 
   return (
     <div className="flex h-full">
-      {/* ── Left filter rail: search on top → divider → filter groups below ── */}
+      {/* ── Left filter rail: search on top → divider → filter groups below.
+             Collapsible so the brief rows get the full width. ── */}
+      {!railOpen ? (
+        <aside className="flex w-10 shrink-0 flex-col items-center border-r border-m-outline-variant py-3">
+          <button
+            type="button"
+            aria-label="Show filters"
+            title="Show filters"
+            onClick={() => setRailOpen(true)}
+            className="relative grid h-8 w-8 place-items-center rounded-md text-m-on-surface-variant transition-colors hover:bg-m-surface-container hover:text-m-on-surface"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+            {(hasFilters || search.trim() !== "") && (
+              <span
+                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-m-primary"
+                aria-label="Filters active"
+              />
+            )}
+          </button>
+        </aside>
+      ) : (
       <aside className="w-56 shrink-0 space-y-5 overflow-y-auto border-r border-m-outline-variant p-4">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
@@ -231,18 +254,29 @@ export function Briefs() {
 
         <div className="flex items-center justify-between">
           <h3 className="text-label-large text-m-on-surface">Filters</h3>
-          {hasFilters && (
+          <div className="flex items-center gap-2">
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedClients(new Set());
+                  setSelectedBilling(new Set());
+                }}
+                className="text-label-small text-m-primary hover:underline"
+              >
+                Clear
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                setSelectedClients(new Set());
-                setSelectedBilling(new Set());
-              }}
-              className="text-label-small text-m-primary hover:underline"
+              aria-label="Hide filters"
+              title="Hide filters"
+              onClick={() => setRailOpen(false)}
+              className="grid h-6 w-6 place-items-center rounded-md text-m-on-surface-variant transition-colors hover:bg-m-surface-container hover:text-m-on-surface"
             >
-              Clear
+              <PanelLeftClose className="h-4 w-4" />
             </button>
-          )}
+          </div>
         </div>
 
         {clientOptions.length > 0 && (
@@ -321,43 +355,47 @@ export function Briefs() {
           </div>
         )}
       </aside>
+      )}
 
-      {/* ── Main ─────────────────────────────────────────────────────────── */}
-      <div className="min-w-0 flex-1 overflow-y-auto p-6">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-headline-medium">Briefs</h1>
-          <Button
-            disabled={createBrief.isPending}
-            onClick={() =>
-              createBrief
-                .mutateAsync({
-                  source: "manual",
-                  status: "new",
-                  raw_subject: null,
-                  raw_body: "",
-                })
-                .then((b) => navigate(`/briefs/${b.id}/scope`))
-                .catch(() => toast.error("Failed to create the brief"))
-            }
-          >
-            {createBrief.isPending ? "Creating…" : "+ New Brief"}
-          </Button>
+      {/* ── Main: frozen banner (title + pipeline) over a scrolling list ── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 space-y-4 px-6 pb-4 pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-headline-medium">Briefs</h1>
+            <Button
+              disabled={createBrief.isPending}
+              onClick={() =>
+                createBrief
+                  .mutateAsync({
+                    source: "manual",
+                    status: "new",
+                    raw_subject: null,
+                    raw_body: "",
+                  })
+                  .then((b) => navigate(`/briefs/${b.id}/scope`))
+                  .catch(() => toast.error("Failed to create the brief"))
+              }
+            >
+              {createBrief.isPending ? "Creating…" : "+ New Brief"}
+            </Button>
+          </div>
+          {visibleBriefs.length > 0 && (
+            <StatusPipeline
+              counts={statusCounts}
+              active={pipelineStatus}
+              onSelect={setPipelineStatus}
+              showArchived
+            />
+          )}
         </div>
 
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 pb-6">
         {visibleBriefs.length === 0 ? (
           <div className="text-body-medium text-m-on-surface-variant">
             No open briefs. New briefs land in the Inbox and become in-flight once triaged.
           </div>
         ) : (
           <>
-            <StatusPipeline
-              counts={statusCounts}
-              active={pipelineStatus}
-              onSelect={setPipelineStatus}
-              showArchived
-              className="mb-6"
-            />
-
             {filteredBriefs.length > 0 ? (
               <Card>
                 <CardContent className="p-0">
@@ -409,7 +447,7 @@ export function Briefs() {
                                   </time>
                                 </TableCell>
                                 <TableCell className="max-w-[420px]">
-                                  <div className="whitespace-normal break-words text-body-medium text-m-on-surface">
+                                  <div className="whitespace-normal break-words text-body-small text-m-on-surface">
                                     {b.raw_subject ?? "(no subject)"}
                                   </div>
                                   <div className="text-label-small text-m-on-surface-variant">
@@ -512,6 +550,7 @@ export function Briefs() {
             if (!o) setDuplicating(null);
           }}
         />
+        </div>
       </div>
     </div>
   );
