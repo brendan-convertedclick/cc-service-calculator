@@ -18,7 +18,7 @@ import type { ClaudePrompt } from "@/types/claude";
 const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
 const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
-const SCOPES: BriefScope[] = ["new", "mine", "unassigned", "waiting", "all", "archived"];
+const SCOPES: BriefScope[] = ["all", "new", "mine", "unassigned", "waiting", "archived"];
 
 const TAB_LABEL: Record<BriefScope, string> = {
   new: "New",
@@ -36,7 +36,7 @@ export function Inbox() {
   const { data: selectedBrief } = useBrief(briefId);
   const { data: filterTree } = useInboxFilterTree();
 
-  const defaultTab: BriefScope = "new";
+  const defaultTab: BriefScope = "all";
 
   // undefined = no filter; null = unassigned; string = specific client
   const [activeClientId, setActiveClientId] = useState<string | null | undefined>(undefined);
