@@ -19,7 +19,7 @@ export function AppShell() {
   }, [isDesktop]);
 
   return (
-    <div className="min-h-screen flex bg-m-surface-container-low">
+    <div className="h-screen flex bg-m-surface-container-low">
       <IconRail
         navOpen={isDesktop && navOpen}
         onToggle={isDesktop ? toggleNav : () => setOverlayOpen(true)}
@@ -27,7 +27,10 @@ export function AppShell() {
       {!isDesktop && (
         <NavOverlay open={overlayOpen} onClose={() => setOverlayOpen(false)} />
       )}
-      <main className="flex-1 min-h-screen flex flex-col overflow-auto">
+      {/* h-screen root + min-h-0 give main a definite height, so pages can pin
+          headers and scroll internally; pages without their own scroll area
+          still scroll here via overflow-auto. */}
+      <main className="flex-1 min-h-0 min-w-0 flex flex-col overflow-auto">
         <Breadcrumbs />
         <Outlet />
       </main>

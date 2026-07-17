@@ -218,7 +218,7 @@ export function Briefs() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex min-h-0 flex-1">
       {/* ── Left filter rail: search on top → divider → filter groups below.
              Collapsible so the brief rows get the full width. ── */}
       {!railOpen ? (
