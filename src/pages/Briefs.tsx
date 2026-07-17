@@ -22,6 +22,11 @@ import {
 import { BriefConversation } from "@/components/BriefConversation";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { useBrief, useBriefs, useCreateBrief, useUpdateBrief } from "@/hooks/useBriefs";
+import {
+  progressFromStatuses,
+  useScheduledTaskStatuses,
+  type BriefTaskProgress,
+} from "@/hooks/useBriefTaskProgress";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
 import { briefDate } from "@/components/BriefList";
@@ -36,6 +41,26 @@ const VISIBLE_STATUSES: BriefStatus[] = PIPELINE_STATUSES;
 // conversation drawer is reached via the per-row thread button instead.
 function rowHref(b: { id: string; status: BriefStatus }): string {
   return resumeHref(b as Parameters<typeof resumeHref>[0]);
+}
+
+/** Mini progress bar for a briefed row's handed-off ClickUp work. */
+function BriefProgress({ progress }: { progress: BriefTaskProgress }) {
+  return (
+    <div
+      className="flex items-center gap-1.5"
+      title={`${progress.done}/${progress.total} task${progress.total !== 1 ? "s" : ""} done in ClickUp`}
+    >
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-m-surface-container-high">
+        <div
+          className="h-full rounded-full bg-m-primary transition-[width]"
+          style={{ width: `${progress.pct}%` }}
+        />
+      </div>
+      <span className="font-mono text-label-small tabular-nums text-m-on-surface-variant">
+        {progress.pct}%
+      </span>
+    </div>
+  );
 }
 
 // Rail filters survive navigating into a brief and back (component unmounts,
@@ -65,6 +90,7 @@ export function Briefs() {
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
   const createBrief = useCreateBrief();
+  const { data: scheduledStatuses } = useScheduledTaskStatuses();
 
   const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>(
     () => loadFilters().pipelineStatus ?? "all",
@@ -474,6 +500,20 @@ export function Briefs() {
                                       </a>
                                     )}
                                   </div>
+                                  {b.status === "briefed" &&
+                                    (() => {
+                                      // Stage-5 scheduled tasks when the brief has
+                                      // them, else the single quick-briefed task.
+                                      const statuses =
+                                        scheduledStatuses?.get(b.id) ??
+                                        (b.clickup_task_status ? [b.clickup_task_status] : []);
+                                      const progress = progressFromStatuses(statuses);
+                                      return progress ? (
+                                        <div className="mt-1">
+                                          <BriefProgress progress={progress} />
+                                        </div>
+                                      ) : null;
+                                    })()}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end">

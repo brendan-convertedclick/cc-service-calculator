@@ -478,7 +478,9 @@ export type Database = {
         Row: {
           assignee_id: string | null
           billing_type: string
+          clickup_status_synced_at: string | null
           clickup_task_id: string | null
+          clickup_task_status: string | null
           clickup_task_url: string | null
           client_id: string | null
           created_at: string
@@ -510,7 +512,9 @@ export type Database = {
         Insert: {
           assignee_id?: string | null
           billing_type?: string
+          clickup_status_synced_at?: string | null
           clickup_task_id?: string | null
+          clickup_task_status?: string | null
           clickup_task_url?: string | null
           client_id?: string | null
           created_at?: string
@@ -542,7 +546,9 @@ export type Database = {
         Update: {
           assignee_id?: string | null
           billing_type?: string
+          clickup_status_synced_at?: string | null
           clickup_task_id?: string | null
+          clickup_task_status?: string | null
           clickup_task_url?: string | null
           client_id?: string | null
           created_at?: string

@@ -305,7 +305,57 @@ Deno.serve(async (req: Request) => {
       ongoingInserted++;
     }
 
-    return json({ inserted, ongoing_inserted: ongoingInserted });
+    // Brief-created tasks — refresh the last-known ClickUp status so the
+    // Briefs list can show progress on handed-off work. Two sources: the
+    // quick-briefed task on the brief itself, and Stage-5 scheduled
+    // placement_tasks. Bounded (oldest-synced first) so a growing backlog
+    // can't blow the cron out; each tick catches the stalest rows.
+    let briefStatusUpdates = 0;
+    const fetchStatus = async (taskId: string): Promise<string | null> => {
+      try {
+        const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}?include_subtasks=false`, CU);
+        if (!res.ok) return null;
+        const task = (await res.json()) as { status?: { status?: string } };
+        return task.status?.status?.toLowerCase() ?? null;
+      } catch {
+        return null;
+      }
+    };
+
+    const { data: briefTasks } = await supabase
+      .from("briefs")
+      .select("id, clickup_task_id")
+      .eq("status", "briefed")
+      .not("clickup_task_id", "is", null)
+      .order("clickup_status_synced_at", { ascending: true, nullsFirst: true })
+      .limit(60);
+    for (const b of (briefTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      const status = await fetchStatus(b.clickup_task_id);
+      if (status === null) continue;
+      const { error } = await supabase
+        .from("briefs")
+        .update({ clickup_task_status: status, clickup_status_synced_at: new Date().toISOString() })
+        .eq("id", b.id);
+      if (!error) briefStatusUpdates++;
+    }
+
+    const { data: schedTasks } = await supabase
+      .from("placement_tasks")
+      .select("id, clickup_task_id")
+      .not("clickup_task_id", "is", null)
+      .order("clickup_status_synced_at", { ascending: true, nullsFirst: true })
+      .limit(60);
+    for (const t of (schedTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      const status = await fetchStatus(t.clickup_task_id);
+      if (status === null) continue;
+      const { error } = await supabase
+        .from("placement_tasks")
+        .update({ clickup_status: status, clickup_status_synced_at: new Date().toISOString() })
+        .eq("id", t.id);
+      if (!error) briefStatusUpdates++;
+    }
+
+    return json({ inserted, ongoing_inserted: ongoingInserted, brief_status_updates: briefStatusUpdates });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
