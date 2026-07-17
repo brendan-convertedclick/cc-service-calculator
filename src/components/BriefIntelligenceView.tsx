@@ -57,9 +57,10 @@ interface Props {
   onEditingChange?: (editing: boolean) => void;
 }
 
-type TeamDeptGroup = {
-  deptName: string;
-  tasks: Array<{ id: string; title: string; lineName: string; hours: number; points: number }>;
+type BreakdownLine = {
+  placementId: string;
+  name: string;
+  tasks: Array<{ id: string; title: string; deptName: string; hours: number; points: number }>;
   hours: number;
   points: number;
 };
@@ -67,11 +68,14 @@ type TeamDeptGroup = {
 const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
 /**
- * Read-only mirror of the Stage-1 team task breakdown (placement_tasks under
- * billable lines), grouped by department. This is the single source of truth
- * for time — it is edited on the scope receipt in step 1, never here.
+ * Read-only mirror of Stage 1's billable lines and their team task breakdown
+ * (placement_tasks). Every billable line shows here — with its team tasks
+ * beneath, or a hint when none exist yet. Out-of-scope lines are excluded on
+ * purpose: they aren't offered, so they carry no work. This is the single
+ * source of truth for time — it is edited on the scope receipt in step 1,
+ * never here.
  */
-function TeamBreakdownCard({ groups }: { groups: TeamDeptGroup[] }) {
+function TeamBreakdownCard({ lines }: { lines: BreakdownLine[] }) {
   return (
     <div className="rounded-lg border p-4 space-y-4">
       <div className="flex items-baseline justify-between gap-4">
@@ -79,34 +83,43 @@ function TeamBreakdownCard({ groups }: { groups: TeamDeptGroup[] }) {
           Work Breakdown
         </span>
         <span className="text-label-small text-m-on-surface-variant">
-          From the team task breakdown — edit in step 1
+          From the billable lines in step 1 — edit there
         </span>
       </div>
-      {groups.length === 0 ? (
+      {lines.length === 0 ? (
         <p className="text-body-small text-m-on-surface-variant">
-          No team tasks yet — add them on the billable lines in step 1.
+          No billable lines yet — add them on the scope receipt in step 1.
         </p>
       ) : (
-        groups.map((g) => (
-          <div key={g.deptName} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-title-small font-medium">{g.deptName}</span>
-              <span className="text-body-small text-m-on-surface-variant">
-                <span className="font-mono tabular-nums">{fmtNum(g.hours)}</span>h ·{" "}
-                <span className="font-mono tabular-nums">{fmtNum(g.points)}</span>pt
-              </span>
+        lines.map((l) => (
+          <div key={l.placementId} className="space-y-2">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="min-w-0 break-words text-title-small font-medium">{l.name}</span>
+              {l.tasks.length > 0 && (
+                <span className="shrink-0 text-body-small text-m-on-surface-variant">
+                  <span className="font-mono tabular-nums">{fmtNum(l.hours)}</span>h ·{" "}
+                  <span className="font-mono tabular-nums">{fmtNum(l.points)}</span>pt
+                </span>
+              )}
             </div>
-            <ul className="ml-3 space-y-1">
-              {g.tasks.map((t) => (
-                <li key={t.id} className="text-body-small text-m-on-surface-variant">
-                  <CornerDownRight className="mr-1 inline h-3 w-3 text-m-outline" aria-hidden />
-                  {t.title}
-                  <span className="ml-1 text-m-outline">
-                    ({t.lineName} · <span className="font-mono tabular-nums">{fmtNum(t.hours)}</span>h)
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {l.tasks.length === 0 ? (
+              <p className="ml-3 text-body-small text-m-outline">
+                <CornerDownRight className="mr-1 inline h-3 w-3" aria-hidden />
+                No team tasks yet — add them on this line in step 1.
+              </p>
+            ) : (
+              <ul className="ml-3 space-y-1">
+                {l.tasks.map((t) => (
+                  <li key={t.id} className="text-body-small text-m-on-surface-variant">
+                    <CornerDownRight className="mr-1 inline h-3 w-3 text-m-outline" aria-hidden />
+                    {t.title}
+                    <span className="ml-1 text-m-outline">
+                      ({t.deptName} · <span className="font-mono tabular-nums">{fmtNum(t.hours)}</span>h)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         ))
       )}
@@ -129,39 +142,39 @@ export function BriefIntelligenceView({
   const { data: lineTasks } = useLineTasks(briefId);
   const { data: allDepts } = useDepartments();
 
-  const teamGroups = useMemo<TeamDeptGroup[]>(() => {
-    const billableIds = new Set(
-      (placements ?? []).filter(isBillablePlacement).map((p) => p.id),
-    );
-    const lineNameByPlacement = new Map(
-      (placements ?? []).map((p) => [p.id, p.item_name ?? p.task_ref]),
-    );
+  const breakdownLines = useMemo<BreakdownLine[]>(() => {
     const deptName = new Map((allDepts ?? []).map((d) => [d.id, d.name]));
-    const groups = new Map<string, TeamDeptGroup>();
+    const tasksByPlacement = new Map<string, BreakdownLine["tasks"]>();
     for (const t of lineTasks ?? []) {
-      if (!billableIds.has(t.placement_id) || t.title.trim() === "") continue;
-      const name = (t.department_id && deptName.get(t.department_id)) || "Unassigned";
-      const g = groups.get(name) ?? { deptName: name, tasks: [], hours: 0, points: 0 };
-      g.tasks.push({
+      if (t.title.trim() === "") continue;
+      const arr = tasksByPlacement.get(t.placement_id) ?? [];
+      arr.push({
         id: t.id,
         title: t.title,
-        lineName: lineNameByPlacement.get(t.placement_id) ?? "Deliverable",
+        deptName: (t.department_id && deptName.get(t.department_id)) || "Unassigned",
         hours: t.hours,
         points: t.points,
       });
-      g.hours += t.hours;
-      g.points += t.points;
-      groups.set(name, g);
+      tasksByPlacement.set(t.placement_id, arr);
     }
-    return Array.from(groups.values()).sort((a, b) => a.deptName.localeCompare(b.deptName));
+    return (placements ?? []).filter(isBillablePlacement).map((p) => {
+      const tasks = tasksByPlacement.get(p.id) ?? [];
+      return {
+        placementId: p.id,
+        name: p.item_name ?? p.task_ref,
+        tasks,
+        hours: tasks.reduce((s, t) => s + t.hours, 0),
+        points: tasks.reduce((s, t) => s + t.points, 0),
+      };
+    });
   }, [placements, lineTasks, allDepts]);
 
   const teamTotals = useMemo(
     () => ({
-      hours: teamGroups.reduce((s, g) => s + g.hours, 0),
-      points: teamGroups.reduce((s, g) => s + g.points, 0),
+      hours: breakdownLines.reduce((s, l) => s + l.hours, 0),
+      points: breakdownLines.reduce((s, l) => s + l.points, 0),
     }),
-    [teamGroups],
+    [breakdownLines],
   );
 
   useEffect(() => {
@@ -285,7 +298,7 @@ export function BriefIntelligenceView({
         )}
 
         {/* Work Breakdown — mirror of the Stage-1 team task breakdown */}
-        <TeamBreakdownCard groups={teamGroups} />
+        <TeamBreakdownCard lines={breakdownLines} />
 
         {/* Estimate */}
         <div className="rounded-lg border bg-m-surface-container-high p-4 grid grid-cols-2 gap-4">
@@ -431,7 +444,7 @@ export function BriefIntelligenceView({
       </div>
 
       {/* Work Breakdown — read-only mirror of step 1, even while editing */}
-      <TeamBreakdownCard groups={teamGroups} />
+      <TeamBreakdownCard lines={breakdownLines} />
 
       {/* Estimate */}
       <div className="rounded-lg border bg-m-surface-container-high p-4 grid grid-cols-2 gap-4">
