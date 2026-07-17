@@ -36,6 +36,29 @@ export function useBriefIntelligence(
   });
 }
 
+/**
+ * Create a blank intelligence row for a brief that has none (manual briefs —
+ * intake only generates intelligence for email-sourced ones). Seeds the
+ * summary so the operator edits from the brief text instead of a blank page.
+ */
+export function useCreateBriefIntelligence(briefId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ summary }: { summary: string | null }) => {
+      const { data, error } = await supabase
+        .from("brief_intelligence")
+        .insert({ brief_id: briefId, summary })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY(briefId) });
+    },
+  });
+}
+
 export function useApproveBriefIntelligence(briefId: string) {
   const qc = useQueryClient();
   return useMutation({

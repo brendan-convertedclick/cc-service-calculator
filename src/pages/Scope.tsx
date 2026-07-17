@@ -28,6 +28,7 @@ import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
   useBriefIntelligence,
   useApproveBriefIntelligence,
+  useCreateBriefIntelligence,
   useRejectBriefIntelligence,
   useUpdateBriefIntelligence,
 } from "@/hooks/useBriefIntelligence";
@@ -82,6 +83,7 @@ export function Scope() {
   const approve = useApproveBriefIntelligence(id ?? "");
   const reject = useRejectBriefIntelligence(id ?? "");
   const updateIntel = useUpdateBriefIntelligence(id ?? "");
+  const createIntel = useCreateBriefIntelligence(id ?? "");
 
   const [rejectNotes, setRejectNotes] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -313,6 +315,31 @@ export function Scope() {
           onToggle={() => toggleStage(2)}
         >
           <div className="space-y-4">
+            {/* Manual briefs have no AI-generated intelligence — offer to
+                start one so the stage isn't a dead end. */}
+            {!intelligence && !intelLoading && (
+              <Card>
+                <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+                  <p className="max-w-md text-body-small text-m-on-surface-variant">
+                    No AI brief yet — briefs created manually don&apos;t get one
+                    automatically. Write it yourself to review and approve, then
+                    the scope edit unlocks as usual.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={createIntel.isPending}
+                    onClick={() =>
+                      createIntel
+                        .mutateAsync({ summary: brief.raw_body?.trim() || brief.raw_subject })
+                        .then(() => toast.success("Brief started — edit and approve it"))
+                        .catch(() => toast.error("Failed to start the brief"))
+                    }
+                  >
+                    {createIntel.isPending ? "Starting…" : "Write the brief manually"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <BriefIntelligenceView
               briefId={id!}
               intelligence={intelligence ?? null}
