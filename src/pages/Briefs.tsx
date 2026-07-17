@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Archive, ArchiveRestore, Calendar, Copy, MessageSquare, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
 } from "@/components/briefs/StatusPipeline";
 import { BriefConversation } from "@/components/BriefConversation";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
-import { useBrief, useBriefs, useUpdateBrief } from "@/hooks/useBriefs";
+import { useBrief, useBriefs, useCreateBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { STATUS_LABEL, BILLING_LABEL, resumeHref, type BriefStatus, type BillingType } from "@/lib/brief-routing";
 import { briefDate } from "@/components/BriefList";
@@ -63,6 +63,7 @@ export function Briefs() {
   const { data: archivedBriefs = [] } = useBriefs("archived");
   const { data: clients = [] } = useClients();
   const updateBrief = useUpdateBrief();
+  const createBrief = useCreateBrief();
 
   const [pipelineStatus, setPipelineStatus] = useState<PipelineSelection>(
     () => loadFilters().pipelineStatus ?? "all",
@@ -325,8 +326,21 @@ export function Briefs() {
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-center justify-between gap-4">
           <h1 className="text-headline-medium">Briefs</h1>
-          <Button asChild>
-            <Link to="/briefs/new">+ New Brief</Link>
+          <Button
+            disabled={createBrief.isPending}
+            onClick={() =>
+              createBrief
+                .mutateAsync({
+                  source: "manual",
+                  status: "new",
+                  raw_subject: null,
+                  raw_body: "",
+                })
+                .then((b) => navigate(`/briefs/${b.id}/scope`))
+                .catch(() => toast.error("Failed to create the brief"))
+            }
+          >
+            {createBrief.isPending ? "Creating…" : "+ New Brief"}
           </Button>
         </div>
 

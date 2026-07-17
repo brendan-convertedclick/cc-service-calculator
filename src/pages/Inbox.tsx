@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Plus, ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefList } from "@/components/BriefList";
@@ -8,7 +9,7 @@ import { BriefConversation } from "@/components/BriefConversation";
 import { InboxFilterPanel } from "@/components/InboxFilterPanel";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { StatusPipeline, type PipelineSelection } from "@/components/briefs/StatusPipeline";
-import { useBrief, useBriefs } from "@/hooks/useBriefs";
+import { useBrief, useBriefs, useCreateBrief } from "@/hooks/useBriefs";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
 import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks/useBriefs";
@@ -34,6 +35,7 @@ export function Inbox() {
   const currentUserId = useCurrentUserId();
   const navigate = useNavigate();
   const { data: selectedBrief } = useBrief(briefId);
+  const createBrief = useCreateBrief();
   const { data: filterTree } = useInboxFilterTree();
 
   const defaultTab: BriefScope = "all";
@@ -145,10 +147,21 @@ Output: Confirmation of brief created or updated, with intent classification and
               <span className="ml-2 text-title-medium text-m-primary">· {filterLabel}</span>
             )}
           </h1>
-          <Button asChild>
-            <Link to="/briefs/new">
-              <Plus className="h-4 w-4" /> New brief
-            </Link>
+          <Button
+            disabled={createBrief.isPending}
+            onClick={() =>
+              createBrief
+                .mutateAsync({
+                  source: "manual",
+                  status: "new",
+                  raw_subject: null,
+                  raw_body: "",
+                })
+                .then((b) => navigate(`/briefs/${b.id}/scope`))
+                .catch(() => toast.error("Failed to create the brief"))
+            }
+          >
+            <Plus className="h-4 w-4" /> {createBrief.isPending ? "Creating…" : "New brief"}
           </Button>
         </div>
 

@@ -15,6 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StageSection, type StageStatus } from "@/components/StageSection";
 import { ScopeConfirmStage } from "@/components/scope-confirm/ScopeConfirmStage";
 import { CostEstimateStage } from "@/components/scope-stages/CostEstimateStage";
@@ -24,6 +31,7 @@ import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
+import { useClients } from "@/hooks/useClients";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
   useBriefIntelligence,
@@ -62,6 +70,44 @@ function concat(v: ScopeValues) {
   return `${v.enhanced_prose}\n${v.in_scope_md}\n${v.out_of_scope_md}\n${v.open_questions_md}`;
 }
 
+/** Inline-editable page title — briefs created straight into this page get
+ *  named here. Commits on blur / Enter, cancels on Escape. */
+function TitleField({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  return (
+    <input
+      type="text"
+      aria-label="Brief name"
+      placeholder="Name this brief…"
+      value={draft ?? value}
+      onFocus={() => setDraft(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = (draft ?? "").trim();
+        const cancelled = cancelledRef.current;
+        cancelledRef.current = false;
+        setDraft(null);
+        if (!cancelled && next !== value.trim()) onCommit(next);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        else if (e.key === "Escape") {
+          cancelledRef.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-title-large text-m-on-surface hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none"
+    />
+  );
+}
+
 export function Scope() {
   const { id } = useParams<{ id: string }>();
   const userId = useCurrentUserId();
@@ -72,6 +118,7 @@ export function Scope() {
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
+  const { data: clients } = useClients();
   const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
     paused: editingIntel,
   });
@@ -207,7 +254,14 @@ export function Scope() {
           <Link to="/briefs"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-title-large truncate">{brief.raw_subject ?? "(no subject)"}</h1>
+          <TitleField
+            value={brief.raw_subject ?? ""}
+            onCommit={(v) =>
+              updateBrief
+                .mutateAsync({ id: brief.id, patch: { raw_subject: v || null } })
+                .catch(() => toast.error("Failed to rename the brief"))
+            }
+          />
           <div className="flex items-center gap-2 mt-1">
             {briefed && (
               <Badge variant="success" className="text-label-small">
@@ -218,6 +272,29 @@ export function Scope() {
               <Badge variant="muted" className="text-label-small">
                 {INTENT_LABEL[brief.intent_type] ?? brief.intent_type}
               </Badge>
+            )}
+            {!brief.client_id && (
+              <Select
+                onValueChange={(v) =>
+                  updateBrief
+                    .mutateAsync({ id: brief.id, patch: { client_id: v } })
+                    .catch(() => toast.error("Failed to assign the client"))
+                }
+              >
+                <SelectTrigger
+                  className="h-7 w-56 text-label-medium"
+                  aria-label="Assign a client"
+                >
+                  <SelectValue placeholder="Assign a client…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(clients ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             {brief.sender_email && (
               <span className="text-body-small text-m-on-surface-variant">
