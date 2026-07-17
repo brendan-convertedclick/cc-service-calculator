@@ -20,7 +20,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const b = (await req.json()) as {
-      brief_id?: string; task_name?: string; assignee_member_id?: string | null;
+      brief_id?: string; task_name?: string; description?: string;
+      assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
       billing_type?: string;
@@ -98,8 +99,11 @@ Deno.serve(async (req: Request) => {
 
     const dateOfEngagement = new Date().toISOString().slice(0, 10);
     const dueDateMs = b.due_date ? Date.parse(b.due_date) : null;
+    // Operator-supplied description wins; fall back to task name + brief body.
+    const descriptionBody =
+      b.description?.trim() || `${b.task_name}\n\n${brief.raw_body ?? ""}`;
     const description =
-      `${b.task_name}\n\n${brief.raw_body ?? ""}\n\n---\n` +
+      `${descriptionBody}\n\n---\n` +
       `_Quick-briefed from inbox brief ${brief.id} on ${dateOfEngagement}` +
       `${briefedByName ? ` by ${briefedByName}` : ""}._`;
 

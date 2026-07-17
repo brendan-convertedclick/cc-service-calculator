@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -55,6 +56,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const createTask = useCreateQuickBriefTask();
 
   const [taskName, setTaskName] = useState("");
+  const [description, setDescription] = useState("");
   const [assignee, setAssignee] = useState<string>(UNASSIGNED);
   const [sprintPoints, setSprintPoints] = useState(1);
   const [workStream, setWorkStream] = useState("");
@@ -74,6 +76,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     if (!open) return;
     const draft = draftFromSuggestion(brief.quick_task_suggestion, brief.raw_subject ?? "");
     setTaskName(draft.task_name);
+    setDescription("");
     setAssignee(brief.assignee_id ?? UNASSIGNED);
     setSprintPoints(draft.sprint_points);
     setWorkStream(draft.work_stream);
@@ -166,6 +169,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
       const { clickup_task_url } = await createTask.mutateAsync({
         brief_id: brief.id,
         task_name: taskName.trim() || "Untitled task",
+        description: description.trim() || undefined,
         assignee_member_id: assignee === UNASSIGNED ? null : assignee,
         sprint_points: Math.max(1, Math.round(sprintPoints)),
         work_stream: workStream,
@@ -207,6 +211,17 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
               placeholder="What needs doing?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="qb-description">Task description</Label>
+            <Textarea
+              id="qb-description"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional — left blank, the task carries the brief's text."
             />
           </div>
 

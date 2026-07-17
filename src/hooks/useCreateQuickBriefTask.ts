@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 export type CreateQuickBriefArgs = {
   brief_id: string;
   task_name: string;
+  /** Optional ClickUp task description — omitted → task name + brief body. */
+  description?: string;
   assignee_member_id: string | null;
   sprint_points: number;
   work_stream: string;
