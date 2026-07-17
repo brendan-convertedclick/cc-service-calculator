@@ -175,9 +175,24 @@ export function useSetCEStatus(briefId: string | undefined) {
       }
       const { error } = await sb.from("change_estimates").update(patch).eq("id", input.ceId);
       if (error) throw error;
+
+      // Mirror the estimate's journey onto the brief so the pipeline reads
+      // right: sent → quoted, client approved → accepted (scheduling later
+      // moves it to briefed). Rejection keeps the brief where it is — the
+      // operator adjusts and re-sends.
+      const briefStatus =
+        input.status === "sent" ? "quoted" : input.status === "approved" ? "accepted" : null;
+      if (briefId && briefStatus) {
+        const { error: bErr } = await sb
+          .from("briefs")
+          .update({ status: briefStatus, updated_at: new Date().toISOString() })
+          .eq("id", briefId);
+        if (bErr) throw bErr;
+      }
     },
     onSettled: () => {
       if (briefId) qc.invalidateQueries({ queryKey: BRIEF_CE_KEY(briefId) });
+      qc.invalidateQueries({ queryKey: ["briefs"] });
     },
   });
 }
@@ -213,6 +228,10 @@ export function useScheduleBriefTasks(briefId: string | undefined) {
     mutationFn: async (input: {
       briefed_by_member_id?: string | null;
       tasks?: ScheduleTaskOverride[];
+      /** Target ClickUp list — omitted → server's folder heuristic. */
+      list_id?: string | null;
+      /** Status for created tasks — omitted → list default. */
+      status?: string | null;
     }): Promise<ScheduleResult> => {
       if (!briefId) throw new Error("Missing brief id");
       const session = (await supabase.auth.getSession()).data.session;

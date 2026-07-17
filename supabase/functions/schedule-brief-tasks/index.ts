@@ -26,6 +26,11 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import {
+  CONVERTED_CLICK_CHANNEL_ID,
+  mentionToken,
+  postChatMessage,
+} from "../_shared/clickup-chat.ts";
 
 type PlacementRow = {
   id: string;
@@ -70,6 +75,10 @@ Deno.serve(async (req: Request) => {
       brief_id?: string;
       briefed_by_member_id?: string | null;
       tasks?: TaskOverride[];
+      /** Target ClickUp list — chosen in Stage 5. Falls back to the folder heuristic. */
+      list_id?: string | null;
+      /** Status for created tasks — omitted → list default. */
+      status?: string | null;
     };
     if (!b.brief_id) return json({ error: "brief_id required" }, 400);
     const overrides = Array.isArray(b.tasks)
@@ -92,7 +101,7 @@ Deno.serve(async (req: Request) => {
     const { data: brief, error: bErr } = await sb
       .from("briefs")
       .select(
-        "id, raw_subject, status, client:clients(id, name, clickup_client_name, clickup_folder_id)",
+        "id, raw_subject, status, client:clients(id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id)",
       )
       .eq("id", b.brief_id)
       .single();
@@ -104,6 +113,7 @@ Deno.serve(async (req: Request) => {
         name: string;
         clickup_client_name: string | null;
         clickup_folder_id: string | null;
+        clickup_chat_channel_id: string | null;
       } | null;
     }).client;
     if (!client) return json({ error: "Brief has no client — assign a client first." }, 400);
@@ -173,7 +183,8 @@ Deno.serve(async (req: Request) => {
       briefedByName = (bm as { full_name: string | null } | null)?.full_name ?? null;
     }
 
-    // Resolve the client's target list (prefer a "projects" list) + its fields.
+    // Resolve the target list: the operator's Stage-5 choice when given,
+    // otherwise fall back to the folder heuristic (prefer a "projects" list).
     const CU = { headers: { Authorization: clickupPat, "Content-Type": "application/json" } };
     const listsRes = await fetch(
       `https://api.clickup.com/api/v2/folder/${client.clickup_folder_id}/list`,
@@ -182,7 +193,12 @@ Deno.serve(async (req: Request) => {
     if (!listsRes.ok) return json({ error: `ClickUp lists ${listsRes.status}: ${await listsRes.text()}` }, 502);
     const lists = ((await listsRes.json()).lists ?? []) as Array<{ id: string; name: string }>;
     if (lists.length === 0) return json({ error: `Client ${client.name} folder has no lists.` }, 400);
-    const list = lists.find((l) => /project/i.test(l.name)) ?? lists[0];
+    const list = (b.list_id && lists.find((l) => l.id === b.list_id)) ??
+      lists.find((l) => /project/i.test(l.name)) ??
+      lists[0];
+    if (b.list_id && list.id !== b.list_id) {
+      return json({ error: `List ${b.list_id} is not in ${client.name}'s ClickUp folder.` }, 400);
+    }
 
     const fieldsRes = await fetch(`https://api.clickup.com/api/v2/list/${list.id}/field`, CU);
     if (!fieldsRes.ok) return json({ error: `ClickUp fields ${fieldsRes.status}: ${await fieldsRes.text()}` }, 502);
@@ -196,6 +212,12 @@ Deno.serve(async (req: Request) => {
       name: string;
     }> = [];
     const failures: string[] = [];
+    const chatItems: Array<{
+      name: string;
+      points: number;
+      url: string;
+      assigneeClickupId: number | null;
+    }> = [];
     let skipped = 0;
 
     for (const t of tasks) {
@@ -230,6 +252,8 @@ Deno.serve(async (req: Request) => {
         assigneeClickupId: o?.assignee_clickup_id ?? null,
         dueDateMs: dueDateToMs(o?.due_date),
       });
+      // Stage-5 status choice — omitted → ClickUp uses the list default.
+      if (b.status) taskBody.status = b.status;
 
       const taskUrl = `https://api.clickup.com/api/v2/list/${list.id}/task`;
       let createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
@@ -288,15 +312,61 @@ Deno.serve(async (req: Request) => {
         clickup_task_url: cuTask.url,
         name,
       });
+      chatItems.push({
+        name,
+        points,
+        url: cuTask.url,
+        assigneeClickupId: o?.assignee_clickup_id ?? null,
+      });
+    }
+
+    // Notify the client's ClickUp Chat channel (Converted Click fallback) —
+    // mirrors create-quick-brief-task / create-adhoc-project. Best-effort:
+    // the tasks already exist, so a failed post never fails the request.
+    if (chatItems.length > 0) {
+      const assigneeIds = [
+        ...new Set(chatItems.map((c) => c.assigneeClickupId).filter((v): v is number => v != null)),
+      ];
+      const nameByClickupId = new Map<number, string>();
+      if (assigneeIds.length > 0) {
+        const { data: members } = await sb
+          .from("team_members")
+          .select("clickup_user_id, full_name")
+          .in("clickup_user_id", assigneeIds);
+        for (const m of (members ?? []) as Array<{ clickup_user_id: number | null; full_name: string | null }>) {
+          if (m.clickup_user_id != null && m.full_name) nameByClickupId.set(m.clickup_user_id, m.full_name);
+        }
+      }
+      const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
+      const content =
+        `🆕 New tasks briefed: **${brief.raw_subject ?? "brief"}** (${client.name}) · ` +
+        `${chatItems.length} task${chatItems.length !== 1 ? "s" : ""} → "${list.name}"\n` +
+        chatItems
+          .map((c) => {
+            const mention = mentionToken({
+              clickupUserId: c.assigneeClickupId,
+              name: c.assigneeClickupId != null ? nameByClickupId.get(c.assigneeClickupId) ?? null : null,
+            });
+            return `• ${mention} — ${c.name} · ${c.points} pt · ${c.url}`;
+          })
+          .join("\n");
+      const chatRes = await postChatMessage(clickupPat, chatChannelId, content);
+      if (!chatRes.ok) {
+        console.error(
+          `[schedule-brief-tasks] chat notify failed for brief ${brief.id} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
+      }
     }
 
     if (created.length > 0 || skipped > 0) {
       // Mark the pipeline stage complete (existing status used when work
       // lands in ClickUp) — only when nothing is left unscheduled.
       if (failures.length === 0) {
+        // Scheduled work is new_billable by definition — billed via the cost
+        // estimate, outside the retainer — so the brief is adhoc billing.
         await sb
           .from("briefs")
-          .update({ status: "briefed", updated_at: new Date().toISOString() })
+          .update({ status: "briefed", billing_type: "adhoc", updated_at: new Date().toISOString() })
           .eq("id", brief.id);
       }
       // In-app audit note (best-effort) — shows in the brief timeline.

@@ -2,9 +2,10 @@
 // estimate, then schedule the confirmed team-task breakdown to ClickUp
 // (one task per placement_task, via the schedule-brief-tasks edge function).
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, ChevronDown, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +58,14 @@ type TaskEdit = {
 };
 
 const UNASSIGNED = "unassigned";
+const STATUS_DEFAULT = "__default__";
+const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+type ListOption = {
+  id: string;
+  name: string;
+  statuses: Array<{ status: string }>;
+};
 
 interface Props {
   briefId: string;
@@ -82,6 +91,56 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
   // Ticked by default: track the UNticked set so new tasks arrive confirmed.
   const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const [edits, setEdits] = useState<Record<string, TaskEdit>>({});
+
+  // Destination: the client's ClickUp lists + per-list statuses, chosen here
+  // (mirrors the Brief-as-is sheet) instead of the server guessing a list.
+  const [listOptions, setListOptions] = useState<ListOption[]>([]);
+  const [listId, setListId] = useState("");
+  const [cuStatus, setCuStatus] = useState(STATUS_DEFAULT);
+  const [listsError, setListsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!brief?.client_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ client_id: brief.client_id }),
+        });
+        const body = (await res.json()) as { lists?: ListOption[]; error?: string };
+        if (cancelled) return;
+        if (!res.ok) {
+          setListsError(body.error ?? "Failed to load ClickUp lists");
+          return;
+        }
+        const fetched = body.lists ?? [];
+        setListOptions(fetched);
+        // Same default the server falls back to: the "projects" list, else first.
+        const projectList = fetched.find((l) => /project/i.test(l.name));
+        setListId((cur) => cur || (projectList?.id ?? fetched[0]?.id ?? ""));
+      } catch (e) {
+        if (!cancelled) setListsError(e instanceof Error ? e.message : "Failed to load ClickUp lists");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [brief?.client_id]);
+
+  const selectedList = useMemo(
+    () => listOptions.find((l) => l.id === listId),
+    [listOptions, listId],
+  );
+  // Statuses are per-list — reset to the list default when the list changes.
+  useEffect(() => {
+    setCuStatus(STATUS_DEFAULT);
+  }, [listId]);
 
   const client = useMemo(
     () => (clients ?? []).find((c) => c.id === brief?.client_id) ?? null,
@@ -170,6 +229,8 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
     schedule
       .mutateAsync({
         briefed_by_member_id: userId,
+        list_id: listId || null,
+        status: cuStatus === STATUS_DEFAULT ? null : cuStatus,
         // Only confirmed (ticked) tasks — the list doubles as the selection.
         tasks: confirmed.map((t): ScheduleTaskOverride => {
           const e = editFor(t);
@@ -293,6 +354,44 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
       {/* Approved → schedule */}
       {ce.status === "approved" && (
         <div className="space-y-3">
+          {unpushed.length > 0 && (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-64 space-y-1.5">
+                <Label>ClickUp list</Label>
+                <Select value={listId} onValueChange={setListId}>
+                  <SelectTrigger aria-label="ClickUp list">
+                    <SelectValue placeholder="Choose a list…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listOptions.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-48 space-y-1.5">
+                <Label>Status</Label>
+                <Select value={cuStatus} onValueChange={setCuStatus}>
+                  <SelectTrigger aria-label="Status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={STATUS_DEFAULT}>— List default —</SelectItem>
+                    {(selectedList?.statuses ?? []).map((s) => (
+                      <SelectItem key={s.status} value={s.status}>
+                        {s.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {listsError && (
+                <p className="text-label-small text-m-error">{listsError}</p>
+              )}
+            </div>
+          )}
           <Card>
             <CardContent className="divide-y divide-m-outline-variant p-0">
               {teamTasks.length === 0 && (
@@ -485,7 +584,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
                               ["Client", client?.clickup_client_name ?? client?.name ?? "—"],
                               ["Engagement type", "Task"],
                               ["Date of engagement", "Set to the day you schedule"],
-                              ["List", "Client's ClickUp Projects list"],
+                              ["List", selectedList?.name ?? "Choose above"],
                             ] as const
                           ).map(([k, v]) => (
                             <div key={k} className="flex items-baseline justify-between gap-3">
