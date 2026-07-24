@@ -172,7 +172,11 @@ Deno.serve(async (req: Request) => {
 
     // Notify the client's ClickUp Chat channel + ping the assignee. Best-effort:
     // the brief is already briefed, so a failed channel post must never fail the
-    // request — log and move on.
+    // request. But a *silently* dropped post is invisible — the task looks briefed
+    // yet no one is pinged (see the 2026-07-22 Trellidor miss). So we (1) retry the
+    // post a few times to ride out a transient ClickUp hiccup / rate-limit, and
+    // (2) if it still fails, drop a visible note on the brief timeline so an
+    // operator can re-send instead of never knowing.
     {
       // Post to the client's channel, or fall back to Converted Click if none.
       const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
@@ -183,11 +187,41 @@ Deno.serve(async (req: Request) => {
         points: b.sprint_points,
         taskUrl: created.url,
       });
-      const chatRes = await postChatMessage(clickupPat, chatChannelId, chatContent);
+
+      // Retry with linear backoff: ClickUp's chat API occasionally 5xx/429s on a
+      // single call, and this post runs last in a burst of task-create work, so
+      // it's the most likely to get throttled. 3 attempts @ 0/500/1000ms.
+      let chatRes = await postChatMessage(clickupPat, chatChannelId, chatContent);
+      for (let attempt = 1; attempt < 3 && !chatRes.ok; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt * 500));
+        console.warn(
+          `[create-quick-brief-task] chat notify retry ${attempt} for brief ${brief.id} (channel ${chatChannelId}): prev ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
+        chatRes = await postChatMessage(clickupPat, chatChannelId, chatContent);
+      }
+
       if (!chatRes.ok) {
         console.error(
-          `[create-quick-brief-task] chat notify failed for brief ${brief.id} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[create-quick-brief-task] chat notify FAILED after retries for brief ${brief.id} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
+        // Surface the miss on the brief timeline so it's not invisible. Best-effort
+        // itself — never let this fail the request.
+        try {
+          await sb.from("brief_messages").insert({
+            brief_id: brief.id,
+            gmail_message_id: `note-${crypto.randomUUID()}`,
+            direction: "note",
+            body_text:
+              `⚠ Channel notification did not send for this brief (ClickUp chat ${chatRes.status ?? "error"}). ` +
+              `The task was created and assigned fine — only the channel ping to ${assigneeName ?? "the team"} failed. Re-send it manually if needed.`,
+            relayed_by: "conductor",
+            sent_at: new Date().toISOString(),
+            to_emails: [],
+            cc_emails: [],
+          });
+        } catch (noteEx) {
+          console.error(`[create-quick-brief-task] chat-fail note insert threw for brief ${brief.id}: ${noteEx instanceof Error ? noteEx.message : String(noteEx)}`);
+        }
       }
     }
 

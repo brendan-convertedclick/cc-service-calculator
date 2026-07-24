@@ -311,31 +311,130 @@ Deno.serve(async (req: Request) => {
     // placement_tasks. Bounded (oldest-synced first) so a growing backlog
     // can't blow the cron out; each tick catches the stalest rows.
     let briefStatusUpdates = 0;
-    const fetchStatus = async (taskId: string): Promise<string | null> => {
+    const POINT_TO_MIN = 15; // keep in sync with _shared/clickup.ts
+    type CuTask = {
+      status?: { status?: string };
+      points?: number | null;
+      time_spent?: number | null;
+      due_date?: string | null;
+      date_closed?: string | null;
+      date_done?: string | null;
+    };
+    const fetchTask = async (taskId: string): Promise<CuTask | null> => {
       try {
         const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}?include_subtasks=false`, CU);
         if (!res.ok) return null;
-        const task = (await res.json()) as { status?: { status?: string } };
-        return task.status?.status?.toLowerCase() ?? null;
+        return (await res.json()) as CuTask;
       } catch {
         return null;
       }
     };
+    const statusOf = (task: CuTask | null): string | null =>
+      task?.status?.status?.toLowerCase() ?? null;
+
+    // Client-waiting clock: cumulative time a task sat in the "send to client"
+    // status = the client's court. One BULK call covers up to 100 task IDs, so
+    // this adds a single request per tick, not one per task. total_time.by_minute
+    // is the cumulative minutes in that status across all visits.
+    // Statuses that put the task in the client's court (lower-cased match).
+    const CLIENT_WAIT_STATUSES = new Set(["waiting on client", "send to client"]);
+    // ClickUp's bulk time-in-status wraps results under `tasks`, reports minutes
+    // as `total_time_minutes`, and `status_history` ALREADY includes the current
+    // status — so we sum history only (adding current_status would double-count).
+    type StatusTime = { status?: string; total_time_minutes?: number };
+    const fetchClientWaitMap = async (taskIds: string[]): Promise<Map<string, number>> => {
+      const map = new Map<string, number>();
+      if (taskIds.length === 0) return map;
+      try {
+        // ClickUp's bulk endpoint takes REPEATED `task_ids=` params (no []).
+        const params = taskIds.map((id) => `task_ids=${encodeURIComponent(id)}`).join("&");
+        const res = await fetch(
+          `https://api.clickup.com/api/v2/task/bulk_time_in_status/task_ids?${params}`,
+          CU,
+        );
+        if (!res.ok) {
+          console.warn(`[client-wait] bulk time_in_status ${res.status}: ${(await res.text()).slice(0, 200)}`);
+          return map;
+        }
+        // The raw REST API returns the map at the TOP LEVEL ({ "<taskId>": {...} });
+        // some wrappers nest it under `tasks`. Handle both, and skip any non-task
+        // scalar entries (e.g. a top-level task_count) via the status_history guard.
+        const body = await res.json() as Record<string, unknown> & {
+          tasks?: Record<string, unknown>;
+        };
+        const taskMap = (body.tasks ?? body) as Record<string, { status_history?: StatusTime[] }>;
+        for (const [taskId, data] of Object.entries(taskMap)) {
+          if (!data || typeof data !== "object" || !Array.isArray(data.status_history)) continue;
+          let minutes = 0;
+          for (const e of data.status_history) {
+            if (CLIENT_WAIT_STATUSES.has((e.status ?? "").toLowerCase())) {
+              minutes += Number(e.total_time_minutes ?? 0);
+            }
+          }
+          map.set(taskId, Math.round(minutes * 60_000));
+        }
+        console.log(
+          `[client-wait] resolved ${map.size}/${taskIds.length} tasks; ` +
+            `${[...map.values()].filter((v) => v > 0).length} with client-wait`,
+        );
+      } catch (e) {
+        console.warn(`[client-wait] bulk time_in_status threw: ${e instanceof Error ? e.message : e}`);
+      }
+      return map;
+    };
 
     const { data: briefTasks } = await supabase
       .from("briefs")
-      .select("id, clickup_task_id")
+      .select("id, clickup_task_id, original_points, original_due_date")
       .eq("status", "briefed")
       .not("clickup_task_id", "is", null)
       .order("clickup_status_synced_at", { ascending: true, nullsFirst: true })
       .limit(60);
-    for (const b of (briefTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
-      const status = await fetchStatus(b.clickup_task_id);
-      if (status === null) continue;
-      const { error } = await supabase
-        .from("briefs")
-        .update({ clickup_task_status: status, clickup_status_synced_at: new Date().toISOString() })
-        .eq("id", b.id);
+    const clientWaitMap = await fetchClientWaitMap(
+      (briefTasks ?? []).map((b) => (b as { clickup_task_id: string }).clickup_task_id),
+    );
+    for (const b of (briefTasks ?? []) as Array<{ id: string; clickup_task_id: string; original_points: number | null; original_due_date: string | null }>) {
+      const task = await fetchTask(b.clickup_task_id);
+      const status = statusOf(task);
+      if (status === null || !task) continue;
+      const isComplete = status === "complete" || status === "closed" || status === "done";
+      const timeSpent = Number(task.time_spent ?? 0);
+      const actualHours = timeSpent ? Math.round((timeSpent / 3_600_000) * 100) / 100 : 0;
+      const actualPoints = timeSpent ? Math.round((timeSpent / 60_000 / POINT_TO_MIN) * 100) / 100 : 0;
+      // Estimated = the frozen original allocation (freeze it here if still null).
+      let originalPoints = b.original_points != null ? Number(b.original_points) : null;
+      if (originalPoints == null && task.points != null) originalPoints = task.points;
+      // Original due date = accountability baseline: freeze it, and measure the
+      // late flag against it (not the current, possibly-extended, task due date).
+      const taskDueStr = task.due_date ? new Date(Number(task.due_date)).toISOString().slice(0, 10) : null;
+      let originalDue = b.original_due_date;
+      if (originalDue == null && taskDueStr != null) originalDue = taskDueStr;
+      const completedMs = task.date_done ?? task.date_closed ?? null;
+      // Compare on a CALENDAR-DAY basis, not exact timestamp. ClickUp date-only
+      // due dates land at a fixed time-of-day (e.g. 02:00Z), so an exact
+      // completedMs > dueMs comparison flags *any* same-day completion as late.
+      // Late = completed on a later calendar day than the due date. This matches
+      // the brief panel's date-granularity daysLate(), so list and detail agree.
+      const completedDayStr = completedMs != null ? new Date(Number(completedMs)).toISOString().slice(0, 10) : null;
+      const overBudget = isComplete && originalPoints != null && actualPoints > originalPoints + 0.001;
+      const closedLate = isComplete && originalDue != null && completedDayStr != null && completedDayStr > originalDue;
+      const patch: Record<string, unknown> = {
+        clickup_task_status: status,
+        clickup_status_synced_at: new Date().toISOString(),
+        actual_hours: actualHours,
+        actual_points: actualPoints,
+        // Flags only apply once complete; clear them if a task is reopened.
+        over_budget: isComplete ? overBudget : false,
+        closed_late: isComplete ? closedLate : false,
+        completed_at: isComplete && completedMs ? new Date(Number(completedMs)).toISOString() : null,
+      };
+      if (b.original_points == null && originalPoints != null) patch.original_points = originalPoints;
+      if (b.original_due_date == null && originalDue != null) patch.original_due_date = originalDue;
+      // Client-waiting clock (time in "send to client"). Only patch when the bulk
+      // call returned a value for this task, so a failed call never zeroes it.
+      const clientWaitMs = clientWaitMap.get(b.clickup_task_id);
+      if (clientWaitMs != null) patch.client_wait_ms = clientWaitMs;
+      const { error } = await supabase.from("briefs").update(patch).eq("id", b.id);
       if (!error) briefStatusUpdates++;
     }
 
@@ -346,7 +445,7 @@ Deno.serve(async (req: Request) => {
       .order("clickup_status_synced_at", { ascending: true, nullsFirst: true })
       .limit(60);
     for (const t of (schedTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
-      const status = await fetchStatus(t.clickup_task_id);
+      const status = statusOf(await fetchTask(t.clickup_task_id));
       if (status === null) continue;
       const { error } = await supabase
         .from("placement_tasks")

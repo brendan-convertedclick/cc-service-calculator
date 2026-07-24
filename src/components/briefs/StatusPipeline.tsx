@@ -19,7 +19,15 @@ export const PIPELINE_STATUSES: BriefStatus[] = [
   "briefed",
 ];
 
-export type PipelineSelection = BriefStatus | "all";
+/** Post-briefed execution buckets, derived from the brief's ClickUp task status. */
+export type ExecutionBucket = "backlog" | "in_progress" | "completed";
+export type PipelineSelection = BriefStatus | "all" | ExecutionBucket;
+
+export const EXECUTION_LABEL: Record<ExecutionBucket, string> = {
+  backlog: "Backlog",
+  in_progress: "In Progress",
+  completed: "Completed",
+};
 
 interface StatusPipelineProps {
   counts: Partial<Record<BriefStatus, number>>;
@@ -30,18 +38,28 @@ interface StatusPipelineProps {
   className?: string;
 }
 
-function Pill({
+/**
+ * A single filter pill. `tone` distinguishes the two loops: "primary" for the
+ * Conductor pipeline, "secondary" for the ClickUp delivery filter.
+ */
+export function Pill({
   label,
   count,
   active,
   onClick,
+  tone = "primary",
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
+  tone?: "primary" | "secondary";
 }) {
   const empty = count === 0;
+  const activeCls =
+    tone === "secondary"
+      ? "border-transparent bg-m-secondary-container text-m-on-secondary-container"
+      : "border-transparent bg-m-primary text-m-on-primary";
   return (
     <button
       type="button"
@@ -50,7 +68,7 @@ function Pill({
       className={cn(
         "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-label-medium tracking-normal transition-colors",
         active
-          ? "border-transparent bg-m-primary text-m-on-primary"
+          ? activeCls
           : empty
             ? "border-m-outline-variant text-m-on-surface-variant/70 hover:bg-m-surface-container"
             : "border-m-outline text-m-on-surface hover:bg-m-surface-container",

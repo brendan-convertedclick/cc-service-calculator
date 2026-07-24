@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from "react"
-import { Calculator, ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
@@ -221,12 +221,14 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
       >
         {/* Logo + app name */}
         <div className={cn("flex items-center gap-2.5 mb-1 shrink-0", navOpen ? "px-0" : "justify-center")}>
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-gradient-brand text-white">
-            <Calculator className="h-[18px] w-[18px]" />
-          </div>
+          <img
+            src="/conductor-mark.png"
+            alt="Conductor"
+            className="h-9 w-9 shrink-0 object-contain"
+          />
           <span
             className={cn(
-              "whitespace-nowrap overflow-hidden transition-[opacity,max-width] duration-200 ease-out text-label-large font-bold bg-gradient-brand bg-clip-text text-transparent",
+              "whitespace-nowrap overflow-hidden transition-[opacity,max-width] duration-200 ease-out text-label-large font-bold text-m-on-surface",
               navOpen ? "opacity-100 max-w-[160px]" : "opacity-0 max-w-0",
             )}
           >

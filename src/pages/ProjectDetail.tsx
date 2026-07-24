@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectCommunications } from "@/components/projects/ProjectCommunications";
 import { RetainerServicesEditor } from "@/components/retainers/RetainerServicesEditor";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
+import { computeProjectProgress } from "@/lib/project-status";
 import { useDepartments } from "@/hooks/useDepartments";
 import { currentMonthKey, filterBurnActuals, monthRange } from "@/hooks/usePulseRetainerBurn";
 import type { Database } from "@/types/db";
@@ -100,6 +101,12 @@ export function ProjectDetail() {
 
   const totalPlanned = rows.reduce((a, r) => a + r.planned, 0);
   const totalActual = rows.reduce((a, r) => a + r.actual, 0);
+
+  // Overall completion — same computation the Projects list uses for its ring,
+  // shown here as a linear bar once a project is opened.
+  const progress = computeProjectProgress(actuals);
+  const progressPct = Math.round(progress.taskPct * 100);
+  const hoursPct = Math.round(progress.timePct * 100);
 
   const engagementType = project.engagement_type ?? "fixed";
   const isRetainer = engagementType === "retainer";
@@ -319,6 +326,25 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                 Planned: <strong>{totalPlanned.toFixed(1)}h</strong> · Actual:{" "}
                 <strong>{totalActual.toFixed(1)}h</strong>
               </div>
+              {progress.taskTotal > 0 && (
+                <div
+                  className="mt-3 max-w-md"
+                  title={`Tasks ${progress.taskComplete}/${progress.taskTotal} (${progressPct}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${hoursPct}%)`}
+                >
+                  <div className="mb-1 flex items-center justify-between text-label-small text-m-on-surface-variant">
+                    <span>Progress</span>
+                    <span className="text-m-on-surface">
+                      {progressPct}% · {progress.taskComplete}/{progress.taskTotal} tasks
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-m-surface-container-high">
+                    <div
+                      className="h-full rounded-full bg-m-primary transition-all"
+                      style={{ width: `${Math.min(100, progressPct)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <Button
               variant="outline"

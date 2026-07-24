@@ -6,6 +6,7 @@
 // source "manual" so it re-enters the pipeline from the top.
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +49,7 @@ interface DuplicateBriefDialogProps {
 }
 
 export function DuplicateBriefDialog({ brief, open, onOpenChange }: DuplicateBriefDialogProps) {
+  const navigate = useNavigate();
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const createBrief = useCreateBrief();
@@ -71,7 +73,7 @@ export function DuplicateBriefDialog({ brief, open, onOpenChange }: DuplicateBri
   const handleDuplicate = async () => {
     if (!brief) return;
     try {
-      await createBrief.mutateAsync({
+      const created = await createBrief.mutateAsync({
         raw_subject: name.trim() || "(no subject)",
         raw_body: body,
         client_id: clientId === NO_CLIENT ? null : clientId,
@@ -84,6 +86,8 @@ export function DuplicateBriefDialog({ brief, open, onOpenChange }: DuplicateBri
       });
       toast.success("Brief duplicated");
       onOpenChange(false);
+      // Land the user on the fresh copy rather than leaving them on the source.
+      if (created?.id) navigate(`/briefs/${created.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to duplicate brief");
     }

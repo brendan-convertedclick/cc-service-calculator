@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calculator } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,9 +46,7 @@ export function Login() {
       <Card className="w-full max-w-sm shadow-elev-2">
         <CardHeader className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-md bg-m-primary-container text-m-on-primary-container">
-              <Calculator className="h-5 w-5" />
-            </div>
+            <img src="/conductor-mark.png" alt="Conductor" className="h-10 w-10 shrink-0 object-contain" />
             <div>
               <div className="text-title-small text-m-on-surface">Conductor</div>
               <div className="text-label-small text-m-on-surface-variant">Service pricing</div>

@@ -75,6 +75,7 @@ Deno.serve(async (req: Request) => {
     const scope = (quote as {
       scope: {
         brief: {
+          id: string;
           raw_subject: string | null;
           client_id: string;
           client: { id: string; name: string; clickup_folder_id: string | null; clickup_client_name: string | null; clickup_chat_channel_id: string | null } | null;
@@ -641,11 +642,43 @@ Deno.serve(async (req: Request) => {
         .map((l) => `- ${l.mention ? `${l.mention} · ` : ""}${l.name} · ${l.url}`)
         .join("\n");
       const workspaceId = settings.clickup_workspace_id ? String(settings.clickup_workspace_id) : undefined;
-      const chatRes = await postChatMessage(clickupPat, chatChannelId, `${header}\n${bullets}`, workspaceId);
+      const chatBody = `${header}\n${bullets}`;
+
+      // Retry with linear backoff to ride out a transient ClickUp chat 5xx/429
+      // (3 attempts @ 0/500/1000ms) instead of silently dropping the ping.
+      let chatRes = await postChatMessage(clickupPat, chatChannelId, chatBody, workspaceId);
+      for (let attempt = 1; attempt < 3 && !chatRes.ok; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt * 500));
+        console.warn(
+          `[push-to-clickup] chat notify retry ${attempt} for project ${projectId} (channel ${chatChannelId}): prev ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+        );
+        chatRes = await postChatMessage(clickupPat, chatChannelId, chatBody, workspaceId);
+      }
+
       if (!chatRes.ok) {
         console.error(
-          `[push-to-clickup] chat notify failed for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[push-to-clickup] chat notify FAILED after retries for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
+        // Surface the miss on the brief timeline so it's not invisible.
+        const failBriefId = scope.brief?.id;
+        if (failBriefId) {
+          try {
+            await supabase.from("brief_messages").insert({
+              brief_id: failBriefId,
+              gmail_message_id: `note-${crypto.randomUUID()}`,
+              direction: "note",
+              body_text:
+                `⚠ Channel notification did not send for this push (ClickUp chat ${chatRes.status ?? "error"}). ` +
+                `The project and ${chatLines.length} task${chatLines.length === 1 ? "" : "s"} were created fine — only the channel ping failed. Re-send it manually if needed.`,
+              relayed_by: "conductor",
+              sent_at: new Date().toISOString(),
+              to_emails: [],
+              cc_emails: [],
+            });
+          } catch (noteEx) {
+            console.error(`[push-to-clickup] chat-fail note insert threw for project ${projectId}: ${noteEx instanceof Error ? noteEx.message : String(noteEx)}`);
+          }
+        }
       }
     }
 

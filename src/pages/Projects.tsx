@@ -66,7 +66,17 @@ export function Projects() {
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<DerivedStatus>>(new Set());
+  const [view, setView] = useState<"active" | "completed" | "archived">("active");
   const q = search.trim().toLowerCase();
+
+  const archivedCount = useMemo(
+    () => enriched.filter((e) => e.status === "archived").length,
+    [enriched],
+  );
+  const completedCount = useMemo(
+    () => enriched.filter((e) => e.status === "complete").length,
+    [enriched],
+  );
 
   const clientOptions = useMemo(() => {
     const ids = new Set<string>();
@@ -82,12 +92,21 @@ export function Projects() {
   const statusOptions = useMemo(() => {
     const present = new Set<DerivedStatus>();
     for (const { status } of enriched) present.add(status);
-    return STATUS_ORDER.filter((s) => present.has(s));
+    // "complete" and "archived" get their own view tabs, not this filter.
+    return STATUS_ORDER.filter((s) => s !== "archived" && s !== "complete" && present.has(s));
   }, [enriched]);
 
   const filtered = useMemo(
     () =>
       enriched.filter(({ project, status }) => {
+        // Completed and archived projects each live in their own view tab.
+        if (view === "archived") {
+          if (status !== "archived") return false;
+        } else if (view === "completed") {
+          if (status !== "complete") return false;
+        } else if (status === "archived" || status === "complete") {
+          return false;
+        }
         const cid = (project as { client_id?: string | null }).client_id;
         if (selectedClients.size > 0) {
           if (!cid || !selectedClients.has(cid)) return false;
@@ -100,7 +119,7 @@ export function Projects() {
         }
         return true;
       }),
-    [enriched, selectedClients, selectedStatuses, q, clientById],
+    [enriched, selectedClients, selectedStatuses, q, clientById, view],
   );
 
   // Collapse the client column into per-client groups (matches the Briefs list).
@@ -247,7 +266,35 @@ export function Projects() {
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-headline-medium">Projects</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-headline-medium">Projects</h1>
+            <div className="inline-flex rounded-full border border-m-outline-variant p-0.5">
+              {(["active", "completed", "archived"] as const).map((v) => {
+                const active = view === v;
+                const label =
+                  v === "active"
+                    ? "Active"
+                    : v === "completed"
+                      ? `Completed${completedCount > 0 ? ` (${completedCount})` : ""}`
+                      : `Archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    aria-pressed={active}
+                    className={`rounded-full px-3 py-1 text-label-large transition-colors ${
+                      active
+                        ? "bg-m-secondary-container text-m-on-secondary-container"
+                        : "text-m-on-surface-variant hover:bg-m-surface-container"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <Button asChild>
             <Link to="/projects/new">+ New Project</Link>
           </Button>
@@ -256,6 +303,14 @@ export function Projects() {
         {projects.length === 0 ? (
           <div className="text-body-medium text-m-on-surface-variant">
             No projects yet. Accept a brief from the Inbox to start one.
+          </div>
+        ) : view === "archived" && archivedCount === 0 ? (
+          <div className="text-body-medium text-m-on-surface-variant">
+            No archived projects. Archive one from the Active view and it moves here.
+          </div>
+        ) : view === "completed" && completedCount === 0 ? (
+          <div className="text-body-medium text-m-on-surface-variant">
+            No completed projects yet. Projects appear here once all their tasks are done.
           </div>
         ) : clientGroups.length > 0 ? (
         <Card>

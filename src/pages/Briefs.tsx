@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, Calendar, Copy, MessageSquare, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Clock, Copy, Flag, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,12 @@ import {
   PIPELINE_STATUSES,
   StatusPipeline,
   type PipelineSelection,
+  type ExecutionBucket,
 } from "@/components/briefs/StatusPipeline";
 import { BriefConversation } from "@/components/BriefConversation";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
+import { EditBriefedTaskDialog } from "@/components/briefs/EditBriefedTaskDialog";
+import { DeliveryFilter } from "@/components/briefs/DeliveryFilter";
 import { useBrief, useBriefs, useCreateBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import {
   progressFromStatuses,
@@ -96,6 +99,7 @@ export function Briefs() {
     () => loadFilters().pipelineStatus ?? "all",
   );
   const [duplicating, setDuplicating] = useState<(typeof allBriefs)[number] | null>(null);
+  const [editingTask, setEditingTask] = useState<(typeof allBriefs)[number] | null>(null);
   const [search, setSearch] = useState(() => loadFilters().search ?? "");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(
     () => new Set(loadFilters().clients ?? []),
@@ -201,14 +205,39 @@ export function Briefs() {
     return counts;
   }, [pipelineBriefs]);
 
-  // "All" means the live pipeline — archived only shows via its own pill.
-  const filteredBriefs = useMemo(
-    () =>
-      pipelineStatus === "all"
-        ? pipelineBriefs.filter((b) => b.status !== "archived")
-        : pipelineBriefs.filter((b) => b.status === pipelineStatus),
-    [pipelineBriefs, pipelineStatus],
-  );
+  // Post-briefed execution bucket per brief, from the ClickUp status its tasks
+  // are in (scheduled placement_tasks when present, else the quick-briefed
+  // task). Only briefed briefs with a synced status land in a bucket.
+  const executionByBrief = useMemo(() => {
+    const map = new Map<string, ExecutionBucket>();
+    for (const b of pipelineBriefs) {
+      if (b.status !== "briefed") continue;
+      const statuses =
+        scheduledStatuses?.get(b.id) ?? (b.clickup_task_status ? [b.clickup_task_status] : []);
+      const progress = progressFromStatuses(statuses);
+      if (!progress) continue;
+      if (progress.done === progress.total) map.set(b.id, "completed");
+      else if (progress.pct > 0) map.set(b.id, "in_progress");
+      else map.set(b.id, "backlog");
+    }
+    return map;
+  }, [pipelineBriefs, scheduledStatuses]);
+
+  const executionCounts = useMemo(() => {
+    const c: Record<ExecutionBucket, number> = { backlog: 0, in_progress: 0, completed: 0 };
+    for (const bucket of executionByBrief.values()) c[bucket] += 1;
+    return c;
+  }, [executionByBrief]);
+
+  // "All" means the live pipeline — archived only shows via its own pill. The
+  // execution buckets filter briefed briefs by their ClickUp task status.
+  const filteredBriefs = useMemo(() => {
+    if (pipelineStatus === "all") return pipelineBriefs.filter((b) => b.status !== "archived");
+    if (pipelineStatus === "backlog" || pipelineStatus === "in_progress" || pipelineStatus === "completed") {
+      return pipelineBriefs.filter((b) => executionByBrief.get(b.id) === pipelineStatus);
+    }
+    return pipelineBriefs.filter((b) => b.status === pipelineStatus);
+  }, [pipelineBriefs, pipelineStatus, executionByBrief]);
 
   // Collapse the client column into per-client groups (matches the Retainers
   // list); rows keep their newest-first order within each client.
@@ -406,12 +435,21 @@ export function Briefs() {
             </Button>
           </div>
           {visibleBriefs.length > 0 && (
-            <StatusPipeline
-              counts={statusCounts}
-              active={pipelineStatus}
-              onSelect={setPipelineStatus}
-              showArchived
-            />
+            <div className="space-y-2">
+              <StatusPipeline
+                counts={statusCounts}
+                active={pipelineStatus}
+                onSelect={setPipelineStatus}
+                showArchived
+              />
+              {(statusCounts.briefed ?? 0) > 0 && (
+                <DeliveryFilter
+                  counts={executionCounts}
+                  active={pipelineStatus}
+                  onSelect={setPipelineStatus}
+                />
+              )}
+            </div>
           )}
         </div>
 
@@ -457,6 +495,41 @@ export function Briefs() {
                             const isBriefed = b.status === "briefed" && !!b.clickup_task_url;
                             const isArchived = b.status === "archived";
                             const isAdhoc = b.billing_type === "adhoc";
+                            // Completion flags synced from ClickUp (types lag select("*")).
+                            const flags = b as unknown as {
+                              over_budget?: boolean | null;
+                              closed_late?: boolean | null;
+                              client_wait_ms?: number | null;
+                              client_delay_manual?: boolean | null;
+                              original_due_date?: string | null;
+                              completed_at?: string | null;
+                            };
+                            const overBudget = !!flags.over_budget;
+                            const closedLate = !!flags.closed_late;
+                            // Attribute a late close: client-caused if the days it ran over are
+                            // covered by time the task spent waiting on the client.
+                            const clientWaitDays =
+                              flags.client_wait_ms != null ? flags.client_wait_ms / 86_400_000 : 0;
+                            const daysLate =
+                              closedLate && flags.original_due_date && flags.completed_at
+                                ? Math.max(
+                                    0,
+                                    Math.round(
+                                      (Date.parse(`${flags.completed_at.slice(0, 10)}T00:00:00Z`) -
+                                        Date.parse(`${flags.original_due_date}T00:00:00Z`)) /
+                                        86_400_000,
+                                    ),
+                                  )
+                                : 0;
+                            const clientCausedLate =
+                              closedLate && daysLate > 0 && (clientWaitDays >= daysLate || !!flags.client_delay_manual);
+                            const internalLate = closedLate && !clientCausedLate;
+                            const flagTitle = [overBudget && "Over budget", internalLate && "Closed past due date (internal)"]
+                              .filter(Boolean)
+                              .join(" · ");
+                            const clientLateTitle = clientCausedLate
+                              ? `Closed past due — client delay (waiting on client ~${Math.max(1, Math.round(clientWaitDays))}d)`
+                              : "";
                             return (
                               <TableRow
                                 key={b.id}
@@ -473,8 +546,24 @@ export function Briefs() {
                                   </time>
                                 </TableCell>
                                 <TableCell className="max-w-[420px]">
-                                  <div className="whitespace-normal break-words text-body-small text-m-on-surface">
-                                    {b.raw_subject ?? "(no subject)"}
+                                  <div className="flex items-start gap-1.5">
+                                    {(flagTitle || clientLateTitle) && (
+                                      <span className="mt-0.5 flex shrink-0 items-center gap-0.5">
+                                        {flagTitle && (
+                                          <span title={flagTitle} aria-label={flagTitle}>
+                                            <Flag className="h-3.5 w-3.5 fill-destructive text-destructive" />
+                                          </span>
+                                        )}
+                                        {clientLateTitle && (
+                                          <span title={clientLateTitle} aria-label={clientLateTitle}>
+                                            <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                          </span>
+                                        )}
+                                      </span>
+                                    )}
+                                    <div className="whitespace-normal break-words text-body-small text-m-on-surface">
+                                      {b.raw_subject ?? "(no subject)"}
+                                    </div>
                                   </div>
                                   <div className="text-label-small text-m-on-surface-variant">
                                     {b.sender_email ?? "manual"}
@@ -530,6 +619,21 @@ export function Briefs() {
                                     >
                                       <MessageSquare className="h-4 w-4" />
                                     </Button>
+                                    {isBriefed && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="Edit briefed task"
+                                        title="Edit task name, points, due date"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          setEditingTask(b);
+                                        }}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -588,6 +692,14 @@ export function Briefs() {
           open={!!duplicating}
           onOpenChange={(o) => {
             if (!o) setDuplicating(null);
+          }}
+        />
+
+        <EditBriefedTaskDialog
+          brief={editingTask}
+          open={!!editingTask}
+          onOpenChange={(o) => {
+            if (!o) setEditingTask(null);
           }}
         />
         </div>

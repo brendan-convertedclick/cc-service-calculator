@@ -1,7 +1,7 @@
 // src/pages/Scope.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Copy, ExternalLink } from "lucide-react";
+import { ArrowLeft, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import { ScopeEditor } from "@/components/ScopeEditor";
 import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
+import { BriefedTaskPanel } from "@/components/briefs/BriefedTaskPanel";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
@@ -115,6 +116,7 @@ export function Scope() {
   const [editingIntel, setEditingIntel] = useState(false);
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(false);
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
@@ -303,6 +305,12 @@ export function Scope() {
             )}
           </div>
         </div>
+        {briefed && brief.clickup_task_url && !editingTask && (
+          <Button variant="outline" size="sm" onClick={() => setEditingTask(true)}>
+            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+            Edit task
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
           <Copy className="mr-1.5 h-3.5 w-3.5" />
           Duplicate
@@ -338,28 +346,14 @@ export function Scope() {
 
       {briefedAsIs ? (
         /* Briefed as-is: the work is already a ClickUp task, so the staged
-           scoping flow doesn't apply. */
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <div className="grid h-12 w-12 place-items-center rounded-full bg-m-primary-container">
-              <CheckCircle2 className="h-6 w-6 text-m-on-primary-container" />
-            </div>
-            <h2 className="text-title-medium text-m-on-surface">Briefed as-is</h2>
-            <p className="max-w-md text-body-small text-m-on-surface-variant">
-              This brief was pushed straight to ClickUp as a task, so the scoping
-              flow doesn&apos;t apply. If it turns out to need scoping after all,
-              duplicate the brief and run the copy through the stages.
-            </p>
-            {brief.clickup_task_url && (
-              <Button asChild variant="outline" size="sm">
-                <a href={brief.clickup_task_url} target="_blank" rel="noreferrer">
-                  View task in ClickUp
-                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                </a>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+           scoping flow doesn't apply. Show the task's details read-only; the
+           header "Edit task" button flips the synced fields to editable. */
+        <BriefedTaskPanel
+          brief={brief}
+          howBriefed="Briefed as-is"
+          editing={editingTask}
+          onExitEdit={() => setEditingTask(false)}
+        />
       ) : (
       <div className="space-y-3">
         {/* Stage 1 — In / Out of Scope (the gate) */}
