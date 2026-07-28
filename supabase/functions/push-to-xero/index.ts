@@ -143,41 +143,64 @@ Deno.serve(async (req: Request) => {
     // Load line items from frozen snapshot.
     const { data: lineRows, error: lErr } = await supabase
       .from("quote_line_item_allocations")
-      .select("service_name,qty,unit_price_cents,subtotal_cents,xero_code")
+      .select("service_name,qty,unit_price_cents,subtotal_cents,cost_share_cents,xero_code")
       .eq("quote_id", quote_id)
       .order("ordinal");
     if (lErr) return json({ error: lErr.message }, 500);
 
-    // Aggregate by service_name to avoid per-department duplicates.
-    const lineMap = new Map<string, {
-      description: string;
-      quantity: number;
-      unitAmountCents: number;
-      xeroCode: string | null;
-    }>();
-    for (const row of (lineRows ?? []) as Array<{
+    type LineRow = {
       service_name: string;
       qty: number;
       unit_price_cents: number;
       subtotal_cents: number;
+      cost_share_cents: number;
       xero_code: string | null;
-    }>) {
-      if (!lineMap.has(row.service_name)) {
-        lineMap.set(row.service_name, {
-          description: row.service_name,
-          quantity: row.qty,
-          unitAmountCents: row.unit_price_cents,
-          xeroCode: row.xero_code,
+    };
+
+    // Each service can appear once per department split (same qty/price,
+    // different xero_code per department). When every split for a service
+    // shares one xero_code, emit a single full-qty line. When splits land on
+    // different accounts, emit one line per account priced off that
+    // department's cost_share so the total still matches the quote.
+    const byService = new Map<string, LineRow[]>();
+    for (const row of (lineRows ?? []) as LineRow[]) {
+      const group = byService.get(row.service_name) ?? [];
+      group.push(row);
+      byService.set(row.service_name, group);
+    }
+
+    const lineItems: Array<{
+      Description: string;
+      Quantity: number;
+      UnitAmount: number;
+      AccountCode: string;
+    }> = [];
+    for (const [serviceName, group] of byService) {
+      const codes = new Set(group.map((r) => r.xero_code ?? "200"));
+      if (codes.size <= 1) {
+        const first = group[0];
+        lineItems.push({
+          Description: serviceName,
+          Quantity: first.qty,
+          UnitAmount: +(first.unit_price_cents / 100).toFixed(2),
+          AccountCode: first.xero_code ?? "200",
+        });
+        continue;
+      }
+      const centsByCode = new Map<string, number>();
+      for (const r of group) {
+        const code = r.xero_code ?? "200";
+        centsByCode.set(code, (centsByCode.get(code) ?? 0) + r.cost_share_cents);
+      }
+      for (const [code, cents] of centsByCode) {
+        lineItems.push({
+          Description: serviceName,
+          Quantity: 1,
+          UnitAmount: +(cents / 100).toFixed(2),
+          AccountCode: code,
         });
       }
     }
-
-    const lineItems = Array.from(lineMap.values()).map((li) => ({
-      Description: li.description,
-      Quantity: li.quantity,
-      UnitAmount: +(li.unitAmountCents / 100).toFixed(2),
-      AccountCode: li.xeroCode ?? "200",
-    }));
 
     // Build epoch date string for Xero (/Date(ms)/ format).
     const epochStr = `/Date(${Date.now()})/`;

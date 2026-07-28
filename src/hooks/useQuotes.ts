@@ -266,7 +266,7 @@ export function useReplaceQuoteLineItems() {
           ordinal: idx + 1,
           service_id: line.service_id,
           service_name: line.service_name,
-          xero_code: line.xero_code,
+          xero_code: alloc.xero_code,
           qty: line.qty,
           unit_price_cents: line.unit_price_cents,
           subtotal_cents: line.subtotal_cents,

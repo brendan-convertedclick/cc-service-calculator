@@ -6,14 +6,13 @@
  * later catalogue edits don't retroactively change accepted quotes.
  */
 
-export type DeptRef = { id: string; name: string; hourly_rate_cents: number };
+export type DeptRef = { id: string; name: string; hourly_rate_cents: number; xero_code: string | null };
 
 export type QuoteLineAllocation = { dept_id: string; pct: number };
 
 export type QuoteLine = {
   service_id: string;
   service_name: string;
-  xero_code: string | null;
   qty: number;
   unit_price_cents: number;
   allocation: QuoteLineAllocation[];
@@ -22,6 +21,7 @@ export type QuoteLine = {
 export type SnapshotAllocation = {
   dept_id: string;
   dept_name: string;
+  xero_code: string | null;
   hours: number;
   cost_share_cents: number;
 };
@@ -29,7 +29,6 @@ export type SnapshotAllocation = {
 export type SnapshotLineItem = {
   service_id: string;
   service_name: string;
-  xero_code: string | null;
   qty: number;
   unit_price_cents: number;
   subtotal_cents: number;
@@ -61,6 +60,7 @@ export function buildLineItems(lines: QuoteLine[], depts: DeptRef[]): SnapshotLi
       return {
         dept_id: a.dept_id,
         dept_name: d?.name ?? "Unknown",
+        xero_code: d?.xero_code ?? null,
         hours,
         cost_share_cents,
       };
@@ -68,7 +68,6 @@ export function buildLineItems(lines: QuoteLine[], depts: DeptRef[]): SnapshotLi
     return {
       service_id: l.service_id,
       service_name: l.service_name,
-      xero_code: l.xero_code,
       qty: l.qty,
       unit_price_cents: l.unit_price_cents,
       subtotal_cents,

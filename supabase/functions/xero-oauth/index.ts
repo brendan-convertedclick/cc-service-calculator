@@ -21,7 +21,7 @@ const XERO_AUTH_URL = "https://login.xero.com/identity/connect/authorize";
 const XERO_TOKEN_URL = "https://login.xero.com/identity/connect/token";
 const XERO_CONNECTIONS_URL = "https://api.xero.com/connections";
 const XERO_SCOPES =
-  "openid profile email accounting.transactions.read accounting.contacts.read offline_access";
+  "openid profile email offline_access accounting.contacts accounting.invoices accounting.payments accounting.settings";
 
 function redirect(url: string): Response {
   return new Response(null, {

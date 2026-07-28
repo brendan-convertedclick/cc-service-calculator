@@ -247,7 +247,6 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       return {
         service_id: l.service_id,
         service_name: svc?.name ?? "Unknown",
-        xero_code: svc?.code ?? null,
         qty: l.qty,
         unit_price_cents: l.unit_price_override_cents ?? svc?.sell_price_cents ?? 0,
         allocation: Object.entries(l.allocation).map(([dept_id, pct]) => ({ dept_id, pct })),
