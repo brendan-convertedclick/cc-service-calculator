@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, HelpCircle, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
@@ -31,6 +31,7 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 export function Escalations() {
   const { currentUserId } = useAuth();
   const [rows, setRows] = useState<Joined[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -46,10 +47,14 @@ export function Escalations() {
       .eq("tier", "owner")
       .order("created_at", { ascending: false });
     if (error) {
+      // Never fall through to setRows([]) — an empty list renders the "all
+      // clear" state, which is the opposite of what a failed load means.
       toast.error(`Could not load escalations: ${error.message}`);
+      setLoadError(error.message);
       setRows([]);
       return;
     }
+    setLoadError(null);
     setRows((data ?? []) as unknown as Joined[]);
   };
   useEffect(() => {
@@ -143,10 +148,29 @@ export function Escalations() {
           </p>
         </header>
 
-        {pending.length === 0 ? (
+        {loadError ? (
           <Card className="border-dashed">
-            <CardContent className="py-12 text-center text-body-medium text-m-on-surface-variant">
-              No owner escalations. ✨
+            <CardContent className="space-y-3 py-12 text-center">
+              <p className="text-body-medium text-m-on-surface">
+                Couldn't load the queue.
+              </p>
+              <p className="mx-auto max-w-prose text-body-small text-m-on-surface-variant">
+                {loadError}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => load()} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : pending.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="space-y-2 py-12 text-center">
+              <p className="text-body-medium text-m-on-surface">Nothing needs you right now.</p>
+              <p className="mx-auto max-w-prose text-body-small text-m-on-surface-variant">
+                Extension and revision requests land here only after an admin has approved them and
+                the size of the ask needs an owner's call. Smaller requests never reach this page.
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -168,24 +192,33 @@ export function Escalations() {
                             <>
                               <span>·</span>
                               <span>
-                                +{fmtPtH(row.extra_points)} on {fmtPtH(row.original_points)}
+                                <span className="font-mono tabular-nums">
+                                  +{fmtPtH(row.extra_points)}
+                                </span>{" "}
+                                on{" "}
+                                <span className="font-mono tabular-nums">
+                                  {fmtPtH(row.original_points)}
+                                </span>
                               </span>
                               <Badge variant="destructive" className="ml-1">
-                                +{row.delta_pct}% · owner
+                                <span className="font-mono tabular-nums">+{row.delta_pct}%</span>
+                                <span className="ml-1 font-normal">over budget</span>
                               </Badge>
                             </>
                           )}
                           {row.requested_due_date !== null && (
                             <>
                               <span>·</span>
-                              <span>due {row.original_due_date ?? "—"} → {row.requested_due_date}</span>
-                              <Badge variant="destructive" className="ml-1">owner</Badge>
+                              <span className="font-mono tabular-nums">
+                                due {row.original_due_date ?? "—"} → {row.requested_due_date}
+                              </span>
+                              <Badge variant="warning" className="ml-1">date push</Badge>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="text-label-small text-m-on-surface-variant whitespace-nowrap">
-                        {new Date(row.created_at).toLocaleString()}
+                        {fmtWhen(row.created_at)}
                       </div>
                     </div>
                   </CardHeader>
@@ -193,7 +226,7 @@ export function Escalations() {
                     {row.admin_approved_at && (
                       <div className="text-label-small text-m-on-surface-variant">
                         Approved by {row.admin_approver?.full_name ?? "admin"} on{" "}
-                        {new Date(row.admin_approved_at).toLocaleString()} — escalated to you.
+                        {fmtWhen(row.admin_approved_at)} — escalated to you.
                       </div>
                     )}
 
@@ -206,7 +239,7 @@ export function Escalations() {
                       <Field label="Reason for due-date push">{row.due_date_reason}</Field>
                     )}
                     {row.info_request && (
-                      <Field label={`Question asked${row.info_requested_at ? ` on ${new Date(row.info_requested_at).toLocaleDateString()}` : ""}`}>
+                      <Field label={`Question asked${row.info_requested_at ? ` on ${new Date(row.info_requested_at).toLocaleDateString("en-ZA")}` : ""}`}>
                         {row.info_request}
                       </Field>
                     )}
@@ -215,8 +248,13 @@ export function Escalations() {
                     )}
 
                     {askingId === row.id ? (
-                      <div className="space-y-2">
+                      <div className="max-w-2xl space-y-2">
+                        <label htmlFor={`ask-${row.id}`} className="text-label-small text-m-on-surface-variant">
+                          Question for {row.requester?.full_name ?? "the requester"}
+                        </label>
                         <Textarea
+                          id={`ask-${row.id}`}
+                          autoFocus
                           value={question}
                           onChange={(e) => setQuestion(e.target.value)}
                           rows={3}
@@ -235,13 +273,18 @@ export function Escalations() {
                             Cancel
                           </Button>
                           <Button size="sm" onClick={() => ask(row.id)} disabled={busyId === row.id}>
-                            Send question
+                            {busyId === row.id ? "Sending…" : "Send question"}
                           </Button>
                         </div>
                       </div>
                     ) : rejectingId === row.id ? (
-                      <div className="space-y-2">
+                      <div className="max-w-2xl space-y-2">
+                        <label htmlFor={`reject-${row.id}`} className="text-label-small text-m-on-surface-variant">
+                          Why is this being rejected? The requester sees this.
+                        </label>
                         <Textarea
+                          id={`reject-${row.id}`}
+                          autoFocus
                           value={reason}
                           onChange={(e) => setReason(e.target.value)}
                           rows={3}
@@ -265,7 +308,7 @@ export function Escalations() {
                             onClick={() => reject(row.id)}
                             disabled={busyId === row.id}
                           >
-                            Confirm reject
+                            {busyId === row.id ? "Rejecting…" : "Confirm reject"}
                           </Button>
                         </div>
                       </div>
@@ -383,11 +426,19 @@ export function Escalations() {
   );
 }
 
+/** en-ZA throughout the app; seconds are noise on a decision queue. */
+function fmtWhen(iso: string): string {
+  return new Date(iso).toLocaleString("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
       <div className="text-label-small text-m-on-surface-variant">{label}</div>
-      <p className="text-body-medium text-m-on-surface whitespace-pre-wrap">{children}</p>
+      <p className="max-w-prose text-body-medium text-m-on-surface whitespace-pre-wrap">{children}</p>
     </div>
   );
 }

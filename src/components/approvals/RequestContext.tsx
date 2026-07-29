@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pointsToHours } from "@/lib/sprint-points";
@@ -41,8 +42,23 @@ function fmtPoints(pts: number | null): string {
 }
 
 function fmtDate(ms: number | null): string {
-  return ms === null ? "—" : new Date(ms).toLocaleDateString();
+  return ms === null ? "—" : new Date(ms).toLocaleDateString("en-ZA");
 }
+
+/**
+ * Figures are set in mono with tabular figures so they line up column to column
+ * and read as exact — the same treatment money gets elsewhere in the app.
+ */
+function Fig({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn("font-mono tabular-nums", className)}>{children}</span>;
+}
+
+/**
+ * This panel sits inside a Card on both approval queues, so it separates
+ * tonally rather than with its own border — the design system bans nesting a
+ * bordered surface inside a bordered surface.
+ */
+const PANEL = "rounded-md bg-m-surface-container-low px-4 py-3";
 
 // ClickUp descriptions are markdown. We don't render markdown here — only the
 // links matter, because that's where the task's Conductor origin lives.
@@ -149,12 +165,14 @@ export function RequestContext({
 
   if (error) {
     return (
-      <div className="rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3 text-body-small text-m-on-surface-variant">
+      <div className={`${PANEL} text-body-small text-m-on-surface-variant`}>
         Original context unavailable: {error}
       </div>
     );
   }
-  if (!ctx) return <Skeleton className="h-32 w-full" />;
+  // Height matches the collapsed panel so the card doesn't jump when the
+  // ClickUp round-trip lands.
+  if (!ctx) return <Skeleton className="h-[4.5rem] w-full rounded-md" />;
 
   const budgetPoints = ctx.original_points;
   const overBudget = budgetPoints !== null && budgetPoints > 0
@@ -173,7 +191,7 @@ export function RequestContext({
   const burn = aggregateBurn(linkage?.retainers ?? []);
 
   return (
-    <div className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
+    <div className={`space-y-3 ${PANEL}`}>
       {/* Everything an approver needs to decide sits on this one line; the
           supporting detail is a disclosure away. Native <details> — no
           collapsible primitive in the design system to reach for. */}
@@ -181,25 +199,35 @@ export function RequestContext({
         summary={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-label-large text-m-on-surface-variant">Original task</span>
-            <span className="text-body-small text-m-on-surface">
+            <span className="font-mono tabular-nums text-body-small text-m-on-surface">
               {budgetPoints !== null ? fmtPoints(budgetPoints) : "no points set"}
             </span>
             {overBudget !== null && (
-              <Badge variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}>
-                {overBudget}% used
+              <Badge
+                variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}
+                className="font-mono tabular-nums"
+              >
+                {`${overBudget}% used`}
               </Badge>
             )}
             {requestedPoints ? (
-              <Badge variant="outline">requested +{fmtPoints(requestedPoints)}</Badge>
+              <Badge variant="outline" className="font-mono tabular-nums">
+                {`requested +${fmtPoints(requestedPoints)}`}
+              </Badge>
             ) : unfundedPoints !== null ? (
-              <Badge variant="destructive">no budget requested · {fmtPoints(unfundedPoints)} unfunded</Badge>
+              <Badge variant="destructive" className="font-mono tabular-nums">
+                {`no budget requested · ${fmtPoints(unfundedPoints)} unfunded`}
+              </Badge>
             ) : (
               <Badge variant="outline">no budget requested</Badge>
             )}
             <BillingBadge billing={linkage?.billing} />
             {burn && (
-              <Badge variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}>
-                retainer {burn.pct}% · {burn.hoursUsed}h of {burn.hoursTarget}h
+              <Badge
+                variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}
+                className="font-mono tabular-nums"
+              >
+                {`retainer ${burn.pct}% · ${burn.hoursUsed}h of ${burn.hoursTarget}h`}
               </Badge>
             )}
           </div>
@@ -218,47 +246,50 @@ export function RequestContext({
 
         <dl className="grid gap-x-6 gap-y-2 text-body-small sm:grid-cols-4">
           <Stat label="Budget">
-            {budgetPoints !== null ? fmtPoints(budgetPoints) : "no points set"}
+            <Fig>{budgetPoints !== null ? fmtPoints(budgetPoints) : "no points set"}</Fig>
           </Stat>
           <Stat label="Time spent">
-            {ctx.points_consumed} pt
-            <span className="text-m-on-surface-variant"> · {fmtHours(ctx.time_spent_ms)}</span>
+            <Fig>{`${ctx.points_consumed} pt`}</Fig>
+            <Fig className="text-m-on-surface-variant">{` · ${fmtHours(ctx.time_spent_ms)}`}</Fig>
           </Stat>
           <Stat label="Consumed">
             {overBudget === null ? (
               "—"
             ) : (
-              <Badge variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}>
-                {overBudget}% of budget
+              <Badge
+                variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}
+                className="font-mono tabular-nums"
+              >
+                {`${overBudget}% of budget`}
               </Badge>
             )}
           </Stat>
-          <Stat label="Due">{fmtDate(ctx.due_date)}</Stat>
+          <Stat label="Due"><Fig>{fmtDate(ctx.due_date)}</Fig></Stat>
 
           <Stat label="Status">{ctx.status ?? "—"}</Stat>
           <Stat label="List">{ctx.list_name ?? "—"}</Stat>
           <Stat label="Assigned">{ctx.assignees.join(", ") || "—"}</Stat>
-          <Stat label="Created">{fmtDate(ctx.date_created)}</Stat>
+          <Stat label="Created"><Fig>{fmtDate(ctx.date_created)}</Fig></Stat>
         </dl>
 
         {(priorPoints > 0 || afterPoints !== null || unfundedPoints !== null) && (
           <div className="flex flex-wrap items-center gap-2 text-body-small">
             {priorPoints > 0 && (
               <Badge variant="warning">
-                already extended by {fmtPoints(priorPoints)} (not in the time above)
+                {`already extended by ${fmtPoints(priorPoints)} (not in the time above)`}
               </Badge>
             )}
             {afterPoints !== null && (
               <span className="text-m-on-surface-variant">
                 Budget if approved:{" "}
-                <span className="text-m-on-surface">{fmtPoints(afterPoints)}</span>
+                <span className="text-m-on-surface"><Fig>{fmtPoints(afterPoints)}</Fig></span>
               </span>
             )}
             {unfundedPoints !== null && (
               <span className="text-m-on-surface-variant">
                 This request adds no budget — approving it leaves{" "}
-                <span className="text-m-error">{fmtPoints(unfundedPoints)}</span> already spent
-                beyond the {fmtPoints(budgetPoints)} budget unfunded.
+                <Fig className="text-m-error">{fmtPoints(unfundedPoints)}</Fig> already spent
+                beyond the <Fig>{fmtPoints(budgetPoints)}</Fig> budget unfunded.
               </span>
             )}
           </div>
@@ -301,8 +332,11 @@ function Disclosure({
 }) {
   return (
     <details className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="h-4 w-4 shrink-0 text-m-on-surface-variant transition-transform group-open:rotate-90" />
+      {/* items-start, not items-center: the summary wraps to several lines on
+          narrow viewports and a vertically-centred chevron detaches from the
+          label it belongs to. */}
+      <summary className="flex cursor-pointer list-none items-start gap-2 rounded-sm outline-none ring-offset-2 ring-offset-m-surface-container-low focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-m-on-surface-variant transition-transform duration-200 ease-out group-open:rotate-90 motion-reduce:transition-none" />
         <div className="min-w-0 flex-1">{summary}</div>
       </summary>
       <div className="mt-3 space-y-3 pl-6">{children}</div>
@@ -345,23 +379,28 @@ function BillingAndProject({
 
   return (
     <div className="space-y-2 border-t border-m-outline-variant/60 pt-3">
-      <div className="flex flex-wrap items-center gap-2 text-body-small">
-        <span className="text-label-small text-m-on-surface-variant">Billing</span>
+      <p className="max-w-prose text-body-small">
+        <span className="text-label-small text-m-on-surface-variant">Billing</span>{" "}
         {billing === "adhoc" ? (
           <span className="text-m-on-surface">
             Ad-hoc — approving this is separately billable to the client.
           </span>
         ) : billing === "retainer" ? (
           <span className="text-m-on-surface">
-            Retainer — no extra invoice; the{" "}
-            {requestedPoints ? `${fmtPoints(requestedPoints)} ` : ""}comes out of the monthly fee.
+            Retainer — no extra invoice
+            {requestedPoints ? (
+              <>
+                ; the <Fig>{fmtPoints(requestedPoints)}</Fig> comes out of the monthly fee
+              </>
+            ) : null}
+            .
           </span>
         ) : (
           <span className="text-m-on-surface-variant">
             No brief in Conductor for this task — billing can't be determined.
           </span>
         )}
-      </div>
+      </p>
 
       {project ? (
         <div className="flex flex-wrap items-center gap-2 text-body-small">
@@ -379,7 +418,7 @@ function BillingAndProject({
         <div className="flex flex-wrap items-center gap-2 text-body-small">
           <span className="text-label-small text-m-on-surface-variant">Project</span>
           <span className="text-m-on-surface-variant">
-            Standalone task — not part of a tracked project.
+            Standalone task — not part of a tracked project
           </span>
         </div>
       )}
@@ -388,8 +427,8 @@ function BillingAndProject({
           reading any burn or budget number needs to know this task's hours
           aren't in it. */}
       {!countedInBurn && taskHours > 0 && (
-        <p className="text-label-small text-m-error">
-          This task's {Math.round(taskHours * 10) / 10}h has not been mapped to a project by the
+        <p className="max-w-prose text-body-small text-m-error">
+          This task's <Fig>{Math.round(taskHours * 10) / 10}h</Fig> has not been mapped to a project by
           actuals sync, so it is missing from every hours figure below — the real burn is higher.
         </p>
       )}
@@ -401,19 +440,20 @@ function BillingAndProject({
               <span className="text-label-small text-m-on-surface-variant">
                 {configured.length === 1 ? "Retainer" : `${configured.length} retainers`} this month
               </span>
-              <span className="text-m-on-surface">
-                {burn.hoursUsed}h of {burn.hoursTarget}h
-              </span>
-              <Badge variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}>
-                {burn.pct}% burned
+              <Fig className="text-m-on-surface">{`${burn.hoursUsed}h of ${burn.hoursTarget}h`}</Fig>
+              <Badge
+                variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}
+                className="font-mono tabular-nums"
+              >
+                {`${burn.pct}% burned`}
               </Badge>
               {extraHours > 0 && (
                 <span className="text-m-on-surface-variant">
-                  this request adds {Math.round(extraHours * 10) / 10}h →{" "}
-                  {burn.hoursTarget > 0
-                    ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
-                    : 0}
-                  %
+                  {`this request adds ${Math.round(extraHours * 10) / 10}h → ${
+                    burn.hoursTarget > 0
+                      ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
+                      : 0
+                  }%`}
                 </span>
               )}
             </div>
@@ -428,8 +468,8 @@ function BillingAndProject({
                 <Link to={`/projects/${r.projectId}`} className="text-m-primary hover:underline">
                   open
                 </Link>
-                <span className="text-m-on-surface">{r.hoursUsed}h</span>
-                <span>of {r.hoursTarget}h</span>
+                <Fig className="text-m-on-surface">{`${r.hoursUsed}h`}</Fig>
+                <Fig>{`of ${r.hoursTarget}h`}</Fig>
                 <span
                   className={
                     r.rag === "red"
@@ -439,7 +479,7 @@ function BillingAndProject({
                         : "text-m-on-surface-variant"
                   }
                 >
-                  {r.burnPct}%
+                  {`${r.burnPct}%`}
                 </span>
                 {r.isOverrunRisk && <span className="text-m-error">on pace to overrun</span>}
               </li>
@@ -464,11 +504,14 @@ function ProjectHealth({
   const pct = Math.round((actualHours / plannedHours) * 100);
   return (
     <>
-      <span className="text-m-on-surface">
-        {Math.round(actualHours * 10) / 10}h of {Math.round(plannedHours * 10) / 10}h
-      </span>
-      <Badge variant={pct > 100 ? "destructive" : pct > 85 ? "warning" : "muted"}>
-        {pct}% of plan
+      <Fig className="text-m-on-surface">
+        {`${Math.round(actualHours * 10) / 10}h of ${Math.round(plannedHours * 10) / 10}h`}
+      </Fig>
+      <Badge
+        variant={pct > 100 ? "destructive" : pct > 85 ? "warning" : "muted"}
+        className="font-mono tabular-nums"
+      >
+        {`${pct}% of plan`}
       </Badge>
     </>
   );
