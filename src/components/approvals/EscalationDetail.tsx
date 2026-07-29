@@ -76,9 +76,10 @@ export function EscalationDetail({
   const dayCount = daysBetween(row.original_due_date, row.requested_due_date);
 
   return (
-    <article className="flex flex-col gap-5 bg-m-surface-container-low p-6 pb-0 md:h-full md:overflow-y-auto">
-      {/* The call, before any evidence. */}
-      <div className="space-y-2.5 rounded-md bg-m-surface p-5 shadow-elev-1">
+    <article className="flex min-h-0 flex-1 flex-col gap-5 p-6 pb-0">
+      {/* The call, before any evidence. Labelled so it's reachable by role —
+          assistive tech and the e2e suite both find it the same way. */}
+      <section aria-label="Verdict" className="space-y-2.5 rounded-md bg-m-surface p-5 shadow-elev-1">
         <div className="flex flex-wrap items-center gap-2">
           {verdict.flags.map((f) => (
             <Badge key={f.label} variant={TONE[f.tone]} className={f.tone === "danger" ? "font-mono tabular-nums" : undefined}>
@@ -89,7 +90,7 @@ export function EscalationDetail({
         <p className="max-w-[58ch] text-title-small font-normal leading-snug text-m-on-surface">
           {verdict.headline}
         </p>
-      </div>
+      </section>
 
       {ctxError && (
         <p className="rounded-md bg-m-surface px-4 py-3 text-body-small text-m-error">
@@ -260,7 +261,7 @@ export function EscalationDetail({
       {/* Sticky rather than mt-auto: on a short request the actions would sit
           in the middle of empty space, and on a long one they'd be below the
           fold. The decision is always one glance from the evidence. */}
-      <div className="-mx-6 mt-auto border-t border-m-outline-variant bg-m-surface-container-low px-6 py-4 md:sticky md:bottom-0">
+      <div className="sticky bottom-0 -mx-6 mt-auto border-t border-m-outline-variant bg-m-surface-container-low px-6 py-4">
         {actions}
       </div>
     </article>

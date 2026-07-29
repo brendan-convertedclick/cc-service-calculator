@@ -175,12 +175,14 @@ export default function App() {
               <Route path="approvals" element={<Approvals />} />
               {/* Phase 6: outbound communications compose */}
               <Route path="comms/new" element={<ComposeEmail />} />
-              {/* Owner-only escalations queue (>50% extension requests) */}
-              <Route element={<RequireOwner />}>
-                <Route path="escalations" element={<Escalations />} />
-              </Route>
               {/* All other routes — AppShell without sidebar */}
               <Route element={<AppShell />}>
+                {/* Owner-only escalations queue (>50% extension requests).
+                    Inside the shell: it's a daily working surface, so it keeps
+                    the nav rail and breadcrumbs like every other queue. */}
+                <Route element={<RequireOwner />}>
+                  <Route path="escalations" element={<Escalations />} />
+                </Route>
                 {/* Index decides based on role: staff → /staff, admin/owner → Dashboard */}
                 <Route index element={<RoleAwareIndex />} />
                 <Route path="inbox" element={<Inbox />} />

@@ -78,6 +78,12 @@ test.describe("Static routes — load without crash", () => {
     expect(errors, "unexpected JS errors").toHaveLength(0);
   });
 
+  test("/escalations — Owner escalations queue", async ({ page }) => {
+    const errors = await smokeCheck(page, "/escalations");
+    await expect(page.getByRole("heading", { name: "Escalations", level: 1 })).toBeVisible();
+    expect(errors, "unexpected JS errors").toHaveLength(0);
+  });
+
   test("/briefs/new — New Brief form", async ({ page }) => {
     const errors = await smokeCheck(page, "/briefs/new");
     // Subject label confirms the form rendered

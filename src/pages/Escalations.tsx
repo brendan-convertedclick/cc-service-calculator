@@ -172,13 +172,14 @@ export function Escalations() {
 
   if (rows === null) {
     return (
-      <div className="grid grid-cols-1 md:h-[calc(100vh-4rem)] md:grid-cols-[288px_1fr]">
-        <div className="space-y-3 border-r border-m-outline-variant p-4">
+      <div className="flex flex-col md:h-full md:flex-row">
+        <aside className="w-full shrink-0 space-y-3 border-b border-m-outline-variant p-4 md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
-        </div>
-        <div className="p-6">
+        </aside>
+        <div className="min-w-0 flex-1 p-6 md:overflow-y-auto">
+          <Skeleton className="mb-6 h-8 w-48" />
           <Skeleton className="h-24 w-full max-w-2xl" />
         </div>
       </div>
@@ -186,16 +187,25 @@ export function Escalations() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:h-[calc(100vh-4rem)] md:grid-cols-[288px_1fr] md:overflow-hidden">
-      <div className="border-b border-m-outline-variant bg-m-surface md:overflow-y-auto md:border-b-0 md:border-r">
-        <header className="flex items-baseline justify-between gap-2 px-4 pt-4">
-          <h1 className="text-title-medium text-m-on-surface">Escalations</h1>
-          <span className="font-mono text-label-small tabular-nums text-m-on-surface-variant">
-            {pending.length}
-          </span>
-        </header>
+    <div className="flex flex-col md:h-full md:flex-row">
+      {/* Standard left rail: same width, border and scroll behaviour as every
+          other filtered page. Padding is vertical only so a selected row can
+          bleed to both edges — this rail selects, it doesn't filter. */}
+      <aside className="w-full shrink-0 border-b border-m-outline-variant py-2 md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
         <EscalationRail groups={groups} selectedId={selectedId} onSelect={select} />
-      </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col md:overflow-y-auto">
+        <header className="flex items-start justify-between gap-3 px-6 pt-6">
+          <div>
+            <h1 className="text-headline-medium text-m-on-surface">Escalations</h1>
+            <p className="mt-1 text-body-medium text-m-on-surface-variant">
+              {pending.length === 0
+                ? "Nothing is waiting on your decision."
+                : `${pending.length} ${pending.length === 1 ? "request needs" : "requests need"} your decision.`}
+            </p>
+          </div>
+        </header>
 
       {loadError ? (
         <Empty
@@ -310,6 +320,7 @@ export function Escalations() {
           }
         />
       )}
+      </div>
     </div>
   );
 }
@@ -324,7 +335,7 @@ function Empty({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="grid place-items-center bg-m-surface-container-low p-6">
+    <div className="grid flex-1 place-items-center p-6">
       <div className="max-w-prose space-y-3 text-center">
         <p className="text-body-medium text-m-on-surface">{title}</p>
         <p className="text-body-small text-m-on-surface-variant">{body}</p>
