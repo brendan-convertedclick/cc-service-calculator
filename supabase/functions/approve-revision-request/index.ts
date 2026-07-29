@@ -151,18 +151,33 @@ Deno.serve(async (req: Request) => {
 
       // Persist BEFORE linking, leaving status at pending_admin. If the link
       // call fails, the id survives and the retry resumes above instead of
-      // orphaning this task and creating another.
-      await supabase
+      // orphaning this task and creating another. supabase-js reports a
+      // no-op success when RLS filters every row, so a zero-row result here
+      // is fatal — without the id the retry would create a duplicate draft.
+      const { data: stamped, error: stampErr } = await supabase
         .from("revision_requests")
         .update({ clickup_new_task_id: created.id, clickup_new_task_url: created.url })
-        .eq("id", row.id);
+        .eq("id", row.id)
+        .select("id");
+      if (stampErr || !stamped || stamped.length === 0) {
+        return json({
+          error: `Draft ${created.id} created but could not be recorded against the request` +
+            `${stampErr ? `: ${stampErr.message}` : " (no row updated)"}. ` +
+            `Link it to ${parentUrl} by hand — re-approving would create a second draft.`,
+          clickup_new_task_id: created.id,
+          clickup_new_task_url: created.url,
+        }, 500);
+      }
     }
 
     // The link a human sees — shows on both tasks under "Linked tasks".
     // Hard requirement: no draft is approved without it.
     const linkRes = await fetch(
       `https://api.clickup.com/api/v2/task/${created.id}/link/${row.parent_clickup_task_id}`,
-      { ...CU, method: "POST" },
+      // Endpoint takes no payload, but CU declares a JSON content-type — send
+      // an empty object so the request is well-formed rather than a
+      // zero-byte body labelled as JSON.
+      { ...CU, method: "POST", body: "{}" },
     );
     if (!linkRes.ok) {
       return json({

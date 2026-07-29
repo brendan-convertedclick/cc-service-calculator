@@ -24,6 +24,7 @@ type CuTask = {
   id: string;
   name: string;
   text_content?: string | null;
+  markdown_description?: string | null;
   description?: string | null;
   url?: string;
   status?: { status?: string };
@@ -70,9 +71,13 @@ Deno.serve(async (req: Request) => {
     const clickupPat = Deno.env.get("CLICKUP_PAT");
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
-    const res = await fetch(`https://api.clickup.com/api/v2/task/${task_id}`, {
-      headers: { Authorization: clickupPat, "Content-Type": "application/json" },
-    });
+    // include_markdown_description is opt-in; without it ClickUp only returns
+    // text_content, which strips link URLs — including the Conductor brief
+    // link that the task's origin stamp exists to carry.
+    const res = await fetch(
+      `https://api.clickup.com/api/v2/task/${task_id}?include_markdown_description=true`,
+      { headers: { Authorization: clickupPat, "Content-Type": "application/json" } },
+    );
     if (!res.ok) {
       return json({ error: `ClickUp task ${res.status}: ${await res.text()}` }, 502);
     }
@@ -87,7 +92,9 @@ Deno.serve(async (req: Request) => {
         id: t.id,
         name: t.name,
         url: t.url ?? `https://app.clickup.com/t/${t.id}`,
-        description: (t.text_content ?? t.description ?? "").trim() || null,
+        // markdown first: ClickUp's text_content strips link URLs, which would
+        // hide the Conductor brief link the origin stamp exists to carry.
+        description: (t.markdown_description ?? t.text_content ?? t.description ?? "").trim() || null,
         status: t.status?.status ?? null,
         list_name: t.list?.name ?? null,
         assignees: (t.assignees ?? []).map((a) => a.username).filter(Boolean),
