@@ -1,44 +1,38 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, HelpCircle, RefreshCw, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { CheckCircle2, HelpCircle, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { askForInfo } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RequestContext } from "@/components/approvals/RequestContext";
+import { EscalationRail, type RailGroup, type RailRow } from "@/components/approvals/EscalationRail";
+import { EscalationDetail } from "@/components/approvals/EscalationDetail";
 import type { ExtensionRequestRow } from "@/types/extension-requests";
-
-type Joined = ExtensionRequestRow & {
-  client: { id: string; name: string } | null;
-  requester: { id: string; full_name: string; email: string | null } | null;
-  admin_approver: { id: string; full_name: string } | null;
-};
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 /**
- * Owner-only escalations queue. Only shows owner-tier requests the admin has
- * already signed off (status='pending_owner') — nothing reaches this page
- * without passing the admin leg first. Approve creates the ClickUp subtask,
- * reject closes it with a reason, and "Ask for info" bounces it back to the
- * requester without losing the admin sign-off.
+ * Owner escalations, laid out as a queue and one decision.
+ *
+ * The rail answers "does this need me?" by grouping on who holds the request;
+ * the pane answers everything else in a fixed order (see EscalationDetail).
+ * Only `status='pending_owner'` rows are actionable — nothing reaches this page
+ * without passing the admin leg first.
  */
 export function Escalations() {
   const { currentUserId } = useAuth();
-  const [rows, setRows] = useState<Joined[] | null>(null);
+  const [rows, setRows] = useState<RailRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
-  const [askingId, setAskingId] = useState<string | null>(null);
-  const [question, setQuestion] = useState("");
+  const [compose, setCompose] = useState<{ id: string; kind: "reject" | "ask" } | null>(null);
+  const [draft, setDraft] = useState("");
+  const [params, setParams] = useSearchParams();
+  const selectedId = params.get("id");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("extension_requests")
       .select(
@@ -47,19 +41,76 @@ export function Escalations() {
       .eq("tier", "owner")
       .order("created_at", { ascending: false });
     if (error) {
-      // Never fall through to setRows([]) — an empty list renders the "all
-      // clear" state, which is the opposite of what a failed load means.
+      // Never fall through to an empty list — that renders the "all clear"
+      // state, which is the opposite of what a failed load means.
       toast.error(`Could not load escalations: ${error.message}`);
       setLoadError(error.message);
       setRows([]);
       return;
     }
     setLoadError(null);
-    setRows((data ?? []) as unknown as Joined[]);
-  };
+    setRows((data ?? []) as unknown as RailRow[]);
+  }, []);
+
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
+
+  const groups = useMemo<RailGroup[]>(() => {
+    const all = rows ?? [];
+    const by = (s: string) => all.filter((r) => r.status === s);
+    return [
+      { key: "owner", label: "Needs you", rows: by("pending_owner"), actionable: true },
+      { key: "admin", label: "With admin", rows: by("pending_admin"), actionable: false },
+      { key: "info", label: "Waiting on requester", rows: by("needs_info"), actionable: false },
+      {
+        key: "done",
+        label: "Decided",
+        rows: all
+          .filter((r) => ["approved", "rejected", "auto_approved"].includes(r.status))
+          .slice(0, 10),
+        actionable: false,
+      },
+    ];
+  }, [rows]);
+
+  const pending = groups[0].rows;
+
+  const select = useCallback(
+    (id: string) => {
+      setCompose(null);
+      setDraft("");
+      setParams({ id }, { replace: true });
+    },
+    [setParams],
+  );
+
+  // Land on the first thing that needs a decision, and follow the queue as it
+  // empties rather than stranding the pane on a row that's just been actioned.
+  useEffect(() => {
+    if (rows === null) return;
+    if (rows.some((r) => r.id === selectedId)) return;
+    const next = pending[0]?.id ?? rows[0]?.id ?? null;
+    setParams(next ? { id: next } : {}, { replace: true });
+  }, [rows, selectedId, pending, setParams]);
+
+  const selected = (rows ?? []).find((r) => r.id === selectedId) ?? null;
+
+  /** Overruns already raised for this client this month, excluding this one. */
+  const priorOverruns = useMemo(() => {
+    if (!selected || !rows) return 0;
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    return rows.filter(
+      (r) =>
+        r.id !== selected.id &&
+        r.client_id === selected.client_id &&
+        r.extra_points !== null &&
+        r.status !== "rejected" &&
+        new Date(r.created_at) >= start,
+    ).length;
+  }, [rows, selected]);
 
   const approve = async (id: string) => {
     setBusyId(id);
@@ -74,11 +125,8 @@ export function Escalations() {
         body: JSON.stringify({ extension_request_id: id }),
       });
       const body = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(body.error ?? "Approve failed");
-        return;
-      }
-      toast.success("Approved — subtask created.");
+      if (!res.ok) return toast.error(body.error ?? "Approve failed");
+      toast.success("Approved.");
       await load();
     } finally {
       setBusyId(null);
@@ -86,19 +134,20 @@ export function Escalations() {
   };
 
   const reject = async (id: string) => {
-    if (!reason.trim()) return toast.error("Reason required.");
+    const reason = draft.trim();
+    if (!reason) return toast.error("A reason is required — the requester sees it.");
     setBusyId(id);
     try {
       const { data, error } = await supabase
         .from("extension_requests")
-        .update({ status: "rejected", rejected_reason: reason.trim() })
+        .update({ status: "rejected", rejected_reason: reason })
         .eq("id", id)
         .select("id");
       if (error) return toast.error(error.message);
       if (!data || data.length === 0) return toast.error("Not permitted to update this request.");
       toast.success("Rejected.");
-      setRejectingId(null);
-      setReason("");
+      setCompose(null);
+      setDraft("");
       await load();
     } finally {
       setBusyId(null);
@@ -106,14 +155,15 @@ export function Escalations() {
   };
 
   const ask = async (id: string) => {
-    if (!question.trim()) return toast.error("Question required.");
+    const question = draft.trim();
+    if (!question) return toast.error("Write the question first.");
     setBusyId(id);
     try {
       const err = await askForInfo(id, question, currentUserId);
       if (err) return toast.error(err);
       toast.success("Sent back to the requester.");
-      setAskingId(null);
-      setQuestion("");
+      setCompose(null);
+      setDraft("");
       await load();
     } finally {
       setBusyId(null);
@@ -122,338 +172,183 @@ export function Escalations() {
 
   if (rows === null) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
+      <div className="grid grid-cols-1 md:h-[calc(100vh-4rem)] md:grid-cols-[288px_1fr]">
+        <div className="space-y-3 border-r border-m-outline-variant p-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+        <div className="p-6">
+          <Skeleton className="h-24 w-full max-w-2xl" />
+        </div>
       </div>
     );
   }
 
-  const pending = rows.filter((r) => r.status === "pending_owner");
-  const awaitingInfo = rows.filter((r) => r.status === "needs_info");
-  const inAdminLeg = rows.filter((r) => r.status === "pending_admin");
-  const recent = rows
-    .filter((r) => !["pending_owner", "needs_info", "pending_admin"].includes(r.status))
-    .slice(0, 10);
-
   return (
-    <div className="space-y-8 p-6">
-      <section>
-        <header className="mb-4 flex items-baseline justify-between">
-          <h1 className="text-headline-small text-m-on-surface">Escalations</h1>
-          <p className="text-body-small text-m-on-surface-variant">
-            {pending.length} awaiting owner
-            {inAdminLeg.length > 0 && ` · ${inAdminLeg.length} still with admin`}
-            {awaitingInfo.length > 0 && ` · ${awaitingInfo.length} awaiting requester`}
-          </p>
+    <div className="grid grid-cols-1 md:h-[calc(100vh-4rem)] md:grid-cols-[288px_1fr] md:overflow-hidden">
+      <div className="border-b border-m-outline-variant bg-m-surface md:overflow-y-auto md:border-b-0 md:border-r">
+        <header className="flex items-baseline justify-between gap-2 px-4 pt-4">
+          <h1 className="text-title-medium text-m-on-surface">Escalations</h1>
+          <span className="font-mono text-label-small tabular-nums text-m-on-surface-variant">
+            {pending.length}
+          </span>
         </header>
+        <EscalationRail groups={groups} selectedId={selectedId} onSelect={select} />
+      </div>
 
-        {loadError ? (
-          <Card className="border-dashed">
-            <CardContent className="space-y-3 py-12 text-center">
-              <p className="text-body-medium text-m-on-surface">
-                Couldn't load the queue.
-              </p>
-              <p className="mx-auto max-w-prose text-body-small text-m-on-surface-variant">
-                {loadError}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => load()} className="gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Try again
-              </Button>
-            </CardContent>
-          </Card>
-        ) : pending.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="space-y-2 py-12 text-center">
-              <p className="text-body-medium text-m-on-surface">Nothing needs you right now.</p>
-              <p className="mx-auto max-w-prose text-body-small text-m-on-surface-variant">
-                Extension and revision requests land here only after an admin has approved them and
-                the size of the ask needs an owner's call. Smaller requests never reach this page.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <ul className="space-y-3">
-            {pending.map((row) => (
-              <li key={row.id}>
-                <Card className="shadow-elev-1">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <CardTitle className="text-title-medium">
-                          {row.parent_task_name}
-                        </CardTitle>
-                        <div className="flex flex-wrap items-center gap-2 text-label-small text-m-on-surface-variant">
-                          <span>{row.requester?.full_name ?? "—"}</span>
-                          <span>·</span>
-                          <span>{row.client?.name ?? "—"}</span>
-                          {row.extra_points !== null && (
-                            <>
-                              <span>·</span>
-                              <span>
-                                <span className="font-mono tabular-nums">
-                                  +{fmtPtH(row.extra_points)}
-                                </span>{" "}
-                                on{" "}
-                                <span className="font-mono tabular-nums">
-                                  {fmtPtH(row.original_points)}
-                                </span>
-                              </span>
-                              <Badge variant="destructive" className="ml-1">
-                                <span className="font-mono tabular-nums">+{row.delta_pct}%</span>
-                                <span className="ml-1 font-normal">over budget</span>
-                              </Badge>
-                            </>
-                          )}
-                          {row.requested_due_date !== null && (
-                            <>
-                              <span>·</span>
-                              <span className="font-mono tabular-nums">
-                                due {row.original_due_date ?? "—"} → {row.requested_due_date}
-                              </span>
-                              <Badge variant="warning" className="ml-1">date push</Badge>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-label-small text-m-on-surface-variant whitespace-nowrap">
-                        {fmtWhen(row.created_at)}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {row.admin_approved_at && (
-                      <div className="text-label-small text-m-on-surface-variant">
-                        Approved by {row.admin_approver?.full_name ?? "admin"} on{" "}
-                        {fmtWhen(row.admin_approved_at)} — escalated to you.
-                      </div>
-                    )}
-
-                    <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} clientId={row.client_id} />
-
-                    {row.reason && (
-                      <Field label="Reason for extra points">{row.reason}</Field>
-                    )}
-                    {row.due_date_reason && (
-                      <Field label="Reason for due-date push">{row.due_date_reason}</Field>
-                    )}
-                    {row.info_request && (
-                      <Field label={`Question asked${row.info_requested_at ? ` on ${new Date(row.info_requested_at).toLocaleDateString("en-ZA")}` : ""}`}>
-                        {row.info_request}
-                      </Field>
-                    )}
-                    {row.info_response && (
-                      <Field label="Requester's answer">{row.info_response}</Field>
-                    )}
-
-                    {askingId === row.id ? (
-                      <div className="max-w-2xl space-y-2">
-                        <label htmlFor={`ask-${row.id}`} className="text-label-small text-m-on-surface-variant">
-                          Question for {row.requester?.full_name ?? "the requester"}
-                        </label>
-                        <Textarea
-                          id={`ask-${row.id}`}
-                          autoFocus
-                          value={question}
-                          onChange={(e) => setQuestion(e.target.value)}
-                          rows={3}
-                          placeholder="What do you need to know before deciding?"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setAskingId(null);
-                              setQuestion("");
-                            }}
-                            disabled={busyId === row.id}
-                          >
-                            Cancel
-                          </Button>
-                          <Button size="sm" onClick={() => ask(row.id)} disabled={busyId === row.id}>
-                            {busyId === row.id ? "Sending…" : "Send question"}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : rejectingId === row.id ? (
-                      <div className="max-w-2xl space-y-2">
-                        <label htmlFor={`reject-${row.id}`} className="text-label-small text-m-on-surface-variant">
-                          Why is this being rejected? The requester sees this.
-                        </label>
-                        <Textarea
-                          id={`reject-${row.id}`}
-                          autoFocus
-                          value={reason}
-                          onChange={(e) => setReason(e.target.value)}
-                          rows={3}
-                          placeholder="Reason for rejection"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setRejectingId(null);
-                              setReason("");
-                            }}
-                            disabled={busyId === row.id}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => reject(row.id)}
-                            disabled={busyId === row.id}
-                          >
-                            {busyId === row.id ? "Rejecting…" : "Confirm reject"}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setAskingId(row.id);
-                            setQuestion("");
-                          }}
-                          disabled={busyId === row.id}
-                          className="gap-2"
-                        >
-                          <HelpCircle className="h-4 w-4" />
-                          Ask for info
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setRejectingId(row.id);
-                            setReason("");
-                          }}
-                          disabled={busyId === row.id}
-                          className="gap-2"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Reject
-                        </Button>
-                        <Button
-                          onClick={() => approve(row.id)}
-                          disabled={busyId === row.id}
-                          className="gap-2"
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          {busyId === row.id ? "Approving…" : approveLabel(row)}
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {(awaitingInfo.length > 0 || inAdminLeg.length > 0) && (
-        <section>
-          <h2 className="mb-3 text-title-small text-m-on-surface-variant">
-            In flight elsewhere
-          </h2>
-          <ul className="space-y-2">
-            {[...inAdminLeg, ...awaitingInfo].map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface px-4 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-body-medium">{row.parent_task_name}</div>
-                  <div className="text-label-small text-m-on-surface-variant">
-                    {row.requester?.full_name ?? "—"} · {extensionSubtitle(row)}
-                    {row.status === "needs_info" && row.info_request && ` · asked: ${row.info_request}`}
-                  </div>
+      {loadError ? (
+        <Empty
+          title="Couldn't load the queue."
+          body={loadError}
+          action={
+            <Button variant="outline" size="sm" onClick={() => load()} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      ) : !selected ? (
+        <Empty
+          title="Nothing needs you right now."
+          body="Requests land here only after an admin has approved them and the size of the ask needs an owner's call. Smaller ones never reach this page."
+        />
+      ) : (
+        <EscalationDetail
+          row={selected}
+          priorOverrunsThisMonth={priorOverruns}
+          actions={
+            selected.status !== "pending_owner" ? (
+              <p className="text-body-small text-m-on-surface-variant">{statusNote(selected)}</p>
+            ) : compose ? (
+              <div className="max-w-2xl space-y-2">
+                <label
+                  htmlFor="escalation-compose"
+                  className="block text-label-small text-m-on-surface-variant"
+                >
+                  {compose.kind === "reject"
+                    ? "Why is this being rejected? The requester sees this."
+                    : `What do you need to know from ${selected.requester?.full_name ?? "the requester"}?`}
+                </label>
+                <Textarea
+                  id="escalation-compose"
+                  autoFocus
+                  rows={3}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={compose.kind === "reject" ? "Reason for rejection" : "Your question"}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busyId === selected.id}
+                    onClick={() => {
+                      setCompose(null);
+                      setDraft("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={compose.kind === "reject" ? "destructive" : "default"}
+                    disabled={busyId === selected.id}
+                    onClick={() =>
+                      compose.kind === "reject" ? reject(selected.id) : ask(selected.id)
+                    }
+                  >
+                    {busyId === selected.id
+                      ? compose.kind === "reject"
+                        ? "Rejecting…"
+                        : "Sending…"
+                      : compose.kind === "reject"
+                        ? "Confirm reject"
+                        : "Send question"}
+                  </Button>
                 </div>
-                <Badge variant="muted">
-                  {row.status === "needs_info" ? "awaiting requester" : "with admin"}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {recent.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-title-small text-m-on-surface-variant">
-            Recent owner decisions
-          </h2>
-          <ul className="space-y-2">
-            {recent.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface px-4 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-body-medium">{row.parent_task_name}</div>
-                  <div className="text-label-small text-m-on-surface-variant">
-                    {row.requester?.full_name ?? "—"} · {extensionSubtitle(row)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={row.status === "approved" ? "default" : "destructive"}>
-                    {row.status}
-                  </Badge>
-                  {row.clickup_subtask_url && (
-                    <a
-                      href={row.clickup_subtask_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-label-small text-m-primary inline-flex items-center gap-1 hover:underline"
-                    >
-                      ClickUp <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                  disabled={busyId === selected.id}
+                  onClick={() => {
+                    setCompose({ id: selected.id, kind: "ask" });
+                    setDraft("");
+                  }}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Ask for info
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                  disabled={busyId === selected.id}
+                  onClick={() => {
+                    setCompose({ id: selected.id, kind: "reject" });
+                    setDraft("");
+                  }}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Reject
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-2"
+                  disabled={busyId === selected.id}
+                  onClick={() => approve(selected.id)}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {busyId === selected.id ? "Approving…" : approveLabel(selected)}
+                </Button>
+              </div>
+            )
+          }
+        />
       )}
     </div>
   );
 }
 
-/** en-ZA throughout the app; seconds are noise on a decision queue. */
-function fmtWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-ZA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Empty({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="space-y-1">
-      <div className="text-label-small text-m-on-surface-variant">{label}</div>
-      <p className="max-w-prose text-body-medium text-m-on-surface whitespace-pre-wrap">{children}</p>
+    <div className="grid place-items-center bg-m-surface-container-low p-6">
+      <div className="max-w-prose space-y-3 text-center">
+        <p className="text-body-medium text-m-on-surface">{title}</p>
+        <p className="text-body-small text-m-on-surface-variant">{body}</p>
+        {action && <div className="flex justify-center">{action}</div>}
+      </div>
     </div>
   );
 }
 
-function extensionSubtitle(r: ExtensionRequestRow): string {
-  const parts: string[] = [];
-  if (r.extra_points !== null) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
-  if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
-  return parts.join(" · ") || "—";
+function statusNote(r: ExtensionRequestRow): string {
+  if (r.status === "pending_admin") {
+    return "Still with the admin — it reaches you only if they approve it.";
+  }
+  if (r.status === "needs_info") return "Waiting on the requester's answer.";
+  if (r.status === "rejected") {
+    return `Rejected${r.rejected_reason ? `: ${r.rejected_reason}` : "."}`;
+  }
+  return "Already decided.";
 }
 
 function approveLabel(r: ExtensionRequestRow): string {
-  if (r.extra_points !== null && r.requested_due_date !== null) return "Approve & push subtask + due date";
-  if (r.requested_due_date !== null) return "Approve & update due date";
-  return "Approve & push subtask";
+  if (r.extra_points !== null && r.requested_due_date !== null) return "Approve points + date";
+  if (r.requested_due_date !== null) return "Approve new date";
+  return "Approve";
 }
 
 export default Escalations;
