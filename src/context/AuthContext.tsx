@@ -67,16 +67,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setDomainError(false);
       if (s?.provider_refresh_token && s.provider_refresh_token !== lastStoredProviderToken) {
-        lastStoredProviderToken = s.provider_refresh_token;
+        // Only mark this token as "stored" once google-token confirms it (res.ok) —
+        // Google never re-issues a refresh token, so a failed store (e.g. this
+        // request racing AuthContext's own team_members provisioning below, or a
+        // transient 500) must be retried on the next auth event, not silently
+        // treated as done. A non-2xx response is not a rejected promise, so
+        // .catch() alone would never see it.
+        const tok = s.provider_refresh_token;
         fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-token`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', authorization: `Bearer ${s.access_token}` },
           body: JSON.stringify({
             action: 'store',
-            provider_refresh_token: s.provider_refresh_token,
+            provider_refresh_token: tok,
             provider_token: s.provider_token,
             expires_in: s.expires_in,
           }),
+        }).then((res) => {
+          if (res.ok) lastStoredProviderToken = tok;
         }).catch(() => {});
       }
       setSession(s);

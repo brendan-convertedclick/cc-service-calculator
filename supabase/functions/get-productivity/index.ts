@@ -148,15 +148,6 @@ Deno.serve(async (req: Request) => {
       (ongoingRows ?? []).map((r) => [r.clickup_task_id, r.billable ?? false]),
     );
 
-    // Internal-meeting ClickUp tasks live in the internal list but are not
-    // ongoing_tasks rows, so without this they'd fall through to "assume
-    // billable" below and corrupt client actuals/margin/invoice reports.
-    const { data: meetingRows } = await supabase
-      .from("internal_meetings")
-      .select("clickup_task_id")
-      .not("clickup_task_id", "is", null);
-    const meetingTaskIds = new Set<string>((meetingRows ?? []).map((r) => r.clickup_task_id as string));
-
     const [startMs, endMs] = periodRange(view, date);
     const CU_HEADERS = { Authorization: clickupPat, "Content-Type": "application/json" };
 
@@ -225,6 +216,24 @@ Deno.serve(async (req: Request) => {
         task?: { id: string };
       }>;
     };
+
+    // Internal-meeting ClickUp tasks live in the internal list but are not
+    // ongoing_tasks rows, so without this they'd fall through to "assume
+    // billable" below and corrupt client actuals/margin/invoice reports.
+    // Scoped to the exact task ids seen in THIS period's time entries rather
+    // than fetched unbounded (PostgREST's default max-rows of 1000 silently
+    // truncates an unordered select once internal_meetings grows past it) or
+    // by a date-window guess (a time entry logged late against an
+    // older-starting meeting would fall outside a starts_at window and be
+    // misclassified as billable — the exact corruption this fix exists to
+    // prevent).
+    const periodTaskIds = Array.from(
+      new Set((timeBody.data ?? []).map((e) => e.task?.id).filter((id): id is string => !!id)),
+    );
+    const { data: meetingRows } = periodTaskIds.length > 0
+      ? await supabase.from("internal_meetings").select("clickup_task_id").in("clickup_task_id", periodTaskIds)
+      : { data: [] as Array<{ clickup_task_id: string | null }> };
+    const meetingTaskIds = new Set<string>((meetingRows ?? []).map((r) => r.clickup_task_id as string));
 
     // Aggregate sprint points by bucket + userId
     const sprintMap = new Map<string, SprintPoint>();

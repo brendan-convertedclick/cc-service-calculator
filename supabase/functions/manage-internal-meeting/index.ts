@@ -28,10 +28,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { cors, json } from "../_shared/helpers.ts";
-import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { createServiceRoleClient, createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
-import { createEvent, deleteEvent, patchEvent } from "../_shared/google-calendar.ts";
+import { createEvent, deleteEvent, getEvent, patchEvent, type AttendeeInput } from "../_shared/google-calendar.ts";
 import { resolveDropdownOption, type CuField } from "../_shared/clickup.ts";
 import {
   buildMeetingDescription,
@@ -154,7 +154,7 @@ async function safeClickupSync(
 }
 
 const NO_CLICKUP_LIST_ERROR =
-  "ClickUp internal list not configured - set it in Settings -> ClickUp before meeting time can be tracked as overhead.";
+  "No ClickUp list found for this client - add a Meetings or Overhead list to its folder (Clients -> [client] -> sync lists), or set a fallback internal list in Settings -> ClickUp.";
 const NO_GOOGLE_ACCOUNT_ERROR =
   "No Google account connected — sign in with Google to grant calendar access";
 
@@ -216,6 +216,9 @@ interface GoogleSyncCtx {
   client: ClientRow;
   project: ProjectRow | null;
   attendees: TeamMember[];
+  /** True only when the caller's request explicitly changed attendee_member_ids.
+   * Unset/false on create (irrelevant — a new event always sends the full list). */
+  attendeesChanged?: boolean;
 }
 
 async function syncGoogleCreate(req: Request, ctx: GoogleSyncCtx): Promise<GoogleSyncResult> {
@@ -294,10 +297,37 @@ async function syncGoogleUpdate(req: Request, ctx: GoogleSyncCtx): Promise<Googl
         `No Google account connected for ${ctx.meeting.google_calendar_email} — sign in with Google to grant calendar access`,
     };
   }
-  const attendeeEmails = dedupeEmailsExcluding(
-    [...ctx.attendees.map((a) => a.email), ctx.organiser.email],
-    resolved.googleEmail,
-  );
+  // Only touch the attendee array when it actually changed — Google's patch
+  // OVERWRITES arrays wholesale (not merges), so sending it unconditionally
+  // resets every existing attendee's responseStatus (accepted/declined) back
+  // to needsAction and re-sends invites to people who already responded.
+  let attendeeEmails: AttendeeInput[] | undefined;
+  if (ctx.attendeesChanged) {
+    const existingEvent = await getEvent(resolved.accessToken, ctx.meeting.google_event_id);
+    if (!existingEvent.ok) {
+      // Couldn't read current RSVPs (404/403/429/...) — skip the attendee
+      // patch entirely rather than send a bare-email array that would wipe
+      // everyone's responseStatus. internal_meeting_attendees (the DB) is
+      // still the source of truth, so nothing is lost; the next successful
+      // edit retries.
+      console.warn(
+        `[manage-internal-meeting] could not read event ${ctx.meeting.google_event_id} to preserve RSVPs; leaving Google attendees unchanged`,
+      );
+    } else {
+      const desired = dedupeEmailsExcluding(
+        [...ctx.attendees.map((a) => a.email), ctx.organiser.email],
+        resolved.googleEmail,
+      );
+      const existingStatus = new Map<string, string>();
+      for (const a of existingEvent.event?.attendees ?? []) {
+        if (a.email) existingStatus.set(a.email.toLowerCase(), a.responseStatus ?? "needsAction");
+      }
+      attendeeEmails = desired.map((email) => {
+        const status = existingStatus.get(email.toLowerCase());
+        return status ? { email, responseStatus: status } : email;
+      });
+    }
+  }
   const description = buildMeetingDescription({
     title: ctx.meeting.title,
     agenda: ctx.meeting.agenda,
@@ -355,13 +385,55 @@ interface ClickupSyncCreateCtx {
   meetUrl: string | null;
 }
 
-async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promise<ClickupSyncResult> {
-  const { data: settingsRow } = await ctx.sb
+/**
+ * Resolve the ClickUp list a meeting's task belongs in.
+ *
+ * Internal meetings are client-linked, and migration 0048 already maps every
+ * client's ClickUp folder to one list per task_group. So a meeting belongs in
+ * that client's "Meetings" list, falling back to its "Overhead" list, and only
+ * then to settings.clickup_internal_list_id — the pre-0048 single-internal-list
+ * model, which is unset on this project.
+ *
+ * Which list is chosen does NOT affect billing classification: get-productivity
+ * keys overhead off the meeting's task id, not its list.
+ */
+async function resolveMeetingListId(
+  sb: SupabaseClient,
+  clientId: string,
+): Promise<string | null> {
+  const { data: groupRows } = await sb
+    .from("task_groups")
+    .select("id, label_key")
+    .in("label_key", ["meetings", "overhead"]);
+  const groups = (groupRows ?? []) as Array<{ id: string; label_key: string }>;
+
+  if (groups.length > 0) {
+    const { data: listRows } = await sb
+      .from("client_lists")
+      .select("clickup_list_id, group_id")
+      .eq("client_id", clientId)
+      .is("archived_at", null)
+      .in("group_id", groups.map((g) => g.id));
+    const lists = (listRows ?? []) as Array<{ clickup_list_id: string | null; group_id: string }>;
+    // Meetings first, Overhead second — both keep the task out of the
+    // client's Delivery list, where it would read as billable work in ClickUp.
+    for (const key of ["meetings", "overhead"]) {
+      const groupId = groups.find((g) => g.label_key === key)?.id;
+      const hit = groupId ? lists.find((l) => l.group_id === groupId)?.clickup_list_id : null;
+      if (hit) return hit;
+    }
+  }
+
+  const { data: settingsRow } = await sb
     .from("settings")
     .select("clickup_internal_list_id")
     .eq("id", 1)
     .maybeSingle();
-  const listId = (settingsRow as { clickup_internal_list_id: string | null } | null)?.clickup_internal_list_id;
+  return (settingsRow as { clickup_internal_list_id: string | null } | null)?.clickup_internal_list_id ?? null;
+}
+
+async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promise<ClickupSyncResult> {
+  const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
   if (!listId) {
     return { taskId: null, taskUrl: null, error: NO_CLICKUP_LIST_ERROR };
   }
@@ -507,13 +579,8 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
   // The list id is only needed for this field-definitions lookup — the PUT
   // above already addresses the task directly, so it must not be gated on
   // the internal list still being configured (an edit to an already-synced
-  // task should keep working even if clickup_internal_list_id later clears).
-  const { data: settingsRow } = await ctx.sb
-    .from("settings")
-    .select("clickup_internal_list_id")
-    .eq("id", 1)
-    .maybeSingle();
-  const listId = (settingsRow as { clickup_internal_list_id: string | null } | null)?.clickup_internal_list_id;
+  // task should keep working even if the client's lists are later remapped).
+  const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
   const fieldsRes = listId ? await fetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU) : null;
   if (fieldsRes?.ok) {
     const cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
@@ -531,10 +598,51 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
   } else if (fieldsRes) {
     console.warn(`[manage-internal-meeting] could not refresh ClickUp field defs for list ${listId}: ${fieldsRes.status}`);
   } else {
-    console.warn(`[manage-internal-meeting] clickup_internal_list_id unset — skipping custom-field refresh for task ${taskId}`);
+    console.warn(`[manage-internal-meeting] no ClickUp list resolved for client ${ctx.client.id} — skipping custom-field refresh for task ${taskId}`);
   }
 
   return { taskId, taskUrl: ctx.meeting.clickup_task_url, error: null };
+}
+
+// ── Caller auth ──────────────────────────────────────────────────────────
+//
+// Deployed with --no-verify-jwt (same posture as google-token), so this is
+// the ONLY authn/authz gate — the service-role client below bypasses RLS
+// entirely, meaning migration 0093's organiser-vs-attendee policies are
+// never consulted on this write path.
+
+interface Caller {
+  /** null under the shared team@convertedclick.co.za login (no team_members row). */
+  memberId: string | null;
+  role: string;
+}
+
+const SHARED_DEV_EMAIL = "team@convertedclick.co.za";
+
+async function resolveCaller(req: Request, sb: SupabaseClient): Promise<Caller | { error: string }> {
+  try {
+    const userClient = createUserClient(req);
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData.user?.email) {
+      return { error: "Could not resolve the signed-in user." };
+    }
+    const email = userData.user.email;
+    const { data: member } = await sb.from("team_members").select("id, role").eq("email", email).maybeSingle();
+    if (member) {
+      const m = member as { id: string; role: string };
+      return { memberId: m.id, role: m.role };
+    }
+    // Shared dev/admin login has no team_members row — treated as owner for
+    // ergonomics, mirroring the current_team_member_role() SQL fallback.
+    if (email === SHARED_DEV_EMAIL) return { memberId: null, role: "owner" };
+    return { error: `No team_members row for ${email}.` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unknown error resolving caller." };
+  }
+}
+
+function isPrivileged(caller: Caller): boolean {
+  return caller.role === "admin" || caller.role === "owner";
 }
 
 // ── Action handlers ─────────────────────────────────────────────────────
@@ -559,10 +667,13 @@ async function loadTeamMembers(sb: SupabaseClient, ids: string[]): Promise<TeamM
   return (data as TeamMember[] | null) ?? [];
 }
 
-async function handleCreate(req: Request, sb: SupabaseClient, body: CreateBody): Promise<Response> {
+async function handleCreate(req: Request, sb: SupabaseClient, caller: Caller, body: CreateBody): Promise<Response> {
   const title = body.title?.trim();
   if (!title) return json({ error: "title is required" }, 400);
   if (!body.organiser_member_id) return json({ error: "organiser_member_id is required" }, 400);
+  if (!isPrivileged(caller) && body.organiser_member_id !== caller.memberId) {
+    return json({ error: "You can only create meetings organised by yourself." }, 403);
+  }
   if (!body.client_id) return json({ error: "client_id is required" }, 400);
   if (!body.starts_at || !body.ends_at) return json({ error: "starts_at and ends_at are required" }, 400);
   const startsMs = Date.parse(body.starts_at);
@@ -647,7 +758,7 @@ async function handleCreate(req: Request, sb: SupabaseClient, body: CreateBody):
   });
 }
 
-async function handleUpdate(req: Request, sb: SupabaseClient, body: UpdateBody): Promise<Response> {
+async function handleUpdate(req: Request, sb: SupabaseClient, caller: Caller, body: UpdateBody): Promise<Response> {
   if (!body.meeting_id) return json({ error: "meeting_id is required" }, 400);
   const { data: existing, error: fetchErr } = await sb
     .from("internal_meetings")
@@ -656,6 +767,9 @@ async function handleUpdate(req: Request, sb: SupabaseClient, body: UpdateBody):
     .maybeSingle();
   if (fetchErr || !existing) return json({ error: "Meeting not found" }, 404);
   const current = existing as MeetingRow;
+  if (!isPrivileged(caller) && current.organiser_id !== caller.memberId) {
+    return json({ error: "Only the organiser can update this meeting." }, 403);
+  }
   if (current.status === "cancelled") return json({ error: "Cannot update a cancelled meeting" }, 400);
 
   const title = body.title !== undefined ? body.title.trim() : current.title;
@@ -718,7 +832,7 @@ async function handleUpdate(req: Request, sb: SupabaseClient, body: UpdateBody):
   const meeting: MeetingRow = { ...current, title, agenda, client_id: clientId, project_id: projectId, starts_at: startsAt, ends_at: endsAt };
 
   const googleResult = await safeGoogleSync(
-    () => syncGoogleUpdate(req, { meeting, organiser, client, project, attendees }),
+    () => syncGoogleUpdate(req, { meeting, organiser, client, project, attendees, attendeesChanged }),
     {
       eventId: meeting.google_event_id,
       googleEmail: meeting.google_calendar_email,
@@ -761,7 +875,7 @@ async function handleUpdate(req: Request, sb: SupabaseClient, body: UpdateBody):
   });
 }
 
-async function handleCancel(req: Request, sb: SupabaseClient, body: CancelBody): Promise<Response> {
+async function handleCancel(req: Request, sb: SupabaseClient, caller: Caller, body: CancelBody): Promise<Response> {
   if (!body.meeting_id) return json({ error: "meeting_id is required" }, 400);
   const { data: existing, error: fetchErr } = await sb
     .from("internal_meetings")
@@ -770,6 +884,9 @@ async function handleCancel(req: Request, sb: SupabaseClient, body: CancelBody):
     .maybeSingle();
   if (fetchErr || !existing) return json({ error: "Meeting not found" }, 404);
   const meeting = existing as MeetingRow;
+  if (!isPrivileged(caller) && meeting.organiser_id !== caller.memberId) {
+    return json({ error: "Only the organiser can cancel this meeting." }, 403);
+  }
   if (meeting.status === "cancelled") return json({ ok: true }); // idempotent
 
   // Row is the source of truth: mark cancelled FIRST. A Google/ClickUp
@@ -847,13 +964,15 @@ Deno.serve(async (req: Request) => {
   try {
     const body = (await req.json()) as ActionBody;
     const sb = createServiceRoleClient();
+    const caller = await resolveCaller(req, sb);
+    if ("error" in caller) return json({ error: caller.error }, 401);
     switch (body.action) {
       case "create":
-        return await handleCreate(req, sb, body);
+        return await handleCreate(req, sb, caller, body);
       case "update":
-        return await handleUpdate(req, sb, body);
+        return await handleUpdate(req, sb, caller, body);
       case "cancel":
-        return await handleCancel(req, sb, body);
+        return await handleCancel(req, sb, caller, body);
       default:
         return json({ error: "action must be one of: create, update, cancel" }, 400);
     }

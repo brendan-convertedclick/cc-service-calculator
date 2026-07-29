@@ -24,7 +24,13 @@ export interface GoogleCalendarEvent {
   conferenceData?: {
     entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
   };
+  attendees?: Array<{ email?: string; responseStatus?: string }>;
 }
+
+/** A bare email invites fresh (responseStatus defaults to needsAction); an
+ * object with responseStatus preserves an existing attendee's RSVP so a
+ * patch that touches the array doesn't reset everyone back to pending. */
+export type AttendeeInput = string | { email: string; responseStatus?: string };
 
 export interface GoogleCalendarEventResult {
   ok: boolean;
@@ -44,7 +50,7 @@ function eventBody(input: {
   description?: string;
   startIso?: string;
   endIso?: string;
-  attendeeEmails?: string[];
+  attendeeEmails?: AttendeeInput[];
 }): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (input.summary !== undefined) body.summary = input.summary;
@@ -56,7 +62,7 @@ function eventBody(input: {
     body.end = { dateTime: input.endIso, timeZone: SAST_TIME_ZONE };
   }
   if (input.attendeeEmails !== undefined) {
-    body.attendees = input.attendeeEmails.map((email) => ({ email }));
+    body.attendees = input.attendeeEmails.map((a) => (typeof a === "string" ? { email: a } : a));
   }
   return body;
 }
@@ -84,7 +90,7 @@ export interface CreateEventInput {
   description: string;
   startIso: string;
   endIso: string;
-  attendeeEmails: string[];
+  attendeeEmails: AttendeeInput[];
 }
 
 /**
@@ -114,7 +120,10 @@ export interface PatchEventInput {
   description?: string;
   startIso?: string;
   endIso?: string;
-  attendeeEmails?: string[];
+  /** Omit entirely (undefined) to leave the event's attendee array — and
+   * everyone's RSVP status — untouched. Google's patch overwrites arrays
+   * wholesale, so only pass this when the attendee list actually changed. */
+  attendeeEmails?: AttendeeInput[];
   /**
    * Only true when the stored meet URL is null (the original create never
    * got a conference, e.g. Google was momentarily unhappy). Resending
@@ -147,6 +156,20 @@ export async function patchEvent(
     body: JSON.stringify(body),
   });
   return toResult(res, "patch");
+}
+
+/** GET an existing event — used to read attendees[].responseStatus before a
+ * patch that changes the attendee list, so surviving attendees keep their
+ * RSVP instead of being reset to needsAction. */
+export async function getEvent(
+  accessToken: string,
+  eventId: string,
+): Promise<GoogleCalendarEventResult> {
+  const url = `${CALENDAR_EVENTS_URL}/${encodeURIComponent(eventId)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return toResult(res, "get");
 }
 
 /**

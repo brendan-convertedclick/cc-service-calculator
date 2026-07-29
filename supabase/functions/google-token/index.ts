@@ -40,18 +40,38 @@ async function resolveCaller(
     if (userErr || !userData.user?.email) {
       return { error: "Could not resolve the signed-in user." };
     }
+    const email = userData.user.email;
 
     const svc = createServiceRoleClient();
     const { data: member, error: memberErr } = await svc
       .from("team_members")
       .select("id")
-      .eq("email", userData.user.email)
+      .eq("email", email)
       .maybeSingle();
 
     if (memberErr) return { error: memberErr.message };
-    if (!member) return { error: `No team_members row for ${userData.user.email}.` };
+    if (member) return { memberId: (member as { id: string }).id, email };
 
-    return { memberId: (member as { id: string }).id, email: userData.user.email };
+    // No row yet — this is the OAuth "store" path racing AuthContext's own
+    // provisioning effect (AuthContext.tsx:120-129): the provider_refresh_token
+    // capture POST can land before that effect's upsert commits, especially on
+    // a brand-new sign-in. Since Google never re-issues the refresh token,
+    // returning 401 here would drop the grant permanently. Provision the same
+    // way AuthContext does instead of failing.
+    if (!email.endsWith("@convertedclick.co.za") || email === "team@convertedclick.co.za") {
+      return { error: `No team_members row for ${email}.` };
+    }
+    const fullName =
+      (userData.user.user_metadata?.full_name as string | undefined) ??
+      (userData.user.user_metadata?.name as string | undefined) ??
+      email;
+    const { data: upserted, error: upsertErr } = await svc
+      .from("team_members")
+      .upsert({ full_name: fullName, email, auth_user_id: userData.user.id }, { onConflict: "email", ignoreDuplicates: false })
+      .select("id")
+      .single();
+    if (upsertErr || !upserted) return { error: upsertErr?.message ?? `Could not provision team_members row for ${email}.` };
+    return { memberId: (upserted as { id: string }).id, email };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Unknown error resolving caller." };
   }
