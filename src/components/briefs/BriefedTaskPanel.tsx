@@ -4,8 +4,9 @@
 // edit mode. Shows how the brief was briefed (a tag), then the task's live
 // fields. The parent's top-right "Edit task" button flips `editing` on; while
 // editing, the ClickUp-synced fields (name / points / due date) become inputs
-// with Save/Cancel. Non-synced context (client, billing, assignee) stays
-// read-only — those are set at brief time.
+// with Save/Cancel. Client is also editable (a Conductor-only correction —
+// same client_id patch as the "assign a client" picker on Scope.tsx; it does
+// not touch ClickUp's own Client Name custom field). Billing stays read-only.
 
 import { useEffect, useState } from "react";
 import { CalendarClock, ExternalLink } from "lucide-react";
@@ -25,6 +26,7 @@ import { useBriefedTaskDetails, useUpdateBriefedTask, useFlagClientDelay, type B
 import { useBriefExtensions, useResolveExtension, type BriefExtension } from "@/hooks/useBriefExtensions";
 import { ExtensionDialog } from "@/components/briefs/ExtensionDialog";
 import { useClients } from "@/hooks/useClients";
+import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useTeam } from "@/hooks/useTeam";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
 
@@ -65,6 +67,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: BriefedTaskPanelProps) {
   const details = useBriefedTaskDetails(brief.id, true);
   const updateTask = useUpdateBriefedTask();
+  const updateBrief = useUpdateBrief();
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { data: extensions = [] } = useBriefExtensions(brief.id, true);
@@ -79,16 +82,19 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   const [points, setPoints] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [assigneeId, setAssigneeId] = useState(UNASSIGNED);
+  const [clientId, setClientId] = useState("");
 
   // Re-seed the edit fields from the live task each time we enter edit mode.
-  // Task name / points / due date come from ClickUp; assignee from the brief.
+  // Task name / points / due date come from ClickUp; assignee + client from
+  // the brief.
   useEffect(() => {
     if (!editing || !details.data) return;
     setName(details.data.task_name ?? "");
     setPoints(details.data.sprint_points != null ? String(details.data.sprint_points) : "");
     setDueDate(details.data.due_date ?? "");
     setAssigneeId(brief.assignee_id ?? UNASSIGNED);
-  }, [editing, details.data, brief.assignee_id]);
+    setClientId(brief.client_id ?? "");
+  }, [editing, details.data, brief.assignee_id, brief.client_id]);
 
   const handleSave = async () => {
     const trimmedName = name.trim();
@@ -103,7 +109,13 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
     }
     const selectedAssignee = assigneeId === UNASSIGNED ? null : assigneeId;
     const assigneeChanged = selectedAssignee !== (brief.assignee_id ?? null);
+    const clientChanged = clientId !== (brief.client_id ?? "");
     try {
+      if (clientChanged) {
+        // Conductor-only correction — same client_id patch as the "assign a
+        // client" picker on Scope.tsx; doesn't touch ClickUp's own field.
+        await updateBrief.mutateAsync({ id: brief.id, patch: { client_id: clientId || null } });
+      }
       await updateTask.mutateAsync({
         brief_id: brief.id,
         task_name: trimmedName,
@@ -185,8 +197,9 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
               <Input id="bt-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
-          {/* Assignee is editable (reassigns the ClickUp task); client &
-              billing are read-only context set at brief time. */}
+          {/* Assignee reassigns the ClickUp task; client is a Conductor-only
+              correction (see handleSave); billing stays read-only context set
+              at brief time. */}
           <div className="grid grid-cols-1 gap-4 border-t border-m-outline-variant pt-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Assignee</Label>
@@ -204,15 +217,29 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
                 </SelectContent>
               </Select>
             </div>
-            <Field label="Client">{clientName}</Field>
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick a client…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Field label="Billing">{billingLabel}</Field>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="ghost" size="sm" onClick={onExitEdit} disabled={updateTask.isPending}>
+            <Button variant="ghost" size="sm" onClick={onExitEdit} disabled={updateTask.isPending || updateBrief.isPending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={updateTask.isPending}>
-              {updateTask.isPending ? "Saving…" : "Save to ClickUp"}
+            <Button size="sm" onClick={handleSave} disabled={updateTask.isPending || updateBrief.isPending}>
+              {updateTask.isPending || updateBrief.isPending ? "Saving…" : "Save to ClickUp"}
             </Button>
           </div>
         </div>
