@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyProgress,
+  fmtPtH,
   hoursToPoints,
   maxPointsFromValue,
   pointsToHours,
@@ -55,5 +56,25 @@ describe("productizedPct", () => {
   });
   it("returns null when no points", () => {
     expect(productizedPct(0, 0)).toBeNull();
+  });
+});
+
+describe("fmtPtH", () => {
+  // Postgres numeric comes back as a string ("10.00"), which is what
+  // extension_requests.extra_points actually delivers to these call sites.
+  it("normalises numeric-as-string without trailing zeros", () => {
+    expect(fmtPtH("10.00")).toBe("10 pt · 2.5h");
+    expect(fmtPtH("0.50")).toBe("0.5 pt · 8m");
+  });
+
+  it("switches to minutes under an hour and keeps points first", () => {
+    expect(fmtPtH(4)).toBe("4 pt · 1h");
+    expect(fmtPtH(1)).toBe("1 pt · 15m");
+  });
+
+  it("renders an em dash for missing values", () => {
+    expect(fmtPtH(null)).toBe("—");
+    expect(fmtPtH(undefined)).toBe("—");
+    expect(fmtPtH("not a number")).toBe("—");
   });
 });

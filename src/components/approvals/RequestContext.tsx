@@ -384,6 +384,16 @@ function BillingAndProject({
         </div>
       )}
 
+      {/* Always visible, and not gated on a retainer existing: an approver
+          reading any burn or budget number needs to know this task's hours
+          aren't in it. */}
+      {!countedInBurn && taskHours > 0 && (
+        <p className="text-label-small text-m-error">
+          This task's {Math.round(taskHours * 10) / 10}h has not been mapped to a project by the
+          actuals sync, so it is missing from every hours figure below — the real burn is higher.
+        </p>
+      )}
+
       {configured.length > 0 && burn && (
         <Disclosure
           summary={
@@ -409,12 +419,6 @@ function BillingAndProject({
             </div>
           }
         >
-          {!countedInBurn && taskHours > 0 && (
-            <p className="text-label-small text-m-error">
-              This task's {Math.round(taskHours * 10) / 10}h is not in the figures above — the
-              actuals sync hasn't mapped it to any of these retainers, so the real burn is higher.
-            </p>
-          )}
           <ul className="space-y-0.5">
             {configured.map((r) => (
               <li
