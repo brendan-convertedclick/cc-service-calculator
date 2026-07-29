@@ -61,7 +61,13 @@ export function Login() {
               type="button"
               variant="outline"
               className="w-full gap-2"
-              onClick={() => signInWithGoogle()}
+              onClick={async () => {
+                setError(null);
+                // signInWithOAuth resolves with { error } rather than throwing —
+                // unhandled, a disabled provider silently does nothing at all.
+                const { error } = await signInWithGoogle();
+                if (error) setError(error.message);
+              }}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
                 <path

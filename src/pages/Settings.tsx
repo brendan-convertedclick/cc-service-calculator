@@ -26,13 +26,14 @@ import {
 } from "@/hooks/useOngoingTasks";
 import type { TaskGroup, TaskTemplate } from "@/types/ongoing";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "productivity" | "output-multiplier" | "task-catalog";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "google" | "productivity" | "output-multiplier" | "task-catalog";
 
 const NAV: { key: SectionKey; label: string }[] = [
   { key: "clickup",          label: "ClickUp" },
   { key: "anthropic",        label: "Anthropic" },
   { key: "xero",             label: "Xero" },
   { key: "gmail",            label: "Gmail" },
+  { key: "google",           label: "Google Calendar" },
   { key: "productivity",     label: "Productivity" },
   { key: "output-multiplier", label: "Output Multiplier" },
   { key: "task-catalog",     label: "Task catalog" },
@@ -491,6 +492,23 @@ export function Settings() {
               <CardContent>
                 <Button asChild>
                   <Link to="/settings/gmail">Connect Gmail →</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "google" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Google Calendar</CardTitle>
+                <CardDescription>
+                  Connect your Google account so internal meetings you organise get a
+                  calendar event with a Meet link for every attendee.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/settings/google">Connect Google Calendar →</Link>
                 </Button>
               </CardContent>
             </Card>

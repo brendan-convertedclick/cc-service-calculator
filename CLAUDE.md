@@ -127,3 +127,13 @@ The app's visual language (colors, typography, radius, elevation) is driven by *
 ## Design Context
 
 Design strategy lives in `PRODUCT.md` at the repo root — register (`product`), platform (`web`), users, positioning, brand personality, anti-references, and 5 design principles. The visual system (colors/type/components) is captured in `DESIGN.md` (generated from the Material 3 token system). Both are maintained by the **impeccable** skill (`.claude/skills/impeccable/`); run `/impeccable` for design/review/polish work — it reads these two files first. Note the token system is Figma-synced and generated (see "Design tokens" above); impeccable must use the `m-`/shadcn token classes, never hardcoded hex.
+
+## Internal meetings — Google Calendar setup
+
+Internal meetings reuse the existing Supabase Auth Google login (see `signInWithGoogle` in `AuthContext.tsx`) — there is no separate OAuth app.
+
+- Set Supabase secrets `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` — the same values already configured in Supabase Auth → Providers → Google.
+- The Google Cloud project needs the **Calendar API** enabled and `calendar.events` added to the OAuth consent screen's scopes.
+- `https://conductor.convertedclick.co.za` must be listed in Supabase Auth → URL Configuration → Redirect URLs, or the provider refresh token is never captured and every meeting reports "No Google account connected".
+- Staff must sign in with Google once to grant calendar access — existing sessions (email/password or an earlier Google sign-in without the calendar scope) must **sign out and sign in with Google again**. Status/reconnect lives at Settings → Google Calendar.
+- `settings.clickup_internal_list_id` must be set (Settings → ClickUp) or meetings skip the ClickUp leg entirely and their time is never tracked as overhead.

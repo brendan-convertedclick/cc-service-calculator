@@ -9,6 +9,14 @@ const DEV_AUTO_LOGIN = isLocalDev();
 const DEV_EMAIL = "team@convertedclick.co.za";
 const DEV_PASSWORD = "cc-calc-2026-temp";
 
+// Google's provider_refresh_token is only ever present on the session object
+// itself (never re-fetchable, never refreshed by Supabase) — but auth-js
+// re-emits it on every INITIAL_SESSION / recovered-session event, not just on
+// a fresh OAuth sign-in, and does so twice under React 18 StrictMode. This
+// module-scope guard (survives the double-mount, unlike a ref) makes sure we
+// only POST a given refresh token to google-token once.
+let lastStoredProviderToken: string | null = null;
+
 type AuthContextValue = {
   session: Session | null;
   user: Session["user"] | null;
@@ -58,6 +66,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       setDomainError(false);
+      if (s?.provider_refresh_token && s.provider_refresh_token !== lastStoredProviderToken) {
+        lastStoredProviderToken = s.provider_refresh_token;
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${s.access_token}` },
+          body: JSON.stringify({
+            action: 'store',
+            provider_refresh_token: s.provider_refresh_token,
+            provider_token: s.provider_token,
+            expires_in: s.expires_in,
+          }),
+        }).catch(() => {});
+      }
       setSession(s);
     });
     return () => {
@@ -130,7 +151,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          queryParams: { hd: 'convertedclick.co.za' },
+          // calendar.events lets staff schedule internal meetings on their own
+          // calendar (see google-token/index.ts + _shared/google-token.ts).
+          scopes: 'https://www.googleapis.com/auth/calendar.events',
+          queryParams: {
+            hd: 'convertedclick.co.za',
+            access_type: 'offline',
+            // Required to guarantee a refresh_token even on repeat consent —
+            // without it Google omits refresh_token after the first grant.
+            prompt: 'consent',
+          },
         },
       });
     },

@@ -148,6 +148,15 @@ Deno.serve(async (req: Request) => {
       (ongoingRows ?? []).map((r) => [r.clickup_task_id, r.billable ?? false]),
     );
 
+    // Internal-meeting ClickUp tasks live in the internal list but are not
+    // ongoing_tasks rows, so without this they'd fall through to "assume
+    // billable" below and corrupt client actuals/margin/invoice reports.
+    const { data: meetingRows } = await supabase
+      .from("internal_meetings")
+      .select("clickup_task_id")
+      .not("clickup_task_id", "is", null);
+    const meetingTaskIds = new Set<string>((meetingRows ?? []).map((r) => r.clickup_task_id as string));
+
     const [startMs, endMs] = periodRange(view, date);
     const CU_HEADERS = { Authorization: clickupPat, "Content-Type": "application/json" };
 
@@ -264,7 +273,12 @@ Deno.serve(async (req: Request) => {
       //  3. Else assume billable — project/sprint work outside ongoing_tasks
       //     is billable by default.
       const fromDb = entry.task?.id ? ongoingBillable.get(entry.task.id) : undefined;
-      const isBillable = typeof entry.billable === "boolean"
+      // Meeting tasks are always overhead, checked ahead of (not merged into)
+      // ongoingBillable — ClickUp's own billable flag would otherwise win.
+      const isMeeting = entry.task?.id ? meetingTaskIds.has(entry.task.id) : false;
+      const isBillable = isMeeting
+        ? false
+        : typeof entry.billable === "boolean"
         ? entry.billable
         : (fromDb !== undefined ? fromDb : true);
       const target = isBillable ? timeMap : overheadMap;

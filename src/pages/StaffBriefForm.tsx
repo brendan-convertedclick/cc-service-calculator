@@ -5,12 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefFormBody } from "@/components/staff/BriefFormBody";
 import { ExtensionFormBody } from "@/components/staff/ExtensionFormBody";
+import { MeetingFormBody } from "@/components/staff/MeetingFormBody";
+import { MyMeetingsList } from "@/components/staff/MyMeetingsList";
 
 /**
- * Phase 1 + 2 staff portal: the single page that staff-role users see when
- * they log in. Two tabs:
- *   - New brief        — Phase 1
- *   - Extension request — Phase 2
+ * Staff portal: the single page that staff-role users see when they log in.
+ * Three tabs:
+ *   - New brief          — Phase 1
+ *   - Extension request  — Phase 2
+ *   - Internal meeting   — schedule + manage internal meetings (Google
+ *     Calendar + ClickUp overhead task)
  *
  * Component name kept as `StaffBriefForm` to avoid churn in routing.
  */
@@ -59,15 +63,20 @@ export function StaffBriefForm() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="extension" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="extension">Extension request</TabsTrigger>
                 <TabsTrigger value="brief">New brief</TabsTrigger>
+                <TabsTrigger value="meeting">Internal meeting</TabsTrigger>
               </TabsList>
               <TabsContent value="extension" className="space-y-0">
                 <ExtensionFormBody />
               </TabsContent>
               <TabsContent value="brief" className="space-y-0">
                 <BriefFormBody />
+              </TabsContent>
+              <TabsContent value="meeting" className="space-y-6">
+                <MeetingFormBody />
+                <MyMeetingsList />
               </TabsContent>
             </Tabs>
           </CardContent>
