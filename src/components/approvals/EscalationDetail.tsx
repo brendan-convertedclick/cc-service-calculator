@@ -7,8 +7,7 @@ import { fmtPtH, pointsToHours } from "@/lib/sprint-points";
 import { consumedPct, useTaskContext } from "@/hooks/useTaskContext";
 import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
 import { buildVerdict, daysBetween, type VerdictTone } from "@/lib/escalation-verdict";
-import { askedForPoints } from "@/types/extension-requests";
-import type { RailRow } from "./EscalationRail";
+import { askedForPoints, type EscalationRow } from "@/types/extension-requests";
 
 const TONE: Record<VerdictTone, "success" | "warning" | "destructive" | "muted"> = {
   ok: "success",
@@ -39,7 +38,7 @@ export function EscalationDetail({
   priorOverrunsThisMonth,
   actions,
 }: {
-  row: RailRow;
+  row: EscalationRow;
   priorOverrunsThisMonth: number;
   actions: React.ReactNode;
 }) {

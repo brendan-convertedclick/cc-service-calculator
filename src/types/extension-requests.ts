@@ -41,6 +41,34 @@ export type ExtensionRequestRow = {
 };
 
 /**
+ * A request with the joins the approval surfaces need. The escalations page
+ * fetches this one shape; the table uses part of it and the detail pane the
+ * rest, so the join list lives here rather than in either component.
+ */
+export type EscalationRow = ExtensionRequestRow & {
+  client: { id: string; name: string } | null;
+  requester: { id: string; full_name: string; email: string | null } | null;
+  admin_approver: { id: string; full_name: string } | null;
+};
+
+/** Which of the four queues a request sits in — who is holding it right now. */
+export type EscalationHolder = "owner" | "admin" | "requester" | "done";
+
+export function holderOf(row: { status: ExtensionStatus }): EscalationHolder {
+  if (row.status === "pending_owner") return "owner";
+  if (row.status === "pending_admin") return "admin";
+  if (row.status === "needs_info") return "requester";
+  return "done";
+}
+
+export const HOLDER_LABEL: Record<EscalationHolder, string> = {
+  owner: "Needs you",
+  admin: "With admin",
+  requester: "Waiting on requester",
+  done: "Decided",
+};
+
+/**
  * Whether the request actually asks for budget.
  *
  * Since the budget field became mandatory, `extra_points` is present on every

@@ -1,34 +1,53 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, HelpCircle, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, HelpCircle, RefreshCw, Search, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { askForInfo } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EscalationRail, type RailGroup, type RailRow } from "@/components/approvals/EscalationRail";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { EscalationTable, type ClientGroup } from "@/components/approvals/EscalationTable";
 import { EscalationDetail } from "@/components/approvals/EscalationDetail";
-import { askedForPoints, type ExtensionRequestRow } from "@/types/extension-requests";
+import {
+  askedForPoints,
+  holderOf,
+  HOLDER_LABEL,
+  type EscalationHolder,
+  type EscalationRow,
+  type ExtensionRequestRow,
+} from "@/types/extension-requests";
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
+const HOLDERS: EscalationHolder[] = ["owner", "admin", "requester", "done"];
+
 /**
- * Owner escalations, laid out as a queue and one decision.
+ * Owner escalations: every request grouped under the client paying for it, and
+ * one decision at a time in a slide-over.
  *
- * The rail answers "does this need me?" by grouping on who holds the request;
- * the pane answers everything else in a fixed order (see EscalationDetail).
- * Only `status='pending_owner'` rows are actionable — nothing reaches this page
+ * Grouping by client rather than by status is deliberate — three overruns on
+ * one retainer in a month is the pattern an owner needs to see, and it's
+ * invisible when the same rows are split across four status buckets. Who holds
+ * a request is a filter and a badge instead.
+ *
+ * Only `status='pending_owner'` rows are actionable; nothing reaches this page
  * without passing the admin leg first.
  */
 export function Escalations() {
   const { currentUserId } = useAuth();
-  const [rows, setRows] = useState<RailRow[] | null>(null);
+  const [rows, setRows] = useState<EscalationRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [compose, setCompose] = useState<{ id: string; kind: "reject" | "ask" } | null>(null);
   const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [selectedHolders, setSelectedHolders] = useState<Set<EscalationHolder>>(new Set());
   const [params, setParams] = useSearchParams();
   const selectedId = params.get("id");
 
@@ -49,32 +68,71 @@ export function Escalations() {
       return;
     }
     setLoadError(null);
-    setRows((data ?? []) as unknown as RailRow[]);
+    setRows((data ?? []) as unknown as EscalationRow[]);
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const groups = useMemo<RailGroup[]>(() => {
-    const all = rows ?? [];
-    const by = (s: string) => all.filter((r) => r.status === s);
-    return [
-      { key: "owner", label: "Needs you", rows: by("pending_owner"), actionable: true },
-      { key: "admin", label: "With admin", rows: by("pending_admin"), actionable: false },
-      { key: "info", label: "Waiting on requester", rows: by("needs_info"), actionable: false },
-      {
-        key: "done",
-        label: "Decided",
-        rows: all
-          .filter((r) => ["approved", "rejected", "auto_approved"].includes(r.status))
-          .slice(0, 10),
-        actionable: false,
-      },
-    ];
-  }, [rows]);
+  const all = useMemo(() => rows ?? [], [rows]);
+  const pending = useMemo(() => all.filter((r) => holderOf(r) === "owner"), [all]);
 
-  const pending = groups[0].rows;
+  /** Only clients that actually have an escalation — an empty filter is noise. */
+  const clientOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of all) {
+      if (r.client) seen.set(r.client.id, r.client.name);
+    }
+    return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [all]);
+
+  const holderCounts = useMemo(() => {
+    const counts = { owner: 0, admin: 0, requester: 0, done: 0 } as Record<EscalationHolder, number>;
+    for (const r of all) counts[holderOf(r)] += 1;
+    return counts;
+  }, [all]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return all.filter((r) => {
+      if (selectedClients.size > 0 && !(r.client && selectedClients.has(r.client.id))) return false;
+      if (selectedHolders.size > 0 && !selectedHolders.has(holderOf(r))) return false;
+      if (!q) return true;
+      return (
+        r.parent_task_name.toLowerCase().includes(q) ||
+        (r.client?.name ?? "").toLowerCase().includes(q) ||
+        (r.requester?.full_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [all, search, selectedClients, selectedHolders]);
+
+  /** Grouped by client, and clients with a live decision float to the top. */
+  const groups = useMemo<ClientGroup[]>(() => {
+    const by = new Map<string, ClientGroup>();
+    for (const r of filtered) {
+      const clientId = r.client?.id ?? "none";
+      const group = by.get(clientId) ?? {
+        clientId,
+        clientName: r.client?.name ?? "No client",
+        rows: [],
+      };
+      group.rows.push(r);
+      by.set(clientId, group);
+    }
+    const needsYou = (g: ClientGroup) => g.rows.filter((r) => holderOf(r) === "owner").length;
+    return [...by.values()]
+      .map((g) => ({
+        ...g,
+        // Within a client, whatever is waiting on the owner comes first.
+        rows: [...g.rows].sort(
+          (a, b) => Number(holderOf(b) === "owner") - Number(holderOf(a) === "owner"),
+        ),
+      }))
+      .sort((a, b) => needsYou(b) - needsYou(a) || a.clientName.localeCompare(b.clientName));
+  }, [filtered]);
+
+  const hasFilters = selectedClients.size > 0 || selectedHolders.size > 0;
 
   const select = useCallback(
     (id: string) => {
@@ -85,24 +143,28 @@ export function Escalations() {
     [setParams],
   );
 
-  // Land on the first thing that needs a decision, and follow the queue as it
-  // empties rather than stranding the pane on a row that's just been actioned.
-  useEffect(() => {
-    if (rows === null) return;
-    if (rows.some((r) => r.id === selectedId)) return;
-    const next = pending[0]?.id ?? rows[0]?.id ?? null;
-    setParams(next ? { id: next } : {}, { replace: true });
-  }, [rows, selectedId, pending, setParams]);
+  const close = useCallback(() => {
+    setCompose(null);
+    setDraft("");
+    setParams({}, { replace: true });
+  }, [setParams]);
 
-  const selected = (rows ?? []).find((r) => r.id === selectedId) ?? null;
+  const selected = all.find((r) => r.id === selectedId) ?? null;
+
+  // A deep link to a request that has since been actioned (or filtered away)
+  // shouldn't leave a stale id in the URL pointing at nothing.
+  useEffect(() => {
+    if (rows === null || selectedId === null) return;
+    if (!rows.some((r) => r.id === selectedId)) setParams({}, { replace: true });
+  }, [rows, selectedId, setParams]);
 
   /** Overruns already raised for this client this month, excluding this one. */
   const priorOverruns = useMemo(() => {
-    if (!selected || !rows) return 0;
+    if (!selected) return 0;
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-    return rows.filter(
+    return all.filter(
       (r) =>
         r.id !== selected.id &&
         r.client_id === selected.client_id &&
@@ -111,7 +173,7 @@ export function Escalations() {
         r.status !== "rejected" &&
         new Date(r.created_at) >= start,
     ).length;
-  }, [rows, selected]);
+  }, [all, selected]);
 
   const approve = async (id: string) => {
     setBusyId(id);
@@ -128,6 +190,7 @@ export function Escalations() {
       const body = (await res.json()) as { error?: string };
       if (!res.ok) return toast.error(body.error ?? "Approve failed");
       toast.success("Approved.");
+      close();
       await load();
     } finally {
       setBusyId(null);
@@ -147,8 +210,7 @@ export function Escalations() {
       if (error) return toast.error(error.message);
       if (!data || data.length === 0) return toast.error("Not permitted to update this request.");
       toast.success("Rejected.");
-      setCompose(null);
-      setDraft("");
+      close();
       await load();
     } finally {
       setBusyId(null);
@@ -163,8 +225,7 @@ export function Escalations() {
       const err = await askForInfo(id, question, currentUserId);
       if (err) return toast.error(err);
       toast.success("Sent back to the requester.");
-      setCompose(null);
-      setDraft("");
+      close();
       await load();
     } finally {
       setBusyId(null);
@@ -173,156 +234,310 @@ export function Escalations() {
 
   if (rows === null) {
     return (
-      <div className="flex flex-col md:h-full md:flex-row">
-        <aside className="w-full shrink-0 space-y-3 border-b border-m-outline-variant p-4 md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-56 shrink-0 space-y-4 border-r border-m-outline-variant p-4 md:block">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-24 w-full" />
         </aside>
-        <div className="min-w-0 flex-1 p-6 md:overflow-y-auto">
-          <Skeleton className="mb-6 h-8 w-48" />
-          <Skeleton className="h-24 w-full max-w-2xl" />
+        <div className="min-w-0 flex-1 space-y-4 p-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-40 w-full" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col md:h-full md:flex-row">
-      {/* Standard left rail: same width, border and scroll behaviour as every
-          other filtered page. Padding is vertical only so a selected row can
-          bleed to both edges — this rail selects, it doesn't filter. */}
-      <aside className="w-full shrink-0 border-b border-m-outline-variant py-2 md:w-56 md:overflow-y-auto md:border-b-0 md:border-r">
-        <EscalationRail groups={groups} selectedId={selectedId} onSelect={select} />
+    <div className="flex min-h-0 flex-1">
+      {/* ── Left filter rail: search on top → divider → filter groups below,
+             the same shape as Briefs, Projects and Scope Composer. Hidden on
+             phones: beside the 56px nav it leaves ~110px for the decision,
+             and this queue is short enough to scan unfiltered. ── */}
+      <aside className="hidden w-56 shrink-0 space-y-5 overflow-y-auto border-r border-m-outline-variant p-4 md:block">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
+          <Input
+            aria-label="Search escalations"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8"
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <h3 className="text-label-large text-m-on-surface">Filters</h3>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedClients(new Set());
+                setSelectedHolders(new Set());
+              }}
+              className="text-label-small text-m-primary hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {clientOptions.length > 0 && (
+          <FilterGroup label="Client">
+            {clientOptions.map((c) => (
+              <FilterOption
+                key={c.id}
+                label={c.name}
+                active={selectedClients.has(c.id)}
+                onToggle={() => setSelectedClients(toggle(c.id))}
+              />
+            ))}
+          </FilterGroup>
+        )}
+
+        <FilterGroup label="Waiting on">
+          {HOLDERS.map((h) => (
+            <FilterOption
+              key={h}
+              label={HOLDER_LABEL[h]}
+              count={holderCounts[h]}
+              active={selectedHolders.has(h)}
+              onToggle={() => setSelectedHolders(toggle(h))}
+            />
+          ))}
+        </FilterGroup>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col md:overflow-y-auto">
-        <header className="flex items-start justify-between gap-3 px-6 pt-6">
-          <div>
-            <h1 className="text-headline-medium text-m-on-surface">Escalations</h1>
-            <p className="mt-1 text-body-medium text-m-on-surface-variant">
-              {pending.length === 0
-                ? "Nothing is waiting on your decision."
-                : `${pending.length} ${pending.length === 1 ? "request needs" : "requests need"} your decision.`}
-            </p>
-          </div>
-        </header>
+      {/* ── Main: frozen title over a scrolling list ── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 px-6 pb-4 pt-6">
+          <h1 className="text-headline-medium text-m-on-surface">Escalations</h1>
+          <p className="mt-1 text-body-medium text-m-on-surface-variant">
+            {pending.length === 0
+              ? "Nothing is waiting on your decision."
+              : `${pending.length} ${pending.length === 1 ? "request needs" : "requests need"} your decision.`}
+          </p>
+        </div>
 
-      {loadError ? (
-        <Empty
-          title="Couldn't load the queue."
-          body={loadError}
-          action={
-            <Button variant="outline" size="sm" onClick={() => load()} className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Try again
-            </Button>
-          }
-        />
-      ) : !selected ? (
-        <Empty
-          title="Nothing needs you right now."
-          body="Requests land here only after an admin has approved them and the size of the ask needs an owner's call. Smaller ones never reach this page."
-        />
-      ) : (
-        <EscalationDetail
-          row={selected}
-          priorOverrunsThisMonth={priorOverruns}
-          actions={
-            selected.status !== "pending_owner" ? (
-              <p className="text-body-small text-m-on-surface-variant">{statusNote(selected)}</p>
-            ) : compose ? (
-              <div className="max-w-2xl space-y-2">
-                <label
-                  htmlFor="escalation-compose"
-                  className="block text-label-small text-m-on-surface-variant"
-                >
-                  {compose.kind === "reject"
-                    ? "Why is this being rejected? The requester sees this."
-                    : `What do you need to know from ${selected.requester?.full_name ?? "the requester"}?`}
-                </label>
-                <Textarea
-                  id="escalation-compose"
-                  autoFocus
-                  rows={3}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={compose.kind === "reject" ? "Reason for rejection" : "Your question"}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busyId === selected.id}
-                    onClick={() => {
-                      setCompose(null);
-                      setDraft("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={compose.kind === "reject" ? "destructive" : "default"}
-                    disabled={busyId === selected.id}
-                    onClick={() =>
-                      compose.kind === "reject" ? reject(selected.id) : ask(selected.id)
-                    }
-                  >
-                    {busyId === selected.id
-                      ? compose.kind === "reject"
-                        ? "Rejecting…"
-                        : "Sending…"
-                      : compose.kind === "reject"
-                        ? "Confirm reject"
-                        : "Send question"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2"
-                  disabled={busyId === selected.id}
-                  onClick={() => {
-                    setCompose({ id: selected.id, kind: "ask" });
-                    setDraft("");
-                  }}
-                >
-                  <HelpCircle className="h-4 w-4" />
-                  Ask for info
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 pb-6">
+          {loadError ? (
+            <Empty
+              title="Couldn't load the queue."
+              body={loadError}
+              action={
+                <Button variant="outline" size="sm" onClick={() => load()} className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Try again
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2"
-                  disabled={busyId === selected.id}
-                  onClick={() => {
-                    setCompose({ id: selected.id, kind: "reject" });
-                    setDraft("");
-                  }}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Reject
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  disabled={busyId === selected.id}
-                  onClick={() => approve(selected.id)}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {busyId === selected.id ? "Approving…" : approveLabel(selected)}
-                </Button>
-              </div>
-            )
-          }
-        />
-      )}
+              }
+            />
+          ) : all.length === 0 ? (
+            <Empty
+              title="Nothing needs you right now."
+              body="Requests land here only after an admin has approved them and the size of the ask needs an owner's call. Smaller ones never reach this page."
+            />
+          ) : groups.length === 0 ? (
+            <Empty
+              title="No escalations match these filters."
+              body="Clear the filters or widen the search to see the rest of the queue."
+            />
+          ) : (
+            <Card>
+              <CardContent className="overflow-x-auto p-0">
+                <EscalationTable groups={groups} selectedId={selectedId} onSelect={select} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+
+      {/* ── The decision itself: a slide-over, so the queue stays on screen and
+             the row you came from is still where you left it. ── */}
+      <Sheet open={!!selected} onOpenChange={(open) => !open && close()}>
+        <SheetContent
+          side="right"
+          // sheetVariants pins the panel at 440px, which squeezes the evidence
+          // into a column too narrow to read. The decision needs the room.
+          className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:w-[46rem] sm:max-w-[90vw]"
+        >
+          {selected && (
+            <>
+              <header className="shrink-0 border-b border-m-outline-variant px-6 pb-4 pt-6 pr-12">
+                <SheetTitle className="text-title-medium text-m-on-surface">
+                  {selected.parent_task_name}
+                </SheetTitle>
+                <p className="mt-1 text-label-medium text-m-on-surface-variant">
+                  {selected.client?.name ?? "No client"} ·{" "}
+                  {selected.requester?.full_name ?? "Unknown requester"} ·{" "}
+                  {HOLDER_LABEL[holderOf(selected)]}
+                </p>
+              </header>
+              <EscalationDetail
+                row={selected}
+                priorOverrunsThisMonth={priorOverruns}
+                actions={
+                  selected.status !== "pending_owner" ? (
+                    <p className="text-body-small text-m-on-surface-variant">
+                      {statusNote(selected)}
+                    </p>
+                  ) : compose ? (
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="escalation-compose"
+                        className="block text-label-small text-m-on-surface-variant"
+                      >
+                        {compose.kind === "reject"
+                          ? "Why is this being rejected? The requester sees this."
+                          : `What do you need to know from ${selected.requester?.full_name ?? "the requester"}?`}
+                      </label>
+                      <Textarea
+                        id="escalation-compose"
+                        autoFocus
+                        rows={3}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        placeholder={
+                          compose.kind === "reject" ? "Reason for rejection" : "Your question"
+                        }
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busyId === selected.id}
+                          onClick={() => {
+                            setCompose(null);
+                            setDraft("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={compose.kind === "reject" ? "destructive" : "default"}
+                          disabled={busyId === selected.id}
+                          onClick={() =>
+                            compose.kind === "reject" ? reject(selected.id) : ask(selected.id)
+                          }
+                        >
+                          {busyId === selected.id
+                            ? compose.kind === "reject"
+                              ? "Rejecting…"
+                              : "Sending…"
+                            : compose.kind === "reject"
+                              ? "Confirm reject"
+                              : "Send question"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2"
+                        disabled={busyId === selected.id}
+                        onClick={() => {
+                          setCompose({ id: selected.id, kind: "ask" });
+                          setDraft("");
+                        }}
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                        Ask for info
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2"
+                        disabled={busyId === selected.id}
+                        onClick={() => {
+                          setCompose({ id: selected.id, kind: "reject" });
+                          setDraft("");
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        disabled={busyId === selected.id}
+                        onClick={() => approve(selected.id)}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {busyId === selected.id ? "Approving…" : approveLabel(selected)}
+                      </Button>
+                    </div>
+                  )
+                }
+              />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
+  );
+}
+
+/** Set-toggle for the filter rail — same behaviour for both groups. */
+function toggle<T>(value: T): (prev: Set<T>) => Set<T> {
+  return (prev) => {
+    const next = new Set(prev);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    return next;
+  };
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-label-medium text-m-on-surface-variant">{label}</h4>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function FilterOption({
+  label,
+  count,
+  active,
+  onToggle,
+}: {
+  label: string;
+  count?: number;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+        active
+          ? "bg-m-secondary-container text-m-on-secondary-container"
+          : "text-m-on-surface hover:bg-m-surface-container"
+      }`}
+    >
+      <span
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+          active ? "border-m-primary bg-m-primary text-m-on-primary" : "border-m-outline"
+        }`}
+      >
+        {active && (
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      <span className="truncate">{label}</span>
+      {count !== undefined && (
+        <span className="ml-auto shrink-0 font-mono text-label-small tabular-nums text-m-on-surface-variant">
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -336,7 +551,7 @@ function Empty({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="grid flex-1 place-items-center p-6">
+    <div className="grid place-items-center py-16">
       <div className="max-w-prose space-y-3 text-center">
         <p className="text-body-medium text-m-on-surface">{title}</p>
         <p className="text-body-small text-m-on-surface-variant">{body}</p>
