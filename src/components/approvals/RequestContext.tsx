@@ -32,6 +32,41 @@ function fmtDate(ms: number | null): string {
   return ms === null ? "—" : new Date(ms).toLocaleDateString();
 }
 
+// ClickUp descriptions are markdown. We don't render markdown here — only the
+// links matter, because that's where the task's Conductor origin lives.
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+
+/** Drop the markdown that would otherwise show as literal `* * *` / `_x_`. */
+function plainish(text: string): string {
+  return text
+    .replace(/^[ \t]*(?:\*[ \t]*){3,}$|^[ \t]*-{3,}[ \t]*$/gm, "—")
+    .replace(/_([^_\n]+)_/g, "$1");
+}
+
+function withLinks(raw: string): React.ReactNode[] {
+  const text = plainish(raw);
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MD_LINK)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(
+      <a
+        key={at}
+        href={m[2]}
+        target="_blank"
+        rel="noreferrer"
+        className="text-m-primary hover:underline"
+      >
+        {m[1].replace(/[_*]/g, "")}
+      </a>,
+    );
+    last = at + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+
 /**
  * The original context behind an extension/revision request: what the task
  * asked for, what it was budgeted at, and how much has already been burned
@@ -172,7 +207,7 @@ export function RequestContext({
       <div className="space-y-1">
         <div className="text-label-small text-m-on-surface-variant">Original brief</div>
         <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-body-small text-m-on-surface">
-          {ctx.description ?? "No description on the ClickUp task."}
+          {ctx.description ? withLinks(ctx.description) : "No description on the ClickUp task."}
         </p>
       </div>
     </div>
