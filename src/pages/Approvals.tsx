@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { askForInfo, notifyExtension } from "@/lib/extension-actions";
@@ -302,7 +303,7 @@ export function Approvals() {
                 .map((r) => ({
                   id: r.id,
                   title: r.task_name,
-                  subtitle: `${r.submitter?.full_name ?? "—"} · ${r.client?.name ?? "—"} · ${r.sprint_points} pts`,
+                  subtitle: `${r.submitter?.full_name ?? "—"} · ${r.client?.name ?? "—"} · ${fmtPtH(r.sprint_points)}`,
                   status: r.status,
                   url: r.clickup_task_url,
                 }))}
@@ -452,7 +453,7 @@ function BriefCard({
               <span>·</span>
               <span>{row.clickup_list_name}</span>
               <span>·</span>
-              <span>{row.sprint_points} pts</span>
+              <span>{fmtPtH(row.sprint_points)}</span>
               {row.is_internal && (
                 <>
                   <span>·</span>
@@ -538,7 +539,7 @@ function ExtCard({
               {row.extra_points !== null && (
                 <>
                   <span>·</span>
-                  <span>+{row.extra_points}pt on {row.original_points}pt</span>
+                  <span>+{fmtPtH(row.extra_points)} on {fmtPtH(row.original_points)}</span>
                   <Badge variant={isEscalation ? "destructive" : "warning"} className="ml-1">
                     +{row.delta_pct}% · {row.tier}
                   </Badge>
@@ -563,7 +564,7 @@ function ExtCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} />
+        <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} clientId={row.client_id} />
 
         {row.reason && <ExtField label="Reason for extra points">{row.reason}</ExtField>}
         {row.due_date_reason && (
@@ -829,7 +830,7 @@ function RecentList({
 
 function extensionSubtitle(r: ExtensionRequestRow): string {
   const parts: string[] = [];
-  if (r.extra_points !== null) parts.push(`+${r.extra_points}pt (${r.delta_pct}%)`);
+  if (r.extra_points !== null) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }

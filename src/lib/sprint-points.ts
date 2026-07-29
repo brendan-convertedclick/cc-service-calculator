@@ -56,3 +56,17 @@ export function productizedPct(
   if (totalPoints <= 0) return null;
   return Math.round((productizedPoints / totalPoints) * 1000) / 10;
 }
+
+/**
+ * Points with their hour equivalent, points first: "10 pt · 2.5h". The two
+ * units travel together everywhere they're shown to an approver — points are
+ * what work is briefed in, hours are what it costs.
+ */
+export function fmtPtH(points: number | string | null | undefined): string {
+  if (points === null || points === undefined) return "—";
+  const n = Number(points);
+  if (!Number.isFinite(n)) return "—";
+  const h = pointsToHours(n);
+  const hours = h >= 1 ? `${Math.round(h * 10) / 10}h` : `${Math.round(h * 60)}m`;
+  return `${n} pt · ${hours}`;
+}

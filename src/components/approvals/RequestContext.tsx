@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { pointsToHours } from "@/lib/sprint-points";
+import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -26,6 +29,15 @@ function fmtHours(ms: number | null): string {
   if (ms === null) return "—";
   const h = ms / 3_600_000;
   return h >= 1 ? `${Math.round(h * 10) / 10}h` : `${Math.round(ms / 60_000)}m`;
+}
+
+/**
+ * Points are the unit people brief and argue in; hours are the unit they feel.
+ * Both are always shown, points first — 1 pt = 15 min (see lib/sprint-points).
+ */
+function fmtPoints(pts: number | null): string {
+  if (pts === null) return "—";
+  return `${pts} pt · ${fmtHours(pointsToHours(pts) * 3_600_000)}`;
 }
 
 function fmtDate(ms: number | null): string {
@@ -76,13 +88,16 @@ function withLinks(raw: string): React.ReactNode[] {
 export function RequestContext({
   taskId,
   requestedPoints,
+  clientId,
 }: {
   taskId: string;
   requestedPoints?: number | null;
+  clientId?: string | null;
 }) {
   const [ctx, setCtx] = useState<TaskContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [priorPoints, setPriorPoints] = useState<number>(0);
+  const { data: linkage } = useRequestLinkage(taskId, clientId ?? null);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,68 +163,121 @@ export function RequestContext({
   // What the budget becomes if this request is approved.
   const afterPoints =
     budgetPoints !== null && requestedPoints ? budgetPoints + requestedPoints : null;
+  // A due-date-only request asks for no points, so approving it leaves any
+  // overrun unfunded. Make that number explicit rather than omitting the line.
+  const unfundedPoints =
+    !requestedPoints && budgetPoints !== null && ctx.points_consumed > budgetPoints
+      ? Math.round((ctx.points_consumed - budgetPoints) * 100) / 100
+      : null;
+
+  const burn = aggregateBurn(linkage?.retainers ?? []);
 
   return (
     <div className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-label-large text-m-on-surface-variant">Original task</h4>
-        <a
-          href={ctx.url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-label-small text-m-primary inline-flex items-center gap-1 hover:underline"
-        >
-          Open in ClickUp <ExternalLink className="h-3 w-3" />
-        </a>
-      </div>
-
-      <dl className="grid gap-x-6 gap-y-2 text-body-small sm:grid-cols-4">
-        <Stat label="Budget">
-          {budgetPoints !== null ? `${budgetPoints} pt` : "no points set"}
-          <span className="text-m-on-surface-variant"> · {fmtHours(ctx.time_estimate_ms)}</span>
-        </Stat>
-        <Stat label="Time spent">
-          {fmtHours(ctx.time_spent_ms)}
-          <span className="text-m-on-surface-variant"> · {ctx.points_consumed} pt used</span>
-        </Stat>
-        <Stat label="Consumed">
-          {overBudget === null ? (
-            "—"
-          ) : (
-            <Badge variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}>
-              {overBudget}% of budget
-            </Badge>
-          )}
-        </Stat>
-        <Stat label="Due">{fmtDate(ctx.due_date)}</Stat>
-
-        <Stat label="Status">{ctx.status ?? "—"}</Stat>
-        <Stat label="List">{ctx.list_name ?? "—"}</Stat>
-        <Stat label="Assigned">{ctx.assignees.join(", ") || "—"}</Stat>
-        <Stat label="Created">{fmtDate(ctx.date_created)}</Stat>
-      </dl>
-
-      {(priorPoints > 0 || afterPoints !== null) && (
-        <div className="flex flex-wrap items-center gap-2 text-body-small">
-          {priorPoints > 0 && (
-            <Badge variant="warning">
-              already extended by +{priorPoints}pt (not in the time above)
-            </Badge>
-          )}
-          {afterPoints !== null && (
-            <span className="text-m-on-surface-variant">
-              Budget if approved: <span className="text-m-on-surface">{afterPoints} pt</span>
+      {/* Everything an approver needs to decide sits on this one line; the
+          supporting detail is a disclosure away. Native <details> — no
+          collapsible primitive in the design system to reach for. */}
+      <Disclosure
+        summary={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-label-large text-m-on-surface-variant">Original task</span>
+            <span className="text-body-small text-m-on-surface">
+              {budgetPoints !== null ? fmtPoints(budgetPoints) : "no points set"}
             </span>
-          )}
+            {overBudget !== null && (
+              <Badge variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}>
+                {overBudget}% used
+              </Badge>
+            )}
+            {requestedPoints ? (
+              <Badge variant="outline">requested +{fmtPoints(requestedPoints)}</Badge>
+            ) : unfundedPoints !== null ? (
+              <Badge variant="destructive">no budget requested · {fmtPoints(unfundedPoints)} unfunded</Badge>
+            ) : (
+              <Badge variant="outline">no budget requested</Badge>
+            )}
+            <BillingBadge billing={linkage?.billing} />
+            {burn && (
+              <Badge variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}>
+                retainer {burn.pct}% · {burn.hoursUsed}h of {burn.hoursTarget}h
+              </Badge>
+            )}
+          </div>
+        }
+      >
+        <div className="flex justify-end">
+          <a
+            href={ctx.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-label-small text-m-primary inline-flex items-center gap-1 hover:underline"
+          >
+            Open in ClickUp <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
-      )}
 
-      <div className="space-y-1">
-        <div className="text-label-small text-m-on-surface-variant">Original brief</div>
+        <dl className="grid gap-x-6 gap-y-2 text-body-small sm:grid-cols-4">
+          <Stat label="Budget">
+            {budgetPoints !== null ? fmtPoints(budgetPoints) : "no points set"}
+          </Stat>
+          <Stat label="Time spent">
+            {ctx.points_consumed} pt
+            <span className="text-m-on-surface-variant"> · {fmtHours(ctx.time_spent_ms)}</span>
+          </Stat>
+          <Stat label="Consumed">
+            {overBudget === null ? (
+              "—"
+            ) : (
+              <Badge variant={overBudget > 100 ? "destructive" : overBudget > 75 ? "warning" : "muted"}>
+                {overBudget}% of budget
+              </Badge>
+            )}
+          </Stat>
+          <Stat label="Due">{fmtDate(ctx.due_date)}</Stat>
+
+          <Stat label="Status">{ctx.status ?? "—"}</Stat>
+          <Stat label="List">{ctx.list_name ?? "—"}</Stat>
+          <Stat label="Assigned">{ctx.assignees.join(", ") || "—"}</Stat>
+          <Stat label="Created">{fmtDate(ctx.date_created)}</Stat>
+        </dl>
+
+        {(priorPoints > 0 || afterPoints !== null || unfundedPoints !== null) && (
+          <div className="flex flex-wrap items-center gap-2 text-body-small">
+            {priorPoints > 0 && (
+              <Badge variant="warning">
+                already extended by {fmtPoints(priorPoints)} (not in the time above)
+              </Badge>
+            )}
+            {afterPoints !== null && (
+              <span className="text-m-on-surface-variant">
+                Budget if approved:{" "}
+                <span className="text-m-on-surface">{fmtPoints(afterPoints)}</span>
+              </span>
+            )}
+            {unfundedPoints !== null && (
+              <span className="text-m-on-surface-variant">
+                This request adds no budget — approving it leaves{" "}
+                <span className="text-m-error">{fmtPoints(unfundedPoints)}</span> already spent
+                beyond the {fmtPoints(budgetPoints)} budget unfunded.
+              </span>
+            )}
+          </div>
+        )}
+      </Disclosure>
+
+      <BillingAndProject
+        linkage={linkage}
+        requestedPoints={requestedPoints ?? null}
+        taskHours={ctx.time_spent_ms / 3_600_000}
+      />
+
+      <Disclosure
+        summary={<span className="text-label-large text-m-on-surface-variant">Original brief</span>}
+      >
         <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-body-small text-m-on-surface">
           {ctx.description ? withLinks(ctx.description) : "No description on the ClickUp task."}
         </p>
-      </div>
+      </Disclosure>
     </div>
   );
 }
@@ -220,5 +288,184 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-label-small text-m-on-surface-variant">{label}</dt>
       <dd className="text-body-small text-m-on-surface">{children}</dd>
     </div>
+  );
+}
+
+/** Collapsed section whose summary line stays readable when closed. */
+function Disclosure({
+  summary,
+  children,
+}: {
+  summary: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="h-4 w-4 shrink-0 text-m-on-surface-variant transition-transform group-open:rotate-90" />
+        <div className="min-w-0 flex-1">{summary}</div>
+      </summary>
+      <div className="mt-3 space-y-3 pl-6">{children}</div>
+    </details>
+  );
+}
+
+const BILLING: Record<"retainer" | "adhoc", { label: string; variant: "muted" | "success" }> = {
+  retainer: { label: "Retainer", variant: "muted" },
+  adhoc: { label: "Ad-hoc · billable", variant: "success" },
+};
+
+function BillingBadge({ billing }: { billing?: "retainer" | "adhoc" | null }) {
+  // Undefined = still loading. Null = the task has no brief, so we genuinely
+  // don't know — say so rather than defaulting to the common value.
+  if (billing === undefined) return null;
+  if (billing === null) return <Badge variant="outline">billing unknown</Badge>;
+  const b = BILLING[billing];
+  return <Badge variant={b.variant}>{b.label}</Badge>;
+}
+
+/**
+ * What approving this costs commercially: whether the extra points are already
+ * paid for, and what bigger thing absorbs them.
+ */
+function BillingAndProject({
+  linkage,
+  requestedPoints,
+  taskHours,
+}: {
+  linkage: ReturnType<typeof useRequestLinkage>["data"];
+  requestedPoints: number | null;
+  taskHours: number;
+}) {
+  if (!linkage) return null;
+  const { billing, project, retainers, countedInBurn } = linkage;
+  const burn = aggregateBurn(retainers);
+  const configured = retainers.filter((r) => !r.needsSetup);
+  const extraHours = requestedPoints ? pointsToHours(requestedPoints) : 0;
+
+  return (
+    <div className="space-y-2 border-t border-m-outline-variant/60 pt-3">
+      <div className="flex flex-wrap items-center gap-2 text-body-small">
+        <span className="text-label-small text-m-on-surface-variant">Billing</span>
+        {billing === "adhoc" ? (
+          <span className="text-m-on-surface">
+            Ad-hoc — approving this is separately billable to the client.
+          </span>
+        ) : billing === "retainer" ? (
+          <span className="text-m-on-surface">
+            Retainer — no extra invoice; the{" "}
+            {requestedPoints ? `${fmtPoints(requestedPoints)} ` : ""}comes out of the monthly fee.
+          </span>
+        ) : (
+          <span className="text-m-on-surface-variant">
+            No brief in Conductor for this task — billing can't be determined.
+          </span>
+        )}
+      </div>
+
+      {project ? (
+        <div className="flex flex-wrap items-center gap-2 text-body-small">
+          <span className="text-label-small text-m-on-surface-variant">Project</span>
+          <Link to={`/projects/${project.id}`} className="text-m-primary hover:underline">
+            {project.name ?? "Untitled project"}
+          </Link>
+          <Badge variant="outline">{project.status.replace(/_/g, " ")}</Badge>
+          <ProjectHealth
+            plannedHours={project.plannedHours}
+            actualHours={project.actualHours}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 text-body-small">
+          <span className="text-label-small text-m-on-surface-variant">Project</span>
+          <span className="text-m-on-surface-variant">
+            Standalone task — not part of a tracked project.
+          </span>
+        </div>
+      )}
+
+      {configured.length > 0 && burn && (
+        <Disclosure
+          summary={
+            <div className="flex flex-wrap items-center gap-2 text-body-small">
+              <span className="text-label-small text-m-on-surface-variant">
+                {configured.length === 1 ? "Retainer" : `${configured.length} retainers`} this month
+              </span>
+              <span className="text-m-on-surface">
+                {burn.hoursUsed}h of {burn.hoursTarget}h
+              </span>
+              <Badge variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}>
+                {burn.pct}% burned
+              </Badge>
+              {extraHours > 0 && (
+                <span className="text-m-on-surface-variant">
+                  this request adds {Math.round(extraHours * 10) / 10}h →{" "}
+                  {burn.hoursTarget > 0
+                    ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
+                    : 0}
+                  %
+                </span>
+              )}
+            </div>
+          }
+        >
+          {!countedInBurn && taskHours > 0 && (
+            <p className="text-label-small text-m-error">
+              This task's {Math.round(taskHours * 10) / 10}h is not in the figures above — the
+              actuals sync hasn't mapped it to any of these retainers, so the real burn is higher.
+            </p>
+          )}
+          <ul className="space-y-0.5">
+            {configured.map((r) => (
+              <li
+                key={r.projectId}
+                className="flex flex-wrap items-center gap-2 text-label-small text-m-on-surface-variant"
+              >
+                <Link to={`/projects/${r.projectId}`} className="text-m-primary hover:underline">
+                  open
+                </Link>
+                <span className="text-m-on-surface">{r.hoursUsed}h</span>
+                <span>of {r.hoursTarget}h</span>
+                <span
+                  className={
+                    r.rag === "red"
+                      ? "text-m-error"
+                      : r.rag === "amber"
+                        ? "text-m-on-surface"
+                        : "text-m-on-surface-variant"
+                  }
+                >
+                  {r.burnPct}%
+                </span>
+                {r.isOverrunRisk && <span className="text-m-error">on pace to overrun</span>}
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      )}
+    </div>
+  );
+}
+
+function ProjectHealth({
+  plannedHours,
+  actualHours,
+}: {
+  plannedHours: number;
+  actualHours: number;
+}) {
+  if (plannedHours <= 0) {
+    return <span className="text-m-on-surface-variant">no planned hours to track against</span>;
+  }
+  const pct = Math.round((actualHours / plannedHours) * 100);
+  return (
+    <>
+      <span className="text-m-on-surface">
+        {Math.round(actualHours * 10) / 10}h of {Math.round(plannedHours * 10) / 10}h
+      </span>
+      <Badge variant={pct > 100 ? "destructive" : pct > 85 ? "warning" : "muted"}>
+        {pct}% of plan
+      </Badge>
+    </>
   );
 }

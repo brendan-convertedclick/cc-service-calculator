@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { askForInfo } from "@/lib/extension-actions";
@@ -167,7 +168,7 @@ export function Escalations() {
                             <>
                               <span>·</span>
                               <span>
-                                +{row.extra_points}pt on {row.original_points}pt
+                                +{fmtPtH(row.extra_points)} on {fmtPtH(row.original_points)}
                               </span>
                               <Badge variant="destructive" className="ml-1">
                                 +{row.delta_pct}% · owner
@@ -196,7 +197,7 @@ export function Escalations() {
                       </div>
                     )}
 
-                    <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} />
+                    <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} clientId={row.client_id} />
 
                     {row.reason && (
                       <Field label="Reason for extra points">{row.reason}</Field>
@@ -393,7 +394,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function extensionSubtitle(r: ExtensionRequestRow): string {
   const parts: string[] = [];
-  if (r.extra_points !== null) parts.push(`+${r.extra_points}pt (${r.delta_pct}%)`);
+  if (r.extra_points !== null) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }
