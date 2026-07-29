@@ -154,7 +154,7 @@ async function safeClickupSync(
 }
 
 const NO_CLICKUP_LIST_ERROR =
-  "No ClickUp list found for this client - add a Meetings or Overhead list to its folder (Clients -> [client] -> sync lists), or set a fallback internal list in Settings -> ClickUp.";
+  "No Meetings, Overhead or Admin list found in this client's ClickUp folder - add one (then re-sync the client's lists), or set a fallback internal list in Settings -> ClickUp.";
 const NO_GOOGLE_ACCOUNT_ERROR =
   "No Google account connected — sign in with Google to grant calendar access";
 
@@ -385,45 +385,40 @@ interface ClickupSyncCreateCtx {
   meetUrl: string | null;
 }
 
+/** ClickUp list NAMES that are a sane home for a meeting, best first. */
+const MEETING_LIST_NAMES = ["meetings", "overhead", "admin", "administration"];
+
 /**
- * Resolve the ClickUp list a meeting's task belongs in.
+ * Resolve the ClickUp list a meeting's task belongs in, by list NAME.
  *
- * Internal meetings are client-linked, and migration 0048 already maps every
- * client's ClickUp folder to one list per task_group. So a meeting belongs in
- * that client's "Meetings" list, falling back to its "Overhead" list, and only
- * then to settings.clickup_internal_list_id — the pre-0048 single-internal-list
- * model, which is unset on this project.
+ * Deliberately does NOT use client_lists.group_id. Migration 0048's four
+ * task_groups were only ever rolled out to three folders; on the rest the
+ * group tags are arbitrary — as of 2026-07-29 the "meetings" group points at
+ * lists literally named Paid Media, Content, General and Strategy, so routing
+ * by group would drop meeting tasks into client delivery lists. Matching the
+ * name covers 30 of 31 clients (3 have a real "Meetings" list, 27 an "Admin"
+ * one) and degrades to a clear error instead of a wrong list.
  *
- * Which list is chosen does NOT affect billing classification: get-productivity
- * keys overhead off the meeting's task id, not its list.
+ * The choice does NOT affect billing: get-productivity keys overhead off the
+ * meeting's task id, not its list.
  */
 async function resolveMeetingListId(
   sb: SupabaseClient,
   clientId: string,
 ): Promise<string | null> {
-  const { data: groupRows } = await sb
-    .from("task_groups")
-    .select("id, label_key")
-    .in("label_key", ["meetings", "overhead"]);
-  const groups = (groupRows ?? []) as Array<{ id: string; label_key: string }>;
+  const { data: listRows } = await sb
+    .from("client_lists")
+    .select("clickup_list_id, clickup_list_name")
+    .eq("client_id", clientId)
+    .is("archived_at", null);
+  const lists = (listRows ?? []) as Array<{ clickup_list_id: string | null; clickup_list_name: string | null }>;
 
-  if (groups.length > 0) {
-    const { data: listRows } = await sb
-      .from("client_lists")
-      .select("clickup_list_id, group_id")
-      .eq("client_id", clientId)
-      .is("archived_at", null)
-      .in("group_id", groups.map((g) => g.id));
-    const lists = (listRows ?? []) as Array<{ clickup_list_id: string | null; group_id: string }>;
-    // Meetings first, Overhead second — both keep the task out of the
-    // client's Delivery list, where it would read as billable work in ClickUp.
-    for (const key of ["meetings", "overhead"]) {
-      const groupId = groups.find((g) => g.label_key === key)?.id;
-      const hit = groupId ? lists.find((l) => l.group_id === groupId)?.clickup_list_id : null;
-      if (hit) return hit;
-    }
+  for (const name of MEETING_LIST_NAMES) {
+    const hit = lists.find((l) => l.clickup_list_name?.trim().toLowerCase() === name);
+    if (hit?.clickup_list_id) return hit.clickup_list_id;
   }
 
+  // Last resort: the pre-0048 single-internal-list setting (unset on this project).
   const { data: settingsRow } = await sb
     .from("settings")
     .select("clickup_internal_list_id")
