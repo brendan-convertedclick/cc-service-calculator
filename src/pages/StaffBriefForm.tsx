@@ -7,12 +7,15 @@ import { BriefFormBody } from "@/components/staff/BriefFormBody";
 import { ExtensionFormBody } from "@/components/staff/ExtensionFormBody";
 import { MeetingFormBody } from "@/components/staff/MeetingFormBody";
 import { MyMeetingsList } from "@/components/staff/MyMeetingsList";
+import { MyRequestsList } from "@/components/staff/MyRequestsList";
+import { RevisionFormBody } from "@/components/staff/RevisionFormBody";
 
 /**
  * Staff portal: the single page that staff-role users see when they log in.
- * Three tabs:
+ * Four tabs:
  *   - New brief          — Phase 1
  *   - Extension request  — Phase 2
+ *   - Request Revision   — new DFT/REV-stage task, admin-approved
  *   - Internal meeting   — schedule + manage internal meetings (Google
  *     Calendar + ClickUp overhead task)
  *
@@ -63,10 +66,12 @@ export function StaffBriefForm() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="extension" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="extension">Extension request</TabsTrigger>
                 <TabsTrigger value="brief">New brief</TabsTrigger>
+                <TabsTrigger value="revision">Request Revision</TabsTrigger>
                 <TabsTrigger value="meeting">Internal meeting</TabsTrigger>
+                <TabsTrigger value="mine">My requests</TabsTrigger>
               </TabsList>
               <TabsContent value="extension" className="space-y-0">
                 <ExtensionFormBody />
@@ -74,9 +79,15 @@ export function StaffBriefForm() {
               <TabsContent value="brief" className="space-y-0">
                 <BriefFormBody />
               </TabsContent>
+              <TabsContent value="revision" className="space-y-0">
+                <RevisionFormBody />
+              </TabsContent>
               <TabsContent value="meeting" className="space-y-6">
                 <MeetingFormBody />
                 <MyMeetingsList />
+              </TabsContent>
+              <TabsContent value="mine" className="space-y-0">
+                <MyRequestsList />
               </TabsContent>
             </Tabs>
           </CardContent>

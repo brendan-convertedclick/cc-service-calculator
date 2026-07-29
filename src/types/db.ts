@@ -1537,66 +1537,110 @@ export type Database = {
       }
       extension_requests: {
         Row: {
+          admin_approved_at: string | null
+          admin_approver_id: string | null
           approved_at: string | null
           approver_id: string | null
+          info_request: string | null
+          info_requested_at: string | null
+          info_requested_by: string | null
+          info_responded_at: string | null
+          info_response: string | null
           clickup_subtask_id: string | null
           clickup_subtask_url: string | null
           client_id: string
           created_at: string
-          delta_pct: number
-          extra_points: number
+          delta_pct: number | null
+          due_date_reason: string | null
+          extra_points: number | null
           id: string
-          original_points: number
+          original_due_date: string | null
+          original_points: number | null
           parent_clickup_task_id: string
           parent_task_name: string
-          reason: string
+          reason: string | null
           rejected_reason: string | null
+          requested_due_date: string | null
           requester_id: string
           status: string
           tier: string
           updated_at: string
         }
         Insert: {
+          admin_approved_at?: string | null
+          admin_approver_id?: string | null
           approved_at?: string | null
           approver_id?: string | null
+          info_request?: string | null
+          info_requested_at?: string | null
+          info_requested_by?: string | null
+          info_responded_at?: string | null
+          info_response?: string | null
           clickup_subtask_id?: string | null
           clickup_subtask_url?: string | null
           client_id: string
           created_at?: string
-          delta_pct: number
-          extra_points: number
+          delta_pct?: number | null
+          due_date_reason?: string | null
+          extra_points?: number | null
           id?: string
-          original_points: number
+          original_due_date?: string | null
+          original_points?: number | null
           parent_clickup_task_id: string
           parent_task_name: string
-          reason: string
+          reason?: string | null
           rejected_reason?: string | null
+          requested_due_date?: string | null
           requester_id: string
           status: string
           tier: string
           updated_at?: string
         }
         Update: {
+          admin_approved_at?: string | null
+          admin_approver_id?: string | null
           approved_at?: string | null
           approver_id?: string | null
+          info_request?: string | null
+          info_requested_at?: string | null
+          info_requested_by?: string | null
+          info_responded_at?: string | null
+          info_response?: string | null
           clickup_subtask_id?: string | null
           clickup_subtask_url?: string | null
           client_id?: string
           created_at?: string
-          delta_pct?: number
-          extra_points?: number
+          delta_pct?: number | null
+          due_date_reason?: string | null
+          extra_points?: number | null
           id?: string
-          original_points?: number
+          original_due_date?: string | null
+          original_points?: number | null
           parent_clickup_task_id?: string
           parent_task_name?: string
-          reason?: string
+          reason?: string | null
           rejected_reason?: string | null
+          requested_due_date?: string | null
           requester_id?: string
           status?: string
           tier?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "extension_requests_admin_approver_id_fkey"
+            columns: ["admin_approver_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_info_requested_by_fkey"
+            columns: ["info_requested_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "extension_requests_approver_id_fkey"
             columns: ["approver_id"]
@@ -1623,6 +1667,178 @@ export type Database = {
             columns: ["requester_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_user_tokens: {
+        Row: {
+          access_token: string | null
+          connected_at: string
+          expires_at: string | null
+          google_email: string | null
+          id: string
+          refresh_token: string
+          scope: string | null
+          team_member_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          id?: string
+          refresh_token: string
+          scope?: string | null
+          team_member_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          id?: string
+          refresh_token?: string
+          scope?: string | null
+          team_member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_user_tokens_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: true
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_meeting_attendees: {
+        Row: {
+          id: string
+          meeting_id: string
+          team_member_id: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          team_member_id: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "internal_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_meeting_attendees_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_meetings: {
+        Row: {
+          agenda: string | null
+          clickup_sync_error: string | null
+          clickup_task_id: string | null
+          clickup_task_url: string | null
+          client_id: string
+          created_at: string
+          ends_at: string
+          google_calendar_email: string | null
+          google_event_id: string | null
+          google_html_link: string | null
+          google_meet_url: string | null
+          google_sync_error: string | null
+          id: string
+          organiser_id: string
+          project_id: string | null
+          starts_at: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agenda?: string | null
+          clickup_sync_error?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          client_id: string
+          created_at?: string
+          ends_at: string
+          google_calendar_email?: string | null
+          google_event_id?: string | null
+          google_html_link?: string | null
+          google_meet_url?: string | null
+          google_sync_error?: string | null
+          id?: string
+          organiser_id: string
+          project_id?: string | null
+          starts_at: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agenda?: string | null
+          clickup_sync_error?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          client_id?: string
+          created_at?: string
+          ends_at?: string
+          google_calendar_email?: string | null
+          google_event_id?: string | null
+          google_html_link?: string | null
+          google_meet_url?: string | null
+          google_sync_error?: string | null
+          id?: string
+          organiser_id?: string
+          project_id?: string | null
+          starts_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_meetings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_meetings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "internal_meetings_organiser_id_fkey"
+            columns: ["organiser_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -3099,6 +3315,86 @@ export type Database = {
           },
         ]
       }
+      revision_requests: {
+        Row: {
+          approved_at: string | null
+          approver_id: string | null
+          clickup_new_task_id: string | null
+          clickup_new_task_url: string | null
+          client_id: string
+          created_at: string
+          id: string
+          parent_clickup_task_id: string
+          parent_task_name: string
+          rejected_reason: string | null
+          requester_id: string
+          revision_suffix: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_new_task_id?: string | null
+          clickup_new_task_url?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          parent_clickup_task_id: string
+          parent_task_name: string
+          rejected_reason?: string | null
+          requester_id: string
+          revision_suffix: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_new_task_id?: string | null
+          clickup_new_task_url?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          parent_clickup_task_id?: string
+          parent_task_name?: string
+          rejected_reason?: string | null
+          requester_id?: string
+          revision_suffix?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revision_requests_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revision_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revision_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "revision_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rule_allocations: {
         Row: {
           department_id: string
@@ -4370,6 +4666,7 @@ export type Database = {
           logged_by: string
         }[]
       }
+      is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
       queue_pending_client: {
         Args: { p_domain: string; p_sender: string; p_subject: string }

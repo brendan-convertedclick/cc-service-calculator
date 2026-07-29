@@ -15,7 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { classifyTier, initialStatusForTier } from "@/types/extension-requests";
+import {
+  classifyDueDateTier,
+  classifyTier,
+  initialStatusForTier,
+  maxTier,
+} from "@/types/extension-requests";
 
 type ClientOption = { id: string; name: string };
 type CuTaskOption = {
@@ -23,7 +28,20 @@ type CuTaskOption = {
   name: string;
   list_name: string;
   sprint_points: number | null;
+  due_date: number | null;
 };
+
+function toDateInputValue(epochMs: number): string {
+  return new Date(epochMs).toISOString().slice(0, 10);
+}
+
+/** Whole days between a task's current due date and a requested new date. */
+function daysBetween(fromEpochMs: number, toDateStr: string): number {
+  const from = new Date(fromEpochMs);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(`${toDateStr}T00:00:00`);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -41,8 +59,10 @@ export function ExtensionFormBody() {
 
   const [clientId, setClientId] = useState<string>("");
   const [taskId, setTaskId] = useState<string>("");
-  const [extraPoints, setExtraPoints] = useState<string>("1");
+  const [extraPoints, setExtraPoints] = useState<string>("");
   const [reason, setReason] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [dueDateReason, setDueDateReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -112,44 +132,71 @@ export function ExtensionFormBody() {
     [tasks, taskId],
   );
 
-  const tierPreview = useMemo(() => {
+  const pointsRequested = Number(extraPoints) > 0;
+  const pointsTier = useMemo(() => {
     const original = selectedTask?.sprint_points ?? 0;
     const extra = Number(extraPoints);
     if (!original || !extra || extra <= 0) return null;
     return classifyTier(original, extra);
   }, [selectedTask?.sprint_points, extraPoints]);
 
+  const dueDateRequested = dueDate.trim() !== "";
+  const daysRequested = useMemo(() => {
+    if (!dueDate || !selectedTask?.due_date) return null;
+    return daysBetween(selectedTask.due_date, dueDate);
+  }, [selectedTask?.due_date, dueDate]);
+  const dueDateTier = useMemo(() => {
+    if (daysRequested === null || daysRequested <= 0) return null;
+    return classifyDueDateTier(daysRequested);
+  }, [daysRequested]);
+
+  const tierPreview = useMemo(() => {
+    if (!pointsTier && !dueDateTier) return null;
+    const tier = pointsTier && dueDateTier ? maxTier(pointsTier.tier, dueDateTier.tier) : (pointsTier ?? dueDateTier)!.tier;
+    return { tier, deltaPct: pointsTier?.deltaPct ?? null, daysRequested: dueDateTier ? daysRequested : null };
+  }, [pointsTier, dueDateTier, daysRequested]);
+
+  const pointsValid = !pointsRequested || (!!selectedTask?.sprint_points && !!pointsTier && reason.trim().length > 0);
+  const dueDateValid =
+    !dueDateRequested || (!!selectedTask?.due_date && daysRequested !== null && daysRequested > 0 && dueDateReason.trim().length > 0);
+
   const canSubmit =
     !!currentUserId &&
     !!clientId &&
     !!selectedTask &&
-    !!selectedTask.sprint_points &&
-    Number(extraPoints) > 0 &&
-    reason.trim().length > 0 &&
+    (pointsRequested || dueDateRequested) &&
+    pointsValid &&
+    dueDateValid &&
     !submitting;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit || !selectedTask || !selectedTask.sprint_points || !tierPreview) return;
+    if (!canSubmit || !selectedTask || !tierPreview) return;
     setSubmitting(true);
     try {
-      const extra = Number(extraPoints);
       const status = initialStatusForTier(tierPreview.tier);
-      const insertPayload = {
+      const insertPayload: Record<string, unknown> = {
         requester_id: currentUserId,
         client_id: clientId,
         parent_clickup_task_id: selectedTask.id,
         parent_task_name: selectedTask.name,
-        original_points: selectedTask.sprint_points,
-        extra_points: extra,
-        delta_pct: tierPreview.deltaPct,
         tier: tierPreview.tier,
-        reason: reason.trim(),
         status,
       };
+      if (pointsRequested) {
+        insertPayload.original_points = selectedTask.sprint_points;
+        insertPayload.extra_points = Number(extraPoints);
+        insertPayload.delta_pct = pointsTier?.deltaPct;
+        insertPayload.reason = reason.trim();
+      }
+      if (dueDateRequested) {
+        insertPayload.original_due_date = selectedTask.due_date ? toDateInputValue(selectedTask.due_date) : null;
+        insertPayload.requested_due_date = dueDate;
+        insertPayload.due_date_reason = dueDateReason.trim();
+      }
       const { data: inserted, error } = await supabase
-        // @ts-expect-error extension_requests added by migration 0053
         .from("extension_requests")
+        // @ts-expect-error extension_requests columns extended by migration 0094; shape varies by which fields are requested
         .insert(insertPayload)
         .select("id")
         .single();
@@ -176,7 +223,9 @@ export function ExtensionFormBody() {
         toast.success("Auto-approved · ClickUp subtask created.");
       } else {
         toast.success(
-          tierPreview.tier === "admin" ? "Submitted · awaiting admin approval." : "Submitted · escalated to owner.",
+          tierPreview.tier === "admin"
+            ? "Submitted · awaiting admin approval."
+            : "Submitted · admin reviews first, then the owner signs off.",
         );
         // Fire-and-forget: ping the approver(s) in ClickUp chat + email. Never
         // blocks the submit — the request is already saved either way.
@@ -190,8 +239,10 @@ export function ExtensionFormBody() {
           body: JSON.stringify({ extension_request_id: (inserted as { id: string }).id }),
         }).catch(() => {});
       }
-      setExtraPoints("1");
+      setExtraPoints("");
       setReason("");
+      setDueDate("");
+      setDueDateReason("");
     } finally {
       setSubmitting(false);
     }
@@ -233,11 +284,10 @@ export function ExtensionFormBody() {
               {tasks.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
-                  {t.sprint_points !== null && (
-                    <span className="text-m-on-surface-variant ml-2 text-label-small">
-                      · {t.sprint_points}pt · {t.list_name}
-                    </span>
-                  )}
+                  <span className="text-m-on-surface-variant ml-2 text-label-small">
+                    · {t.sprint_points !== null ? `${t.sprint_points}pt` : "no points"} · {t.list_name}
+                    {t.due_date !== null && <> · due {toDateInputValue(t.due_date)}</>}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -246,14 +296,25 @@ export function ExtensionFormBody() {
         </div>
       </div>
 
-      {selectedTask && selectedTask.sprint_points === null && (
+      {selectedTask && pointsRequested && selectedTask.sprint_points === null && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           This task has no Sprint Points custom field set in ClickUp. Extension requests
           need a starting budget to compute the % delta. Set it on the ClickUp task first.
         </div>
       )}
+      {selectedTask && dueDateRequested && selectedTask.due_date === null && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+          This task has no due date set in ClickUp. Set one there first so the days-requested
+          delta can be computed.
+        </div>
+      )}
+      {selectedTask && dueDateRequested && daysRequested !== null && daysRequested <= 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+          The new due date must be after the current one ({toDateInputValue(selectedTask.due_date!)}).
+        </div>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-[160px,1fr]">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="ext-extra">Extra sprint points</Label>
           <Input
@@ -261,43 +322,73 @@ export function ExtensionFormBody() {
             type="number"
             min={0.25}
             step={0.25}
+            placeholder="Leave blank if not requesting extra points"
             value={extraPoints}
             onChange={(e) => setExtraPoints(e.target.value)}
           />
         </div>
         <div className="space-y-2">
-          <Label>Tier preview</Label>
-          <div className="flex h-10 items-center gap-3 rounded-md border border-m-outline-variant bg-m-surface px-3">
-            {tierPreview ? (
-              <>
-                <Badge variant={tierBadgeVariant(tierPreview.tier)}>
-                  {tierPreview.tier}
-                </Badge>
-                <span className="text-body-small text-m-on-surface">
-                  +{tierPreview.deltaPct}% delta
-                </span>
-                <span className="text-label-small text-m-on-surface-variant">
-                  · {tierLabel(tierPreview.tier)}
-                </span>
-              </>
-            ) : (
-              <span className="text-body-small text-m-on-surface-variant">
-                Pick a task with points to preview the tier.
-              </span>
-            )}
-          </div>
+          <Label htmlFor="ext-reason">Reason for extra points</Label>
+          <Textarea
+            id="ext-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What's pushed the work past its budget? Be specific."
+            rows={2}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="ext-due-date">New due date</Label>
+          <Input
+            id="ext-due-date"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ext-due-reason">Reason for due date extension</Label>
+          <Textarea
+            id="ext-due-reason"
+            value={dueDateReason}
+            onChange={(e) => setDueDateReason(e.target.value)}
+            placeholder="What's pushed the deadline out? Be specific."
+            rows={2}
+          />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ext-reason">Reason for extension</Label>
-        <Textarea
-          id="ext-reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="What's pushed the work past its budget? Be specific."
-          rows={4}
-        />
+        <Label>Tier preview</Label>
+        <div className="flex h-10 items-center gap-3 rounded-md border border-m-outline-variant bg-m-surface px-3">
+          {tierPreview ? (
+            <>
+              <Badge variant={tierBadgeVariant(tierPreview.tier)}>
+                {tierPreview.tier}
+              </Badge>
+              {tierPreview.deltaPct !== null && (
+                <span className="text-body-small text-m-on-surface">
+                  +{tierPreview.deltaPct}% points delta
+                </span>
+              )}
+              {tierPreview.daysRequested !== null && (
+                <span className="text-body-small text-m-on-surface">
+                  +{tierPreview.daysRequested} day{tierPreview.daysRequested === 1 ? "" : "s"}
+                </span>
+              )}
+              <span className="text-label-small text-m-on-surface-variant">
+                · {tierLabel(tierPreview.tier)}
+              </span>
+            </>
+          ) : (
+            <span className="text-body-small text-m-on-surface-variant">
+              Request extra points and/or a new due date to preview the tier.
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-end pt-2">
@@ -319,5 +410,5 @@ function tierBadgeVariant(tier: "auto" | "admin" | "owner") {
 function tierLabel(tier: "auto" | "admin" | "owner"): string {
   if (tier === "auto") return "auto-approved on submit";
   if (tier === "admin") return "admin approval required";
-  return "owner escalation required";
+  return "admin approval, then owner sign-off";
 }

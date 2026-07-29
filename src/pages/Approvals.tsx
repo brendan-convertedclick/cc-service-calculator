@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { askForInfo, notifyExtension } from "@/lib/extension-actions";
+import { RequestContext } from "@/components/approvals/RequestContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { StaffBriefRow } from "@/types/staff-briefs";
 import type { ExtensionRequestRow } from "@/types/extension-requests";
+import type { RevisionRequestRow } from "@/types/revision-requests";
 
 type BriefJoined = StaffBriefRow & {
   client: { id: string; name: string } | null;
@@ -19,19 +23,25 @@ type ExtJoined = ExtensionRequestRow & {
   client: { id: string; name: string } | null;
   requester: { id: string; full_name: string; email: string | null } | null;
 };
+type RevJoined = RevisionRequestRow & {
+  client: { id: string; name: string } | null;
+  requester: { id: string; full_name: string; email: string | null } | null;
+};
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 export function Approvals() {
+  const { currentUserId } = useAuth();
   const [briefs, setBriefs] = useState<BriefJoined[] | null>(null);
   const [exts, setExts] = useState<ExtJoined[] | null>(null);
+  const [revs, setRevs] = useState<RevJoined[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [askingId, setAskingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const loadBriefs = async () => {
     const { data, error } = await supabase
-      // @ts-expect-error staff_briefs added by migration 0052
       .from("staff_briefs")
       .select(
         "*, client:clients(id, name), submitter:team_members!staff_briefs_submitter_id_fkey(id, full_name, email)",
@@ -46,12 +56,12 @@ export function Approvals() {
   };
   const loadExts = async () => {
     const { data, error } = await supabase
-      // @ts-expect-error extension_requests added by migration 0053
       .from("extension_requests")
       .select(
         "*, client:clients(id, name), requester:team_members!extension_requests_requester_id_fkey(id, full_name, email)",
       )
-      .in("tier", ["auto", "admin"])
+      // No tier filter: owner-tier requests now enter here too (status
+      // pending_admin) and are promoted to /escalations on admin approval.
       .order("created_at", { ascending: false });
     if (error) {
       toast.error(`Could not load extensions: ${error.message}`);
@@ -60,10 +70,25 @@ export function Approvals() {
     }
     setExts((data ?? []) as unknown as ExtJoined[]);
   };
+  const loadRevs = async () => {
+    const { data, error } = await supabase
+      .from("revision_requests")
+      .select(
+        "*, client:clients(id, name), requester:team_members!revision_requests_requester_id_fkey(id, full_name, email)",
+      )
+      .order("created_at", { ascending: false });
+    if (error) {
+      toast.error(`Could not load revisions: ${error.message}`);
+      setRevs([]);
+      return;
+    }
+    setRevs((data ?? []) as unknown as RevJoined[]);
+  };
 
   useEffect(() => {
     loadBriefs();
     loadExts();
+    loadRevs();
   }, []);
 
   const approveBrief = async (id: string) => {
@@ -102,13 +127,58 @@ export function Approvals() {
         },
         body: JSON.stringify({ extension_request_id: id }),
       });
+      const body = (await res.json()) as { error?: string; promoted?: boolean };
+      if (!res.ok) {
+        toast.error(body.error ?? "Approve failed");
+        return;
+      }
+      if (body.promoted) {
+        // Owner-tier: nothing pushed to ClickUp yet, the owner signs off next.
+        toast.success("Approved — escalated to the owner for final sign-off.");
+        notifyExtension(id);
+      } else {
+        toast.success("Approved — subtask created.");
+      }
+      await loadExts();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const askExt = async (id: string) => {
+    if (!rejectReason.trim()) return toast.error("Question required.");
+    setBusyId(id);
+    try {
+      const err = await askForInfo(id, rejectReason, currentUserId);
+      if (err) return toast.error(err);
+      toast.success("Sent back to the requester.");
+      setAskingId(null);
+      setRejectReason("");
+      await loadExts();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const approveRev = async (id: string) => {
+    setBusyId(id);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`${FUNCTIONS_BASE}/approve-revision-request`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ revision_request_id: id }),
+      });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(body.error ?? "Approve failed");
         return;
       }
-      toast.success("Approved — subtask created.");
-      await loadExts();
+      toast.success("Approved — new task created.");
+      await loadRevs();
     } finally {
       setBusyId(null);
     }
@@ -119,7 +189,6 @@ export function Approvals() {
     setBusyId(id);
     try {
       const { error } = await supabase
-        // @ts-expect-error staff_briefs added by migration 0052
         .from("staff_briefs")
         .update({ status: "rejected", rejected_reason: rejectReason.trim() })
         .eq("id", id);
@@ -136,12 +205,14 @@ export function Approvals() {
     if (!rejectReason.trim()) return toast.error("Reason required.");
     setBusyId(id);
     try {
-      const { error } = await supabase
-        // @ts-expect-error extension_requests added by migration 0053
+      // Terminal by design: an admin reject never reaches the owner queue.
+      const { data, error } = await supabase
         .from("extension_requests")
         .update({ status: "rejected", rejected_reason: rejectReason.trim() })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) return toast.error(error.message);
+      if (!data || data.length === 0) return toast.error("Not permitted to update this request.");
       toast.success("Rejected.");
       setRejectingId(null);
       setRejectReason("");
@@ -150,8 +221,25 @@ export function Approvals() {
       setBusyId(null);
     }
   };
+  const rejectRev = async (id: string) => {
+    if (!rejectReason.trim()) return toast.error("Reason required.");
+    setBusyId(id);
+    try {
+      const { error } = await supabase
+        .from("revision_requests")
+        .update({ status: "rejected", rejected_reason: rejectReason.trim() })
+        .eq("id", id);
+      if (error) return toast.error(error.message);
+      toast.success("Rejected.");
+      setRejectingId(null);
+      setRejectReason("");
+      await loadRevs();
+    } finally {
+      setBusyId(null);
+    }
+  };
 
-  if (briefs === null || exts === null) {
+  if (briefs === null || exts === null || revs === null) {
     return (
       <div className="space-y-4 p-6">
         <Skeleton className="h-8 w-48" />
@@ -162,20 +250,22 @@ export function Approvals() {
 
   const pendingBriefs = briefs.filter((r) => r.status === "pending_approval");
   const pendingExts = exts.filter((r) => r.status === "pending_admin");
+  const pendingRevs = revs.filter((r) => r.status === "pending_admin");
 
   return (
     <div className="space-y-4 p-6">
       <header className="flex items-baseline justify-between">
         <h1 className="text-headline-small text-m-on-surface">Approvals</h1>
         <p className="text-body-small text-m-on-surface-variant">
-          {pendingBriefs.length} briefs · {pendingExts.length} extensions
+          {pendingBriefs.length} briefs · {pendingExts.length} extensions · {pendingRevs.length} revisions
         </p>
       </header>
 
       <Tabs defaultValue="briefs" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="briefs">Briefs · {pendingBriefs.length}</TabsTrigger>
           <TabsTrigger value="extensions">Extensions · {pendingExts.length}</TabsTrigger>
+          <TabsTrigger value="revisions">Revisions · {pendingRevs.length}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="briefs" className="space-y-3">
@@ -230,6 +320,7 @@ export function Approvals() {
                 row={row}
                 busy={busyId === row.id}
                 rejecting={rejectingId === row.id}
+                asking={askingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
                 onApprove={() => approveExt(row.id)}
@@ -242,6 +333,15 @@ export function Approvals() {
                   setRejectReason("");
                 }}
                 onRejectConfirm={() => rejectExt(row.id)}
+                onAskStart={() => {
+                  setAskingId(row.id);
+                  setRejectReason("");
+                }}
+                onAskCancel={() => {
+                  setAskingId(null);
+                  setRejectReason("");
+                }}
+                onAskConfirm={() => askExt(row.id)}
               />
             ))
           )}
@@ -254,9 +354,51 @@ export function Approvals() {
                 .map((r) => ({
                   id: r.id,
                   title: r.parent_task_name,
-                  subtitle: `${r.requester?.full_name ?? "—"} · +${r.extra_points}pt (${r.delta_pct}%) · tier=${r.tier}`,
+                  subtitle: `${r.requester?.full_name ?? "—"} · ${extensionSubtitle(r)} · tier=${r.tier}`,
                   status: r.status,
                   url: r.clickup_subtask_url,
+                }))}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="revisions" className="space-y-3">
+          {pendingRevs.length === 0 ? (
+            <EmptyState label="No pending revisions." />
+          ) : (
+            pendingRevs.map((row) => (
+              <RevCard
+                key={row.id}
+                row={row}
+                busy={busyId === row.id}
+                rejecting={rejectingId === row.id}
+                rejectReason={rejectReason}
+                setRejectReason={setRejectReason}
+                onApprove={() => approveRev(row.id)}
+                onRejectStart={() => {
+                  setRejectingId(row.id);
+                  setRejectReason("");
+                }}
+                onRejectCancel={() => {
+                  setRejectingId(null);
+                  setRejectReason("");
+                }}
+                onRejectConfirm={() => rejectRev(row.id)}
+              />
+            ))
+          )}
+          {revs.filter((r) => r.status !== "pending_admin").slice(0, 8).length > 0 && (
+            <RecentList
+              title="Recent revision activity"
+              items={revs
+                .filter((r) => r.status !== "pending_admin")
+                .slice(0, 8)
+                .map((r) => ({
+                  id: r.id,
+                  title: r.parent_task_name,
+                  subtitle: `${r.requester?.full_name ?? "—"} · → ${r.revision_suffix}`,
+                  status: r.status,
+                  url: r.clickup_new_task_url,
                 }))}
             />
           )}
@@ -355,6 +497,115 @@ function ExtCard({
   row,
   busy,
   rejecting,
+  asking,
+  rejectReason,
+  setRejectReason,
+  onApprove,
+  onRejectStart,
+  onRejectCancel,
+  onRejectConfirm,
+  onAskStart,
+  onAskCancel,
+  onAskConfirm,
+}: {
+  row: ExtJoined;
+  busy: boolean;
+  rejecting: boolean;
+  asking: boolean;
+  rejectReason: string;
+  setRejectReason: (v: string) => void;
+  onApprove: () => void;
+  onRejectStart: () => void;
+  onRejectCancel: () => void;
+  onRejectConfirm: () => void;
+  onAskStart: () => void;
+  onAskCancel: () => void;
+  onAskConfirm: () => void;
+}) {
+  // Owner-tier rows stop here first: approving hands them on rather than
+  // pushing to ClickUp. A reject here is terminal — it never reaches the owner.
+  const isEscalation = row.tier === "owner";
+  return (
+    <Card className="shadow-elev-1">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-title-medium">{row.parent_task_name}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2 text-label-small text-m-on-surface-variant">
+              <span>{row.requester?.full_name ?? "—"}</span>
+              <span>·</span>
+              <span>{row.client?.name ?? "—"}</span>
+              {row.extra_points !== null && (
+                <>
+                  <span>·</span>
+                  <span>+{row.extra_points}pt on {row.original_points}pt</span>
+                  <Badge variant={isEscalation ? "destructive" : "warning"} className="ml-1">
+                    +{row.delta_pct}% · {row.tier}
+                  </Badge>
+                </>
+              )}
+              {row.requested_due_date !== null && (
+                <>
+                  <span>·</span>
+                  <span>due {row.original_due_date ?? "—"} → {row.requested_due_date}</span>
+                  {row.extra_points === null && (
+                    <Badge variant={isEscalation ? "destructive" : "warning"} className="ml-1">
+                      {row.tier}
+                    </Badge>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="text-label-small text-m-on-surface-variant whitespace-nowrap">
+            {new Date(row.created_at).toLocaleString()}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <RequestContext taskId={row.parent_clickup_task_id} requestedPoints={row.extra_points} />
+
+        {row.reason && <ExtField label="Reason for extra points">{row.reason}</ExtField>}
+        {row.due_date_reason && (
+          <ExtField label="Reason for due-date push">{row.due_date_reason}</ExtField>
+        )}
+        {row.info_request && <ExtField label="Question asked">{row.info_request}</ExtField>}
+        {row.info_response && <ExtField label="Requester's answer">{row.info_response}</ExtField>}
+
+        {asking ? (
+          <AskBox
+            value={rejectReason}
+            onChange={setRejectReason}
+            onCancel={onAskCancel}
+            onConfirm={onAskConfirm}
+            busy={busy}
+          />
+        ) : rejecting ? (
+          <RejectBox
+            value={rejectReason}
+            onChange={setRejectReason}
+            onCancel={onRejectCancel}
+            onConfirm={onRejectConfirm}
+            busy={busy}
+          />
+        ) : (
+          <ActionRow
+            onReject={onRejectStart}
+            onApprove={onApprove}
+            onAsk={onAskStart}
+            busy={busy}
+            approveLabel={isEscalation ? "Approve & send to owner" : "Approve & push subtask"}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevCard({
+  row,
+  busy,
+  rejecting,
   rejectReason,
   setRejectReason,
   onApprove,
@@ -362,7 +613,7 @@ function ExtCard({
   onRejectCancel,
   onRejectConfirm,
 }: {
-  row: ExtJoined;
+  row: RevJoined;
   busy: boolean;
   rejecting: boolean;
   rejectReason: string;
@@ -383,8 +634,7 @@ function ExtCard({
               <span>·</span>
               <span>{row.client?.name ?? "—"}</span>
               <span>·</span>
-              <span>+{row.extra_points}pt on {row.original_points}pt</span>
-              <Badge variant="warning" className="ml-1">+{row.delta_pct}% · admin</Badge>
+              <Badge variant="warning" className="ml-1">→ {row.revision_suffix}</Badge>
             </div>
           </div>
           <div className="text-label-small text-m-on-surface-variant whitespace-nowrap">
@@ -393,7 +643,6 @@ function ExtCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-body-medium text-m-on-surface whitespace-pre-wrap">{row.reason}</p>
         {rejecting ? (
           <RejectBox
             value={rejectReason}
@@ -407,7 +656,7 @@ function ExtCard({
             onReject={onRejectStart}
             onApprove={onApprove}
             busy={busy}
-            approveLabel="Approve & push subtask"
+            approveLabel="Approve & create task"
           />
         )}
       </CardContent>
@@ -457,19 +706,69 @@ function RejectBox({
   );
 }
 
+function ExtField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-label-small text-m-on-surface-variant">{label}</div>
+      <p className="text-body-medium text-m-on-surface whitespace-pre-wrap">{children}</p>
+    </div>
+  );
+}
+
+function AskBox({
+  value,
+  onChange,
+  onCancel,
+  onConfirm,
+  busy,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="What do you need to know before deciding?"
+        rows={3}
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={onConfirm} disabled={busy}>
+          Send question
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ActionRow({
   onReject,
   onApprove,
+  onAsk,
   busy,
   approveLabel,
 }: {
   onReject: () => void;
   onApprove: () => void;
+  onAsk?: () => void;
   busy: boolean;
   approveLabel: string;
 }) {
   return (
     <div className="flex justify-end gap-2">
+      {onAsk && (
+        <Button variant="ghost" size="sm" onClick={onAsk} disabled={busy} className="gap-2">
+          <HelpCircle className="h-4 w-4" />
+          Ask for info
+        </Button>
+      )}
       <Button variant="ghost" size="sm" onClick={onReject} disabled={busy} className="gap-2">
         <XCircle className="h-4 w-4" />
         Reject
@@ -526,6 +825,13 @@ function RecentList({
       </ul>
     </section>
   );
+}
+
+function extensionSubtitle(r: ExtensionRequestRow): string {
+  const parts: string[] = [];
+  if (r.extra_points !== null) parts.push(`+${r.extra_points}pt (${r.delta_pct}%)`);
+  if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
+  return parts.join(" · ") || "—";
 }
 
 function recentBadgeVariant(

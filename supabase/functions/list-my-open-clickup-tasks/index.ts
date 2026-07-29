@@ -1,7 +1,7 @@
 // supabase/functions/list-my-open-clickup-tasks/index.ts
 //
 // Request:  POST { client_id?: string }
-// Response: 200 { tasks: [{ id, name, list_name, sprint_points }] }
+// Response: 200 { tasks: [{ id, name, list_name, sprint_points, due_date }] }
 //
 // Returns the open ClickUp tasks assigned to the calling user. Used by the
 // Phase 2 extension request form's "Task" dropdown. If client_id is given,
@@ -17,6 +17,7 @@ type CuTask = {
   list?: { id: string; name: string };
   status?: { type?: string; status?: string };
   points?: number | null;
+  due_date?: string | null;
   custom_fields?: Array<{ name: string; value?: unknown }>;
 };
 
@@ -94,6 +95,7 @@ Deno.serve(async (req: Request) => {
       name: t.name,
       list_name: t.list?.name ?? "",
       sprint_points: extractSprintPoints(t.points, t.custom_fields),
+      due_date: t.due_date ? Number(t.due_date) : null,
     }));
 
     return json({ tasks });

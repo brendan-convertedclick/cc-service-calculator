@@ -3,12 +3,15 @@
 // Request:  POST { extension_request_id }
 // Response: 200 { notified: string[], chat_ok: boolean }
 //
-// Best-effort notification fired right after a staff member submits a
-// mid/large-tier (admin/owner) extension request: pings every team_members
-// row with the matching role in ClickUp chat (with a real mention) and sends
-// them an email. Auto-tier requests need no approval, so they're a no-op.
-// Never blocks the requester's submit — swallow-and-log on every failure
-// path (chat and email are independent; one failing doesn't sink the other).
+// Best-effort notification for whoever currently owes a decision. The
+// audience is derived from `status`, never `tier` — a fresh owner-tier request
+// sits at `pending_admin`, so it pings the admin leg (Lisa), not the owner.
+// Re-fire it after each transition:
+//   pending_admin → admins   (/approvals)
+//   pending_owner → owner    (/escalations)  — only reached post admin sign-off
+//   needs_info    → the requester (/staff), with the approver's question
+// Anything else is a no-op. Never blocks the requester's submit — chat and
+// email are independent; one failing doesn't sink the other.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -22,11 +25,36 @@ const APP_URL = "https://conductor.convertedclick.co.za";
 type ExtensionRow = {
   id: string;
   tier: "auto" | "admin" | "owner";
-  extra_points: number;
-  reason: string;
+  status: string;
+  extra_points: number | null;
+  reason: string | null;
+  requested_due_date: string | null;
+  due_date_reason: string | null;
+  info_request: string | null;
   parent_task_name: string;
   requester_id: string;
+  client_id: string;
 };
+
+/** Plain-text summary of whichever of points/due-date this request carries. */
+function buildSummary(row: ExtensionRow): string {
+  const parts: string[] = [];
+  if (row.extra_points) parts.push(`+${row.extra_points}pt — ${row.reason}`);
+  if (row.requested_due_date) parts.push(`due date → ${row.requested_due_date} — ${row.due_date_reason}`);
+  return `"${row.parent_task_name}": ${parts.join(" · ")}`;
+}
+
+type Target =
+  | { kind: "role"; role: "admin" | "owner"; queuePage: string }
+  | { kind: "requester"; queuePage: string };
+
+/** Who owes the next decision, from `status` alone. Null = nothing to send. */
+function notifyTarget(row: ExtensionRow): Target | null {
+  if (row.status === "pending_admin") return { kind: "role", role: "admin", queuePage: "/approvals" };
+  if (row.status === "pending_owner") return { kind: "role", role: "owner", queuePage: "/escalations" };
+  if (row.status === "needs_info") return { kind: "requester", queuePage: "/staff" };
+  return null;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -40,13 +68,18 @@ Deno.serve(async (req: Request) => {
 
     const { data: rowRaw, error: rowErr } = await sb
       .from("extension_requests")
-      .select("id, tier, extra_points, reason, parent_task_name, requester_id")
+      .select(
+        "id, tier, status, extra_points, reason, requested_due_date, due_date_reason, info_request, parent_task_name, requester_id, client_id",
+      )
       .eq("id", extension_request_id)
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
     const row = rowRaw as unknown as ExtensionRow;
 
-    if (row.tier === "auto") return json({ notified: [], chat_ok: false, skipped: "auto-tier needs no approval" });
+    const target = notifyTarget(row);
+    if (!target) {
+      return json({ notified: [], chat_ok: false, skipped: `status=${row.status} needs no notification` });
+    }
 
     const { data: requesterRaw } = await sb
       .from("team_members")
@@ -55,16 +88,42 @@ Deno.serve(async (req: Request) => {
       .single();
     const requesterName = (requesterRaw as { full_name?: string } | null)?.full_name ?? "Someone";
 
-    const { data: approversRaw } = await sb
-      .from("team_members")
-      .select("full_name, email, clickup_user_id")
-      .eq("role", row.tier)
-      .is("archived_at", null);
+    const recipientQuery = sb.from("team_members").select("full_name, email, clickup_user_id");
+    const { data: approversRaw } = await (target.kind === "role"
+      ? recipientQuery.eq("role", target.role).is("archived_at", null)
+      : recipientQuery.eq("id", row.requester_id));
     const approvers = (approversRaw ?? []) as { full_name: string; email: string | null; clickup_user_id: number | null }[];
-    if (approvers.length === 0) return json({ notified: [], chat_ok: false, warning: `No ${row.tier} on the team` });
+    if (approvers.length === 0) {
+      const who = target.kind === "role" ? `No ${target.role} on the team` : "Requester not found";
+      return json({ notified: [], chat_ok: false, warning: who });
+    }
 
-    const queuePage = row.tier === "owner" ? "/escalations" : "/approvals";
-    const summary = `+${row.extra_points}pt on "${row.parent_task_name}" — ${row.reason}`;
+    const queuePage = target.queuePage;
+    const summary = buildSummary(row);
+
+    // One lead line per audience — the owner leg is only ever reached after
+    // the admin has signed off, so say so.
+    const lead =
+      target.kind === "requester"
+        ? `❓ more information needed on your extension request: ${summary}\nQuestion: ${row.info_request ?? "—"}`
+        : target.role === "owner"
+          ? `⏫ admin-approved extension escalated for owner sign-off (${row.tier} tier), raised by ${requesterName}: ${summary}`
+          : `⏫ extension request from ${requesterName} needs your approval (${row.tier} tier): ${summary}`;
+    const subject =
+      target.kind === "requester"
+        ? `More information needed — ${row.parent_task_name}`
+        : `Extension request needs your approval — ${row.parent_task_name}`;
+
+    // Same routing as brief notifications: post in the client's own channel,
+    // falling back to Converted Click only if none is mapped.
+    const { data: clientRaw } = await sb
+      .from("clients")
+      .select("clickup_chat_channel_id")
+      .eq("id", row.client_id)
+      .single();
+    const chatChannelId =
+      (clientRaw as { clickup_chat_channel_id?: string } | null)?.clickup_chat_channel_id
+      ?? CONVERTED_CLICK_CHANNEL_ID;
 
     // ClickUp chat: one message, mention every approver so it actually pings them.
     // Post as the requester's own ClickUp identity when they've connected one
@@ -76,8 +135,8 @@ Deno.serve(async (req: Request) => {
       .join(" ");
     const chatResult = await postChatMessage(
       clickupPat,
-      CONVERTED_CLICK_CHANNEL_ID,
-      `⏫ ${mentions} — extension request from ${requesterName} needs your approval (${row.tier} tier): ${summary}\n${APP_URL}${queuePage}`,
+      chatChannelId,
+      `${mentions} — ${lead}\n${APP_URL}${queuePage}`,
     );
 
     // Email: one outbound_emails row per approver (audit trail), sent immediately.
@@ -93,13 +152,11 @@ Deno.serve(async (req: Request) => {
       const { data: outbound } = await sb.from("outbound_emails").insert({
         composed_by: row.requester_id,
         to_addresses: [a.email],
-        subject: `Extension request needs your approval — ${row.parent_task_name}`,
-        body_text:
-          `${requesterName} requested +${row.extra_points} sprint points on "${row.parent_task_name}" (${row.tier} tier).\n\n` +
-          `Reason: ${row.reason}\n\nReview: ${APP_URL}${queuePage}`,
+        subject,
+        body_text: `${lead}\n\nReview: ${APP_URL}${queuePage}`,
         body_html:
-          `<p>${requesterName} requested <b>+${row.extra_points}</b> sprint points on <b>${row.parent_task_name}</b> (${row.tier} tier).</p>` +
-          `<p><b>Reason:</b> ${row.reason}</p><p><a href="${APP_URL}${queuePage}">Review in Conductor</a></p>`,
+          `<p>${lead.replace(/\n/g, "<br>")}</p>` +
+          `<p><a href="${APP_URL}${queuePage}">Review in Conductor</a></p>`,
         status: "draft",
       }).select("id").single();
       if (!outbound?.id) continue;
@@ -113,9 +170,11 @@ Deno.serve(async (req: Request) => {
         fromEmail,
         fromName: "Converted Click Account Manager",
         to: [a.email],
-        subject: `Extension request needs your approval — ${row.parent_task_name}`,
-        bodyText: `${requesterName} requested +${row.extra_points} sprint points on "${row.parent_task_name}" (${row.tier} tier).\n\nReason: ${row.reason}\n\nReview: ${APP_URL}${queuePage}`,
-        bodyHtml: `<p>${requesterName} requested <b>+${row.extra_points}</b> sprint points on <b>${row.parent_task_name}</b> (${row.tier} tier).</p><p><b>Reason:</b> ${row.reason}</p><p><a href="${APP_URL}${queuePage}">Review in Conductor</a></p>`,
+        subject,
+        bodyText: `${lead}\n\nReview: ${APP_URL}${queuePage}`,
+        bodyHtml:
+          `<p>${lead.replace(/\n/g, "<br>")}</p>` +
+          `<p><a href="${APP_URL}${queuePage}">Review in Conductor</a></p>`,
       });
       if (sent.ok) {
         await sb.from("outbound_emails").update({

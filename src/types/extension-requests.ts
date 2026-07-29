@@ -5,6 +5,7 @@ export type ExtensionStatus =
   | "auto_approved"
   | "pending_admin"
   | "pending_owner"
+  | "needs_info"
   | "approved"
   | "rejected";
 
@@ -14,14 +15,24 @@ export type ExtensionRequestRow = {
   client_id: string;
   parent_clickup_task_id: string;
   parent_task_name: string;
-  original_points: number;
-  extra_points: number;
-  delta_pct: number;
+  original_points: number | null;
+  extra_points: number | null;
+  delta_pct: number | null;
+  original_due_date: string | null;
+  requested_due_date: string | null;
+  due_date_reason: string | null;
   tier: ExtensionTier;
-  reason: string;
+  reason: string | null;
   status: ExtensionStatus;
   approver_id: string | null;
   approved_at: string | null;
+  admin_approver_id: string | null;
+  admin_approved_at: string | null;
+  info_request: string | null;
+  info_requested_by: string | null;
+  info_requested_at: string | null;
+  info_response: string | null;
+  info_responded_at: string | null;
   rejected_reason: string | null;
   clickup_subtask_id: string | null;
   clickup_subtask_url: string | null;
@@ -51,8 +62,34 @@ export function classifyTier(originalPoints: number, extraPoints: number): {
   return { tier, deltaPct: Math.round(deltaPct * 100) / 100 };
 }
 
+/**
+ * Every request needing a human enters at the admin leg — owner-tier included.
+ * The owner queue is reached only by an admin promoting the row (see
+ * supabase/functions/_shared/extension-logic.ts), so an admin reject is
+ * terminal and never reaches the owner.
+ */
 export function initialStatusForTier(tier: ExtensionTier): ExtensionStatus {
-  if (tier === "auto") return "auto_approved";
-  if (tier === "admin") return "pending_admin";
-  return "pending_owner";
+  return tier === "auto" ? "auto_approved" : "pending_admin";
+}
+
+/**
+ * Classify a due-date push into an approval tier from days requested.
+ *
+ *   <= 2 days → auto
+ *   3-7 days  → admin
+ *   > 7 days  → owner
+ */
+export function classifyDueDateTier(daysRequested: number): { tier: ExtensionTier } {
+  if (daysRequested <= 0) throw new Error("daysRequested must be > 0");
+  if (daysRequested <= 2) return { tier: "auto" };
+  if (daysRequested <= 7) return { tier: "admin" };
+  return { tier: "owner" };
+}
+
+const TIER_RANK: Record<ExtensionTier, number> = { auto: 0, admin: 1, owner: 2 };
+
+/** The more restrictive of two tiers — used when a request combines extra
+ * points and a due-date push, each classified independently. */
+export function maxTier(a: ExtensionTier, b: ExtensionTier): ExtensionTier {
+  return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
 }
