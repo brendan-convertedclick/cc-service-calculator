@@ -25,6 +25,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { findCustomField, resolveDropdownOption } from "../_shared/clickup.ts";
 import type { CuField } from "../_shared/clickup.ts";
 
@@ -60,11 +61,16 @@ Deno.serve(async (req: Request) => {
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const sb = createServiceRoleClient();
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    // Prefer the operator's own ClickUp OAuth token so provisioned tasks read
+    // "assigned by <them>" in ClickUp, not the shared PAT owner. Falls back to
+    // the shared PAT (e.g. the monthly cron, which sends no user auth).
+    const { token: clickupPat } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
-    // Resolve period (defaults to current month, Africa/Johannesburg).
-    const periodStart = period_start ? new Date(period_start) : firstOfMonth(new Date());
+    // Resolve period, normalised to a whole calendar month (defaults to the
+    // current month). Passing the retainer's start date lands the first period
+    // on that month rather than "now".
+    const periodStart = firstOfMonth(period_start ? new Date(period_start) : new Date());
     const periodEnd = lastOfMonth(periodStart);
 
     const { data: project, error: pErr } = await sb
@@ -212,6 +218,7 @@ Deno.serve(async (req: Request) => {
       occurrence_start_days: number[] | null;
       occurrence_due_days: number[] | null;
       roll_up_monthly: boolean | null;
+      recur_weekday: number | null;
     }>) {
       // Shared mode: when a service has per-occurrence labels (e.g. one task per
       // website), every listed assignee sits on the SAME labelled tasks (doer +
@@ -255,15 +262,24 @@ Deno.serve(async (req: Request) => {
             // One-off backfill: rename + set fields + points on the tasks that
             // were created before this convention existed.
             const ids = (existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [];
-            const isMonthly = svc.cadence === "monthly";
+            const weekdayMode = svc.recur_weekday != null;
+            const isMonthly = !weekdayMode && svc.cadence === "monthly";
             const dates = mode === "live"
               ? [periodStart]
+              : weekdayMode
+              ? weekdayDatesInPeriod(periodStart, periodEnd, svc.recur_weekday!)
               : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
             for (let i = 0; i < ids.length; i++) {
               const d = dates[i] ?? dates[dates.length - 1] ?? periodStart;
               const name = mode === "live"
                 ? liveTaskName(svc.service_id)
-                : taskName(svc.service_id, d, svc.cadence, svc.occurrence_labels?.[i], svc.label_as_task_name);
+                : taskName(
+                  svc.service_id,
+                  d,
+                  weekdayMode ? "weekly" : svc.cadence,
+                  svc.occurrence_labels?.[i],
+                  svc.label_as_task_name,
+                );
               const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
               const cf = buildCustomFields(svc.service_id, engagementMs);
               const startDay = svc.occurrence_start_days?.[i];
@@ -356,9 +372,13 @@ Deno.serve(async (req: Request) => {
           // has roll_up_monthly set must still fan out to one task per
           // occurrence — otherwise it silently under-generates (the July 2026
           // shortfall regression from ce482fa).
-          const rollUp = !!svc.roll_up_monthly &&
+          // Weekday-anchored services (recur_weekday set) fan out to one task
+          // per occurrence of that weekday in the period — 4 or 5 tasks
+          // depending on the month. It overrides roll-up and monthly spanning.
+          const weekdayMode = svc.recur_weekday != null;
+          const rollUp = !weekdayMode && !!svc.roll_up_monthly &&
             (svc.occurrence_labels ?? []).filter((l) => l && l.trim()).length <= 1;
-          const isMonthly = svc.cadence === "monthly" || rollUp;
+          const isMonthly = !weekdayMode && (svc.cadence === "monthly" || rollUp);
           // Whole-month points/estimate when rolled up; per-occurrence otherwise.
           const rollUpPoints = Math.max(
             1,
@@ -369,7 +389,9 @@ Deno.serve(async (req: Request) => {
             (rollUp ? svc.occurrences_per_month * svc.points_per_occurrence : svc.points_per_occurrence) *
               POINT_TO_MIN * 60_000,
           );
-          const dates = rollUp
+          const dates = weekdayMode
+            ? weekdayDatesInPeriod(periodStart, periodEnd, svc.recur_weekday!)
+            : rollUp
             ? [periodStart]
             : plannedTaskDates(periodStart, periodEnd, svc.cadence, svc.occurrences_per_month);
           for (let i = 0; i < dates.length; i++) {
@@ -390,7 +412,7 @@ Deno.serve(async (req: Request) => {
             const nm = taskName(
               svc.service_id,
               d,
-              rollUp ? "monthly" : svc.cadence,
+              weekdayMode ? "weekly" : rollUp ? "monthly" : svc.cadence,
               svc.occurrence_labels?.[i],
               svc.label_as_task_name,
             );
@@ -684,6 +706,22 @@ function monthYear(d: Date): string {
 }
 function weekOfMonth(d: Date): number {
   return Math.floor((d.getUTCDate() - 1) / 7) + 1;
+}
+
+// Every date in [periodStart, periodEnd] falling on the given weekday
+// (0=Sunday … 6=Saturday). Yields 4 or 5 dates depending on the month — so a
+// "every Monday" service gets a task per actual Monday.
+function weekdayDatesInPeriod(periodStart: Date, periodEnd: Date, weekday: number): Date[] {
+  const out: Date[] = [];
+  let d = new Date(periodStart);
+  while (d.getUTCDay() !== weekday && d.getTime() <= periodEnd.getTime()) {
+    d = new Date(d.getTime() + 86_400_000);
+  }
+  while (d.getTime() <= periodEnd.getTime()) {
+    out.push(new Date(d));
+    d = new Date(d.getTime() + 7 * 86_400_000);
+  }
+  return out;
 }
 
 function plannedTaskDates(

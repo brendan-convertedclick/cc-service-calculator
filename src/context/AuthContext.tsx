@@ -1,15 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { isLocalDev } from "@/lib/env";
 
-// Auto-login as the shared team account is a LOCAL-DEV convenience only. Prod
-// is served via the Vite dev server (so import.meta.env.DEV is true there too),
-// so also require a non-prod hostname — otherwise prod would force everyone onto
-// team@ and block real per-user logins.
-const DEV_AUTO_LOGIN =
-  import.meta.env.DEV &&
-  (typeof window === "undefined" ||
-    !window.location.hostname.includes("conductor.convertedclick.co.za"));
+// Auto-login as the shared team account is a LOCAL-DEV convenience only —
+// otherwise prod would force everyone onto team@ and block real per-user logins.
+const DEV_AUTO_LOGIN = isLocalDev();
 const DEV_EMAIL = "team@convertedclick.co.za";
 const DEV_PASSWORD = "cc-calc-2026-temp";
 
@@ -76,12 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentUserId(null);
       return;
     }
+    const authUserId = session?.user?.id ?? null;
     let cancelled = false;
     (async () => {
       // First check: is there ANY team_members row for this email (active or archived)?
       const { data: anyRow } = await supabase
         .from("team_members")
-        .select("id, archived_at")
+        .select("id, archived_at, auth_user_id")
         .eq("email", email)
         .maybeSingle();
 
@@ -90,6 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (anyRow) {
         // Active member → resolve their id; archived member → null (don't re-provision)
         setCurrentUserId(anyRow.archived_at === null ? anyRow.id : null);
+        // Backfill auth_user_id on first sign-in so Team page "Active" status and
+        // RLS's current_team_member_id() (which checks auth_user_id first) work.
+        if (authUserId && anyRow.auth_user_id !== authUserId) {
+          await supabase.from("team_members").update({ auth_user_id: authUserId }).eq("id", anyRow.id);
+        }
         return;
       }
 
@@ -101,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email;
         const { data: upserted } = await supabase
           .from("team_members")
-          .upsert({ full_name: fullName, email }, { onConflict: 'email', ignoreDuplicates: false })
+          .upsert({ full_name: fullName, email, auth_user_id: authUserId }, { onConflict: 'email', ignoreDuplicates: false })
           .select("id")
           .single();
         if (!cancelled) setCurrentUserId(upserted?.id ?? null);

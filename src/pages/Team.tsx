@@ -53,6 +53,7 @@ export function Team() {
                   <th className="border-b px-3 py-2.5">Skills</th>
                   <th className="border-b px-3 py-2.5">Ongoing</th>
                   <th className="border-b px-3 py-2.5 text-right">Cost / hr</th>
+                  <th className="border-b px-3 py-2.5">Access</th>
                   <th className="border-b px-3 py-2.5"></th>
                 </tr>
               </thead>
@@ -119,6 +120,7 @@ export function Team() {
                         <div className="mt-0.5 px-2 text-right text-xs text-muted-foreground font-mono tabular-nums">{formatZar(m.cost_rate_cents)}</div>
                       )}
                     </td>
+                    <AccessCell member={m} onChangeRole={(role) => update.mutate({ id: m.id, patch: { role } })} />
                     <td className="px-3 py-1.5">
                       <Button
                         variant="ghost"
@@ -240,6 +242,43 @@ function NewMemberDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AccessCell({
+  member,
+  onChangeRole,
+}: {
+  member: { role: string; auth_user_id: string | null; email: string | null };
+  onChangeRole: (role: string) => void;
+}) {
+  return (
+    <td className="px-3 py-1.5">
+      <div className="flex items-center gap-2">
+        <select
+          defaultValue={member.role}
+          onChange={(e) => onChangeRole(e.target.value)}
+          className="h-9 rounded-md border border-transparent bg-transparent px-2 text-sm text-m-on-surface transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+          <option value="owner">Owner</option>
+        </select>
+        <Badge
+          variant={member.auth_user_id ? "secondary" : "outline"}
+          className="whitespace-nowrap"
+          title={
+            member.auth_user_id
+              ? "Signed in at least once"
+              : member.email
+                ? "Hasn't signed in with Google yet"
+                : "No email on file — can't sign in"
+          }
+        >
+          {member.auth_user_id ? "Active" : "No login"}
+        </Badge>
+      </div>
+    </td>
   );
 }
 

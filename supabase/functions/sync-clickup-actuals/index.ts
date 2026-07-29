@@ -137,6 +137,7 @@ Deno.serve(async (req: Request) => {
       }
 
       let allDone = actuals.length > 0;
+      const deletedTaskIds: string[] = [];
 
       for (const a of actuals) {
         // Parallelize the two ClickUp calls — they're independent. Cross-task
@@ -152,6 +153,10 @@ Deno.serve(async (req: Request) => {
           ),
         ]);
         if (!tRes.ok) {
+          // A genuine 404 = the task was deleted in ClickUp → mirror that into
+          // Conductor (cleaned up below). Other errors (429/5xx/network) are
+          // transient: leave the task alone and retry next tick.
+          if (tRes.status === 404) deletedTaskIds.push(a.clickup_task_id);
           allDone = false;
           continue;
         }
@@ -189,6 +194,30 @@ Deno.serve(async (req: Request) => {
           });
         if (insErr) throw insErr;
         inserted++;
+      }
+
+      // Delete-sync: a task deleted in ClickUp is removed from Conductor too.
+      // Drop its actuals history and pull it out of its provisioned_tasks record
+      // so it isn't re-seeded next tick. Only genuine 404s reach here.
+      if (deletedTaskIds.length > 0) {
+        await supabase
+          .from("project_actuals")
+          .delete()
+          .eq("project_id", p.id)
+          .in("clickup_task_id", deletedTaskIds);
+        const { data: provRows } = await supabase
+          .from("provisioned_tasks")
+          .select("id, clickup_task_ids")
+          .eq("project_id", p.id);
+        const gone = new Set(deletedTaskIds);
+        for (const row of (provRows ?? []) as Array<{ id: string; clickup_task_ids: string[] | null }>) {
+          const current = row.clickup_task_ids ?? [];
+          const kept = current.filter((id) => !gone.has(id));
+          if (kept.length !== current.length) {
+            await supabase.from("provisioned_tasks").update({ clickup_task_ids: kept }).eq("id", row.id);
+          }
+        }
+        console.log(`[delete-sync] project ${p.id}: removed ${deletedTaskIds.length} deleted ClickUp task(s)`);
       }
 
       if (allDone) {

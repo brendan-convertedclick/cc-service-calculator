@@ -20,12 +20,28 @@ export const PIPELINE_STATUSES: BriefStatus[] = [
 ];
 
 /** Post-briefed execution buckets, derived from the brief's ClickUp task status. */
-export type ExecutionBucket = "backlog" | "in_progress" | "completed";
+export type ExecutionBucket =
+  | "backlog"
+  | "planned"
+  | "in_progress"
+  | "waiting_on_client"
+  | "completed";
 export type PipelineSelection = BriefStatus | "all" | ExecutionBucket;
+
+/** Display order of the delivery pills (reads as a delivery flow). */
+export const EXECUTION_BUCKETS: ExecutionBucket[] = [
+  "backlog",
+  "planned",
+  "in_progress",
+  "waiting_on_client",
+  "completed",
+];
 
 export const EXECUTION_LABEL: Record<ExecutionBucket, string> = {
   backlog: "Backlog",
+  planned: "Planned",
   in_progress: "In Progress",
+  waiting_on_client: "Waiting on Client",
   completed: "Completed",
 };
 

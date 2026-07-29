@@ -15,7 +15,15 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 - Email: `team@convertedclick.co.za`
 - Password: `cc-calc-2026-temp`
 
-Single shared login (V1 has no per-user roles). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
+Shared dev/admin login, treated as `owner` role for ergonomics (see `useCurrentRole`). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
+
+Per-staff logins are real and live (not V1-out-of-scope): `team_members.role` (`staff`/`admin`/`owner`) + `team_members.auth_user_id` → Supabase Auth (migration 0052). `RequireRole` gates routes — `staff` role is bounced to `/staff` only. Staff self-service brief + extension-request forms live at `/staff` (`src/pages/StaffBriefForm.tsx`). There's no invite/provisioning UI yet — a staff Supabase Auth user + matching `team_members` row currently has to be created by hand.
+
+## Telegram channel session guardrail
+
+When this project is running as a Telegram channel session (the "Channels (experimental) messages from plugin:telegram" banner is shown), **never call `AskUserQuestion`**. There is no one available to click an option in a terminal UI — the tool call blocks forever, which permanently wedges that conversation's message queue (every later Telegram message enqueues but never gets a reply, and restarting `claude --channels` just resumes the same poisoned session since it re-attaches to the same conversation). If a clarifying question is genuinely needed, ask it as a normal chat reply and wait for the next inbound message instead.
+
+If a channel session ever does get stuck this way, don't just restart the launcher — check for orphaned `claude --channels` processes first (`ps -ef | grep -- "--channels"`; `screen -X quit` can silently fail to kill grandchildren, leaving a duplicate poller on the same bot token), then relaunch with an explicit fresh `--session-id <uuid>` so it doesn't resume the poisoned transcript.
 
 ## conductor MCP server setup
 
@@ -115,7 +123,6 @@ The app's visual language (colors, typography, radius, elevation) is driven by *
 - Live feedback ingestion from ClickUp or other systems.
 - AI beyond process-step generation.
 - Capacity/availability planning.
-- Per-user roles (single shared login only).
 
 ## Design Context
 

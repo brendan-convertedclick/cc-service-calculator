@@ -17,6 +17,7 @@ import {
 import {
   PIPELINE_STATUSES,
   StatusPipeline,
+  EXECUTION_BUCKETS,
   type PipelineSelection,
   type ExecutionBucket,
 } from "@/components/briefs/StatusPipeline";
@@ -218,13 +219,25 @@ export function Briefs() {
       if (!progress) continue;
       if (progress.done === progress.total) map.set(b.id, "completed");
       else if (progress.pct > 0) map.set(b.id, "in_progress");
-      else map.set(b.id, "backlog");
+      else {
+        // Nothing done or in flight yet — split the idle states by raw status.
+        const s = statuses.map((x) => x.toLowerCase());
+        if (s.some((x) => x === "waiting on client")) map.set(b.id, "waiting_on_client");
+        else if (s.some((x) => x === "planned")) map.set(b.id, "planned");
+        else map.set(b.id, "backlog");
+      }
     }
     return map;
   }, [pipelineBriefs, scheduledStatuses]);
 
   const executionCounts = useMemo(() => {
-    const c: Record<ExecutionBucket, number> = { backlog: 0, in_progress: 0, completed: 0 };
+    const c: Record<ExecutionBucket, number> = {
+      backlog: 0,
+      planned: 0,
+      in_progress: 0,
+      waiting_on_client: 0,
+      completed: 0,
+    };
     for (const bucket of executionByBrief.values()) c[bucket] += 1;
     return c;
   }, [executionByBrief]);
@@ -233,7 +246,7 @@ export function Briefs() {
   // execution buckets filter briefed briefs by their ClickUp task status.
   const filteredBriefs = useMemo(() => {
     if (pipelineStatus === "all") return pipelineBriefs.filter((b) => b.status !== "archived");
-    if (pipelineStatus === "backlog" || pipelineStatus === "in_progress" || pipelineStatus === "completed") {
+    if ((EXECUTION_BUCKETS as string[]).includes(pipelineStatus)) {
       return pipelineBriefs.filter((b) => executionByBrief.get(b.id) === pipelineStatus);
     }
     return pipelineBriefs.filter((b) => b.status === pipelineStatus);

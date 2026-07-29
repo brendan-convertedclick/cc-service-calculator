@@ -174,10 +174,21 @@ export function ExtensionFormBody() {
           return;
         }
         toast.success("Auto-approved · ClickUp subtask created.");
-      } else if (tierPreview.tier === "admin") {
-        toast.success("Submitted · awaiting admin approval.");
       } else {
-        toast.success("Submitted · escalated to owner.");
+        toast.success(
+          tierPreview.tier === "admin" ? "Submitted · awaiting admin approval." : "Submitted · escalated to owner.",
+        );
+        // Fire-and-forget: ping the approver(s) in ClickUp chat + email. Never
+        // blocks the submit — the request is already saved either way.
+        const session = (await supabase.auth.getSession()).data.session;
+        fetch(`${FUNCTIONS_BASE}/notify-extension-request`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ extension_request_id: (inserted as { id: string }).id }),
+        }).catch(() => {});
       }
       setExtraPoints("1");
       setReason("");

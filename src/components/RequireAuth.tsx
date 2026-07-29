@@ -1,11 +1,12 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { isLocalDev } from "@/lib/env";
 
 export function RequireAuth() {
   const { session, loading } = useAuth();
   const loc = useLocation();
 
-  if (import.meta.env.DEV) return <Outlet />;
+  if (isLocalDev()) return <Outlet />;
 
   if (loading) {
     return (

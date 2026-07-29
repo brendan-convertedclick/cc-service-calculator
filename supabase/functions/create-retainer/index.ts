@@ -235,8 +235,17 @@ Deno.serve(async (req: Request) => {
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/provision-retainer-period`, {
         method: "POST",
-        headers: { "content-type": "application/json", apikey: anon },
-        body: JSON.stringify({ project_id: projectId }),
+        headers: {
+          "content-type": "application/json",
+          apikey: anon,
+          // Forward the operator's auth so the provisioner attributes tasks to
+          // them (their ClickUp OAuth token), not the shared PAT owner.
+          ...(req.headers.get("Authorization")
+            ? { Authorization: req.headers.get("Authorization")! }
+            : {}),
+        },
+        // Provision the retainer's first period (its start month), not "now".
+        body: JSON.stringify({ project_id: projectId, period_start: recurrence_start }),
       });
       const provision = await res.json();
       if (!res.ok) {

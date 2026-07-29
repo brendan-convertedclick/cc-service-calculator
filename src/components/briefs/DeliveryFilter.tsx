@@ -8,11 +8,10 @@
 import {
   Pill,
   EXECUTION_LABEL,
+  EXECUTION_BUCKETS,
   type ExecutionBucket,
   type PipelineSelection,
 } from "@/components/briefs/StatusPipeline";
-
-const BUCKETS: ExecutionBucket[] = ["backlog", "in_progress", "completed"];
 
 interface DeliveryFilterProps {
   counts: Record<ExecutionBucket, number>;
@@ -26,7 +25,7 @@ export function DeliveryFilter({ counts, active, onSelect }: DeliveryFilterProps
       <span className="mr-1 text-label-small uppercase tracking-wide text-m-on-surface-variant">
         Delivery · ClickUp
       </span>
-      {BUCKETS.map((b) => (
+      {EXECUTION_BUCKETS.map((b) => (
         <Pill
           key={b}
           label={EXECUTION_LABEL[b]}

@@ -58,16 +58,16 @@ export function StaffBriefForm() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="brief" className="space-y-6">
+            <Tabs defaultValue="extension" className="space-y-6">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="brief">New brief</TabsTrigger>
                 <TabsTrigger value="extension">Extension request</TabsTrigger>
+                <TabsTrigger value="brief">New brief</TabsTrigger>
               </TabsList>
-              <TabsContent value="brief" className="space-y-0">
-                <BriefFormBody />
-              </TabsContent>
               <TabsContent value="extension" className="space-y-0">
                 <ExtensionFormBody />
+              </TabsContent>
+              <TabsContent value="brief" className="space-y-0">
+                <BriefFormBody />
               </TabsContent>
             </Tabs>
           </CardContent>

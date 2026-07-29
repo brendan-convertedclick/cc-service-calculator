@@ -16,6 +16,7 @@ type CuTask = {
   name: string;
   list?: { id: string; name: string };
   status?: { type?: string; status?: string };
+  points?: number | null;
   custom_fields?: Array<{ name: string; value?: unknown }>;
 };
 
@@ -92,7 +93,7 @@ Deno.serve(async (req: Request) => {
       id: t.id,
       name: t.name,
       list_name: t.list?.name ?? "",
-      sprint_points: extractSprintPoints(t.custom_fields),
+      sprint_points: extractSprintPoints(t.points, t.custom_fields),
     }));
 
     return json({ tasks });
@@ -101,7 +102,14 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-function extractSprintPoints(fields?: Array<{ name: string; value?: unknown }>): number | null {
+// Sprint points are set as ClickUp's NATIVE `points` field on create (see
+// _shared/clickup.ts) — a list-specific "Sprint Points" custom field is only
+// a fallback for lists that don't have the native Sprints ClickApp enabled.
+function extractSprintPoints(
+  nativePoints: number | null | undefined,
+  fields?: Array<{ name: string; value?: unknown }>,
+): number | null {
+  if (typeof nativePoints === "number" && Number.isFinite(nativePoints)) return nativePoints;
   if (!fields) return null;
   const f = fields.find((x) => x.name.trim().toLowerCase() === "sprint points");
   if (!f || f.value === undefined || f.value === null) return null;

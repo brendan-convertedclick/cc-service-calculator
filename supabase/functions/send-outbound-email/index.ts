@@ -22,6 +22,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient, createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { sendGmail } from "../_shared/gmail.ts";
 
 type OutboundRow = {
   id: string;
@@ -85,40 +86,25 @@ Deno.serve(async (req: Request) => {
       return json({ error: "GOOGLE_ACCESS_TOKEN secret not set" }, 500);
     }
 
-    const rfc822 = buildRfc822({
+    const sent = await sendGmail({
+      accessToken,
       fromEmail,
+      fromName: "Converted Click Account Manager",
       to: row.to_addresses,
       cc: row.cc_addresses,
       bcc: row.bcc_addresses,
       subject: row.subject,
       bodyHtml: row.body_html,
       bodyText: row.body_text,
+      threadId: row.gmail_thread_id,
     });
-    const raw = base64UrlEncode(rfc822);
-
-    const body: Record<string, unknown> = { raw };
-    if (row.gmail_thread_id) body.threadId = row.gmail_thread_id;
-
-    const res = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      },
-    );
-    if (!res.ok) {
-      const errText = await res.text();
+    if (!sent.ok) {
       await sb
         .from("outbound_emails")
-        .update({ status: "send_failed", send_error: `Gmail ${res.status}: ${errText}` })
+        .update({ status: "send_failed", send_error: sent.error })
         .eq("id", row.id);
-      return json({ error: `Gmail send failed: ${res.status} ${errText}` }, 502);
+      return json({ error: `Gmail send failed: ${sent.error}` }, 502);
     }
-    const sent = (await res.json()) as { id: string; threadId: string };
 
     await sb
       .from("outbound_emails")
@@ -136,40 +122,3 @@ Deno.serve(async (req: Request) => {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
-
-function buildRfc822(args: {
-  fromEmail: string;
-  to: string[];
-  cc: string[];
-  bcc: string[];
-  subject: string;
-  bodyHtml: string;
-  bodyText: string;
-}): string {
-  const boundary = `cc_${crypto.randomUUID()}`;
-  const headers: string[] = [
-    `From: Converted Click Account Manager <${args.fromEmail}>`,
-    `To: ${args.to.join(", ")}`,
-  ];
-  if (args.cc.length) headers.push(`Cc: ${args.cc.join(", ")}`);
-  if (args.bcc.length) headers.push(`Bcc: ${args.bcc.join(", ")}`);
-  headers.push(
-    `Subject: ${args.subject}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-  );
-  const body =
-    `--${boundary}\r\n` +
-    `Content-Type: text/plain; charset=UTF-8\r\n\r\n${args.bodyText}\r\n\r\n` +
-    `--${boundary}\r\n` +
-    `Content-Type: text/html; charset=UTF-8\r\n\r\n${args.bodyHtml}\r\n\r\n` +
-    `--${boundary}--`;
-  return `${headers.join("\r\n")}\r\n\r\n${body}`;
-}
-
-function base64UrlEncode(s: string): string {
-  return btoa(unescape(encodeURIComponent(s)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
