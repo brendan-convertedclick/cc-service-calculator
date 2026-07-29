@@ -7,6 +7,7 @@ import { fmtPtH, pointsToHours } from "@/lib/sprint-points";
 import { consumedPct, useTaskContext } from "@/hooks/useTaskContext";
 import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
 import { buildVerdict, daysBetween, type VerdictTone } from "@/lib/escalation-verdict";
+import { askedForPoints } from "@/types/extension-requests";
 import type { RailRow } from "./EscalationRail";
 
 const TONE: Record<VerdictTone, "success" | "warning" | "destructive" | "muted"> = {
@@ -69,6 +70,7 @@ export function EscalationDetail({
     hoursMissingFromBurn: linkage ? !linkage.countedInBurn && (ctx?.time_spent_ms ?? 0) > 0 : false,
   });
 
+  const pointsAsked = askedForPoints(row);
   const pct = consumedPct(ctx);
   const budgetPoints = ctx?.original_points ?? null;
   const afterPoints =
@@ -101,7 +103,7 @@ export function EscalationDetail({
 
       <dl className="divide-y divide-m-outline-variant overflow-hidden rounded-md bg-m-surface shadow-elev-1">
         <Block label="Approving">
-          {row.extra_points !== null && (
+          {pointsAsked ? (
             <p>
               <span className="font-mono tabular-nums">+{fmtPtH(row.extra_points)}</span> on top of{" "}
               <span className="font-mono tabular-nums">{fmtPtH(budgetPoints)}</span>
@@ -112,6 +114,17 @@ export function EscalationDetail({
                 </span>
               )}
             </p>
+          ) : (
+            // A stated zero is the requester's answer, not a gap. Say so
+            // plainly — it's the difference between "costs nothing" and
+            // "nobody said what this costs".
+            row.extra_points !== null && (
+              <p>
+                No extra budget — the deadline moves, the{" "}
+                <span className="font-mono tabular-nums">{fmtPtH(budgetPoints)}</span> budget
+                doesn't.
+              </p>
+            )
           )}
           {row.requested_due_date !== null && (
             <p className={row.extra_points !== null ? "mt-1" : undefined}>

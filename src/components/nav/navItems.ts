@@ -17,6 +17,7 @@ import {
   Rocket,
   ScrollText,
   Settings as SettingsIcon,
+  ShieldAlert,
   SlidersHorizontal,
   TrendingUp,
   Users,
@@ -35,6 +36,9 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   end: boolean
+  /** Hidden from anyone but an owner — RequireOwner would bounce them anyway,
+   *  and a link that throws you back to the dashboard is worse than no link. */
+  ownerOnly?: boolean
 }
 
 export interface NavSection {
@@ -57,6 +61,8 @@ const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks
 const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundations", icon: LayoutTemplate, end: false }
 const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoice preview", icon: Receipt, end: false }
 
+const escalations: NavItem    = { to: "/escalations",   label: "Escalations",   icon: ShieldAlert,       end: false, ownerOnly: true }
+
 const clients: NavItem        = { to: "/clients",       label: "Clients",       icon: Building2,         end: false }
 const departments: NavItem    = { to: "/departments",   label: "Departments",   icon: Workflow,          end: false }
 const team: NavItem           = { to: "/team",          label: "Team",          icon: Users,             end: false }
@@ -71,7 +77,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, briefs, projects, sow, retainers],
+  items: [services, briefs, projects, sow, retainers, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",
@@ -108,5 +114,24 @@ export const navEntries: NavEntry[] = [
   { kind: "item", item: reports },
   { kind: "item", item: settings },
 ]
+
+/**
+ * The nav one role actually sees. Owner-only surfaces are dropped rather than
+ * rendered dead — the route gate already redirects, so showing the link would
+ * only teach admins to click something that throws them out.
+ */
+export function navEntriesFor(role: string | null | undefined): NavEntry[] {
+  if (role === "owner") return navEntries
+  return navEntries
+    .map((entry) =>
+      entry.kind === "section"
+        ? {
+            kind: "section" as const,
+            section: { ...entry.section, items: entry.section.items.filter((i) => !i.ownerOnly) },
+          }
+        : entry,
+    )
+    .filter((entry) => entry.kind === "section" || !entry.item.ownerOnly)
+}
 
 export const ICON_RAIL_WIDTH = 56

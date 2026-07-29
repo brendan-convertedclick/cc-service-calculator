@@ -4,8 +4,9 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
 import { useTeam } from "@/hooks/useTeam"
+import { useCurrentRole } from "@/hooks/useCurrentRole"
 import {
-  navEntries,
+  navEntriesFor,
   type NavItem,
   type NavSection,
 } from "./navItems"
@@ -188,6 +189,8 @@ interface IconRailProps {
 export function IconRail({ navOpen, onToggle }: IconRailProps) {
   const { signOut, currentUserId, user } = useAuth()
   const { data: team = [] } = useTeam()
+  const { role } = useCurrentRole()
+  const entries = navEntriesFor(role)
   const navigate = useNavigate()
 
   // Who's signed in — resolved from the team roster (falls back to the auth
@@ -255,7 +258,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
         {/* Nav items */}
         {navOpen ? (
           <>
-            {navEntries.map((entry) =>
+            {entries.map((entry) =>
               entry.kind === "item" ? (
                 <NavRow key={entry.item.to} item={entry.item} navOpen={true} />
               ) : (
@@ -265,7 +268,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           </>
         ) : (
           <>
-            {navEntries.map((entry) =>
+            {entries.map((entry) =>
               entry.kind === "item" ? (
                 <Tooltip key={entry.item.to}>
                   <TooltipTrigger asChild>

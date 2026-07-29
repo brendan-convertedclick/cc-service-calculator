@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EscalationRail, type RailGroup, type RailRow } from "@/components/approvals/EscalationRail";
 import { EscalationDetail } from "@/components/approvals/EscalationDetail";
-import type { ExtensionRequestRow } from "@/types/extension-requests";
+import { askedForPoints, type ExtensionRequestRow } from "@/types/extension-requests";
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -106,7 +106,8 @@ export function Escalations() {
       (r) =>
         r.id !== selected.id &&
         r.client_id === selected.client_id &&
-        r.extra_points !== null &&
+        // A date push that asked for no budget isn't an overrun of one.
+        askedForPoints(r) &&
         r.status !== "rejected" &&
         new Date(r.created_at) >= start,
     ).length;
@@ -357,7 +358,7 @@ function statusNote(r: ExtensionRequestRow): string {
 }
 
 function approveLabel(r: ExtensionRequestRow): string {
-  if (r.extra_points !== null && r.requested_due_date !== null) return "Approve points + date";
+  if (askedForPoints(r) && r.requested_due_date !== null) return "Approve points + date";
   if (r.requested_due_date !== null) return "Approve new date";
   return "Approve";
 }

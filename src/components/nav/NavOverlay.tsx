@@ -3,8 +3,9 @@ import { NavLink, useLocation } from "react-router-dom"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  navEntries,
+  navEntriesFor,
   ICON_RAIL_WIDTH,
+  type NavEntry,
   type NavItem,
   type NavSection,
 } from "./navItems"
@@ -82,9 +83,14 @@ function SectionGroup({ section, onClose }: { section: NavSection; onClose: () =
 interface NavOverlayProps {
   open: boolean
   onClose: () => void
+  /** Role-filtered nav, supplied by AppShell. The drawer stays presentational
+   *  so it doesn't need an auth context to render. Defaults to the non-owner
+   *  list: a caller that forgets to pass it under-shows rather than leaking a
+   *  surface the viewer can't open. */
+  entries?: NavEntry[]
 }
 
-export function NavOverlay({ open, onClose }: NavOverlayProps) {
+export function NavOverlay({ open, onClose, entries = navEntriesFor(null) }: NavOverlayProps) {
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
@@ -133,7 +139,7 @@ export function NavOverlay({ open, onClose }: NavOverlayProps) {
           Navigation
         </p>
 
-        {navEntries.map((entry) =>
+        {entries.map((entry) =>
           entry.kind === "item" ? (
             <NavRow key={entry.item.to} item={entry.item} onClose={onClose} />
           ) : (

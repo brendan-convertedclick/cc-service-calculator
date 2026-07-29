@@ -41,6 +41,19 @@ export type ExtensionRequestRow = {
 };
 
 /**
+ * Whether the request actually asks for budget.
+ *
+ * Since the budget field became mandatory, `extra_points` is present on every
+ * new row — and a stated 0 is an answer ("this needs more time, not more
+ * money"), not an ask. Summaries key off this so a date push doesn't grow a
+ * meaningless `+0 pt` chip. Postgres hands numerics back as strings, hence the
+ * Number().
+ */
+export function askedForPoints(row: { extra_points: number | string | null }): boolean {
+  return row.extra_points !== null && Number(row.extra_points) > 0;
+}
+
+/**
  * Classify an extension request into an approval tier from the % delta of
  * extra_points over original_points.
  *

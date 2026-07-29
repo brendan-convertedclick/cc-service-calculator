@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDueDateTier, classifyTier, initialStatusForTier, maxTier } from "./extension-requests";
+import { askedForPoints, classifyDueDateTier, classifyTier, initialStatusForTier, maxTier } from "./extension-requests";
 
 describe("classifyTier", () => {
   it("classifies <25% as auto", () => {
@@ -63,5 +63,20 @@ describe("maxTier", () => {
     expect(maxTier("auto", "admin")).toBe("admin");
     expect(maxTier("owner", "auto")).toBe("owner");
     expect(maxTier("admin", "admin")).toBe("admin");
+  });
+});
+
+describe("askedForPoints", () => {
+  it("is true only when points were actually requested", () => {
+    expect(askedForPoints({ extra_points: 4 })).toBe(true);
+    // Postgres hands numerics back as strings.
+    expect(askedForPoints({ extra_points: "0.25" })).toBe(true);
+  });
+  it("treats a stated zero as an answer, not an ask", () => {
+    expect(askedForPoints({ extra_points: 0 })).toBe(false);
+    expect(askedForPoints({ extra_points: "0.00" })).toBe(false);
+  });
+  it("treats a missing budget as no ask", () => {
+    expect(askedForPoints({ extra_points: null })).toBe(false);
   });
 });

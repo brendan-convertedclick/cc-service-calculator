@@ -216,10 +216,10 @@ export function RequestContext({
               </Badge>
             ) : unfundedPoints !== null ? (
               <Badge variant="destructive" className="font-mono tabular-nums">
-                {`no budget requested · ${fmtPoints(unfundedPoints)} unfunded`}
+                {`${fmtPoints(unfundedPoints)} already over, unfunded`}
               </Badge>
             ) : (
-              <Badge variant="outline">no budget requested</Badge>
+              <Badge variant="outline">no extra budget</Badge>
             )}
             <BillingBadge billing={linkage?.billing} />
             {burn && (

@@ -143,8 +143,10 @@ function buildFlags(input: VerdictInput): VerdictFlag[] {
     }
   }
 
-  // A date-only push on an over-budget task funds nothing. Naming the number
-  // is the whole reason this flag exists.
+  // A date push that asks for no points funds nothing on a task that is
+  // already over. Naming the number is the whole reason this flag exists —
+  // and it stays true whether the zero was stated or the row predates the
+  // budget field being mandatory, so the label doesn't accuse either way.
   const unfunded =
     (input.extraPoints === null || input.extraPoints === 0) &&
     input.pointsConsumed !== null &&
@@ -154,7 +156,7 @@ function buildFlags(input: VerdictInput): VerdictFlag[] {
       : null;
   if (unfunded !== null) {
     const hrs = Math.round(pointsToHours(unfunded) * 10) / 10;
-    flags.push({ tone: "danger", label: `No budget requested · ${unfunded} pt · ${hrs}h unfunded` });
+    flags.push({ tone: "danger", label: `${unfunded} pt · ${hrs}h already over, unfunded` });
   }
 
   if (input.priorOverrunsThisMonth > 0) {

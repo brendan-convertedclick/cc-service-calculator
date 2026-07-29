@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { fmtPtH } from "@/lib/sprint-points";
 import { consumedPct, useTaskContext } from "@/hooks/useTaskContext";
-import type { ExtensionRequestRow } from "@/types/extension-requests";
+import { askedForPoints, type ExtensionRequestRow } from "@/types/extension-requests";
 
 /** One loaded row. The page fetches a single shape; the rail uses part of it
  *  and the detail pane uses the rest. */
@@ -135,7 +135,7 @@ function ConsumedBadge({ taskId }: { taskId: string }) {
 /** What is being asked for, in the fewest characters that stay unambiguous. */
 export function askSummary(row: ExtensionRequestRow): string {
   const parts: string[] = [];
-  if (row.extra_points !== null) parts.push(`+${fmtPtH(row.extra_points)}`);
+  if (askedForPoints(row)) parts.push(`+${fmtPtH(row.extra_points)}`);
   if (row.requested_due_date !== null) parts.push("date push");
   return parts.join(" · ") || "—";
 }

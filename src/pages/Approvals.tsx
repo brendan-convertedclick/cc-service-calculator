@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { StaffBriefRow } from "@/types/staff-briefs";
-import type { ExtensionRequestRow } from "@/types/extension-requests";
+import { askedForPoints, type ExtensionRequestRow } from "@/types/extension-requests";
 import type { RevisionRequestRow } from "@/types/revision-requests";
 
 type BriefJoined = StaffBriefRow & {
@@ -536,7 +536,7 @@ function ExtCard({
               <span>{row.requester?.full_name ?? "—"}</span>
               <span>·</span>
               <span>{row.client?.name ?? "—"}</span>
-              {row.extra_points !== null && (
+              {askedForPoints(row) && (
                 <>
                   <span>·</span>
                   <span>+{fmtPtH(row.extra_points)} on {fmtPtH(row.original_points)}</span>
@@ -549,7 +549,7 @@ function ExtCard({
                 <>
                   <span>·</span>
                   <span>due {row.original_due_date ?? "—"} → {row.requested_due_date}</span>
-                  {row.extra_points === null && (
+                  {!askedForPoints(row) && (
                     <Badge variant={isEscalation ? "destructive" : "warning"} className="ml-1">
                       {row.tier}
                     </Badge>
@@ -830,7 +830,7 @@ function RecentList({
 
 function extensionSubtitle(r: ExtensionRequestRow): string {
   const parts: string[] = [];
-  if (r.extra_points !== null) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
+  if (askedForPoints(r)) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }

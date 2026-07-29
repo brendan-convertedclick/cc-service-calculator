@@ -89,7 +89,7 @@ describe("buildVerdict flags", () => {
       pointsConsumed: 19.14,
       requestedDueDate: "2026-08-19",
     });
-    expect(v.flags.map((f) => f.label)).toContain("No budget requested · 17.14 pt · 4.3h unfunded");
+    expect(v.flags.map((f) => f.label)).toContain("17.14 pt · 4.3h already over, unfunded");
   });
 
   it("does not claim anything is unfunded when points were requested", () => {

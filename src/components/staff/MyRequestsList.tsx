@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ExtensionRequestRow, ExtensionStatus } from "@/types/extension-requests";
+import { askedForPoints, type ExtensionRequestRow, type ExtensionStatus } from "@/types/extension-requests";
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -186,7 +186,7 @@ export function MyRequestsList() {
 
 function requestSummary(r: Row): string {
   const parts: string[] = [];
-  if (r.extra_points !== null) parts.push(`+${r.extra_points}pt`);
+  if (askedForPoints(r)) parts.push(`+${r.extra_points}pt`);
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }
