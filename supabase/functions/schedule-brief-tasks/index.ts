@@ -234,9 +234,12 @@ Deno.serve(async (req: Request) => {
         o?.work_stream?.trim() ||
         (t.department_id && workStreamByDept.get(t.department_id)) ||
         "Ad-hoc";
+      // Conductor is the origin of every task — link back to the brief rather
+      // than stamping a bare uuid nobody can act on.
       const stamp =
-        `\n\n---\n_Scheduled from approved cost estimate ${(ce as { id: string }).id} on ${dateOfEngagement}` +
-        `${briefedByName ? ` by ${briefedByName}` : ""}._`;
+        `\n\n---\n_Scheduled from cost estimate ${(ce as { id: string }).id} on the ` +
+        `[Conductor brief](https://conductor.convertedclick.co.za/briefs/view/${brief.id})` +
+        ` on ${dateOfEngagement}${briefedByName ? ` by ${briefedByName}` : ""}._`;
       const description =
         (o?.description?.trim() ||
           `${t.title}\n\nDeliverable: ${lineName}\nBrief: ${brief.raw_subject ?? brief.id}`) + stamp;

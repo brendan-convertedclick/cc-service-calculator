@@ -102,10 +102,12 @@ Deno.serve(async (req: Request) => {
     // Operator-supplied description wins; fall back to task name + brief body.
     const descriptionBody =
       b.description?.trim() || `${b.task_name}\n\n${brief.raw_body ?? ""}`;
+    // Conductor is the origin of every task, so the audit line is a clickable
+    // link back to the brief rather than a bare uuid nobody can act on.
     const description =
       `${descriptionBody}\n\n---\n` +
-      `_Quick-briefed from inbox brief ${brief.id} on ${dateOfEngagement}` +
-      `${briefedByName ? ` by ${briefedByName}` : ""}._`;
+      `_Quick-briefed from [Conductor brief](https://conductor.convertedclick.co.za/briefs/view/${brief.id})` +
+      ` on ${dateOfEngagement}${briefedByName ? ` by ${briefedByName}` : ""}._`;
 
     const taskBody = buildBriefTaskBody(cuFields, {
       name: b.task_name, description,

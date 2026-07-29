@@ -6,9 +6,19 @@
 // Approves a revision request: creates a NEW ClickUp task in the same list
 // as the parent, with the same base name but the requested DFT/REV suffix
 // swapped in (or appended, if the parent name has none), cloning the
-// parent's assignees + custom field values. Posts a REVISION:: audit comment
-// on the parent. Idempotent: re-approving an already-approved request is a
-// no-op success. Always admin-tier — admin or owner caller only.
+// parent's assignees + custom field values. Always admin-tier — admin or
+// owner caller only.
+//
+// A draft is never allowed to exist unlinked from the task it revises. Three
+// separate traces, cheapest-to-lose last:
+//   1. the new task's own description — written atomically with the create,
+//      so it cannot fail on its own;
+//   2. a native ClickUp task link, which is what a human actually sees in the
+//      UI on BOTH tasks;
+//   3. a REVISION:: audit comment on the parent.
+// The row is only marked `approved` once (1) and (2) are both in place. If
+// linking fails the task id is already persisted, so re-approving resumes at
+// the link step instead of creating a duplicate draft.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -92,33 +102,77 @@ Deno.serve(async (req: Request) => {
     const parentListId = parent.list?.id;
     if (!parentListId) return json({ error: "Parent task has no list" }, 502);
 
-    const newName = swapRevisionSuffix(parent.name, row.revision_suffix);
-    const customFields = (parent.custom_fields ?? [])
-      .filter((f) => f.value !== null && f.value !== undefined)
-      .map((f) => {
-        const v = f.value as unknown;
-        const value = typeof v === "object" && v !== null && "id" in v ? (v as { id: unknown }).id : v;
-        return { id: f.id, value };
-      });
+    const parentUrl = `https://app.clickup.com/t/${row.parent_clickup_task_id}`;
 
-    const createBody: Record<string, unknown> = {
-      name: newName,
-      // Omit `status` — let ClickUp use the list's default (custom status
-      // sets make hardcoding a value fail with CRTSK_001).
-      custom_fields: customFields,
-    };
-    if (parent.assignees?.length) {
-      createBody.assignees = parent.assignees.map((a) => a.id);
+    // Resume: a previous attempt created the task but didn't get as far as
+    // linking it. Pick that task back up rather than creating a second draft.
+    let created: { id: string; url: string };
+    if (row.clickup_new_task_id) {
+      created = {
+        id: row.clickup_new_task_id,
+        url: row.clickup_new_task_url ?? `https://app.clickup.com/t/${row.clickup_new_task_id}`,
+      };
+    } else {
+      const newName = swapRevisionSuffix(parent.name, row.revision_suffix);
+      const customFields = (parent.custom_fields ?? [])
+        .filter((f) => f.value !== null && f.value !== undefined)
+        .map((f) => {
+          const v = f.value as unknown;
+          const value = typeof v === "object" && v !== null && "id" in v ? (v as { id: unknown }).id : v;
+          return { id: f.id, value };
+        });
+
+      const createBody: Record<string, unknown> = {
+        name: newName,
+        // Written with the create so the draft is never readable without its
+        // origin, even if the task-link call below fails.
+        description:
+          `Revision of [${parent.name}](${parentUrl}) → ${row.revision_suffix}\n\n---\n` +
+          `REVISION:: ${JSON.stringify({
+            revision_request_id: row.id,
+            parent_task_id: row.parent_clickup_task_id,
+          })}`,
+        // Omit `status` — let ClickUp use the list's default (custom status
+        // sets make hardcoding a value fail with CRTSK_001).
+        custom_fields: customFields,
+      };
+      if (parent.assignees?.length) {
+        createBody.assignees = parent.assignees.map((a) => a.id);
+      }
+
+      const createRes = await fetch(
+        `https://api.clickup.com/api/v2/list/${parentListId}/task`,
+        { ...CU, method: "POST", body: JSON.stringify(createBody) },
+      );
+      if (!createRes.ok) {
+        return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
+      }
+      created = (await createRes.json()) as { id: string; url: string };
+
+      // Persist BEFORE linking, leaving status at pending_admin. If the link
+      // call fails, the id survives and the retry resumes above instead of
+      // orphaning this task and creating another.
+      await supabase
+        .from("revision_requests")
+        .update({ clickup_new_task_id: created.id, clickup_new_task_url: created.url })
+        .eq("id", row.id);
     }
 
-    const createRes = await fetch(
-      `https://api.clickup.com/api/v2/list/${parentListId}/task`,
-      { ...CU, method: "POST", body: JSON.stringify(createBody) },
+    // The link a human sees — shows on both tasks under "Linked tasks".
+    // Hard requirement: no draft is approved without it.
+    const linkRes = await fetch(
+      `https://api.clickup.com/api/v2/task/${created.id}/link/${row.parent_clickup_task_id}`,
+      { ...CU, method: "POST" },
     );
-    if (!createRes.ok) {
-      return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
+    if (!linkRes.ok) {
+      return json({
+        error: `Draft ${created.id} created but could not be linked to the parent ` +
+          `(ClickUp ${linkRes.status}: ${await linkRes.text()}). Left unapproved — ` +
+          `approve again to retry the link.`,
+        clickup_new_task_id: created.id,
+        clickup_new_task_url: created.url,
+      }, 502);
     }
-    const created = (await createRes.json()) as { id: string; url: string };
 
     // Audit comment on the parent, mirroring EXTENSION::.
     await fetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
