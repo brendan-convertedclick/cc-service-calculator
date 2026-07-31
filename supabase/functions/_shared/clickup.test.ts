@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildBriefComment, buildBriefTaskBody, resolveListAlias } from "./clickup.ts";
+import { buildBriefComment, buildBriefTaskBody, cuFetch, resolveListAlias } from "./clickup.ts";
 
 const aliases = [
   { work_stream: "Development", aliases: ["Development", "Dev", "Engineering"] },
@@ -105,4 +105,53 @@ Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when giv
   });
   assertEquals((body as { assignees?: unknown }).assignees, undefined);
   assertEquals((body as { due_date?: number }).due_date, 1780000000000);
+});
+
+// --- cuFetch -----------------------------------------------------------
+
+function fakeFetch(statuses: number[], calls: string[]) {
+  let i = 0;
+  return (url: string | URL | Request) => {
+    calls.push(String(url));
+    const status = statuses[Math.min(i++, statuses.length - 1)];
+    return Promise.resolve(
+      new Response("{}", { status, headers: { "retry-after": "60" } }),
+    );
+  };
+}
+
+Deno.test("cuFetch retries a 429 and returns the eventual success", async () => {
+  const calls: string[] = [];
+  const waits: number[] = [];
+  const res = await cuFetch("https://api.clickup.com/api/v2/task/abc", undefined, {
+    fetchImpl: fakeFetch([429, 200], calls) as unknown as typeof fetch,
+    sleep: (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    },
+  });
+  assertEquals(res.status, 200);
+  assertEquals(calls.length, 2);
+  // Retry-After of 60s must be clamped, not honoured verbatim.
+  assertEquals(waits, [3_000]);
+});
+
+Deno.test("cuFetch gives up after the attempt cap and returns the 429", async () => {
+  const calls: string[] = [];
+  const res = await cuFetch("https://api.clickup.com/api/v2/task/abc", undefined, {
+    fetchImpl: fakeFetch([429], calls) as unknown as typeof fetch,
+    sleep: () => Promise.resolve(),
+  });
+  assertEquals(res.status, 429);
+  assertEquals(calls.length, 3);
+});
+
+Deno.test("cuFetch does NOT retry a 5xx — a POST may have already landed", async () => {
+  const calls: string[] = [];
+  const res = await cuFetch("https://api.clickup.com/api/v2/list/1/task", { method: "POST" }, {
+    fetchImpl: fakeFetch([500, 200], calls) as unknown as typeof fetch,
+    sleep: () => Promise.resolve(),
+  });
+  assertEquals(res.status, 500);
+  assertEquals(calls.length, 1);
 });

@@ -25,6 +25,8 @@ import {
   type ExtensionTier,
   type MemberRole,
 } from "../_shared/extension-logic.ts";
+import { cuFetch } from "../_shared/clickup.ts";
+import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 const POINT_TO_MIN = 15;
 
@@ -126,6 +128,15 @@ Deno.serve(async (req: Request) => {
     if (reqErr || !requester) return json({ error: "Requester not found" }, 400);
     const member = requester as unknown as Member;
 
+    const { data: clientRow } = await supabase
+      .from("clients")
+      .select("clickup_chat_channel_id")
+      .eq("id", row.client_id)
+      .single();
+    const chatChannelId =
+      (clientRow as { clickup_chat_channel_id?: string } | null)?.clickup_chat_channel_id
+      ?? CONVERTED_CLICK_CHANNEL_ID;
+
     const CU = {
       headers: { Authorization: clickupPat, "Content-Type": "application/json" },
     };
@@ -149,7 +160,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Subtasks are created on the parent's list. Need the parent's list_id.
-      const parentRes = await fetch(
+      const parentRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
         CU,
       );
@@ -160,7 +171,7 @@ Deno.serve(async (req: Request) => {
       const parentListId = parent.list?.id;
       if (!parentListId) return json({ error: "Parent task has no list" }, 502);
 
-      const createRes = await fetch(
+      const createRes = await cuFetch(
         `https://api.clickup.com/api/v2/list/${parentListId}/task`,
         { ...CU, method: "POST", body: JSON.stringify(subtaskBody) },
       );
@@ -170,7 +181,7 @@ Deno.serve(async (req: Request) => {
       created = (await createRes.json()) as { id: string; url: string };
 
       // Audit comment on the parent.
-      await fetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
+      await cuFetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
         ...CU,
         method: "POST",
         body: JSON.stringify({
@@ -193,7 +204,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // No subtask for a due-date push — PUT it straight onto the parent task.
-      const dueRes = await fetch(
+      const dueRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
         { ...CU, method: "PUT", body: JSON.stringify({ due_date: dueMs, due_date_time: false }) },
       );
@@ -202,7 +213,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Audit comment on the parent, mirroring EXTENSION::.
-      await fetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
+      await cuFetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
         ...CU,
         method: "POST",
         body: JSON.stringify({
@@ -236,6 +247,17 @@ Deno.serve(async (req: Request) => {
         clickup_subtask_url: created?.url,
       }, 500);
     }
+
+    // Confirm to the requester in chat that their extension went through.
+    const mention = mentionToken({ clickupUserId: member.clickup_user_id, name: member.full_name });
+    const summaryParts: string[] = [];
+    if (created) summaryParts.push(`+${row.extra_points}pt`);
+    if (row.requested_due_date) summaryParts.push(`due → ${row.requested_due_date}`);
+    await postChatMessage(
+      clickupPat,
+      chatChannelId,
+      `✅ ${mention} — your extension was approved on "${row.parent_task_name}": ${summaryParts.join(" · ")}`,
+    );
 
     return json({
       clickup_subtask_id: created?.id,

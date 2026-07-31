@@ -4,6 +4,50 @@
 // (and any future edge function that posts BRIEF:: comments or resolves
 // list aliases). Replaces the old src/lib/clickup-shared.ts (deleted in T11).
 
+/**
+ * fetch() for the ClickUp REST API that rides out a 429. ClickUp's rate limit
+ * is per-token per-minute, so a background sync can drain the budget and make
+ * an interactive call (e.g. approving an escalation) fail with
+ * `{"err":"Rate limit reached","ECODE":"APP_002"}`.
+ *
+ * ONLY 429 is retried: it means ClickUp rejected the request *before* doing
+ * anything, so a retry is safe on any method. A 5xx is ambiguous — a POST that
+ * created a task then lost its response would be duplicated — so 5xx is
+ * returned to the caller untouched.
+ *
+ * Retry-After can be tens of seconds (the window reset); we clamp the wait so
+ * the edge function doesn't sit on the wall clock while a user watches a
+ * spinner. If the retries run out, the real 429 response is returned so the
+ * caller's error message stays diagnostic.
+ */
+export async function cuFetch(
+  url: string,
+  init?: RequestInit,
+  opts: {
+    attempts?: number;
+    maxDelayMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+    fetchImpl?: typeof fetch;
+  } = {},
+): Promise<Response> {
+  const attempts = opts.attempts ?? 3;
+  const maxDelayMs = opts.maxDelayMs ?? 3_000;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const doFetch = opts.fetchImpl ?? fetch;
+
+  let res = await doFetch(url, init);
+  for (let attempt = 1; attempt < attempts && res.status === 429; attempt++) {
+    const retryAfter = Number(res.headers.get("retry-after"));
+    const wait = Math.min(
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : attempt * 1_000,
+      maxDelayMs,
+    );
+    await sleep(wait);
+    res = await doFetch(url, init);
+  }
+  return res;
+}
+
 export type AliasRow = { work_stream: string; aliases: string[] };
 export type OverrideRow = { client_id: string; work_stream: string; list_name: string };
 

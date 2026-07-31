@@ -24,6 +24,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { swapRevisionSuffix } from "../_shared/revision-logic.ts";
+import { cuFetch } from "../_shared/clickup.ts";
+import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type RevisionRow = {
   id: string;
@@ -82,11 +84,27 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Revision already rejected" }, 400);
     }
 
+    const { data: requesterRow } = await supabase
+      .from("team_members")
+      .select("full_name, clickup_user_id")
+      .eq("id", row.requester_id)
+      .single();
+    const requester = requesterRow as { full_name: string; clickup_user_id: number | null } | null;
+
+    const { data: clientRow } = await supabase
+      .from("clients")
+      .select("clickup_chat_channel_id")
+      .eq("id", row.client_id)
+      .single();
+    const chatChannelId =
+      (clientRow as { clickup_chat_channel_id?: string } | null)?.clickup_chat_channel_id
+      ?? CONVERTED_CLICK_CHANNEL_ID;
+
     const CU = {
       headers: { Authorization: clickupPat, "Content-Type": "application/json" },
     };
 
-    const parentRes = await fetch(
+    const parentRes = await cuFetch(
       `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
       CU,
     );
@@ -140,7 +158,7 @@ Deno.serve(async (req: Request) => {
         createBody.assignees = parent.assignees.map((a) => a.id);
       }
 
-      const createRes = await fetch(
+      const createRes = await cuFetch(
         `https://api.clickup.com/api/v2/list/${parentListId}/task`,
         { ...CU, method: "POST", body: JSON.stringify(createBody) },
       );
@@ -172,7 +190,7 @@ Deno.serve(async (req: Request) => {
 
     // The link a human sees — shows on both tasks under "Linked tasks".
     // Hard requirement: no draft is approved without it.
-    const linkRes = await fetch(
+    const linkRes = await cuFetch(
       `https://api.clickup.com/api/v2/task/${created.id}/link/${row.parent_clickup_task_id}`,
       // Endpoint takes no payload, but CU declares a JSON content-type — send
       // an empty object so the request is well-formed rather than a
@@ -189,8 +207,31 @@ Deno.serve(async (req: Request) => {
       }, 502);
     }
 
+    // Close the superseded task so it drops out of "my open tasks" — otherwise
+    // the requester can pick the stale task next time they submit a revision,
+    // silently forking the DFT/REV chain instead of continuing it. Best-effort:
+    // a failure here shouldn't block the approval, which already succeeded.
+    try {
+      const listRes = await cuFetch(`https://api.clickup.com/api/v2/list/${parentListId}`, CU);
+      if (listRes.ok) {
+        const listBody = (await listRes.json()) as { statuses?: Array<{ status: string; type: string }> };
+        const closedStatus =
+          listBody.statuses?.find((s) => s.type === "closed") ??
+          listBody.statuses?.find((s) => s.type === "done");
+        if (closedStatus) {
+          await cuFetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`, {
+            ...CU,
+            method: "PUT",
+            body: JSON.stringify({ status: closedStatus.status }),
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`[approve-revision-request] could not close superseded task ${row.parent_clickup_task_id}:`, e);
+    }
+
     // Audit comment on the parent, mirroring EXTENSION::.
-    await fetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
+    await cuFetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
       ...CU,
       method: "POST",
       body: JSON.stringify({
@@ -221,6 +262,16 @@ Deno.serve(async (req: Request) => {
         clickup_new_task_id: created.id,
         clickup_new_task_url: created.url,
       }, 500);
+    }
+
+    // Confirm to the requester in chat that their revision went through.
+    if (requester) {
+      const mention = mentionToken({ clickupUserId: requester.clickup_user_id, name: requester.full_name });
+      await postChatMessage(
+        clickupPat,
+        chatChannelId,
+        `✅ ${mention} — your revision was approved: "${row.parent_task_name}" → ${row.revision_suffix} · ${created.url}`,
+      );
     }
 
     return json({ clickup_new_task_id: created.id, clickup_new_task_url: created.url });
