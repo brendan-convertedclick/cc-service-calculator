@@ -1,12 +1,10 @@
 -- 0108_process_steps_system_scope.sql
--- Apply via mcp__cc-supabase__apply_migration (name: process_steps_system_scope)
+-- APPLIED to lpgwxacoqiqpcfpkklib on 2026-08-06 as `process_steps_system_scope`.
+-- Re-runnable: every statement below is idempotent.
 --
--- *** NOT YET APPLIED TO lpgwxacoqiqpcfpkklib — written by the P7 audit,
---     left for a human to apply. ***
---
--- Fixes two defects found auditing Phases 2-6. Both are latent on today's
--- data (prod has 2 process_steps rows, 0 with service_id null) and both bite
--- the first time anyone gives a system its own steps.
+-- Fixes two defects found auditing Phases 2-6. Both were latent on the data at
+-- the time (2 process_steps rows, 0 with service_id null) and both bite the
+-- first time anyone gives a system its own steps.
 --
 -- D1  process_steps_ordinal_idx (0103) keys on
 --     (coalesce(service_id,S), coalesce(parent_id,S), ordinal). 0105 added
@@ -31,7 +29,7 @@
 -- column can only reduce collisions), so no existing row can violate it.
 drop index if exists process_steps_ordinal_idx;
 
-create unique index process_steps_ordinal_idx
+create unique index if not exists process_steps_ordinal_idx
   on process_steps (coalesce(system_id,  '00000000-0000-0000-0000-000000000000'::uuid),
                     coalesce(service_id, '00000000-0000-0000-0000-000000000000'::uuid),
                     coalesce(parent_id,  '00000000-0000-0000-0000-000000000000'::uuid),
