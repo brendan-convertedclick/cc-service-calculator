@@ -30,7 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { addClickupChecklist, buildBriefComment, findCustomField } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
 import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 type SnapshotAllocation = {
@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days,clickup_work_stream,checklist_items")
+          .select("id,default_due_days,clickup_work_stream")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -264,12 +264,6 @@ Deno.serve(async (req: Request) => {
       (svcRows ?? [])
         .filter((s: { clickup_work_stream: string | null }) => !!s.clickup_work_stream)
         .map((s: { id: string; clickup_work_stream: string }) => [s.id, s.clickup_work_stream]),
-    );
-    // Default checklist to stamp on every child task created from this service.
-    const checklistMap = new Map<string, string[]>(
-      (svcRows ?? [])
-        .filter((s: { checklist_items: string[] | null }) => (s.checklist_items ?? []).length > 0)
-        .map((s: { id: string; checklist_items: string[] }) => [s.id, s.checklist_items]),
     );
     // Resolve assignees from department → primary team member → clickup_user_id.
     const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
@@ -400,9 +394,6 @@ Deno.serve(async (req: Request) => {
             );
           }
           const child = await childRes.json();
-
-          const checklistItems = checklistMap.get(item.service_id);
-          if (checklistItems) await addClickupChecklist(clickupPat, child.id, checklistItems, owner?.clickup_user_id ?? null);
 
           // BRIEF:: audit comment (matches /brief grammar).
           const commentRes = await fetch(
@@ -577,7 +568,26 @@ Deno.serve(async (req: Request) => {
         .from("process_steps")
         .select("id,service_id,ordinal,title,description,department_id,estimated_hours")
         .in("service_id", serviceIdsOrdered)
+        .is("parent_id", null) // top-level only — sub-steps become the step task's checklist, not their own task
         .order("service_id,ordinal");
+
+      // Sub-steps of the top-level steps above become the checklist on each
+      // step's ClickUp task (P2 — see plan). Keyed by parent (template) step id.
+      const topLevelIds = (templateSteps ?? []).map((s) => s.id);
+      const { data: subStepRows } = topLevelIds.length > 0
+        ? await supabase
+            .from("process_steps")
+            .select("parent_id,title,ordinal")
+            .in("parent_id", topLevelIds)
+            .order("ordinal")
+        : { data: [] as { parent_id: string | null; title: string }[] };
+      const subStepsByParent = new Map<string, string[]>();
+      for (const sub of (subStepRows ?? []) as Array<{ parent_id: string | null; title: string }>) {
+        if (!sub.parent_id) continue;
+        const arr = subStepsByParent.get(sub.parent_id) ?? [];
+        arr.push(sub.title);
+        subStepsByParent.set(sub.parent_id, arr);
+      }
 
       if (templateSteps && templateSteps.length > 0) {
         // Global ordinal: sort by quote service order, then template step ordinal
@@ -602,33 +612,86 @@ Deno.serve(async (req: Request) => {
         const { data: inserted, error: stepInsertErr } = await supabase
           .from("process_step_instances")
           .insert(instanceRows)
-          .select("id,ordinal,title");
+          .select("id,ordinal,title,description,department_id,estimated_hours,service_id,template_step_id");
 
         if (stepInsertErr) {
           console.error("Failed to instantiate process steps:", stepInsertErr.message);
           // Non-fatal: project creation succeeds even if step instantiation fails
         } else if (inserted) {
-          // Create one ClickUp child task per step instance, store clickup_task_id
-          for (const instance of inserted as Array<{ id: string; ordinal: number; title: string }>) {
+          // Create one ClickUp child task per step instance via buildBriefTaskBody
+          // so it carries the same fidelity as the service×department child
+          // (assignee, time_estimate, points, due date, Work Stream) instead of
+          // just name+parent — see plan Phase 1 / spec C1.
+          const dateOfEngagement = new Date().toISOString().slice(0, 10);
+          for (const instance of inserted as Array<{
+            id: string;
+            ordinal: number;
+            title: string;
+            description: string | null;
+            department_id: string | null;
+            estimated_hours: number | string | null;
+            service_id: string;
+            template_step_id: string;
+          }>) {
             try {
-              const stepTaskRes = await fetch(
-                `https://api.clickup.com/api/v2/list/${projectsList.id}/task`,
-                {
-                  ...CU,
-                  method: "POST",
-                  body: JSON.stringify({
-                    name: `[Step ${instance.ordinal}] ${instance.title}`,
-                    parent: parent.id,
-                    ...(sharedCustomFields.length > 0 && { custom_fields: sharedCustomFields }),
-                  }),
-                },
-              );
+              const hours = instance.estimated_hours != null ? Number(instance.estimated_hours) : null;
+              // deptOwnerMap/deptWorkStreamById cover only this quote's frozen
+              // snapshot departments — a step whose department isn't in the
+              // snapshot silently omits assignee + Work Stream rather than
+              // re-querying. Revisit at P4.
+              const stepOwnerId = instance.department_id ? deptOwnerMap.get(instance.department_id) : null;
+              const stepOwner = stepOwnerId ? teamById.get(stepOwnerId) : null;
+              const workStream =
+                (instance.department_id && deptWorkStreamById.get(instance.department_id)) ||
+                serviceWsOverride.get(instance.service_id) ||
+                "Ad-hoc";
+              const stepDueDays = dueDaysMap.get(instance.service_id);
+              const now = Date.now();
+              const stepDueDateMs = stepDueDays ? now + stepDueDays * 24 * 60 * 60 * 1000 : null;
+
+              const taskBody: Record<string, unknown> = {
+                ...buildBriefTaskBody(cuFields, {
+                  name: `[Step ${instance.ordinal}] ${instance.title}`,
+                  description: instance.description ?? "",
+                  clientName: client.clickup_client_name ?? client.name,
+                  workStream,
+                  engagementType: "Task",
+                  sprintPoints: hours != null ? Math.min(10, Math.max(1, Math.round(hours / 4))) : 1,
+                  dateOfEngagement,
+                  assigneeClickupId: stepOwner?.clickup_user_id ?? null,
+                  dueDateMs: stepDueDateMs,
+                  timeEstimateMs: hours != null ? hours * 3_600_000 : null,
+                }),
+                parent: parent.id,
+                // buildBriefTaskBody doesn't set start_date (schedule-brief-tasks
+                // never wants one); the service×department child sibling above
+                // does, alongside due_date — match it here.
+                ...(stepDueDateMs !== null && { start_date: now, start_date_time: false }),
+              };
+
+              const stepTaskUrl = `https://api.clickup.com/api/v2/list/${projectsList.id}/task`;
+              let stepTaskRes = await fetch(stepTaskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
+              // ClickUp rejects very large sprint-point values on create; retry
+              // once without `points` rather than lose the whole step task
+              // (same pattern as schedule-brief-tasks).
+              if (!stepTaskRes.ok && "points" in taskBody) {
+                const errText = await stepTaskRes.text();
+                console.warn(`[push-to-clickup] step task create failed with points (${stepTaskRes.status}: ${errText}); retrying without points`);
+                const { points: _dropped, ...noPoints } = taskBody;
+                stepTaskRes = await fetch(stepTaskUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
+              }
               if (stepTaskRes.ok) {
                 const stepTask = await stepTaskRes.json();
                 await supabase
                   .from("process_step_instances")
                   .update({ clickup_task_id: stepTask.id })
                   .eq("id", instance.id);
+                // Sub-steps become this step task's checklist (P2 — see plan).
+                // Non-fatal: addClickupChecklist already swallows its own errors.
+                const subStepTitles = subStepsByParent.get(instance.template_step_id);
+                if (subStepTitles && subStepTitles.length > 0) {
+                  await addClickupChecklist(clickupPat, stepTask.id, subStepTitles, stepOwner?.clickup_user_id ?? null);
+                }
               }
             } catch (e) {
               console.error(`Failed to create ClickUp task for step ${instance.ordinal}:`, e);

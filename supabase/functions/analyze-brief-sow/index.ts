@@ -96,7 +96,8 @@ async function seedPlacementTasks(
   const [stepsRes, allocRes] = await Promise.all([
     sb.from("process_steps")
       .select("service_id, ordinal, title, department_id, estimated_hours")
-      .in("service_id", serviceIds),
+      .in("service_id", serviceIds)
+      .is("parent_id", null), // top-level only — sub-steps carry no hours and would seed 0h tasks with clashing sort_order
     sb.from("service_allocation_resolved")
       .select("service_id, department_id, hours")
       .in("service_id", serviceIds),

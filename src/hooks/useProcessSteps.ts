@@ -20,6 +20,7 @@ export function useProcessSteps(serviceId: string | undefined) {
         .from("process_steps")
         .select("*")
         .eq("service_id", serviceId)
+        .is("parent_id", null) // top-level only — sub-steps have no hours and render as their step's checklist, not a row here
         .order("ordinal");
       if (error) throw error;
       return data ?? [];
@@ -73,7 +74,13 @@ export function useReplaceSteps() {
       serviceId: string;
       steps: Omit<StepInsert, "service_id">[];
     }) => {
-      const { error: dErr } = await supabase.from("process_steps").delete().eq("service_id", serviceId);
+      // Scoped to top-level steps: cascade (process_steps_parent_id_fkey) takes
+      // their sub-steps with them, which is the intended full-replace behaviour.
+      const { error: dErr } = await supabase
+        .from("process_steps")
+        .delete()
+        .eq("service_id", serviceId)
+        .is("parent_id", null);
       if (dErr) throw dErr;
       if (steps.length > 0) {
         const { error: iErr } = await supabase
@@ -102,11 +109,13 @@ export function useSetServiceChecklist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ChecklistInput) => {
-      // Always delete existing steps for the service first
+      // Always delete existing top-level steps for the service first; cascade
+      // (process_steps_parent_id_fkey) takes their sub-steps with them.
       const { error: dErr } = await supabase
         .from("process_steps")
         .delete()
-        .eq("service_id", input.serviceId);
+        .eq("service_id", input.serviceId)
+        .is("parent_id", null);
       if (dErr) throw dErr;
 
       if (input.kind === "clear") return;

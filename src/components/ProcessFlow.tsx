@@ -105,9 +105,12 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
     const j = i + direction;
     if (j < 0 || j >= steps.length) return;
     const a = steps[i], b = steps[j];
-    // Three-stage swap to avoid violating the unique (service_id, ordinal) index.
-    // Parking `a` at a high ordinal first frees up a.ordinal for b, then we
-    // settle a into b.ordinal. Awaiting each mutation guarantees ordering.
+    // Three-stage swap to avoid violating process_steps_ordinal_idx, now a
+    // PARTIAL unique index over (service_id, parent_id, ordinal) — steps here
+    // are always siblings (useProcessSteps filters to parent_id is null), so
+    // the swap is scoped correctly without further changes. Parking `a` at a
+    // high ordinal first frees up a.ordinal for b, then we settle a into
+    // b.ordinal. Awaiting each mutation guarantees ordering.
     await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal + 10000 } });
     await update.mutateAsync({ id: b.id, patch: { ordinal: a.ordinal } });
     await update.mutateAsync({ id: a.id, patch: { ordinal: b.ordinal } });

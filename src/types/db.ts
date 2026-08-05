@@ -2436,6 +2436,7 @@ export type Database = {
           estimated_hours: number | null
           id: string
           ordinal: number
+          parent_id: string | null
           service_id: string
           title: string
           updated_at: string
@@ -2448,6 +2449,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           ordinal: number
+          parent_id?: string | null
           service_id: string
           title: string
           updated_at?: string
@@ -2460,6 +2462,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           ordinal?: number
+          parent_id?: string | null
           service_id?: string
           title?: string
           updated_at?: string
@@ -2470,6 +2473,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_steps_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
             referencedColumns: ["id"]
           },
           {
