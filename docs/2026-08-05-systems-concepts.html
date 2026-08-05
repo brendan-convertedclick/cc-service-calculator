@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conductor — Process Canvas: 5 Concepts</title>
+<style>
+:root{
+  --primary:#7C3AED; --primary-pink:#EC4899; --on-primary:#fff;
+  --primary-container:#EDE9FE; --on-primary-container:#2E1065;
+  --secondary:#475569; --tertiary:#0891B2; --error:#DC2626; --gold:#F59E0B;
+  --ink:#09090B; --muted:#5B4A7A;
+  --surface:#fff; --sc-low:#FAFAFA; --sc:#F5F3FF; --sc-high:#EDE9FE;
+  --outline:#C4B5FD; --outline-var:#EDE9FE;
+  --r-sm:.5rem; --r-md:.75rem; --r-lg:1rem; --r-xl:1.5rem;
+  --e1:0 1px 2px rgba(46,16,101,.08),0 1px 3px rgba(46,16,101,.06);
+  --e2:0 2px 6px rgba(46,16,101,.10),0 1px 2px rgba(46,16,101,.06);
+  --e3:0 8px 24px rgba(46,16,101,.12),0 2px 6px rgba(46,16,101,.06);
+  --font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--sc-low);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 96px}
+a{color:var(--primary)}
+
+/* ---------- HERO ---------- */
+.hero{background:linear-gradient(135deg,#2E1065 0%,#4C1D95 45%,#7C3AED 100%);
+  color:#fff;padding:56px 0 48px;margin-bottom:40px}
+.hero .wrap{padding-bottom:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:600;opacity:.72;margin-bottom:14px}
+.hero h1{font-size:44px;line-height:1.1;font-weight:600;letter-spacing:-.02em;margin:0 0 18px}
+.hero p{font-size:17px;line-height:1.6;max-width:730px;opacity:.9;margin:0 0 8px}
+.hero .brief{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.chip{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:500}
+
+/* ---------- SECTIONS ---------- */
+section{margin-bottom:56px}
+h2{font-size:27px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+h3{font-size:19px;font-weight:600;margin:0 0 8px}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 24px;max-width:760px}
+.rule{height:1px;background:var(--outline-var);margin:0 0 28px}
+
+/* ---------- FINDINGS ---------- */
+.findings{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
+.finding{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-md);padding:18px 18px 16px;box-shadow:var(--e1)}
+.finding .n{font-family:var(--mono);font-size:11px;color:var(--primary);
+  font-weight:600;letter-spacing:.06em;margin-bottom:8px}
+.finding h4{margin:0 0 7px;font-size:15px;font-weight:600;line-height:1.35}
+.finding p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5}
+
+/* ---------- TABS ---------- */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:22px;
+  background:var(--sc);padding:6px;border-radius:var(--r-lg);border:1px solid var(--outline-var)}
+.tab{flex:1;min-width:150px;border:0;background:transparent;cursor:pointer;
+  padding:11px 12px;border-radius:var(--r-md);font-family:var(--font);
+  font-size:13px;font-weight:600;color:var(--muted);text-align:left;
+  transition:all .16s ease;line-height:1.3}
+.tab .num{display:block;font-family:var(--mono);font-size:10px;
+  opacity:.6;margin-bottom:3px;letter-spacing:.08em}
+.tab:hover{background:rgba(124,58,237,.08);color:var(--primary)}
+.tab.active{background:var(--primary);color:#fff;box-shadow:var(--e2)}
+.tab.active .num{opacity:.75}
+
+.panel{display:none;animation:fade .28s ease}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- CONCEPT CARD ---------- */
+.concept{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--e2)}
+.chead{padding:26px 30px 22px;border-bottom:1px solid var(--outline-var);
+  background:linear-gradient(180deg,var(--sc) 0%,var(--surface) 100%)}
+.chead .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  color:var(--primary);font-weight:600;margin-bottom:8px}
+.chead h3{font-size:26px;letter-spacing:-.01em;margin:0 0 8px}
+.chead .tagline{color:var(--muted);font-size:15px;margin:0;max-width:720px}
+.meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:18px}
+.meta div{font-size:12px}
+.meta .k{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;
+  font-size:10px;font-weight:600;margin-bottom:3px}
+.meta .v{font-weight:600;font-size:13px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.d-lo{background:#16A34A}.d-med{background:var(--gold)}.d-hi{background:var(--error)}
+
+.mock{padding:28px 30px;background:
+  radial-gradient(circle at 1px 1px, rgba(124,58,237,.13) 1px, transparent 0) 0 0/18px 18px,
+  var(--sc-low)}
+.cbody{padding:26px 30px 30px;display:grid;grid-template-columns:1.15fr 1fr;gap:30px}
+@media(max-width:860px){.cbody{grid-template-columns:1fr}}
+.cbody h4{font-size:12px;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--primary);font-weight:600;margin:0 0 10px}
+.cbody ul{margin:0 0 20px;padding-left:18px}
+.cbody li{font-size:13.5px;margin-bottom:7px;line-height:1.5}
+.cbody li strong{font-weight:600}
+.schema{background:var(--ink);color:#E4E4E7;border-radius:var(--r-md);
+  padding:14px 16px;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+  overflow-x:auto;white-space:pre;margin:0 0 6px}
+.schema .kw{color:#A78BFA}.schema .cm{color:#71717A}.schema .st{color:#67E8F9}
+
+/* ---------- MOCK PRIMITIVES ---------- */
+.win{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--e3)}
+.winbar{background:var(--sc-high);padding:9px 14px;display:flex;align-items:center;
+  gap:9px;border-bottom:1px solid var(--outline)}
+.winbar .lights{display:flex;gap:5px}
+.winbar .lights i{width:9px;height:9px;border-radius:50%;display:block}
+.winbar .t{font-size:11.5px;font-weight:600;color:var(--on-primary-container)}
+.winbar .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.pill{border-radius:999px;padding:3px 9px;font-size:10px;font-weight:600;
+  background:var(--primary-container);color:var(--on-primary-container);white-space:nowrap}
+.pill.g{background:#DCFCE7;color:#14532D}
+.pill.a{background:#FEF3C7;color:#78350F}
+.pill.r{background:#FEE2E2;color:#7F1D1D}
+.pill.b{background:#CFFAFE;color:#083344}
+.pill.p{background:var(--primary);color:#fff}
+.pill.k{background:#E4E4E7;color:#3F3F46}
+
+.blk{background:var(--surface);border:1.5px solid var(--outline);border-radius:var(--r-md);
+  padding:10px 12px;box-shadow:var(--e1);transition:all .18s ease;cursor:default;position:relative}
+.blk:hover{border-color:var(--primary);box-shadow:var(--e3);transform:translateY(-2px)}
+.blk .bt{font-size:12.5px;font-weight:600;line-height:1.25;margin-bottom:5px}
+.blk .bg{font-size:10.5px;color:var(--muted);line-height:1.35;margin-bottom:8px;font-style:italic}
+.blk .bf{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.av{width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;
+  font-size:9px;font-weight:700;display:grid;place-items:center;flex:none;
+  border:1.5px solid var(--surface)}
+.av.c2{background:var(--tertiary)}.av.c3{background:var(--primary-pink)}
+.av.c4{background:var(--gold)}.av.c5{background:var(--secondary)}
+.hrs{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--primary);
+  background:var(--primary-container);padding:2px 6px;border-radius:var(--r-sm)}
+.arrow{display:grid;place-items:center;color:var(--outline);font-size:17px;flex:none}
+
+/* ---------- CONCEPT 1: ATLAS ---------- */
+.atlas{display:grid;grid-template-columns:170px 1fr;gap:0}
+.atlas-nav{background:var(--sc);border-right:1px solid var(--outline-var);padding:12px 0}
+.anav{padding:7px 14px;font-size:11.5px;color:var(--muted);cursor:default;
+  border-left:2px solid transparent;line-height:1.3}
+.anav.lv1{font-weight:600;color:var(--ink);font-size:12px}
+.anav.lv2{padding-left:26px}
+.anav.on{background:var(--primary-container);border-left-color:var(--primary);
+  color:var(--on-primary-container);font-weight:600}
+.atlas-main{padding:16px 18px}
+.band{margin-bottom:14px}
+.band-l{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:7px}
+.band-row{display:flex;gap:8px;align-items:stretch}
+.band-row .blk{flex:1;min-width:0}
+.mini{font-size:9.5px;color:var(--muted);margin-top:4px}
+
+/* ---------- CONCEPT 2: CANVAS ---------- */
+.canvas-wrap{display:grid;grid-template-columns:44px 1fr 178px}
+.tools{background:var(--sc);border-right:1px solid var(--outline-var);
+  padding:10px 0;display:flex;flex-direction:column;gap:5px;align-items:center}
+.tool{width:28px;height:28px;border-radius:var(--r-sm);display:grid;place-items:center;
+  font-size:13px;color:var(--muted);background:transparent;transition:.15s}
+.tool.on{background:var(--primary);color:#fff}
+.tool:hover{background:var(--primary-container);color:var(--primary)}
+.board{padding:14px;background:
+  radial-gradient(circle at 1px 1px, rgba(124,58,237,.16) 1px, transparent 0) 0 0/16px 16px;
+  min-height:280px;position:relative}
+.lane{border:1.5px dashed var(--outline);border-radius:var(--r-md);
+  background:rgba(124,58,237,.035);padding:8px 10px 10px;margin-bottom:9px}
+.lane-l{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--primary);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.lane-row{display:flex;gap:7px;align-items:center}
+.lane-row .blk{flex:1;min-width:0}
+.insp{background:var(--sc);border-left:1px solid var(--outline-var);padding:13px 12px}
+.insp-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:10px}
+.fld{margin-bottom:11px}
+.fld label{display:block;font-size:9.5px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.fld .box{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-sm);padding:6px 8px;font-size:11px;line-height:1.35}
+.nested{position:absolute;right:14px;bottom:14px;background:var(--surface);
+  border:1.5px solid var(--primary);border-radius:var(--r-md);padding:9px 11px;
+  box-shadow:var(--e3);width:190px}
+.nested .nh{font-size:9.5px;color:var(--primary);font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.nested .nr{font-size:10.5px;padding:4px 7px;background:var(--sc);
+  border-radius:var(--r-sm);margin-bottom:4px;display:flex;justify-content:space-between}
+
+/* ---------- CONCEPT 3: SPEC ---------- */
+.spec{display:grid;grid-template-columns:1fr 300px}
+.spec-l{padding:14px 16px}
+.spec-r{background:var(--sc);border-left:1px solid var(--outline-var);padding:14px 13px}
+.steprow{display:grid;grid-template-columns:22px 1fr 108px 84px 60px;gap:8px;
+  align-items:center;padding:8px 9px;border:1px solid var(--outline-var);
+  border-radius:var(--r-sm);margin-bottom:5px;background:var(--surface);
+  font-size:11.5px;transition:.15s}
+.steprow:hover{border-color:var(--primary);background:var(--sc)}
+.steprow .ord{font-family:var(--mono);font-size:10px;color:var(--muted);
+  background:var(--sc-high);border-radius:var(--r-sm);text-align:center;
+  padding:2px 0;font-weight:600}
+.steprow .nm{font-weight:600}
+.steprow .gl{font-size:9.5px;color:var(--muted);font-style:italic}
+.sel{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-sm);
+  padding:3px 6px;font-size:10.5px;display:flex;justify-content:space-between;
+  align-items:center;gap:4px}
+.hdr-row{display:grid;grid-template-columns:22px 1fr 108px 84px 60px;gap:8px;
+  padding:0 9px 6px;font-size:9px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);font-weight:700}
+.alloc{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-md);padding:11px 12px;margin-bottom:9px}
+.alloc-t{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:9px}
+.bar{display:flex;height:9px;border-radius:999px;overflow:hidden;margin-bottom:9px}
+.bar i{display:block}
+.leg{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px}
+.leg .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.tot{border-top:1px solid var(--outline-var);margin-top:8px;padding-top:8px;
+  display:flex;justify-content:space-between;font-size:11.5px;font-weight:700}
+
+/* ---------- CONCEPT 4: PLAYBOOK ---------- */
+.play{display:grid;grid-template-columns:1fr 250px}
+.doc{padding:16px 18px}
+.doc-title{font-size:17px;font-weight:600;margin-bottom:3px}
+.doc-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+.dsec{margin-bottom:12px}
+.dsec .dl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--primary);font-weight:700;margin-bottom:4px}
+.dsec .dv{font-size:12px;line-height:1.5;color:var(--ink)}
+.dsec .dv.q{background:var(--sc);border-left:2.5px solid var(--primary);
+  padding:8px 11px;border-radius:0 var(--r-sm) var(--r-sm) 0;font-style:italic}
+.dstep{display:flex;gap:8px;align-items:center;padding:6px 9px;background:var(--sc-low);
+  border:1px solid var(--outline-var);border-radius:var(--r-sm);margin-bottom:4px;font-size:11.5px}
+.dstep .di{font-family:var(--mono);font-size:9.5px;color:var(--muted);width:14px}
+.autodiag{background:var(--sc-low);border-left:1px solid var(--outline-var);padding:13px 12px}
+.ad-h{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:10px;display:flex;
+  justify-content:space-between;align-items:center}
+.vflow .blk{margin-bottom:0}
+.vconn{height:14px;display:grid;place-items:center;color:var(--outline);font-size:13px}
+.ack{background:var(--surface);border:1px solid var(--gold);border-radius:var(--r-md);
+  padding:10px 11px;margin-top:12px}
+.ack-t{font-size:10.5px;font-weight:700;color:#78350F;margin-bottom:7px}
+.ack-r{display:flex;align-items:center;gap:6px;font-size:10.5px;margin-bottom:4px}
+.ack-r .st{margin-left:auto;font-size:9.5px;font-weight:600}
+
+/* ---------- CONCEPT 5: LEDGER ---------- */
+.ledger{display:grid;grid-template-columns:190px 1fr}
+.hist{background:var(--sc);border-right:1px solid var(--outline-var);padding:13px 12px}
+.hist-h{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:11px}
+.rev{position:relative;padding:0 0 13px 18px;border-left:2px solid var(--outline-var);
+  margin-left:5px}
+.rev:last-child{border-left-color:transparent;padding-bottom:0}
+.rev::before{content:'';position:absolute;left:-6px;top:2px;width:10px;height:10px;
+  border-radius:50%;background:var(--surface);border:2px solid var(--outline)}
+.rev.cur::before{background:var(--primary);border-color:var(--primary)}
+.rev.draft::before{background:var(--gold);border-color:var(--gold)}
+.rev .rv{font-family:var(--mono);font-size:10.5px;font-weight:700;margin-bottom:1px}
+.rev .rd{font-size:9.5px;color:var(--muted);margin-bottom:3px}
+.rev .rc{font-size:10px;line-height:1.4;color:var(--ink)}
+.diff{padding:14px 16px}
+.diff-h{display:flex;align-items:center;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+.diff-h .dt{font-size:14px;font-weight:600}
+.dcols{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.dcol-h{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  font-weight:700;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--outline-var)}
+.dcol-h.old{color:var(--muted)}.dcol-h.new{color:var(--primary)}
+.blk.add{border-color:#16A34A;background:#F0FDF4}
+.blk.add::after{content:'ADDED';position:absolute;top:-7px;right:8px;background:#16A34A;
+  color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.05em}
+.blk.rem{border-color:var(--error);background:#FEF2F2;opacity:.72}
+.blk.rem .bt{text-decoration:line-through;color:var(--muted)}
+.blk.chg{border-color:var(--gold);background:#FFFBEB}
+.blk.chg::after{content:'CHANGED';position:absolute;top:-7px;right:8px;background:var(--gold);
+  color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.05em}
+.stack{display:flex;flex-direction:column;gap:9px}
+.approve{margin-top:14px;padding:11px 13px;background:var(--sc);
+  border:1px solid var(--outline);border-radius:var(--r-md);display:flex;
+  align-items:center;gap:10px;flex-wrap:wrap}
+.approve .rt{font-size:11px;color:var(--muted);flex:1;min-width:180px}
+.btn{border-radius:999px;padding:6px 15px;font-size:11.5px;font-weight:600;
+  background:var(--primary);color:#fff;border:0}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--outline)}
+
+/* ---------- MATRIX ---------- */
+table{width:100%;border-collapse:collapse;background:var(--surface);
+  border-radius:var(--r-md);overflow:hidden;box-shadow:var(--e1);font-size:13px}
+th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--outline-var);vertical-align:top}
+th{background:var(--sc-high);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  font-weight:700;color:var(--on-primary-container)}
+th:first-child,td:first-child{position:sticky;left:0;background:var(--surface)}
+th:first-child{background:var(--sc-high)}
+td:first-child{font-weight:600;font-size:12.5px}
+tr:last-child td{border-bottom:0}
+.score{font-family:var(--mono);font-weight:700;font-size:12px}
+.s5{color:#15803D}.s4{color:#16A34A}.s3{color:var(--gold)}.s2{color:#EA580C}.s1{color:var(--error)}
+.tscroll{overflow-x:auto;border-radius:var(--r-md)}
+
+/* ---------- RECOMMENDATION ---------- */
+.rec{background:linear-gradient(135deg,#2E1065,#4C1D95);color:#fff;
+  border-radius:var(--r-xl);padding:34px 36px;box-shadow:var(--e3)}
+.rec h2{color:#fff;margin-bottom:14px}
+.rec p{opacity:.9;font-size:15px;max-width:800px}
+.rec .stack-d{display:grid;gap:11px;margin:24px 0 8px}
+.layer{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-md);padding:14px 17px;display:grid;
+  grid-template-columns:96px 1fr;gap:16px;align-items:start}
+.layer .ph{font-family:var(--mono);font-size:10.5px;font-weight:700;
+  letter-spacing:.08em;color:#C4B5FD;padding-top:2px}
+.layer .lt{font-size:14.5px;font-weight:600;margin-bottom:4px}
+.layer .ld{font-size:12.5px;opacity:.82;line-height:1.5}
+.warn{background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.4);
+  border-radius:var(--r-md);padding:14px 17px;margin-top:20px;font-size:13px;line-height:1.55}
+.warn b{color:#FCD34D}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:44px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Conductor · Research &amp; Concepts · August 2026</div>
+    <h1>Mapping the business,<br>not just the tasks.</h1>
+    <p>Five ways to build a visual process canvas inside Conductor — where every service, every system and every unwritten workflow becomes a drawable, ownable, versioned thing with a goal attached to it.</p>
+    <div class="brief">
+      <span class="chip">Lives inside Conductor</span>
+      <span class="chip">Scoping + quality + design</span>
+      <span class="chip">Blueprint only — no ClickUp execution</span>
+      <span class="chip">Whole team contributes, gated approval</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ================= RESEARCH ================= -->
+<section>
+  <h2>What the research says</h2>
+  <p class="sub">Twelve parallel research streams across process notation standards, the SOP tooling market, canvas libraries, ISO/EOS versioning conventions, and the systemisation literature. The signal was unusually consistent.</p>
+  <div class="findings">
+    <div class="finding">
+      <div class="n">01 / NOTATION</div>
+      <h4>BPMN is a trap. Swimlanes win.</h4>
+      <p>Teams use ~8 of BPMN's 100+ constructs. The learning curve kills adoption. Swimlanes with named lanes + explicit handoffs give 80% of the value at 20% of the effort — and non-technical staff read them instantly.</p>
+    </div>
+    <div class="finding">
+      <div class="n">02 / DEPTH</div>
+      <h4>Two levels. Then stop.</h4>
+      <p>L1 end-to-end process, L2 sub-process swimlane. Don't decompose to task level. Every framework that tried L5 granularity produced shelfware.</p>
+    </div>
+    <div class="finding">
+      <div class="n">03 / COUNT</div>
+      <h4>EOS says 6–10 core processes. Max 12.</h4>
+      <p>Not departments, not workflows — the vital few that actually differentiate you. Your instinct that "sales and marketing were never defined" is exactly the gap EOS predicts in owner-led agencies.</p>
+    </div>
+    <div class="finding">
+      <div class="n">04 / OWNERSHIP</div>
+      <h4>Named owner or it doesn't exist.</h4>
+      <p>Promapp separates Process Owner (approves changes) from Process Expert (runs it daily). Changing the owner is itself a revision event. Vague ownership is indistinguishable from no ownership.</p>
+    </div>
+    <div class="finding">
+      <div class="n">05 / CADENCE</div>
+      <h4>Documentation dies without a heartbeat.</h4>
+      <p>Every source agrees: weekly tactical, quarterly review, annual refresh. A process with no scheduled review date becomes a liability within two quarters.</p>
+    </div>
+    <div class="finding">
+      <div class="n">06 / THE GAP</div>
+      <h4>No product does all three.</h4>
+      <p>Trainual links goals→KPIs. Promapp does governance. Gluu does continuous improvement. <strong>None</strong> combine versioned owned processes + explicit goals + hours that feed estimation. Conductor already has the hours.</p>
+    </div>
+    <div class="finding">
+      <div class="n">07 / VERSIONING</div>
+      <h4>ISO 9001 §7.5 already wrote your schema.</h4>
+      <p>Version number, effective date, reason-for-revision, approver, and a draft→review→published state machine. Plus acknowledgement records so you know who has actually read rev 4.</p>
+    </div>
+    <div class="finding">
+      <div class="n">08 / CANVAS</div>
+      <h4>React Flow, if you need free drag.</h4>
+      <p>@xyflow/react v12 — MIT, ~155KB, arbitrary React nodes, nested sub-flows via <span style="font-family:var(--mono);font-size:11px">parentId</span>. Pair with Dagre for auto-layout. tldraw is the fallback but is now $6k/yr commercial.</p>
+    </div>
+    <div class="finding">
+      <div class="n">09 / IN CONDUCTOR</div>
+      <h4>You are 60% built already.</h4>
+      <p><span style="font-family:var(--mono);font-size:11px">process_steps</span> already carries department + estimated_hours and <em>is</em> the allocation source of truth via <span style="font-family:var(--mono);font-size:11px">service_allocation_resolved</span>. What's missing: processes untethered from a service, goals, nesting, and versions.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONCEPTS ================= -->
+<section>
+  <h2>Five concepts</h2>
+  <p class="sub">These are not five skins on the same idea. Each makes a different bet about what the primary object is — a hierarchy, a canvas, a spec, a document, or a revision. Click through and see which one feels like how you actually think.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-p="p1"><span class="num">CONCEPT 01</span>The Atlas</button>
+    <button class="tab" data-p="p2"><span class="num">CONCEPT 02</span>The Drawing Board</button>
+    <button class="tab" data-p="p3"><span class="num">CONCEPT 03</span>The Spec</button>
+    <button class="tab" data-p="p4"><span class="num">CONCEPT 04</span>The Playbook</button>
+    <button class="tab" data-p="p5"><span class="num">CONCEPT 05</span>The Ledger</button>
+  </div>
+
+  <!-- ===== CONCEPT 1: ATLAS ===== -->
+  <div class="panel active" id="p1">
+  <div class="concept">
+    <div class="chead">
+      <div class="kicker">CONCEPT 01 — HIERARCHY FIRST</div>
+      <h3>The Atlas</h3>
+      <p class="tagline">One map of the whole business on a single screen. Nine core processes across four value-chain bands. You don't scroll — you zoom. Click a process and it opens into its swimlane; click a step and it opens into its detail. Layout is automatic, always tidy, never drifts.</p>
+      <div class="meta">
+        <div><div class="k">Primary object</div><div class="v">The hierarchy</div></div>
+        <div><div class="k">Build effort</div><div class="v"><span class="dot d-med"></span>Medium</div></div>
+        <div><div class="k">New dependency</div><div class="v">None</div></div>
+        <div><div class="k">Free drag</div><div class="v">No — auto-layout</div></div>
+        <div><div class="k">Best for</div><div class="v">Seeing the whole business</div></div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="win">
+        <div class="winbar">
+          <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+          <span class="t">Conductor › Systems › Business Atlas</span>
+          <div class="r"><span class="pill k">L0 · Whole business</span><span class="pill g">9 of 10 mapped</span></div>
+        </div>
+        <div class="atlas">
+          <div class="atlas-nav">
+            <div class="anav lv1 on">■ Business Atlas</div>
+            <div class="anav lv2">Attract</div>
+            <div class="anav lv2">Convert</div>
+            <div class="anav lv2">Deliver</div>
+            <div class="anav lv2">Retain</div>
+            <div class="anav lv1" style="margin-top:12px">▸ By service</div>
+            <div class="anav lv2">SEO Retainer</div>
+            <div class="anav lv2">Paid Social Setup</div>
+            <div class="anav lv2">Website Build</div>
+            <div class="anav lv1" style="margin-top:12px">▸ Unmapped <span class="pill r" style="margin-left:4px">3</span></div>
+            <div class="anav lv2" style="color:var(--error)">Content Marketing</div>
+            <div class="anav lv2" style="color:var(--error)">Referral / Partner</div>
+          </div>
+          <div class="atlas-main">
+            <div class="band">
+              <div class="band-l">Attract — goal: 12 qualified leads / month</div>
+              <div class="band-row">
+                <div class="blk">
+                  <div class="bt">Content Marketing</div>
+                  <div class="bg" style="color:var(--error)">⚠ No goal set · never documented</div>
+                  <div class="bf"><span class="pill r">Unmapped</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Outbound Prospecting</div>
+                  <div class="bg">Goal: 40 qualified conversations / qtr</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="hrs">6.0h/wk</span><span class="pill a">Rev 2 · draft</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Referral / Partner</div>
+                  <div class="bg" style="color:var(--error)">⚠ No goal set · never documented</div>
+                  <div class="bf"><span class="pill r">Unmapped</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="band">
+              <div class="band-l">Convert — goal: 35% brief→quote acceptance</div>
+              <div class="band-row">
+                <div class="blk">
+                  <div class="bt">Brief Intake &amp; Triage</div>
+                  <div class="bg">Goal: every brief triaged &lt; 4 working hrs</div>
+                  <div class="bf"><span class="av">LR</span><span class="hrs">0.75h</span><span class="pill g">Rev 7</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Scoping &amp; Estimation</div>
+                  <div class="bg">Goal: actuals within ±15% of scope</div>
+                  <div class="bf"><span class="av c2">BG</span><span class="av c5">JM</span><span class="hrs">2.5h</span><span class="pill g">Rev 4</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Quote &amp; Close</div>
+                  <div class="bg">Goal: quote out within 48h of scope lock</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="hrs">1.5h</span><span class="pill g">Rev 3</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="band">
+              <div class="band-l">Deliver — goal: 90% on-time, zero rework loops</div>
+              <div class="band-row">
+                <div class="blk">
+                  <div class="bt">Client Onboarding</div>
+                  <div class="bg">Goal: kickoff booked within 5 days of signature</div>
+                  <div class="bf"><span class="av">LR</span><span class="hrs">3.25h</span><span class="pill g">Rev 5</span></div>
+                </div>
+                <div class="blk" style="border-color:var(--primary);box-shadow:var(--e3)">
+                  <div class="bt">Production &amp; QA ↓</div>
+                  <div class="bg">Goal: first-pass approval on 80% of deliverables</div>
+                  <div class="bf"><span class="av c2">JM</span><span class="av c4">TK</span><span class="hrs">varies</span><span class="pill p">Open L2 →</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Delivery &amp; Sign-off</div>
+                  <div class="bg">Goal: no deliverable sits &gt; 3 days awaiting client</div>
+                  <div class="bf"><span class="av c5">LR</span><span class="hrs">1.0h</span><span class="pill a">Rev 2 · review due</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="band" style="margin-bottom:0">
+              <div class="band-l">Retain — goal: 85% retainer renewal</div>
+              <div class="band-row">
+                <div class="blk">
+                  <div class="bt">Reporting &amp; Pulse</div>
+                  <div class="bg">Goal: every client touched at least monthly</div>
+                  <div class="bf"><span class="av c2">JM</span><span class="hrs">2.0h/mo</span><span class="pill g">Rev 6</span></div>
+                </div>
+                <div class="blk">
+                  <div class="bt">Renewal &amp; Upsell</div>
+                  <div class="bg">Goal: renewal conversation 60 days before end</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="hrs">1.5h</span><span class="pill a">Rev 1 · draft</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+      <div>
+        <h4>How it works</h4>
+        <ul>
+          <li><strong>Fixed top-level frame.</strong> The four bands (Attract / Convert / Deliver / Retain) are structural, not drawn. You slot processes into bands, and the layout does itself.</li>
+          <li><strong>Unmapped is a first-class state.</strong> The Atlas shows gaps as red blocks. Your sales and marketing systems appear as visible holes in the map the day you turn it on — which is exactly the diagnosis you're after.</li>
+          <li><strong>Zoom, don't pan.</strong> Click a process → its L2 swimlane opens full-screen with departments as lanes. Click a step → L3 detail panel. There is no infinite canvas to get lost in.</li>
+          <li><strong>Goals cascade.</strong> Each band has a goal, each process has a goal, each step has a "definition of done". A child goal that doesn't ladder into its parent is flagged.</li>
+          <li><strong>Hours roll up.</strong> Step hours sum into process hours, sum into band hours. You get a real answer to "how many hours per week does <em>selling</em> cost us?" — which today lives only in the <span style="font-family:var(--mono);font-size:11.5px">sales-bd</span> overhead category.</li>
+        </ul>
+        <h4>Where it's weakest</h4>
+        <ul>
+          <li>No free drag. If you want to sketch a messy idea in a workshop, this fights you.</li>
+          <li>Branching and decision logic are awkward — it's a ladder, not a graph.</li>
+          <li>The rigidity that makes it tidy also makes it feel like a form, not a drawing board.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Data model</h4>
+        <div class="schema"><span class="cm">-- hierarchy is the spine</span>
+<span class="kw">create table</span> process_definitions (
+  id            uuid <span class="kw">primary key</span>,
+  parent_id     uuid <span class="kw">references</span> process_definitions,
+  band          text,     <span class="cm">-- attract|convert|deliver|retain</span>
+  level         int,      <span class="cm">-- 0 | 1 | 2</span>
+  name          text,
+  <span class="st">goal_statement</span> text,   <span class="cm">-- required at every level</span>
+  goal_metric   text,
+  owner_id      uuid <span class="kw">references</span> team_members,
+  service_id    uuid <span class="kw">references</span> services, <span class="cm">-- nullable!</span>
+  review_due_at date,
+  ordinal       int
+);
+<span class="cm">-- steps reuse the existing shape</span>
+<span class="kw">alter table</span> process_steps
+  <span class="kw">add column</span> definition_id uuid,
+  <span class="kw">add column</span> goal_statement text,
+  <span class="kw">alter column</span> service_id <span class="kw">drop not null</span>;</div>
+        <h4 style="margin-top:18px">Effort</h4>
+        <ul>
+          <li>No new npm dependency — CSS grid + the existing <span style="font-family:var(--mono);font-size:11.5px">WorkflowTimeline</span> patterns.</li>
+          <li>Two new tables, one column set on <span style="font-family:var(--mono);font-size:11.5px">process_steps</span>.</li>
+          <li><strong>~2–3 weeks</strong> to a usable Atlas + L2 swimlanes.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===== CONCEPT 2: DRAWING BOARD ===== -->
+  <div class="panel" id="p2">
+  <div class="concept">
+    <div class="chead">
+      <div class="kicker">CONCEPT 02 — CANVAS FIRST</div>
+      <h3>The Drawing Board</h3>
+      <p class="tagline">Literally what you described. An infinite canvas built on React Flow. Drag blocks from a palette, wire them together, lasso them into swimlanes, double-click any block to dive into its own nested sub-canvas. Assign a person, a goal and an hour estimate to every block. Built for workshop mode — you and the team round a screen, designing a system that doesn't exist yet.</p>
+      <div class="meta">
+        <div><div class="k">Primary object</div><div class="v">The graph</div></div>
+        <div><div class="k">Build effort</div><div class="v"><span class="dot d-hi"></span>High</div></div>
+        <div><div class="k">New dependency</div><div class="v">@xyflow/react + dagre</div></div>
+        <div><div class="k">Free drag</div><div class="v">Yes — full canvas</div></div>
+        <div><div class="k">Best for</div><div class="v">Designing the unmapped</div></div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="win">
+        <div class="winbar">
+          <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+          <span class="t">Conductor › Systems › Sales System <span style="opacity:.6;font-weight:400">— draft rev 2</span></span>
+          <div class="r"><span class="pill a">Unsaved changes</span><span class="pill k">Fit ⌘0</span><span class="pill p">Propose ↑</span></div>
+        </div>
+        <div class="canvas-wrap">
+          <div class="tools">
+            <div class="tool on">✥</div>
+            <div class="tool">▭</div>
+            <div class="tool">◇</div>
+            <div class="tool">⇥</div>
+            <div class="tool">↝</div>
+            <div class="tool" style="margin-top:8px">⌗</div>
+            <div class="tool">💬</div>
+          </div>
+          <div class="board">
+            <div class="lane">
+              <div class="lane-l">⇥ Lane · Sales &amp; BD (Brendan) <span class="pill k" style="font-size:9px">14.5h / mo</span></div>
+              <div class="lane-row">
+                <div class="blk">
+                  <div class="bt">Source</div>
+                  <div class="bg">Goal: 30 net-new ICP contacts/mo</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="hrs">4.0h</span></div>
+                </div>
+                <div class="arrow">→</div>
+                <div class="blk">
+                  <div class="bt">Qualify call</div>
+                  <div class="bg">Goal: disqualify 60% before proposal</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="hrs">0.5h ×8</span></div>
+                </div>
+                <div class="arrow">→</div>
+                <div class="blk" style="border-color:var(--primary);box-shadow:var(--e3)">
+                  <div class="bt">Proposal ⧉</div>
+                  <div class="bg">Goal: out within 48h of call</div>
+                  <div class="bf"><span class="av c3">BG</span><span class="av c2">JM</span><span class="hrs">2.5h</span><span class="pill p">4 sub-blocks</span></div>
+                </div>
+                <div class="arrow">→</div>
+                <div class="blk" style="border-radius:999px;border-style:dashed">
+                  <div class="bt" style="margin-bottom:0">◇ Won?</div>
+                </div>
+              </div>
+            </div>
+            <div class="lane">
+              <div class="lane-l">⇥ Lane · Delivery handoff (Lisa)</div>
+              <div class="lane-row">
+                <div style="flex:2.05"></div>
+                <div class="blk">
+                  <div class="bt">Onboarding kickoff</div>
+                  <div class="bg">Goal: booked within 5 days</div>
+                  <div class="bf"><span class="av">LR</span><span class="hrs">3.25h</span><span class="pill b">↗ links to Delivery map</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="lane" style="margin-bottom:0;border-color:var(--error);background:rgba(220,38,38,.04)">
+              <div class="lane-l" style="color:var(--error)">⇥ Lane · Nurture (unassigned) — ⚠ no owner, no goal</div>
+              <div class="lane-row">
+                <div class="blk" style="border-style:dashed;opacity:.75">
+                  <div class="bt">…drop a block here</div>
+                  <div class="bg">This is the part nobody has thought about yet</div>
+                </div>
+              </div>
+            </div>
+            <div class="nested">
+              <div class="nh">⧉ Inside: Proposal</div>
+              <div class="nr"><span>1 · Pull scope from Conductor</span><span style="color:var(--primary);font-weight:600">0.5h</span></div>
+              <div class="nr"><span>2 · Draft SOW</span><span style="color:var(--primary);font-weight:600">1.0h</span></div>
+              <div class="nr"><span>3 · Internal price check</span><span style="color:var(--primary);font-weight:600">0.5h</span></div>
+              <div class="nr" style="margin-bottom:0"><span>4 · Send + log</span><span style="color:var(--primary);font-weight:600">0.5h</span></div>
+            </div>
+          </div>
+          <div class="insp">
+            <div class="insp-h">Block inspector</div>
+            <div class="fld"><label>Title</label><div class="box">Proposal</div></div>
+            <div class="fld"><label>Goal / purpose</label><div class="box" style="font-style:italic">Out within 48h of the qualify call, priced from real scope not gut feel.</div></div>
+            <div class="fld"><label>Owner</label><div class="box"><span class="av c3" style="width:16px;height:16px;font-size:8px">BG</span> Brendan Gunn</div></div>
+            <div class="fld"><label>Contributors</label><div class="box"><span class="av c2" style="width:16px;height:16px;font-size:8px">JM</span> Jamie M.</div></div>
+            <div class="fld"><label>Department</label><div class="box">Sales &amp; BD</div></div>
+            <div class="fld"><label>Estimated hours</label><div class="box" style="font-family:var(--mono);font-weight:600;color:var(--primary)">2.50</div></div>
+            <div class="fld"><label>Sub-process</label><div class="box" style="color:var(--primary)">⧉ 4 blocks · open</div></div>
+            <div class="fld" style="margin-bottom:0"><label>Revision</label><div class="box">Rev 2 draft · edited today</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+      <div>
+        <h4>How it works</h4>
+        <ul>
+          <li><strong>React Flow (@xyflow/react v12).</strong> MIT licensed, ~155KB, nodes are arbitrary React components — so a block can render an avatar stack, an hours pill and a goal chip natively, styled with your M3 tokens.</li>
+          <li><strong>Swimlanes are group nodes.</strong> Drag a block into a lane and it inherits that lane's department. Lane header shows the rolled-up hours live.</li>
+          <li><strong>True nesting.</strong> React Flow's <span style="font-family:var(--mono);font-size:11.5px">parentId</span> gives you real sub-flows — double-click "Proposal" and you're inside its own canvas. Depth is unlimited (you should still cap it at 2).</li>
+          <li><strong>Dagre for tidy-up.</strong> One button re-flows the graph automatically when a workshop leaves it messy.</li>
+          <li><strong>Persistence.</strong> The whole graph serialises to a single <span style="font-family:var(--mono);font-size:11.5px">jsonb</span> blob — which makes snapshot versioning trivially easy and matches the <span style="font-family:var(--mono);font-size:11.5px">sow_documents.body</span> pattern you already use.</li>
+        </ul>
+        <h4>Where it's weakest</h4>
+        <ul>
+          <li><strong>Infinite canvas = infinite mess.</strong> Every agency that bought Miro has a graveyard of half-finished boards. Freedom is the feature and the failure mode.</li>
+          <li>Hours live in a JSON blob, so wiring them into <span style="font-family:var(--mono);font-size:11.5px">service_allocation_resolved</span> means either a sync job or a shadow normalised table.</li>
+          <li>Two people editing the same graph needs conflict handling you don't have today.</li>
+          <li>Biggest build. Realistically the last thing you ship, not the first.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Data model</h4>
+        <div class="schema"><span class="kw">create table</span> process_graphs (
+  id           uuid <span class="kw">primary key</span>,
+  name         text,
+  kind         text,  <span class="cm">-- service | system | subprocess</span>
+  service_id   uuid <span class="kw">references</span> services,  <span class="cm">-- nullable</span>
+  owner_id     uuid <span class="kw">references</span> team_members,
+  <span class="st">goal_statement</span> text,
+  current_revision_id uuid
+);
+
+<span class="kw">create table</span> process_graph_revisions (
+  id          uuid <span class="kw">primary key</span>,
+  graph_id    uuid <span class="kw">references</span> process_graphs,
+  revision    int,
+  <span class="st">body</span>        jsonb,   <span class="cm">-- {nodes:[], edges:[]}</span>
+  schema_version int,
+  state       text,    <span class="cm">-- draft|review|published</span>
+  reason_for_change text,
+  approved_by uuid, approved_at timestamptz,
+  effective_date date,
+  <span class="kw">unique</span> (graph_id, revision)
+);
+<span class="cm">-- mirrored into a flat table by trigger so hours</span>
+<span class="cm">-- can still feed service_allocation_resolved</span></div>
+        <h4 style="margin-top:18px">Effort</h4>
+        <ul>
+          <li>One new dependency pair (~180KB gzipped total).</li>
+          <li>Custom node components, lane logic, inspector, autolayout, serialisation, conflict handling.</li>
+          <li><strong>~5–7 weeks</strong> to something you'd trust the team with.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===== CONCEPT 3: SPEC ===== -->
+  <div class="panel" id="p3">
+  <div class="concept">
+    <div class="chead">
+      <div class="kicker">CONCEPT 03 — DATA FIRST, DIAGRAM AS OUTPUT</div>
+      <h3>The Spec</h3>
+      <p class="tagline">The contrarian one. You don't draw the process — you specify it, and the diagram draws itself. Editing happens in a fast structured table where you tab through steps, owners, goals and hours. The swimlane view is a generated, always-tidy render of that data. Crucially: the hours you type here <em>are</em> the estimate. Documenting a process and scoping it become the same act.</p>
+      <div class="meta">
+        <div><div class="k">Primary object</div><div class="v">The step list</div></div>
+        <div><div class="k">Build effort</div><div class="v"><span class="dot d-lo"></span>Low</div></div>
+        <div><div class="k">New dependency</div><div class="v">None</div></div>
+        <div><div class="k">Free drag</div><div class="v">Reorder only</div></div>
+        <div><div class="k">Best for</div><div class="v">Scoping accuracy</div></div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="win">
+        <div class="winbar">
+          <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+          <span class="t">Conductor › Services › SEO Retainer › Process</span>
+          <div class="r"><span class="pill g">Rev 4 · published</span><span class="pill b">✓ Allocation balanced</span></div>
+        </div>
+        <div class="spec">
+          <div class="spec-l">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:600">Process goal</span>
+              <span class="pill k">required</span>
+            </div>
+            <div style="background:var(--sc);border-left:2.5px solid var(--primary);padding:8px 11px;
+                        border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:11.5px;font-style:italic;
+                        margin-bottom:14px;line-height:1.5">
+              Deliver a month of compounding organic growth for R18 500 in under 14.5 hours, with the
+              client able to see the causal link between what we did and what moved.
+              <span style="display:block;font-style:normal;margin-top:5px;color:var(--muted);font-size:10.5px">
+                Measured by: hours actual vs 14.5 est · client-reported clarity score ≥ 4/5</span>
+            </div>
+
+            <div class="hdr-row"><span>#</span><span>Step &amp; definition of done</span><span>Department</span><span>Owner</span><span>Hours</span></div>
+
+            <div class="steprow">
+              <span class="ord">1</span>
+              <span><span class="nm">Rank &amp; traffic pull</span><br><span class="gl">Done when: dashboard refreshed &amp; deltas flagged</span></span>
+              <span class="sel">SEO <span style="color:var(--muted)">▾</span></span>
+              <span class="sel"><span class="av c2" style="width:14px;height:14px;font-size:7px">JM</span> Jamie</span>
+              <span class="sel" style="font-family:var(--mono);font-weight:600;color:var(--primary)">2.00</span>
+            </div>
+            <div class="steprow">
+              <span class="ord">2</span>
+              <span><span class="nm">Technical crawl &amp; fix list</span><br><span class="gl">Done when: every P1 issue has an owner</span></span>
+              <span class="sel">SEO <span style="color:var(--muted)">▾</span></span>
+              <span class="sel"><span class="av c2" style="width:14px;height:14px;font-size:7px">JM</span> Jamie</span>
+              <span class="sel" style="font-family:var(--mono);font-weight:600;color:var(--primary)">3.00</span>
+            </div>
+            <div class="steprow" style="border-color:var(--primary);background:var(--sc)">
+              <span class="ord">3</span>
+              <span><span class="nm">Content brief ×2</span><br><span class="gl">Done when: writer can start with zero questions</span></span>
+              <span class="sel">Content <span style="color:var(--muted)">▾</span></span>
+              <span class="sel"><span class="av c4" style="width:14px;height:14px;font-size:7px">TK</span> Thabo</span>
+              <span class="sel" style="font-family:var(--mono);font-weight:600;color:var(--primary)">4.00</span>
+            </div>
+            <div class="steprow">
+              <span class="ord">4</span>
+              <span><span class="nm">On-page implementation</span><br><span class="gl">Done when: changes live &amp; re-crawled clean</span></span>
+              <span class="sel">Dev <span style="color:var(--muted)">▾</span></span>
+              <span class="sel"><span class="av c5" style="width:14px;height:14px;font-size:7px">SN</span> Sipho</span>
+              <span class="sel" style="font-family:var(--mono);font-weight:600;color:var(--primary)">2.50</span>
+            </div>
+            <div class="steprow">
+              <span class="ord">5</span>
+              <span><span class="nm">Monthly report &amp; call</span><br><span class="gl">Done when: client can name what changed &amp; why</span></span>
+              <span class="sel">Account <span style="color:var(--muted)">▾</span></span>
+              <span class="sel"><span class="av" style="width:14px;height:14px;font-size:7px">LR</span> Lisa</span>
+              <span class="sel" style="font-family:var(--mono);font-weight:600;color:var(--primary)">3.00</span>
+            </div>
+            <div style="padding:7px 9px;border:1.5px dashed var(--outline);border-radius:var(--r-sm);
+                        font-size:11px;color:var(--muted);text-align:center;margin-top:6px">+ Add step</div>
+          </div>
+          <div class="spec-r">
+            <div class="alloc">
+              <div class="alloc-t">Live allocation</div>
+              <div class="bar">
+                <i style="background:#7C3AED;width:34.5%"></i>
+                <i style="background:#EC4899;width:27.6%"></i>
+                <i style="background:#0891B2;width:17.2%"></i>
+                <i style="background:#F59E0B;width:20.7%"></i>
+              </div>
+              <div class="leg"><span><span class="sw" style="background:#7C3AED"></span>SEO</span><span style="font-family:var(--mono)">5.00h · 34.5%</span></div>
+              <div class="leg"><span><span class="sw" style="background:#EC4899"></span>Content</span><span style="font-family:var(--mono)">4.00h · 27.6%</span></div>
+              <div class="leg"><span><span class="sw" style="background:#0891B2"></span>Dev</span><span style="font-family:var(--mono)">2.50h · 17.2%</span></div>
+              <div class="leg"><span><span class="sw" style="background:#F59E0B"></span>Account</span><span style="font-family:var(--mono)">3.00h · 20.7%</span></div>
+              <div class="tot"><span>Total</span><span style="font-family:var(--mono)">14.50h · 100.0%</span></div>
+              <div style="font-size:10px;color:#15803D;margin-top:6px">✓ Within 99.5–100.5 tolerance</div>
+            </div>
+            <div class="alloc">
+              <div class="alloc-t">Margin check</div>
+              <div class="leg"><span>Sell price</span><span style="font-family:var(--mono)">R18 500</span></div>
+              <div class="leg"><span>Cost at these hours</span><span style="font-family:var(--mono)">R9 715</span></div>
+              <div class="tot"><span>Margin</span><span style="font-family:var(--mono);color:#15803D">47.5%</span></div>
+            </div>
+            <div class="alloc" style="margin-bottom:0">
+              <div class="alloc-t">Reality check</div>
+              <div class="leg"><span>Last 6 projects actual</span><span style="font-family:var(--mono);color:var(--error)">17.2h avg</span></div>
+              <div class="leg"><span>Variance to process</span><span style="font-family:var(--mono);color:var(--error)">+18.6%</span></div>
+              <div style="font-size:10px;color:var(--muted);margin-top:7px;line-height:1.4">
+                The process says 14.5h. Reality says 17.2h. Either the process is wrong or it isn't being followed —
+                <span style="color:var(--primary);font-weight:600">open a revision →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+      <div>
+        <h4>How it works</h4>
+        <ul>
+          <li><strong>Extends what already exists.</strong> <span style="font-family:var(--mono);font-size:11.5px">process_steps</span> already has department + estimated_hours and already drives <span style="font-family:var(--mono);font-size:11.5px">service_allocation_resolved</span>. You add: a nullable service_id (so a process can be pure system, not a service), a goal per process and per step, and a definition-of-done field.</li>
+          <li><strong>The diagram is a view, not a document.</strong> Toggle to swimlane and it renders from the same rows — always tidy, no layout to maintain, no drift between "the picture" and "the truth".</li>
+          <li><strong>Documentation and estimation collapse into one act.</strong> This is the killer property. Today you scope, then separately (never) document. Here, the only way to change the estimate is to change the process — so your scoping gets more accurate as a side effect of the systemisation work you already want to do.</li>
+          <li><strong>The reality check panel.</strong> Because Conductor already has <span style="font-family:var(--mono);font-size:11.5px">project_actuals</span>, every process can show est-vs-actual across its last N runs. That's the feedback loop every systems book insists on, and no SOP product on the market has it.</li>
+        </ul>
+        <h4>Where it's weakest</h4>
+        <ul>
+          <li>It isn't a drawing board. It won't feel creative in a workshop.</li>
+          <li>Branches, loops and decisions are clumsy in a linear list.</li>
+          <li>Non-linear systems (marketing especially) don't fit a numbered ladder cleanly.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Data model</h4>
+        <div class="schema"><span class="cm">-- minimal delta on what's already there</span>
+<span class="kw">alter table</span> process_steps
+  <span class="kw">alter column</span> service_id <span class="kw">drop not null</span>,
+  <span class="kw">add column</span> definition_id     uuid,
+  <span class="kw">add column</span> <span class="st">goal_statement</span>    text,
+  <span class="kw">add column</span> definition_of_done text,
+  <span class="kw">add column</span> owner_id          uuid;
+
+<span class="kw">create table</span> process_definitions (
+  id   uuid <span class="kw">primary key</span>,
+  name text,
+  kind text,  <span class="cm">-- service | system</span>
+  service_id uuid <span class="kw">references</span> services,
+  owner_id   uuid <span class="kw">references</span> team_members,
+  <span class="st">goal_statement</span> text <span class="kw">not null</span>,
+  goal_metric    text,
+  review_due_at  date
+);
+<span class="cm">-- service_allocation_resolved keeps working</span>
+<span class="cm">-- untouched. The 99.5-100.5 trigger still guards.</span></div>
+        <h4 style="margin-top:18px">Effort</h4>
+        <ul>
+          <li>Two migrations. No new dependency. Rework of <span style="font-family:var(--mono);font-size:11.5px">ProcessFlow.tsx</span> into a proper editor.</li>
+          <li>Swimlane renderer reuses <span style="font-family:var(--mono);font-size:11.5px">WorkflowTimeline</span> patterns you already have.</li>
+          <li><strong>~1.5–2 weeks.</strong> By far the cheapest path to real value.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===== CONCEPT 4: PLAYBOOK ===== -->
+  <div class="panel" id="p4">
+  <div class="concept">
+    <div class="chead">
+      <div class="kicker">CONCEPT 04 — DOCUMENT FIRST, ADOPTION FIRST</div>
+      <h3>The Playbook</h3>
+      <p class="tagline">Optimised for the problem you actually named: <em>work isn't getting completed to the standard we want.</em> Each process is a readable page — purpose, owner, trigger, steps, definition of done, exceptions. The flowchart auto-renders alongside it. And when a revision publishes, every affected person must acknowledge it. You get a dashboard of who has and hasn't read rev 4.</p>
+      <div class="meta">
+        <div><div class="k">Primary object</div><div class="v">The document</div></div>
+        <div><div class="k">Build effort</div><div class="v"><span class="dot d-lo"></span>Low–medium</div></div>
+        <div><div class="k">New dependency</div><div class="v">None (md editor exists)</div></div>
+        <div><div class="k">Free drag</div><div class="v">No</div></div>
+        <div><div class="k">Best for</div><div class="v">Standard of work &amp; adoption</div></div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="win">
+        <div class="winbar">
+          <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+          <span class="t">Conductor › Playbook › Delivery › Client Onboarding</span>
+          <div class="r"><span class="pill g">Rev 5 · effective 01 Aug 2026</span><span class="pill a">2 unread</span></div>
+        </div>
+        <div class="play">
+          <div class="doc">
+            <div class="doc-title">Client Onboarding</div>
+            <div class="doc-meta">
+              <span class="pill">Owner · Lisa Rawson</span>
+              <span class="pill k">Expert · Jamie M.</span>
+              <span class="pill b">3.25h per client</span>
+              <span class="pill k">Review due 01 Nov 2026</span>
+            </div>
+
+            <div class="dsec">
+              <div class="dl">Purpose / goal</div>
+              <div class="dv q">A new client should feel, within their first week, that they made the right decision — kickoff booked within 5 working days of signature, and nothing asked of them twice.
+              <span style="display:block;font-style:normal;margin-top:6px;color:var(--muted);font-size:10.5px">
+              KPI: days signature→kickoff (target ≤5) · duplicate-request count (target 0)</span></div>
+            </div>
+
+            <div class="dsec">
+              <div class="dl">Trigger</div>
+              <div class="dv">Quote status moves to <span style="font-family:var(--mono);font-size:11px">accepted</span> in Conductor.</div>
+            </div>
+
+            <div class="dsec">
+              <div class="dl">Steps</div>
+              <div class="dstep"><span class="di">1</span><span style="flex:1">Create Drive folder + copy onboarding sheet</span><span class="av">LR</span><span class="hrs">0.5h</span></div>
+              <div class="dstep"><span class="di">2</span><span style="flex:1">Set up ClickUp folder &amp; standard lists</span><span class="av">LR</span><span class="hrs">0.75h</span></div>
+              <div class="dstep"><span class="di">3</span><span style="flex:1">Send welcome email from template</span><span class="av">LR</span><span class="hrs">0.25h</span></div>
+              <div class="dstep"><span class="di">4</span><span style="flex:1">Open internal chat channel &amp; brief the pod</span><span class="av c2">JM</span><span class="hrs">0.5h</span></div>
+              <div class="dstep"><span class="di">5</span><span style="flex:1">Book &amp; run kickoff call</span><span class="av c2">JM</span><span class="hrs">1.25h</span></div>
+            </div>
+
+            <div class="dsec">
+              <div class="dl">Definition of done</div>
+              <div class="dv">Kickoff has happened, notes are in the client folder, and the first deliverable has a due date in ClickUp.</div>
+            </div>
+
+            <div class="dsec" style="margin-bottom:0">
+              <div class="dl">Exceptions &amp; known failure modes</div>
+              <div class="dv">· Client goes quiet &gt;5 days → escalate to owner, don't chase silently.<br>
+              · Multi-stakeholder client → add a stakeholder-map step before kickoff (+0.75h).<br>
+              · Signed mid-December → kickoff slips to January; say so up front.</div>
+            </div>
+          </div>
+          <div class="autodiag">
+            <div class="ad-h"><span>Auto-generated flow</span><span class="pill k" style="font-size:8.5px">from steps</span></div>
+            <div class="vflow">
+              <div class="blk"><div class="bt">1 · Drive folder</div><div class="bf"><span class="av">LR</span><span class="hrs">0.5h</span></div></div>
+              <div class="vconn">↓</div>
+              <div class="blk"><div class="bt">2 · ClickUp setup</div><div class="bf"><span class="av">LR</span><span class="hrs">0.75h</span></div></div>
+              <div class="vconn">↓</div>
+              <div class="blk"><div class="bt">3 · Welcome email</div><div class="bf"><span class="av">LR</span><span class="hrs">0.25h</span></div></div>
+              <div class="vconn">↓</div>
+              <div class="blk"><div class="bt">4 · Chat &amp; pod brief</div><div class="bf"><span class="av c2">JM</span><span class="hrs">0.5h</span></div></div>
+              <div class="vconn">↓</div>
+              <div class="blk"><div class="bt">5 · Kickoff call</div><div class="bf"><span class="av c2">JM</span><span class="hrs">1.25h</span></div></div>
+            </div>
+            <div class="ack">
+              <div class="ack-t">⚠ Rev 5 acknowledgement</div>
+              <div class="ack-r"><span class="av">LR</span>Lisa R.<span class="st" style="color:#15803D">✓ 01 Aug</span></div>
+              <div class="ack-r"><span class="av c2">JM</span>Jamie M.<span class="st" style="color:#15803D">✓ 02 Aug</span></div>
+              <div class="ack-r"><span class="av c4">TK</span>Thabo K.<span class="st" style="color:var(--error)">pending</span></div>
+              <div class="ack-r" style="margin-bottom:0"><span class="av c5">SN</span>Sipho N.<span class="st" style="color:var(--error)">pending</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+      <div>
+        <h4>How it works</h4>
+        <ul>
+          <li><strong>A fixed template, not a blank page.</strong> Purpose/goal, trigger, steps, definition of done, exceptions. The template is the discipline — you cannot publish without a goal.</li>
+          <li><strong>The diagram is free.</strong> Steps are structured rows, so the vertical flow renders itself. No layout work, no divergence between the picture and the words.</li>
+          <li><strong>Acknowledgement is the point.</strong> Straight out of ISO 9001 §7.5 and Promapp. When rev 5 publishes, everyone affected gets it in their queue and must mark it read. You get a live "who's on the old version" board — which is a direct answer to "work isn't hitting the standard".</li>
+          <li><strong>Exceptions are first-class.</strong> Every systems book says the same thing: what kills a process isn't the happy path, it's the undocumented edge case. Giving exceptions their own field is a small change with outsized effect.</li>
+          <li><strong>Best fit for sales &amp; marketing.</strong> These aren't neat DAGs — they're rhythms, judgement calls and triggers. Prose handles that where a flowchart fights it.</li>
+        </ul>
+        <h4>Where it's weakest</h4>
+        <ul>
+          <li>Least visual of the five. It's a wiki with a diagram attached, and wikis go stale.</li>
+          <li>You explicitly asked for a drawing board. This isn't one.</li>
+          <li>Acknowledgement can become a rubber-stamp ritual if the cadence isn't real.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Data model</h4>
+        <div class="schema"><span class="kw">create table</span> playbook_processes (
+  id uuid <span class="kw">primary key</span>, name text, band text,
+  owner_id uuid, expert_id uuid,
+  <span class="st">goal_statement</span> text <span class="kw">not null</span>,
+  goal_kpi text, trigger_text text,
+  definition_of_done text, exceptions_md text,
+  review_due_at date, current_revision_id uuid
+);
+
+<span class="kw">create table</span> playbook_acknowledgements (
+  id uuid <span class="kw">primary key</span>,
+  revision_id uuid <span class="kw">references</span> process_revisions,
+  team_member_id uuid,
+  viewed_at      timestamptz,
+  <span class="st">acknowledged_at</span> timestamptz,   <span class="cm">-- null = pending</span>
+  <span class="kw">unique</span> (revision_id, team_member_id)
+);
+
+<span class="cm">-- dashboard: who is on an old revision</span>
+<span class="kw">create view</span> playbook_ack_status <span class="kw">as</span> …</div>
+        <h4 style="margin-top:18px">Effort</h4>
+        <ul>
+          <li><span style="font-family:var(--mono);font-size:11.5px">@uiw/react-md-editor</span> is already a dependency.</li>
+          <li>Auto-diagram reuses existing block components.</li>
+          <li><strong>~2–3 weeks</strong> including the acknowledgement queue.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===== CONCEPT 5: LEDGER ===== -->
+  <div class="panel" id="p5">
+  <div class="concept">
+    <div class="chead">
+      <div class="kicker">CONCEPT 05 — GOVERNANCE FIRST</div>
+      <h3>The Ledger</h3>
+      <p class="tagline">Git, for how the business works. Anyone on the team can open a <em>proposal</em> against any process — a private draft branch. They move blocks, retime steps, add a reason for the change, and submit. The owner sees a visual diff: added blocks glow green, removed ones strike through red, retimed ones amber. Approve and it becomes rev 5 with a permanent changelog entry. You can scrub back through time and watch how the business evolved.</p>
+      <div class="meta">
+        <div><div class="k">Primary object</div><div class="v">The revision</div></div>
+        <div><div class="k">Build effort</div><div class="v"><span class="dot d-med"></span>Medium–high</div></div>
+        <div><div class="k">New dependency</div><div class="v">jsondiffpatch (~3KB)</div></div>
+        <div><div class="k">Free drag</div><div class="v">Inherits from 1/2/3</div></div>
+        <div><div class="k">Best for</div><div class="v">Whole team contributing safely</div></div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="win">
+        <div class="winbar">
+          <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+          <span class="t">Conductor › Systems › Scoping &amp; Estimation › Proposal #12</span>
+          <div class="r"><span class="pill a">Awaiting your approval</span><span class="pill k">by Jamie M. · 2h ago</span></div>
+        </div>
+        <div class="ledger">
+          <div class="hist">
+            <div class="hist-h">Revision history</div>
+            <div class="rev draft">
+              <div class="rv">PROPOSAL #12</div>
+              <div class="rd">05 Aug 2026 · Jamie M.</div>
+              <div class="rc">"We keep blowing the estimate because nobody checks the SOW against past actuals. Adding a step."</div>
+            </div>
+            <div class="rev cur">
+              <div class="rv">REV 4 — current</div>
+              <div class="rd">12 Jun 2026 · Brendan G.</div>
+              <div class="rc">Split "Draft scope" into draft + AI enhance after the Q2 review.</div>
+            </div>
+            <div class="rev">
+              <div class="rv">REV 3</div>
+              <div class="rd">03 Mar 2026 · Lisa R.</div>
+              <div class="rc">Moved open-questions loop before pricing — was causing rework.</div>
+            </div>
+            <div class="rev">
+              <div class="rv">REV 2</div>
+              <div class="rd">18 Jan 2026 · Brendan G.</div>
+              <div class="rc">Added department allocation to every step.</div>
+            </div>
+            <div class="rev">
+              <div class="rv">REV 1</div>
+              <div class="rd">04 Nov 2025 · Brendan G.</div>
+              <div class="rc">Initial documentation.</div>
+            </div>
+          </div>
+          <div class="diff">
+            <div class="diff-h">
+              <span class="dt">Scoping &amp; Estimation</span>
+              <span class="pill k">Rev 4 → Proposal #12</span>
+              <span class="pill a">+1 step · 1 retimed · 2.5h → 3.5h</span>
+            </div>
+            <div class="dcols">
+              <div>
+                <div class="dcol-h old">Rev 4 — current (2.5h)</div>
+                <div class="stack">
+                  <div class="blk"><div class="bt">1 · Read brief &amp; classify intent</div><div class="bf"><span class="av c2">JM</span><span class="hrs">0.50</span></div></div>
+                  <div class="blk"><div class="bt">2 · Draft scope</div><div class="bf"><span class="av c2">JM</span><span class="hrs">1.00</span></div></div>
+                  <div class="blk"><div class="bt">3 · AI enhance &amp; open questions</div><div class="bf"><span class="av c2">JM</span><span class="hrs">0.50</span></div></div>
+                  <div class="blk rem"><div class="bt">4 · Price from service catalogue</div><div class="bf"><span class="av c3">BG</span><span class="hrs">0.50</span></div></div>
+                </div>
+              </div>
+              <div>
+                <div class="dcol-h new">Proposal #12 (3.5h)</div>
+                <div class="stack">
+                  <div class="blk"><div class="bt">1 · Read brief &amp; classify intent</div><div class="bf"><span class="av c2">JM</span><span class="hrs">0.50</span></div></div>
+                  <div class="blk"><div class="bt">2 · Draft scope</div><div class="bf"><span class="av c2">JM</span><span class="hrs">1.00</span></div></div>
+                  <div class="blk"><div class="bt">3 · AI enhance &amp; open questions</div><div class="bf"><span class="av c2">JM</span><span class="hrs">0.50</span></div></div>
+                  <div class="blk add">
+                    <div class="bt">4 · Check against last 3 similar actuals</div>
+                    <div class="bg">Goal: no estimate ships without a reality check</div>
+                    <div class="bf"><span class="av c2">JM</span><span class="hrs">0.50</span></div>
+                  </div>
+                  <div class="blk chg">
+                    <div class="bt">5 · Price from catalogue + variance note</div>
+                    <div class="bf"><span class="av c3">BG</span><span class="hrs" style="background:#FEF3C7;color:#78350F">0.50 → 1.00</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="approve">
+              <div class="rt"><strong style="color:var(--ink)">Reason for change:</strong> "We keep blowing the estimate because nobody checks the SOW against past actuals. Adding a step, and pricing needs longer than we pretend."</div>
+              <button class="btn ghost">Request changes</button>
+              <button class="btn">Approve → Rev 5</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+      <div>
+        <h4>How it works</h4>
+        <ul>
+          <li><strong>Every revision is immutable.</strong> Nothing is ever edited in place. This matches the append-only <span style="font-family:var(--mono);font-size:11.5px">project_actuals → project_actuals_current</span> idiom already used throughout Conductor.</li>
+          <li><strong>Proposals unlock the team.</strong> You said whole-team-contributes with approval gating. This is that, exactly. A junior can fix a process they run daily without anyone fearing they'll break it — the owner sees a diff, not a mystery.</li>
+          <li><strong>Reason-for-change is mandatory.</strong> Straight from ISO 9001. Over a year you accumulate a narrative of <em>why</em> the business works the way it does, which is the single most valuable artefact here and the thing every other tool loses.</li>
+          <li><strong>Time-scrubbing.</strong> Drag a slider and see what the process looked like in March. Pair it with actuals and you can ask: did rev 4 actually make things better?</li>
+          <li><strong>It is a layer, not a rival.</strong> Honest framing: the Ledger sits <em>on top of</em> whichever editor you pick from concepts 1–3. It's the governance skin.</li>
+        </ul>
+        <h4>Where it's weakest</h4>
+        <ul>
+          <li>Ceremony can throttle contribution. If approving a proposal takes a week, people stop proposing.</li>
+          <li>Needs an underlying editor to be useful — it can't ship first.</li>
+          <li>Visual diffing of a free-form graph (concept 2) is genuinely hard. Diffing an ordered step list (concepts 1/3) is easy. That's an argument for pairing it with 1 or 3.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Data model</h4>
+        <div class="schema"><span class="kw">create table</span> process_revisions (
+  id           uuid <span class="kw">primary key</span>,
+  definition_id uuid <span class="kw">references</span> process_definitions,
+  <span class="st">revision</span>     int <span class="kw">not null</span>,
+  body         jsonb,   <span class="cm">-- full snapshot</span>
+  state        text,    <span class="cm">-- draft|proposed|published|superseded</span>
+  <span class="st">reason_for_change</span> text <span class="kw">not null</span>,
+  proposed_by  uuid, proposed_at timestamptz,
+  approved_by  uuid, approved_at timestamptz,
+  <span class="st">effective_date</span> date,
+  supersedes_id uuid,
+  diff_summary jsonb,   <span class="cm">-- {added:[],removed:[],changed:[]}</span>
+  <span class="kw">unique</span> (definition_id, revision)
+);
+
+<span class="cm">-- one live published revision per process</span>
+<span class="kw">create unique index</span> proc_one_live_idx
+  <span class="kw">on</span> process_revisions (definition_id)
+  <span class="kw">where</span> state = <span class="st">'published'</span>;
+<span class="cm">-- mirrors quotes_one_live_per_scope_idx exactly</span></div>
+        <h4 style="margin-top:18px">Effort</h4>
+        <ul>
+          <li>One table, one state machine, a diff renderer. <span style="font-family:var(--mono);font-size:11.5px">jsondiffpatch</span> for structural comparison.</li>
+          <li>Reuses your existing approval patterns from <span style="font-family:var(--mono);font-size:11.5px">extension_requests</span> / <span style="font-family:var(--mono);font-size:11.5px">revision_requests</span>.</li>
+          <li><strong>~2–3 weeks</strong> on top of an existing editor.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ================= MATRIX ================= -->
+<section>
+  <h2>Side by side</h2>
+  <p class="sub">Scored 1–5 against what you asked for. Note the pattern: no single concept scores well across the board, which is the real finding.</p>
+  <div class="tscroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Criterion</th>
+        <th>01 Atlas</th>
+        <th>02 Drawing Board</th>
+        <th>03 Spec</th>
+        <th>04 Playbook</th>
+        <th>05 Ledger</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Feels like a drawing board</td>
+        <td><span class="score s3">3</span></td><td><span class="score s5">5</span></td>
+        <td><span class="score s2">2</span></td><td><span class="score s1">1</span></td><td><span class="score s3">3</span></td></tr>
+      <tr><td>Drag / add / rearrange blocks</td>
+        <td><span class="score s2">2</span></td><td><span class="score s5">5</span></td>
+        <td><span class="score s3">3</span></td><td><span class="score s1">1</span></td><td><span class="score s2">2</span></td></tr>
+      <tr><td>Assign people to blocks</td>
+        <td><span class="score s5">5</span></td><td><span class="score s5">5</span></td>
+        <td><span class="score s5">5</span></td><td><span class="score s5">5</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td>Assign time to blocks</td>
+        <td><span class="score s4">4</span></td><td><span class="score s4">4</span></td>
+        <td><span class="score s5">5</span></td><td><span class="score s4">4</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td>Goal on every process &amp; sub-process</td>
+        <td><span class="score s5">5</span></td><td><span class="score s4">4</span></td>
+        <td><span class="score s4">4</span></td><td><span class="score s5">5</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td>Revision no. + date + change comment</td>
+        <td><span class="score s3">3</span></td><td><span class="score s3">3</span></td>
+        <td><span class="score s3">3</span></td><td><span class="score s4">4</span></td><td><span class="score s5">5</span></td></tr>
+      <tr><td>Click in / drill into sub-processes</td>
+        <td><span class="score s5">5</span></td><td><span class="score s5">5</span></td>
+        <td><span class="score s3">3</span></td><td><span class="score s3">3</span></td><td><span class="score s3">3</span></td></tr>
+      <tr><td><strong>Makes scoping more accurate</strong></td>
+        <td><span class="score s4">4</span></td><td><span class="score s2">2</span></td>
+        <td><span class="score s5">5</span></td><td><span class="score s3">3</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td><strong>Raises standard of completed work</strong></td>
+        <td><span class="score s3">3</span></td><td><span class="score s2">2</span></td>
+        <td><span class="score s3">3</span></td><td><span class="score s5">5</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td><strong>Helps map sales &amp; marketing (unmapped)</strong></td>
+        <td><span class="score s4">4</span></td><td><span class="score s5">5</span></td>
+        <td><span class="score s2">2</span></td><td><span class="score s4">4</span></td><td><span class="score s2">2</span></td></tr>
+      <tr><td>Whole team can contribute safely</td>
+        <td><span class="score s3">3</span></td><td><span class="score s2">2</span></td>
+        <td><span class="score s3">3</span></td><td><span class="score s3">3</span></td><td><span class="score s5">5</span></td></tr>
+      <tr><td>Resists becoming shelfware</td>
+        <td><span class="score s4">4</span></td><td><span class="score s1">1</span></td>
+        <td><span class="score s5">5</span></td><td><span class="score s3">3</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td>Reuses existing Conductor schema</td>
+        <td><span class="score s4">4</span></td><td><span class="score s2">2</span></td>
+        <td><span class="score s5">5</span></td><td><span class="score s3">3</span></td><td><span class="score s4">4</span></td></tr>
+      <tr><td>Build time to first useful version</td>
+        <td>2–3 wks</td><td>5–7 wks</td><td><strong>1.5–2 wks</strong></td><td>2–3 wks</td><td>2–3 wks*</td></tr>
+      <tr><td>New dependencies</td>
+        <td>None</td><td>@xyflow/react, dagre</td><td>None</td><td>None</td><td>jsondiffpatch</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-top:10px">* The Ledger's estimate assumes an editor from 01 / 02 / 03 already exists — it is a layer, not a standalone product.</p>
+</section>
+
+<!-- ================= RECOMMENDATION ================= -->
+<section>
+  <div class="rec">
+    <h2>What I'd actually do</h2>
+    <p>Concepts 1, 2 and 3 are genuinely rival bets on what the primary object is. Concepts 4 and 5 are layers that can sit on any of them. So the real question isn't "which one" — it's "which spine, and in what order do the layers land".</p>
+    <p style="margin-top:14px">My read: <strong>The Spec (03) is the spine, The Atlas (01) is the navigation, The Ledger (05) is the governance, and The Drawing Board (02) is the greenfield tool you add last</strong> — because the thing that makes Conductor special is that hours already mean something here. No SOP product on the market can tell you that your documented process says 14.5h and reality says 17.2h. That loop is your unfair advantage, and it only exists if the process data is structured, not a canvas blob.</p>
+
+    <div class="stack-d">
+      <div class="layer">
+        <div class="ph">PHASE 1<br>~2 wks</div>
+        <div>
+          <div class="lt">Spec spine — untether process from service</div>
+          <div class="ld">Make <span style="font-family:var(--mono);font-size:11.5px">process_steps.service_id</span> nullable, add <span style="font-family:var(--mono);font-size:11.5px">process_definitions</span> with a mandatory goal, add goal + definition-of-done per step. Rebuild <span style="font-family:var(--mono);font-size:11.5px">ProcessFlow.tsx</span> into a real editor with the live allocation and reality-check panels. You can document the sales system on day one — and its hours land in the same place your service hours do.</div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="ph">PHASE 2<br>~2 wks</div>
+        <div>
+          <div class="lt">Ledger — revisions, proposals, diffs</div>
+          <div class="ld">Immutable <span style="font-family:var(--mono);font-size:11.5px">process_revisions</span> with mandatory reason-for-change, a proposal state machine reusing your <span style="font-family:var(--mono);font-size:11.5px">extension_requests</span> approval pattern, and a step-list diff view. Diffing an ordered list is easy; this is why the Spec comes first. Now the whole team can contribute without you fearing the map.</div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="ph">PHASE 3<br>~2 wks</div>
+        <div>
+          <div class="lt">Atlas — the L0 business map</div>
+          <div class="ld">The four bands, nine processes, and the red "unmapped" blocks. This is the artefact you'll actually put on a screen in a leadership meeting. Cheap once the data exists — it's a query and a grid. Adds the drill-down and the roll-up hours per band.</div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="ph">PHASE 4<br>~1.5 wks</div>
+        <div>
+          <div class="lt">Playbook layer — prose fields + acknowledgement</div>
+          <div class="ld">Add trigger, exceptions and the acknowledgement queue to the existing process record. This is the piece that attacks "work isn't hitting the standard" directly — a live board of who is still working off rev 3.</div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="ph">PHASE 5<br>~4 wks · optional</div>
+        <div>
+          <div class="lt">Drawing Board — React Flow canvas for greenfield design</div>
+          <div class="ld">Add the free canvas as a <em>drafting mode</em> for processes that don't exist yet. Sketch the marketing system on the canvas in a workshop, then "commit to spec" — which converts the graph into structured steps. You get the workshop feel without the shelfware risk, because the canvas is a doorway, not the destination.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <b>The honest risk:</b> every source in the research agreed that documentation dies without a cadence. Whichever concept you pick, the thing that determines whether this works isn't the software — it's whether a named owner reviews their process every quarter and whether proposals get approved within days, not weeks. EOS says 6–10 core processes, maximum 12. If Conductor ends up holding 40 process maps, it has already failed. <b>Build the review cadence into the tool before you build the fifth feature.</b>
+    </div>
+  </div>
+</section>
+
+<div class="foot">Conductor · Process Canvas Research · Prepared for Brendan Gunn · 05 August 2026</div>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+    document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('active')});
+    t.classList.add('active');
+    document.getElementById(t.dataset.p).classList.add('active');
+    window.scrollTo({top:t.closest('section').offsetTop-20,behavior:'smooth'});
+  });
+});
+</script>
+</body>
+</html>

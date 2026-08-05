@@ -24,17 +24,23 @@ import {
 } from "@/components/ui/select";
 import { useBriefedTaskDetails, useUpdateBriefedTask, useFlagClientDelay, type BriefedTaskFields } from "@/hooks/useBriefedTask";
 import { useBriefExtensions, useResolveExtension, type BriefExtension } from "@/hooks/useBriefExtensions";
+import { useTaskExtensionRequests } from "@/hooks/useTaskExtensionRequests";
 import { ExtensionDialog } from "@/components/briefs/ExtensionDialog";
 import { useClients } from "@/hooks/useClients";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useTeam } from "@/hooks/useTeam";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
+import type { ExtensionRequestRow } from "@/types/extension-requests";
+import type { Database } from "@/types/db";
+
+type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 
 interface BriefedTaskPanelProps {
   brief: {
     id: string;
     raw_subject: string | null;
     clickup_task_url: string | null;
+    clickup_task_id: string | null;
     client_id: string | null;
     billing_type: string | null;
     assignee_id: string | null;
@@ -71,6 +77,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { data: extensions = [] } = useBriefExtensions(brief.id, true);
+  const { data: extensionRequests = [] } = useTaskExtensionRequests(brief.clickup_task_id, true);
   const [extensionOpen, setExtensionOpen] = useState(false);
 
   const clientName = clients.find((c) => c.id === brief.client_id)?.name ?? "—";
@@ -257,11 +264,27 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
             <Field label="Billing">{billingLabel}</Field>
           </div>
           {d?.is_complete && <CompletionSection d={d} briefId={brief.id} />}
-          <TaskHistory briefId={brief.id} briefedAt={d?.briefed_at ?? null} completedAt={d?.completed_at ?? null} extensions={extensions} />
+          <TaskHistory
+            briefId={brief.id}
+            briefedAt={d?.briefed_at ?? null}
+            completedAt={d?.completed_at ?? null}
+            extensions={extensions}
+            extensionRequests={extensionRequests}
+            team={team}
+          />
         </>
       )}
     </div>
   );
+}
+
+/** What changed on a staff extension_requests row — points, due date, or both. */
+function extensionRequestChange(e: ExtensionRequestRow): string {
+  const pts = (v: number | null) => (v != null ? `${v} pt${v === 1 ? "" : "s"}` : "—");
+  const parts: string[] = [];
+  if (e.extra_points) parts.push(`${pts(e.original_points)} → ${pts((e.original_points ?? 0) + e.extra_points)}`);
+  if (e.requested_due_date) parts.push(`due ${formatDue(e.original_due_date)} → ${formatDue(e.requested_due_date)}`);
+  return parts.join(", ") || "extension";
 }
 
 /** Chronological history of the task: briefed → extensions → completed. */
@@ -270,14 +293,19 @@ function TaskHistory({
   briefedAt,
   completedAt,
   extensions,
+  extensionRequests,
+  team,
 }: {
   briefId: string;
   briefedAt: string | null;
   completedAt: string | null;
   extensions: BriefExtension[];
+  extensionRequests: ExtensionRequestRow[];
+  team: TeamMember[];
 }) {
   const resolve = useResolveExtension(briefId);
   const pts = (v: number | null) => (v != null ? `${v} pt${v === 1 ? "" : "s"}` : "—");
+  const nameOf = (id: string | null) => team.find((m) => m.id === id)?.full_name ?? null;
 
   const extChange = (e: BriefExtension) => {
     const parts: string[] = [];
@@ -285,6 +313,21 @@ function TaskHistory({
     if (e.new_points != null) parts.push(`${pts(e.prev_points)} → ${pts(e.new_points)}`);
     return parts.join(", ") || "extension";
   };
+
+  // Both sources are "an extension happened to this task", just raised through
+  // different flows (client-approval vs staff admin/owner sign-off) — merged
+  // into one chronological list rather than two separate sections.
+  type TimelineItem =
+    | { kind: "brief-extension"; at: string; row: BriefExtension }
+    | { kind: "request-extension"; at: string; row: ExtensionRequestRow };
+  const timeline: TimelineItem[] = [
+    ...extensions.map((row): TimelineItem => ({ kind: "brief-extension", at: row.created_at, row })),
+    ...extensionRequests.map((row): TimelineItem => ({
+      kind: "request-extension",
+      at: row.approved_at ?? row.admin_approved_at ?? row.created_at,
+      row,
+    })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
 
   return (
     <div className="mt-6 border-t border-m-outline-variant pt-5">
@@ -298,58 +341,85 @@ function TaskHistory({
           </div>
         </li>
 
-        {extensions.map((e) => (
-          <li key={e.id} className="flex gap-3">
-            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-body-small text-m-on-surface">Extension · {extChange(e)}</span>
-                {e.client_approval_status === "pending" && (
-                  <Badge variant="warning" className="text-label-small">Pending client approval</Badge>
-                )}
-                {e.client_approval_status === "approved" && (
-                  <Badge variant="success" className="text-label-small">Client approved</Badge>
-                )}
-                {e.client_approval_status === "declined" && (
-                  <Badge variant="destructive" className="text-label-small">Client declined</Badge>
-                )}
-              </div>
-              <div className="text-label-small text-m-on-surface-variant">
-                {formatDue(e.created_at.slice(0, 10))} · {e.reason}
-              </div>
-              {e.client_approval_status === "pending" && (
-                <div className="mt-1.5 flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={resolve.isPending}
-                    onClick={() =>
-                      resolve
-                        .mutateAsync({ extension_id: e.id, action: "approve" })
-                        .then(() => toast.success("Extra points applied"))
-                        .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
-                    }
-                  >
-                    Client approved
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={resolve.isPending}
-                    onClick={() =>
-                      resolve
-                        .mutateAsync({ extension_id: e.id, action: "decline" })
-                        .then(() => toast.success("Extension declined"))
-                        .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
-                    }
-                  >
-                    Declined
-                  </Button>
+        {timeline.map((item) =>
+          item.kind === "brief-extension" ? (
+            <li key={`be-${item.row.id}`} className="flex gap-3">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-body-small text-m-on-surface">Extension · {extChange(item.row)}</span>
+                  {item.row.client_approval_status === "pending" && (
+                    <Badge variant="warning" className="text-label-small">Pending client approval</Badge>
+                  )}
+                  {item.row.client_approval_status === "approved" && (
+                    <Badge variant="success" className="text-label-small">Client approved</Badge>
+                  )}
+                  {item.row.client_approval_status === "declined" && (
+                    <Badge variant="destructive" className="text-label-small">Client declined</Badge>
+                  )}
                 </div>
-              )}
-            </div>
-          </li>
-        ))}
+                <div className="text-label-small text-m-on-surface-variant">
+                  {formatDue(item.row.created_at.slice(0, 10))} · {item.row.reason}
+                </div>
+                {item.row.client_approval_status === "pending" && (
+                  <div className="mt-1.5 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resolve.isPending}
+                      onClick={() =>
+                        resolve
+                          .mutateAsync({ extension_id: item.row.id, action: "approve" })
+                          .then(() => toast.success("Extra points applied"))
+                          .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
+                      }
+                    >
+                      Client approved
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={resolve.isPending}
+                      onClick={() =>
+                        resolve
+                          .mutateAsync({ extension_id: item.row.id, action: "decline" })
+                          .then(() => toast.success("Extension declined"))
+                          .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
+                      }
+                    >
+                      Declined
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </li>
+          ) : (
+            <li key={`er-${item.row.id}`} className="flex gap-3">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-body-small text-m-on-surface">
+                    Extension request · {extensionRequestChange(item.row)}
+                  </span>
+                  <Badge variant="success" className="text-label-small">
+                    {item.row.tier === "auto" ? "Auto-approved" : `Approved · ${item.row.tier}`}
+                  </Badge>
+                </div>
+                <div className="text-label-small text-m-on-surface-variant">
+                  {formatDue(item.at.slice(0, 10))}
+                  {item.row.reason ? ` · ${item.row.reason}` : ""}
+                  {item.row.due_date_reason && item.row.due_date_reason !== item.row.reason
+                    ? ` · ${item.row.due_date_reason}`
+                    : ""}
+                  {(() => {
+                    const approver = nameOf(item.row.approver_id) ?? nameOf(item.row.admin_approver_id);
+                    return approver ? ` · approved by ${approver}` : "";
+                  })()}
+                </div>
+              </div>
+            </li>
+          ),
+        )}
 
         {completedAt && (
           <li className="flex gap-3">

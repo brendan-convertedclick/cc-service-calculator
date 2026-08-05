@@ -136,15 +136,27 @@ export function BriefFormBody() {
         success_criteria: successCriteria.trim(),
         measurable_outcome: measurableOutcome.trim(),
       };
-      const { error } = await supabase
-        // @ts-expect-error staff_briefs added by migration 0052
+      const { data: inserted, error } = await supabase
         .from("staff_briefs")
-        .insert(insertPayload);
+        .insert(insertPayload)
+        .select("id")
+        .single();
       if (error) {
         toast.error(`Submit failed: ${error.message}`);
         return;
       }
       toast.success("Brief submitted for approval.");
+      // Fire-and-forget: ping admins in ClickUp chat + email. Never blocks
+      // the submit — the request is already saved either way.
+      const session = (await supabase.auth.getSession()).data.session;
+      fetch(`${FUNCTIONS_BASE}/notify-staff-brief`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ staff_brief_id: (inserted as { id: string }).id }),
+      }).catch(() => {});
       setTaskName("");
       setSprintPoints("1");
       setIsInternal(false);
@@ -255,12 +267,12 @@ export function BriefFormBody() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="brief-measurable">What is the measurable outcome?</Label>
+        <Label htmlFor="brief-measurable">What's the expected output, in numbers?</Label>
         <Textarea
           id="brief-measurable"
           value={measurableOutcome}
           onChange={(e) => setMeasurableOutcome(e.target.value)}
-          placeholder="A number, a state change, an artefact."
+          placeholder="e.g. 40 creatives, 1 Excel export, 3 landing pages — a count someone can check this against later."
           rows={3}
         />
       </div>

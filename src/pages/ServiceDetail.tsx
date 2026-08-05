@@ -52,6 +52,7 @@ export function ServiceDetail({ mode }: Props) {
     status: "active",
     notes: "",
     default_due_days: null as number | null,
+    checklist_items: "",
   });
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export function ServiceDetail({ mode }: Props) {
         status: s.status,
         notes: s.notes ?? "",
         default_due_days: s.default_due_days,
+        checklist_items: (s.checklist_items ?? []).join("\n"),
       });
     }
     // Only re-seed the form when the underlying service identity changes.
@@ -101,6 +103,7 @@ export function ServiceDetail({ mode }: Props) {
       status: form.status,
       notes: form.notes || null,
       default_due_days: form.default_due_days,
+      checklist_items: form.checklist_items.split("\n").filter((i) => i.trim()),
     };
 
     if (mode === "new") {
@@ -417,6 +420,17 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                       />
                     </div>
                   ))}
+                  <div className="space-y-2">
+                    <Label>Checklist items</Label>
+                    <Textarea
+                      value={form.checklist_items}
+                      onChange={(e) =>
+                        setForm({ ...form, checklist_items: e.target.value })
+                      }
+                      rows={3}
+                      placeholder="One per line — optional. Stamped as a ClickUp checklist on every task created from this service."
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </div>

@@ -26,7 +26,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { findCustomField, resolveDropdownOption } from "../_shared/clickup.ts";
+import { addClickupChecklist, findCustomField, resolveDropdownOption } from "../_shared/clickup.ts";
 import type { CuField } from "../_shared/clickup.ts";
 
 const POINT_TO_MIN = 15;
@@ -112,6 +112,10 @@ Deno.serve(async (req: Request) => {
       { headers: { Authorization: clickupPat, "Content-Type": "application/json" } },
     );
     if (fieldsRes.ok) cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
+
+    // Closed status for this list — used to end prior-period recurring tasks
+    // once a new period starts (see closePriorPeriodTasks below).
+    const closedStatusName = await resolveClosedStatus(clickupPat, project.clickup_list_id!);
 
     // Service name + dominant department (the service's "Work Stream"), keyed by
     // service_id. Dominant = the allocation with the highest pct.
@@ -247,6 +251,25 @@ Deno.serve(async (req: Request) => {
           (member as { tracking_mode?: string }).tracking_mode === "live" && svc.is_live_eligible
             ? "live"
             : "manual";
+
+        // End any still-open tasks from periods before this one — a recurring
+        // task (e.g. Daily Stand Up) shouldn't stay open once its month has
+        // rolled over. Live tasks are perpetual by design and are skipped.
+        if (mode !== "live" && closedStatusName) {
+          const { data: priorPeriods } = await sb
+            .from("provisioned_tasks")
+            .select("clickup_task_ids")
+            .eq("recurring_service_id", svc.id)
+            .eq("assignee_id", assigneeId)
+            .neq("mode", "live")
+            .lt("period_end", isoDate(periodStart));
+          const staleIds = (priorPeriods ?? []).flatMap(
+            (r) => (r as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [],
+          );
+          for (const tid of staleIds) {
+            await closeClickupTask(clickupPat, tid, closedStatusName);
+          }
+        }
 
         // Idempotency check: existing row?
         const { data: existing } = await sb
@@ -465,7 +488,7 @@ Deno.serve(async (req: Request) => {
               // Standing QC checklist (e.g. "Before & After Screenshot"), added
               // via the ClickUp Checklists API since templates aren't available.
               if ((svc.checklist_items ?? []).some((c) => c && c.trim())) {
-                await addClickupChecklist(clickupPat, id, svc.checklist_items ?? []);
+                await addClickupChecklist(clickupPat, id, svc.checklist_items ?? [], assigneeIds[0] ?? null);
               }
             }
           }
@@ -608,6 +631,36 @@ async function patchClickupTask(
   return { renameOk: true, fieldsSet, fieldsTotal: args.customFields.length };
 }
 
+// The list's closed (or done, as a fallback) status name — used to end
+// prior-period recurring tasks once a new period is provisioned. Null if the
+// list has neither, so the caller can skip closing rather than guess.
+async function resolveClosedStatus(pat: string, listId: string): Promise<string | null> {
+  const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}`, {
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { statuses?: Array<{ status: string; type: string }> };
+  const closed = body.statuses?.find((s) => s.type === "closed") ??
+    body.statuses?.find((s) => s.type === "done");
+  return closed?.status ?? null;
+}
+
+// Best-effort: move a task to the list's closed status. Skips tasks already
+// there (idempotent) and never throws — a failure here shouldn't block
+// provisioning the new period's tasks.
+async function closeClickupTask(pat: string, taskId: string, closedStatus: string): Promise<void> {
+  try {
+    const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+      method: "PUT",
+      headers: { Authorization: pat, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: closedStatus }),
+    });
+    if (!res.ok) console.error(`close task ${taskId} failed: ${res.status}`);
+  } catch (e) {
+    console.error(`close task ${taskId} threw:`, e);
+  }
+}
+
 // Trash a ClickUp task (recoverable in ClickUp for ~30 days). Used when
 // re-provisioning a service whose config changed mid-period.
 async function deleteClickupTask(pat: string, taskId: string): Promise<void> {
@@ -656,33 +709,6 @@ async function setClickupAssignees(pat: string, taskId: string, assigneeIds: num
     body: JSON.stringify({ assignees: { add: assigneeIds } }),
   });
   if (!res.ok) console.error(`set assignees ${taskId} failed: ${res.status}`);
-}
-
-// Add a checklist with the given items to a task (ClickUp Checklists API).
-async function addClickupChecklist(pat: string, taskId: string, items: string[]): Promise<void> {
-  const clean = items.map((i) => i?.trim()).filter(Boolean) as string[];
-  if (clean.length === 0) return;
-  const headers = { Authorization: pat, "Content-Type": "application/json" };
-  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}/checklist`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ name: "Checklist" }),
-  });
-  if (!res.ok) {
-    console.error(`create checklist ${taskId} failed: ${res.status}`);
-    return;
-  }
-  const data = await res.json().catch(() => null) as { checklist?: { id?: string } } | null;
-  const cid = data?.checklist?.id;
-  if (!cid) return;
-  for (const item of clean) {
-    const ir = await fetch(`https://api.clickup.com/api/v2/checklist/${cid}/checklist_item`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ name: item }),
-    });
-    if (!ir.ok) console.error(`checklist item ${taskId} failed: ${ir.status}`);
-  }
 }
 
 function firstOfMonth(d: Date): Date {

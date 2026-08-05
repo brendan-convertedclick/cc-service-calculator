@@ -11,7 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 import { briefBriefedMessage, CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 Deno.serve(async (req: Request) => {
@@ -19,13 +19,25 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const b = (await req.json()) as {
+    type Body = {
       brief_id?: string; task_name?: string; description?: string;
       assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
-      billing_type?: string;
+      billing_type?: string; checklist_items?: string[];
     };
+    // File attachments arrive as multipart/form-data (payload = JSON string,
+    // one or more "file" entries); no attachments → plain JSON, as before.
+    let b: Body;
+    let attachmentFiles: File[] = [];
+    const contentType = req.headers.get("content-type") ?? "";
+    if (contentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      b = JSON.parse((form.get("payload") as string) ?? "{}") as Body;
+      attachmentFiles = form.getAll("file").filter((f): f is File => f instanceof File);
+    } else {
+      b = (await req.json()) as Body;
+    }
     if (!b.brief_id || !b.task_name || !b.work_stream || !b.sprint_points) {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
     }
@@ -136,6 +148,26 @@ Deno.serve(async (req: Request) => {
     }
     if (!createRes.ok) return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
     const created = (await createRes.json()) as { id: string; url: string };
+
+    if ((b.checklist_items ?? []).some((c) => c && c.trim())) {
+      await addClickupChecklist(clickupPat, created.id, b.checklist_items ?? [], assigneeClickupId);
+    }
+
+    // Best-effort per file: the task already exists, so a failed upload must
+    // not fail the request — log it so it can be attached manually. ClickUp's
+    // attachment endpoint takes one file per call, so upload each in turn.
+    for (const file of attachmentFiles) {
+      const attachForm = new FormData();
+      attachForm.append("attachment", file, file.name);
+      const attachRes = await fetch(`https://api.clickup.com/api/v2/task/${created.id}/attachment`, {
+        method: "POST",
+        headers: { Authorization: clickupPat },
+        body: attachForm,
+      });
+      if (!attachRes.ok) {
+        console.error(`[create-quick-brief-task] attachment upload failed for task ${created.id} (${file.name}): ${attachRes.status} ${await attachRes.text()}`);
+      }
+    }
 
     const comment = buildBriefComment({
       client_name: client.name, engagement_type: "Task", work_stream: b.work_stream,

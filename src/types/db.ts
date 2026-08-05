@@ -1361,6 +1361,7 @@ export type Database = {
           variable_overrides: Json
           wiki_path: string | null
           xero_contact_id: string | null
+          xero_contact_name: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -1378,6 +1379,7 @@ export type Database = {
           variable_overrides?: Json
           wiki_path?: string | null
           xero_contact_id?: string | null
+          xero_contact_name?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -1395,6 +1397,7 @@ export type Database = {
           variable_overrides?: Json
           wiki_path?: string | null
           xero_contact_id?: string | null
+          xero_contact_name?: string | null
         }
         Relationships: []
       }
@@ -3628,6 +3631,7 @@ export type Database = {
       }
       services: {
         Row: {
+          checklist_items: string[]
           clickup_work_stream: string | null
           code: string | null
           completion_definition: string | null
@@ -3652,6 +3656,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          checklist_items?: string[]
           clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null
@@ -3676,6 +3681,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          checklist_items?: string[]
           clickup_work_stream?: string | null
           code?: string | null
           completion_definition?: string | null

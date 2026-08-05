@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conductor — Process → ClickUp: triage</title>
+<style>
+:root{
+  --primary:#7C3AED; --pink:#EC4899; --teal:#0891B2; --gold:#F59E0B;
+  --slate:#475569; --error:#DC2626; --green:#16A34A;
+  --ink:#09090B; --muted:#5B4A7A;
+  --surface:#fff; --sc-low:#FAFAFA; --sc:#F5F3FF; --sc-high:#EDE9FE;
+  --outline:#C4B5FD; --outline-var:#EDE9FE;
+  --r-sm:.5rem; --r-md:.75rem; --r-lg:1rem; --r-xl:1.5rem;
+  --e1:0 1px 2px rgba(46,16,101,.08),0 1px 3px rgba(46,16,101,.06);
+  --e2:0 2px 6px rgba(46,16,101,.10);
+  --e3:0 8px 24px rgba(46,16,101,.12),0 2px 6px rgba(46,16,101,.06);
+  --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--sc-low);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 90px}
+code{font-family:var(--mono);font-size:.88em;background:var(--sc-high);
+  padding:1px 5px;border-radius:4px;color:#2E1065}
+
+.hero{background:linear-gradient(135deg,#2E1065,#4C1D95 45%,#7C3AED);
+  color:#fff;padding:46px 0 40px;margin-bottom:36px}
+.hero .wrap{padding-bottom:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:600;opacity:.72;margin-bottom:12px}
+.hero h1{font-size:38px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:0 0 14px}
+.hero p{font-size:16.5px;line-height:1.6;max-width:730px;opacity:.9;margin:0}
+
+section{margin-bottom:48px}
+h2{font-size:25px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+h3{font-size:17px;font-weight:600;margin:0 0 8px}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 22px;max-width:770px}
+
+/* verdict banner */
+.verdict{background:var(--surface);border:1px solid var(--outline-var);border-radius:var(--r-lg);
+  padding:0;overflow:hidden;box-shadow:var(--e2);margin-bottom:14px}
+.vhead{padding:15px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vhead .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;
+  padding:4px 9px;border-radius:5px;white-space:nowrap}
+.vhead .vt{font-size:15.5px;font-weight:600;flex:1;min-width:230px}
+.vbody{padding:0 20px 16px;font-size:13.5px;line-height:1.6;color:var(--muted)}
+.vbody b{color:var(--ink);font-weight:600}
+.v-good{border-left:4px solid var(--green)}
+.v-good .tag{background:#DCFCE7;color:#14532D}
+.v-warn{border-left:4px solid var(--gold)}
+.v-warn .tag{background:#FEF3C7;color:#78350F}
+.v-stop{border-left:4px solid var(--error)}
+.v-stop .tag{background:#FEE2E2;color:#7F1D1D}
+
+/* three renderings */
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:840px){.three{grid-template-columns:1fr}}
+.rend{background:var(--surface);border:1px solid var(--outline-var);border-radius:var(--r-md);
+  overflow:hidden;box-shadow:var(--e1)}
+.rend .rh{padding:11px 14px;border-bottom:1px solid var(--outline-var);background:var(--sc)}
+.rend .rfn{font-family:var(--mono);font-size:10.5px;color:var(--primary);font-weight:600;margin-bottom:3px}
+.rend .rn{font-size:13.5px;font-weight:600}
+.rend .rb{padding:12px 14px}
+.rend .rl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;margin:0 0 5px}
+.cutask{border:1.5px solid var(--outline);border-radius:var(--r-sm);padding:7px 9px;
+  font-size:11.5px;background:var(--sc-low);margin-bottom:9px;font-family:var(--mono);line-height:1.4}
+.attrs{list-style:none;padding:0;margin:0}
+.attrs li{font-size:11.5px;padding:2.5px 0;display:flex;gap:6px;align-items:flex-start;line-height:1.4}
+.attrs li .m{flex:none;font-weight:700;width:12px}
+.yes{color:var(--green)}.no{color:var(--error)}
+
+/* fork table */
+.tscroll{overflow-x:auto;border-radius:var(--r-md)}
+table{width:100%;border-collapse:collapse;background:var(--surface);
+  border-radius:var(--r-md);overflow:hidden;box-shadow:var(--e1);font-size:13px}
+th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--outline-var);vertical-align:top}
+th{background:var(--sc-high);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  font-weight:700;color:#2E1065}
+td:first-child{font-weight:600;font-size:12.5px}
+tr:last-child td{border-bottom:0}
+.tick{color:var(--green);font-weight:700}.cross{color:var(--error);font-weight:700}
+
+/* nesting diagram */
+.nest{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-lg);
+  padding:22px 24px;box-shadow:var(--e2)}
+.ndiag{display:grid;grid-template-columns:1fr 42px 1fr;gap:0;align-items:center}
+@media(max-width:760px){.ndiag{grid-template-columns:1fr;gap:16px}}
+.nside .nl{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;margin-bottom:9px}
+.blk{background:var(--surface);border:1.5px solid var(--outline-var);border-left-width:5px;
+  border-left-color:var(--pink);border-radius:var(--r-md);padding:9px 12px;box-shadow:var(--e1);
+  margin-bottom:7px}
+.blk .bt{font-size:12.5px;font-weight:600;margin-bottom:4px}
+.blk .bf{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hrs{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--primary);
+  background:var(--sc-high);padding:2px 6px;border-radius:var(--r-sm)}
+.av{width:18px;height:18px;border-radius:50%;background:var(--pink);color:#fff;font-size:8px;
+  font-weight:700;display:grid;place-items:center;flex:none}
+.subs{margin-left:16px;border-left:2px dashed var(--outline);padding-left:11px}
+.sub-i{font-size:11px;padding:4px 8px;background:var(--sc);border-radius:var(--r-sm);
+  margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
+.narrow{display:grid;place-items:center;font-size:22px;color:var(--outline)}
+.cutask2{border:1.5px solid var(--outline);border-radius:var(--r-sm);background:var(--sc-low);
+  padding:10px 12px;margin-bottom:8px}
+.cutask2 .ct{font-size:12px;font-weight:600;font-family:var(--mono);margin-bottom:6px}
+.cumeta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.pill{border-radius:999px;padding:2px 8px;font-size:9.5px;font-weight:600;
+  background:var(--sc-high);color:#2E1065}
+.pill.g{background:#DCFCE7;color:#14532D}
+.cucheck{font-size:11px;padding:3px 0;display:flex;gap:7px;align-items:center;color:var(--muted)}
+.cucheck .bx{width:11px;height:11px;border:1.5px solid var(--outline);border-radius:2.5px;flex:none}
+
+/* destinations */
+.dests{display:grid;gap:12px}
+.dest{background:var(--surface);border:1px solid var(--outline-var);border-radius:var(--r-md);
+  padding:15px 18px;box-shadow:var(--e1);display:grid;grid-template-columns:158px 1fr 128px;
+  gap:18px;align-items:start}
+@media(max-width:800px){.dest{grid-template-columns:1fr;gap:9px}}
+.dest .dn{font-size:14px;font-weight:600;margin-bottom:3px}
+.dest .dk{font-family:var(--mono);font-size:10px;color:var(--primary);font-weight:600}
+.dest .dd{font-size:13px;line-height:1.5;color:var(--muted)}
+.dest .dd b{color:var(--ink);font-weight:600}
+.dest .ds{text-align:right}
+@media(max-width:800px){.dest .ds{text-align:left}}
+.badge{display:inline-block;border-radius:999px;padding:4px 11px;font-size:10.5px;font-weight:700}
+.b-have{background:#DCFCE7;color:#14532D}
+.b-part{background:#FEF3C7;color:#78350F}
+.b-new{background:#FEE2E2;color:#7F1D1D}
+
+/* steps */
+.plan{display:grid;gap:11px;counter-reset:s}
+.pstep{background:var(--surface);border:1px solid var(--outline-var);border-radius:var(--r-md);
+  padding:15px 18px;box-shadow:var(--e1);display:grid;grid-template-columns:34px 1fr 96px;
+  gap:15px;align-items:start}
+@media(max-width:700px){.pstep{grid-template-columns:1fr}}
+.pstep .pn{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;
+  display:grid;place-items:center;font-size:12.5px;font-weight:700;font-family:var(--mono)}
+.pstep .pt{font-size:14.5px;font-weight:600;margin-bottom:4px}
+.pstep .pd{font-size:13px;line-height:1.5;color:var(--muted)}
+.pstep .pd b{color:var(--ink);font-weight:600}
+.pstep .pe{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--muted);text-align:right}
+@media(max-width:700px){.pstep .pe{text-align:left}}
+
+.note{background:#FFFBEB;border:1px solid var(--gold);border-radius:var(--r-md);
+  padding:16px 19px;font-size:13.5px;line-height:1.6;margin-top:20px}
+.note b{color:#78350F}
+.note.blue{background:#ECFEFF;border-color:var(--teal)}
+.note.blue b{color:#083344}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:40px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Conductor · Triage · Process → ClickUp</div>
+    <h1>You've already built most of this.<br>It's just built three times.</h1>
+    <p>Verified against the code. Process steps already reach ClickUp — but through three divergent paths that don't know about each other, and the one you'd most want is the weakest. Before adding a fourth, consolidate.</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <h2>Triage: three findings that change the shape</h2>
+  <p class="sub">Read these before deciding anything — one of them reverses the request.</p>
+
+  <div class="verdict v-good">
+    <div class="vhead"><span class="tag">ALREADY BUILT</span>
+      <span class="vt">Service → process steps → ClickUp already runs on every project push</span></div>
+    <div class="vbody"><code>push-to-clickup/index.ts:570-640</code> already reads <code>process_steps</code> for every service on the quote, flattens them into one global ordinal sequence, writes <code>process_step_instances</code>, and creates <b>one ClickUp subtask per step</b> named <code>[Step N] {title}</code> parented to the project task. Then <code>sync-clickup-actuals:230-289</code> pulls status and <code>time_spent</code> back onto each instance. <b>The loop you're describing is closed already</b> — the linkage isn't missing, it's just invisible in the UI and anaemic in what it sends.</div>
+  </div>
+
+  <div class="verdict v-warn">
+    <div class="vhead"><span class="tag">THE ACTUAL BUG</span>
+      <span class="vt">Conductor has two unrelated concepts both called "the list of things to do"</span></div>
+    <div class="vbody"><code>services.checklist_items text[]</code> (a newline textarea in <code>ServiceDetail.tsx:106</code>) produces a <b>real ClickUp checklist</b> via <code>addClickupChecklist</code> — but it's stamped on the <em>service × department</em> task, and has <b>zero connection to <code>process_steps</code></b>. So the same service has a documented process <em>and</em> a separate hand-typed checklist, maintained independently, that can silently disagree. That's the thing to fix, and your request is the opportunity to fix it.</div>
+  </div>
+
+  <div class="verdict v-stop">
+    <div class="vhead"><span class="tag">DON'T DO THIS</span>
+      <span class="vt">Turning steps into ClickUp checklist items would break the actuals loop</span></div>
+    <div class="vbody">ClickUp checklist items <b>cannot hold time</b>. They have no <code>time_spent</code>, no <code>start_date</code>, no <code>date_closed</code>, and status collapses from your five states to a boolean. <code>sync-clickup-actuals</code> joins via <code>GET /api/v2/task/{id}</code>, which doesn't resolve checklist-item ids at all — so <code>actual_hours</code> would be permanently 0, <code>process_step_handoffs</code> would compute nothing, and the est-vs-actual reality check dies. <b>Steps must stay tasks.</b> But there's a better place for checklists — see below.</div>
+  </div>
+</section>
+
+<section>
+  <h2>The three renderings, side by side</h2>
+  <p class="sub">Same underlying idea — "a step of work in ClickUp" — implemented three ways with wildly different fidelity. Note how much richer the middle one is than the one you'd actually be building on.</p>
+  <div class="three">
+    <div class="rend">
+      <div class="rh">
+        <div class="rfn">push-to-clickup:610</div>
+        <div class="rn">Process step subtask</div>
+      </div>
+      <div class="rb">
+        <p class="rl">What ClickUp gets</p>
+        <div class="cutask">[Step 3] Content brief ×2<br><span style="color:var(--muted)">↳ subtask of project</span></div>
+        <p class="rl">Carries</p>
+        <ul class="attrs">
+          <li><span class="m no">✕</span>assignee</li>
+          <li><span class="m no">✕</span>time_estimate</li>
+          <li><span class="m no">✕</span>due date</li>
+          <li><span class="m no">✕</span>points</li>
+          <li><span class="m no">✕</span>description</li>
+          <li><span class="m yes">✓</span>client custom fields</li>
+        </ul>
+        <p style="font-size:11.5px;color:var(--error);margin:10px 0 0;line-height:1.45">
+          Best-effort — wrapped in try/catch, failures are silent. The <code>department_id</code> and <code>estimated_hours</code> on the instance never leave Postgres.</p>
+      </div>
+    </div>
+    <div class="rend" style="border-color:var(--green);border-width:1.5px">
+      <div class="rh" style="background:#F0FDF4">
+        <div class="rfn" style="color:var(--green)">schedule-brief-tasks:151</div>
+        <div class="rn">Brief placement task</div>
+      </div>
+      <div class="rb">
+        <p class="rl">What ClickUp gets</p>
+        <div class="cutask">Content brief ×2<br><span style="color:var(--muted)">↳ top-level in client list</span></div>
+        <p class="rl">Carries</p>
+        <ul class="attrs">
+          <li><span class="m yes">✓</span>assignee</li>
+          <li><span class="m yes">✓</span>time_estimate (points × 15m)</li>
+          <li><span class="m yes">✓</span>due date</li>
+          <li><span class="m yes">✓</span>points</li>
+          <li><span class="m yes">✓</span>description</li>
+          <li><span class="m yes">✓</span>work-stream dropdowns</li>
+        </ul>
+        <p style="font-size:11.5px;color:var(--green);margin:10px 0 0;line-height:1.45">
+          Seeded from <code>process_steps</code> too (via <code>analyze-brief-sow:96</code>). <b>This is the good one.</b> <code>buildBriefTaskBody</code> already exists and is shared.</p>
+      </div>
+    </div>
+    <div class="rend">
+      <div class="rh">
+        <div class="rfn">_shared/clickup.ts:241</div>
+        <div class="rn">Service checklist</div>
+      </div>
+      <div class="rb">
+        <p class="rl">What ClickUp gets</p>
+        <div class="cutask">Checklist<br>☐ Check meta titles<br>☐ Alt text on images<br><span style="color:var(--muted)">↳ on service×dept task</span></div>
+        <p class="rl">Carries</p>
+        <ul class="attrs">
+          <li><span class="m yes">✓</span>assignee (first only)</li>
+          <li><span class="m no">✕</span>any time data</li>
+          <li><span class="m no">✕</span>id persisted anywhere</li>
+          <li><span class="m no">✕</span>ever read back</li>
+          <li><span class="m no">✕</span>link to process_steps</li>
+        </ul>
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 0 0;line-height:1.45">
+          Source is a free-text textarea. Write-only — Conductor never learns whether anything was ticked.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The better answer: not tasks <em>or</em> checklists — both, at different depths</h2>
+  <p class="sub">You framed it as a choice. It isn't. The nesting you already liked in Concept 2 maps exactly onto ClickUp's own hierarchy — and doing it this way absorbs <code>services.checklist_items</code> so the duplicate concept disappears.</p>
+
+  <div class="nest">
+    <div class="ndiag">
+      <div class="nside">
+        <div class="nl">Conductor canvas</div>
+        <div class="blk">
+          <div class="bt">Content brief ×2 ⧉</div>
+          <div class="bf"><span class="av">TK</span><span class="hrs">4.0h</span><span class="pill">Content</span></div>
+        </div>
+        <div class="subs">
+          <div class="sub-i"><span>Pull top-10 SERP for target term</span></div>
+          <div class="sub-i"><span>Draft outline &amp; angle</span></div>
+          <div class="sub-i"><span>Attach internal-link targets</span></div>
+          <div class="sub-i" style="margin-bottom:0"><span>Peer review before writer starts</span></div>
+        </div>
+      </div>
+      <div class="narrow">→</div>
+      <div class="nside">
+        <div class="nl">ClickUp</div>
+        <div class="cutask2">
+          <div class="ct">[Step 3] Content brief ×2</div>
+          <div class="cumeta">
+            <span class="pill g">Thabo K.</span>
+            <span class="pill g">est 4h 00m</span>
+            <span class="pill g">16 pts</span>
+            <span class="pill g">due 12 Aug</span>
+          </div>
+          <div class="cucheck"><span class="bx"></span>Pull top-10 SERP for target term</div>
+          <div class="cucheck"><span class="bx"></span>Draft outline &amp; angle</div>
+          <div class="cucheck"><span class="bx"></span>Attach internal-link targets</div>
+          <div class="cucheck"><span class="bx"></span>Peer review before writer starts</div>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin:0;line-height:1.45">
+          Time tracks on the <b>task</b>. The checklist is the QC detail inside it — exactly what <code>checklist_items</code> was trying to be, now generated from the canvas instead of a textarea.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tscroll" style="margin-top:20px">
+    <table>
+      <thead><tr><th>Requirement</th><th>Step as task</th><th>Step as checklist item</th><th>Step task + sub-blocks as checklist</th></tr></thead>
+      <tbody>
+        <tr><td>Time tracks against it</td><td class="tick">✓</td><td class="cross">✕ impossible</td><td class="tick">✓</td></tr>
+        <tr><td>Feeds <code>project_actuals</code> / est-vs-actual</td><td class="tick">✓</td><td class="cross">✕</td><td class="tick">✓</td></tr>
+        <tr><td>Five statuses incl. blocked</td><td class="tick">✓</td><td class="cross">✕ boolean only</td><td class="tick">✓</td></tr>
+        <tr><td><code>process_step_handoffs</code> wait time</td><td class="tick">✓</td><td class="cross">✕</td><td class="tick">✓</td></tr>
+        <tr><td>Per-person assignment</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓ both levels</td></tr>
+        <tr><td>Keeps ClickUp uncluttered</td><td class="cross">✕ 8–12 subtasks/project</td><td class="tick">✓</td><td class="tick">✓ detail is nested</td></tr>
+        <tr><td>Replaces <code>services.checklist_items</code></td><td class="cross">✕</td><td class="cross">✕</td><td class="tick">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note blue">
+    <b>This also sharpens your "clickable steps" idea.</b> Rather than a click that toggles ClickUp on or off, make it set a mode per step — <code>materialise_as: 'task' | 'checklist_item' | 'none'</code>. Not every documented step deserves a task. "Read the brief and classify intent" is a real step in your scoping process but a terrible ClickUp task. Per-step control is what stops the canvas from spamming ClickUp, and it's a single enum column.
+  </div>
+</section>
+
+<section>
+  <h2>Your "two types" is really four destinations</h2>
+  <p class="sub">The binary hides the fact that Conductor already has three separate provisioning mechanisms, and the sales system you want to map already has a ClickUp home you may have forgotten about.</p>
+  <div class="dests">
+    <div class="dest">
+      <div><div class="dn">Service process</div><div class="dk">kind: service</div></div>
+      <div class="dd">Attached to a <code>service</code>. Materialises when a quote is pushed — one subtask per step under the project parent, checklist items inside each. <b>Pipeline exists</b> in <code>push-to-clickup</code>; it just needs assignee, estimate and due date added, and the sub-block checklist wired in.</div>
+      <div class="ds"><span class="badge b-have">Exists — enrich it</span></div>
+    </div>
+    <div class="dest">
+      <div><div class="dn">Recurring / retainer process</div><div class="dk">kind: recurring</div></div>
+      <div class="dd">Attached to <code>retainer_recurring_services</code>. Materialises per period via <code>provision-retainer-period</code> — dated tasks or one perpetual <code>[Live]</code> task depending on the member's <code>tracking_mode</code>. <b>Already calls <code>addClickupChecklist</code></b> at line 488, so the sub-block wiring lands here almost free.</div>
+      <div class="ds"><span class="badge b-have">Exists — enrich it</span></div>
+    </div>
+    <div class="dest">
+      <div><div class="dn">Internal system</div><div class="dk">kind: internal</div></div>
+      <div class="dd">Sales, marketing, hiring, admin. <b>These already have a ClickUp home</b> — the perpetual <code>[Internal] {name} — Sales &amp; BD</code> tasks that <code>provision-ongoing-tasks</code> creates against <code>time_categories</code>, which Rize already feeds. The process defines the <em>shape</em> of the work; the ongoing task collects the <em>time</em>. Map the process to a <code>time_category</code> and you get overhead attribution for free, with no new tasks.</div>
+      <div class="ds"><span class="badge b-part">Exists — needs a link</span></div>
+    </div>
+    <div class="dest">
+      <div><div class="dn">Reference only</div><div class="dk">kind: reference</div></div>
+      <div class="dd">"How we handle a client complaint." "What happens when someone resigns." Triggered by events, not scheduled — there is genuinely nothing to provision. <b>This is your real "can't be actioned" type</b>, and it's the only one of the four that needs new behaviour: a skip flag. Today <code>push-to-clickup</code> has <b>no per-service or per-step skip condition at all</b> — everything gets pushed.</div>
+      <div class="ds"><span class="badge b-new">Genuinely new</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Recommended sequence</h2>
+  <p class="sub">Ordered so each step is independently useful and nothing is thrown away. The first two are cleanup you'd want regardless of the canvas.</p>
+  <div class="plan">
+    <div class="pstep">
+      <div class="pn">1</div>
+      <div>
+        <div class="pt">Fix the anaemic step tasks</div>
+        <div class="pd">Make <code>push-to-clickup</code> send assignee, <code>time_estimate</code> and points on step subtasks. <code>buildBriefTaskBody</code> in <code>_shared/clickup.ts:141</code> already does exactly this for the other pipeline — reuse it rather than writing a second version. <b>You're currently computing <code>estimated_hours</code> and <code>department_id</code> per step and then throwing them away at the API boundary.</b> Pure win, no schema change, no canvas required.</div>
+      </div>
+      <div class="pe">~2 days</div>
+    </div>
+    <div class="pstep">
+      <div class="pn">2</div>
+      <div>
+        <div class="pt">Absorb <code>checklist_items</code> into the process</div>
+        <div class="pd">Add <code>parent_id</code> to process steps so a step can have sub-steps, then generate the ClickUp checklist from those instead of the free-text array. Migrate existing <code>services.checklist_items</code> rows into sub-steps and deprecate the column. <b>Kills the duplicate concept</b> before the canvas can make it worse.</div>
+      </div>
+      <div class="pe">~3 days</div>
+    </div>
+    <div class="pstep">
+      <div class="pn">3</div>
+      <div>
+        <div class="pt">Add <code>kind</code> and <code>materialise_as</code></div>
+        <div class="pd">One enum on the process (<code>service | recurring | internal | reference</code>), one on the step (<code>task | checklist_item | none</code>). Add the skip condition to <code>push-to-clickup</code> that doesn't exist yet. This is the whole of your "two types" ask, done as data rather than as two separate code paths.</div>
+      </div>
+      <div class="pe">~3 days</div>
+    </div>
+    <div class="pstep">
+      <div class="pn">4</div>
+      <div>
+        <div class="pt">Untether process from service</div>
+        <div class="pd">Make <code>process_steps.service_id</code> nullable, add <code>process_definitions</code> with a mandatory goal. Now you can document the sales system — and point it at the <code>sales-bd</code> <code>time_category</code> so its hours land in the overhead view you already have.</div>
+      </div>
+      <div class="pe">~1 week</div>
+    </div>
+    <div class="pstep">
+      <div class="pn">5</div>
+      <div>
+        <div class="pt">Then build the canvas</div>
+        <div class="pd">Lane-free React Flow board on top of a data model that already knows how to reach ClickUp. Clicking a block to set its materialise mode is now a one-line mutation, because the plumbing was fixed in steps 1–3. <b>Building the canvas first would mean building it against three inconsistent pipelines.</b></div>
+      </div>
+      <div class="pe">4–6 weeks</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Worth naming:</b> when we scoped this you said blueprint-only, no execution link — and that decision was doing real work, because it's what kept the build small. Linking steps to ClickUp turns the canvas from documentation into infrastructure: a change to a process map now changes what appears in someone's task list, which means revisions need approval before they can publish, and a bad edit has operational consequences rather than just documentary ones. That's a good trade, but it makes the Ledger layer (Concept 5) load-bearing rather than optional. Worth choosing deliberately rather than drifting into.
+  </div>
+</section>
+
+<div class="foot">Conductor · Process → ClickUp triage · 05 August 2026</div>
+</div>
+</body>
+</html>

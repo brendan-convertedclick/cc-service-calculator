@@ -4,6 +4,7 @@ import { useClients } from "@/hooks/useClients";
 import { SenderRulesPanel } from "@/components/clients/SenderRulesPanel";
 import { ClickUpListsPanel } from "@/components/clients/ClickUpListsPanel";
 import { ChatChannelPanel } from "@/components/clients/ChatChannelPanel";
+import { XeroContactPanel } from "@/components/clients/XeroContactPanel";
 import { Button } from "@/components/ui/button";
 
 export function ClientDetail() {
@@ -55,6 +56,10 @@ export function ClientDetail() {
       <ChatChannelPanel
         clientId={client.id}
         clickupChatChannelId={client.clickup_chat_channel_id ?? null}
+      />
+      <XeroContactPanel
+        clientId={client.id}
+        xeroContactName={client.xero_contact_name ?? null}
       />
     </div>
   );

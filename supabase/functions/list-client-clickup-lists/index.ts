@@ -93,32 +93,39 @@ Deno.serve(async (req: Request) => {
       .sort((a, b) => a.name.localeCompare(b.name));
 
     // Work Stream custom-field options are shared across the folder's lists —
-    // fetch once, from the first list.
+    // fetch once, from the first list. The client silently falls back to
+    // Conductor's department names when this comes back empty, and those
+    // names don't reliably match the real ClickUp option set (exact-match
+    // resolver, see resolveDropdownOption) — so a single transient ClickUp
+    // API hiccup here can leave a task's Work Stream field blank. One retry
+    // covers that without adding real latency on the (normal) success path.
     let workStreamOptions: Array<{ id: string; name: string }> = [];
     if (bareLists.length > 0) {
-      try {
-        const fieldRes = await fetch(
-          `https://api.clickup.com/api/v2/list/${bareLists[0].id}/field`,
-          { headers: clickupHeaders },
-        );
-        if (fieldRes.ok) {
-          const fieldBody = (await fieldRes.json()) as {
-            fields?: Array<{
-              name: string;
-              type: string;
-              type_config?: { options?: Array<{ id: string; name: string }> };
-            }>;
-          };
-          const workStreamField = (fieldBody.fields ?? []).find(
-            (f) => f.type === "drop_down" && f.name.toLowerCase() === "work stream",
+      for (let attempt = 0; attempt < 2 && workStreamOptions.length === 0; attempt++) {
+        try {
+          const fieldRes = await fetch(
+            `https://api.clickup.com/api/v2/list/${bareLists[0].id}/field`,
+            { headers: clickupHeaders },
           );
-          workStreamOptions = (workStreamField?.type_config?.options ?? []).map((o) => ({
-            id: o.id,
-            name: o.name,
-          }));
+          if (fieldRes.ok) {
+            const fieldBody = (await fieldRes.json()) as {
+              fields?: Array<{
+                name: string;
+                type: string;
+                type_config?: { options?: Array<{ id: string; name: string }> };
+              }>;
+            };
+            const workStreamField = (fieldBody.fields ?? []).find(
+              (f) => f.type === "drop_down" && f.name.toLowerCase() === "work stream",
+            );
+            workStreamOptions = (workStreamField?.type_config?.options ?? []).map((o) => ({
+              id: o.id,
+              name: o.name,
+            }));
+          }
+        } catch {
+          // fall through to retry / leave empty
         }
-      } catch {
-        workStreamOptions = [];
       }
     }
 

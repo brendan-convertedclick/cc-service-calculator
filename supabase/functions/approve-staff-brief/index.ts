@@ -14,6 +14,7 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
+import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type StaffBrief = {
   id: string;
@@ -40,7 +41,7 @@ type Member = {
   role: string;
 };
 
-type Client = { id: string; name: string; clickup_client_name: string | null };
+type Client = { id: string; name: string; clickup_client_name: string | null; clickup_chat_channel_id: string | null };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -96,7 +97,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: client, error: clientErr } = await supabase
       .from("clients")
-      .select("id, name, clickup_client_name")
+      .select("id, name, clickup_client_name, clickup_chat_channel_id")
       .eq("id", brief.client_id)
       .single();
     if (clientErr || !client) return json({ error: "Client not found" }, 400);
@@ -147,10 +148,18 @@ Deno.serve(async (req: Request) => {
       dueDateMs: null,
     });
 
-    const createRes = await fetch(
-      `https://api.clickup.com/api/v2/list/${brief.clickup_list_id}/task`,
-      { ...CU, method: "POST", body: JSON.stringify(taskBody) },
-    );
+    const taskUrl = `https://api.clickup.com/api/v2/list/${brief.clickup_list_id}/task`;
+    let createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
+    // ClickUp rejects some sprint-point values on create (too large, or not on
+    // the list's configured point scale — e.g. a fractional 7.5). Retry once
+    // without `points` rather than fail the task (time_estimate still carries
+    // the effort). See project note on the ClickUp points cap.
+    if (!createRes.ok && "points" in taskBody) {
+      const errText = await createRes.text();
+      console.warn(`[approve-staff-brief] create failed with points (${createRes.status}: ${errText}); retrying without points`);
+      const { points: _dropped, ...noPoints } = taskBody;
+      createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
+    }
     if (!createRes.ok) {
       return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
     }
@@ -170,6 +179,17 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       body: JSON.stringify({ comment_text: comment, notify_all: false }),
     });
+
+    // Confirm to the submitter in chat that their brief went through — same
+    // client-channel routing as every other notify function (fallback to
+    // Converted Click if the client has no channel mapped).
+    const chatChannelId = cli.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
+    const mention = mentionToken({ clickupUserId: member.clickup_user_id, name: member.full_name });
+    await postChatMessage(
+      clickupPat,
+      chatChannelId,
+      `✅ ${mention} — your brief was approved: "${brief.task_name}" · ${brief.sprint_points}pt · ${created.url}`,
+    );
 
     // Persist outcome.
     const { error: updateErr } = await supabase

@@ -30,7 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, findCustomField } from "../_shared/clickup.ts";
 import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
 
 type SnapshotAllocation = {
@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days,clickup_work_stream")
+          .select("id,default_due_days,clickup_work_stream,checklist_items")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -264,6 +264,12 @@ Deno.serve(async (req: Request) => {
       (svcRows ?? [])
         .filter((s: { clickup_work_stream: string | null }) => !!s.clickup_work_stream)
         .map((s: { id: string; clickup_work_stream: string }) => [s.id, s.clickup_work_stream]),
+    );
+    // Default checklist to stamp on every child task created from this service.
+    const checklistMap = new Map<string, string[]>(
+      (svcRows ?? [])
+        .filter((s: { checklist_items: string[] | null }) => (s.checklist_items ?? []).length > 0)
+        .map((s: { id: string; checklist_items: string[] }) => [s.id, s.checklist_items]),
     );
     // Resolve assignees from department → primary team member → clickup_user_id.
     const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
@@ -394,6 +400,9 @@ Deno.serve(async (req: Request) => {
             );
           }
           const child = await childRes.json();
+
+          const checklistItems = checklistMap.get(item.service_id);
+          if (checklistItems) await addClickupChecklist(clickupPat, child.id, checklistItems, owner?.clickup_user_id ?? null);
 
           // BRIEF:: audit comment (matches /brief grammar).
           const commentRes = await fetch(

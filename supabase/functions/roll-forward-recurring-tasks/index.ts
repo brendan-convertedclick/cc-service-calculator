@@ -35,25 +35,26 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const results: Array<{ project_id: string; ok: boolean; detail?: unknown }> = [];
-
-  for (const p of retainers ?? []) {
-    try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/provision-retainer-period`, {
-        method: "POST",
-        headers: { "content-type": "application/json", apikey: anon },
-        body: JSON.stringify({ project_id: p.id, period_start: periodStart }),
-      });
-      const body = await res.json();
-      results.push({ project_id: p.id, ok: res.ok, detail: body });
-    } catch (e) {
-      results.push({
-        project_id: p.id,
-        ok: false,
-        detail: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }
+  // Run every project's provisioning concurrently — sequential awaits across
+  // 30+ retainers (each several ClickUp round trips) risked the whole batch
+  // running past the edge function's wall-clock limit, silently starving
+  // whichever projects the DB happened to return last (no error, no log —
+  // just missing provisioned_tasks rows for that month).
+  const results = await Promise.all(
+    (retainers ?? []).map(async (p) => {
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/provision-retainer-period`, {
+          method: "POST",
+          headers: { "content-type": "application/json", apikey: anon },
+          body: JSON.stringify({ project_id: p.id, period_start: periodStart }),
+        });
+        const body = await res.json();
+        return { project_id: p.id, ok: res.ok, detail: body };
+      } catch (e) {
+        return { project_id: p.id, ok: false, detail: e instanceof Error ? e.message : String(e) };
+      }
+    }),
+  );
 
   // Retainers carry the current period's month-end due date.
   const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))

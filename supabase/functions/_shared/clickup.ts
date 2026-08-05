@@ -228,3 +228,46 @@ export function resolveDropdownOption(
   );
   return option ? { id: field.id, value: option.id } : null;
 }
+
+/**
+ * Add a checklist with the given items to a task (ClickUp Checklists API).
+ * Shared by provision-retainer-period, push-to-clickup, and
+ * create-quick-brief-task so a service/retainer-service's default checklist
+ * (or an operator's ad-hoc one) is created the same way everywhere.
+ *
+ * `assigneeClickupId`, when given, is stamped onto every checklist item —
+ * mirrors the task's own assignee so the checklist doesn't show up unowned.
+ */
+export async function addClickupChecklist(
+  pat: string,
+  taskId: string,
+  items: string[],
+  assigneeClickupId?: number | null,
+): Promise<void> {
+  const clean = items.map((i) => i?.trim()).filter(Boolean) as string[];
+  if (clean.length === 0) return;
+  const headers = { Authorization: pat, "Content-Type": "application/json" };
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}/checklist`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Checklist" }),
+  });
+  if (!res.ok) {
+    console.error(`create checklist ${taskId} failed: ${res.status}`);
+    return;
+  }
+  const data = await res.json().catch(() => null) as { checklist?: { id?: string } } | null;
+  const cid = data?.checklist?.id;
+  if (!cid) return;
+  for (const item of clean) {
+    const ir = await fetch(`https://api.clickup.com/api/v2/checklist/${cid}/checklist_item`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: item,
+        ...(assigneeClickupId ? { assignee: assigneeClickupId } : {}),
+      }),
+    });
+    if (!ir.ok) console.error(`checklist item ${taskId} failed: ${ir.status}`);
+  }
+}
