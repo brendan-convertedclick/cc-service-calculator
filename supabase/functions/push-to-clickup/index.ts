@@ -32,6 +32,7 @@ import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
 import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
+import { planMaterialisation, type MaterialiseStep } from "../_shared/system-materialise.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -328,6 +329,15 @@ Deno.serve(async (req: Request) => {
     // Collected for a single end-of-push ClickUp Chat summary message.
     const chatLines: Array<{ name: string; url: string; mention: string | null }> = [];
     let childCount = 0;
+    // First-wins: the service × department task a materialise_as='checklist_item'
+    // step (or a sub-step rolling up under a non-task parent) gets stamped onto.
+    // A service can span several departments (several child tasks), and can even
+    // appear as more than one quote line item — either way we pick the first
+    // child created, in allocation order, rather than one-per-department/line —
+    // see planMaterialisation below.
+    // ponytail: single checklist target per service, not per department/line;
+    // widen if a service with a multi-dept checklist step turns out to need it.
+    const firstChildTaskIdByService = new Map<string, string>();
 
     // Flatten (item × allocation) so we can batch across the entire push
     // rather than just within a single line item.
@@ -345,7 +355,7 @@ Deno.serve(async (req: Request) => {
     for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null } }> => {
+        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null }; serviceId: string; taskId: string }> => {
           const ownerId = deptOwnerMap.get(alloc.dept_id);
           const owner = ownerId ? teamById.get(ownerId) : null;
 
@@ -434,12 +444,17 @@ Deno.serve(async (req: Request) => {
                 ? mentionToken({ clickupUserId: ownerRec.clickup_user_id, name: ownerRec.full_name })
                 : null,
             },
+            serviceId: item.service_id,
+            taskId: child.id,
           };
         }),
       );
       for (const r of results) {
         actualsRows.push(r.row);
         chatLines.push(r.chat);
+        if (!firstChildTaskIdByService.has(r.serviceId)) {
+          firstChildTaskIdByService.set(r.serviceId, r.taskId);
+        }
       }
       childCount += results.length;
     }
@@ -566,27 +581,81 @@ Deno.serve(async (req: Request) => {
     if (serviceIdsOrdered.length > 0) {
       const { data: templateSteps } = await supabase
         .from("process_steps")
-        .select("id,service_id,ordinal,title,description,department_id,estimated_hours")
+        .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id")
         .in("service_id", serviceIdsOrdered)
-        .is("parent_id", null) // top-level only — sub-steps become the step task's checklist, not their own task
+        .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
         .order("service_id,ordinal");
+      type TemplateStep = {
+        id: string;
+        service_id: string;
+        ordinal: number;
+        title: string;
+        description: string | null;
+        department_id: string | null;
+        estimated_hours: number | string | null;
+        materialise_as: "task" | "checklist_item" | "none";
+        owner_id: string | null;
+        system_id: string | null;
+      };
+      const templateStepsById = new Map((templateSteps ?? []).map((s: TemplateStep) => [s.id, s]));
 
-      // Sub-steps of the top-level steps above become the checklist on each
-      // step's ClickUp task (P2 — see plan). Keyed by parent (template) step id.
+      // Internal-system guard (spec "Error handling"): kind='internal' systems
+      // attribute time via the perpetual [Internal] {member} — {category} task
+      // (provision-ongoing-tasks), never a project ClickUp task. Not reachable
+      // today — templateSteps above is queried by service_id, and kind='internal'
+      // systems carry time_category_id, not service_id — but guard cheaply anyway.
+      const stepSystemIds = [...new Set(
+        (templateSteps ?? []).map((s: TemplateStep) => s.system_id).filter((id): id is string => !!id),
+      )];
+      const { data: systemRows } = stepSystemIds.length > 0
+        ? await supabase.from("system_definitions").select("id,kind").in("id", stepSystemIds)
+        : { data: [] as { id: string; kind: string }[] };
+      const systemKindById = new Map((systemRows ?? []).map((s: { id: string; kind: string }) => [s.id, s.kind]));
+      const internalStepIds = new Set(
+        (templateSteps ?? [])
+          .filter((s: TemplateStep) => s.system_id && systemKindById.get(s.system_id) === "internal")
+          .map((s: TemplateStep) => s.id),
+      );
+
+      // Sub-steps roll into a ClickUp artefact per the materialise_as matrix
+      // (P3 — see plan / system-materialise.ts): a checklist item on their
+      // parent's task, or — if the parent itself isn't materialise_as='task'
+      // — a sibling item on the service × department task instead.
+      // planMaterialisation (pure, tested separately) makes that call; here we
+      // just group steps by service and feed it.
       const topLevelIds = (templateSteps ?? []).map((s) => s.id);
+      type SubStepRow = { id: string; parent_id: string | null; title: string; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
       const { data: subStepRows } = topLevelIds.length > 0
         ? await supabase
             .from("process_steps")
-            .select("parent_id,title,ordinal")
+            .select("id,parent_id,title,ordinal,materialise_as")
             .in("parent_id", topLevelIds)
             .order("ordinal")
-        : { data: [] as { parent_id: string | null; title: string }[] };
-      const subStepsByParent = new Map<string, string[]>();
-      for (const sub of (subStepRows ?? []) as Array<{ parent_id: string | null; title: string }>) {
-        if (!sub.parent_id) continue;
-        const arr = subStepsByParent.get(sub.parent_id) ?? [];
-        arr.push(sub.title);
-        subStepsByParent.set(sub.parent_id, arr);
+        : { data: [] as SubStepRow[] };
+
+      const stepsByService = new Map<string, MaterialiseStep[]>();
+      for (const s of (templateSteps ?? []) as TemplateStep[]) {
+        if (internalStepIds.has(s.id)) continue; // internal-system guard, see above
+        const arr = stepsByService.get(s.service_id) ?? [];
+        arr.push({ id: s.id, parent_id: null, ordinal: s.ordinal, title: s.title, materialise_as: s.materialise_as });
+        stepsByService.set(s.service_id, arr);
+      }
+      for (const sub of (subStepRows ?? []) as SubStepRow[]) {
+        const parentStep = sub.parent_id ? templateStepsById.get(sub.parent_id) : undefined;
+        if (!parentStep) continue; // scoped to topLevelIds above — shouldn't happen
+        if (internalStepIds.has(parentStep.id)) continue; // internal-system guard, see above
+        const arr = stepsByService.get(parentStep.service_id) ?? [];
+        arr.push({ id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title, materialise_as: sub.materialise_as });
+        stepsByService.set(parentStep.service_id, arr);
+      }
+      const materialisePlanByService = new Map(
+        [...stepsByService.entries()].map(([serviceId, steps]) => [serviceId, planMaterialisation(steps)]),
+      );
+      // Keyed by top-level template step id -> the sub-step titles that
+      // belong on ITS task (only populated for materialise_as='task' steps).
+      const checklistByStepId = new Map<string, string[]>();
+      for (const plan of materialisePlanByService.values()) {
+        for (const t of plan.tasks) checklistByStepId.set(t.stepId, t.checklist);
       }
 
       if (templateSteps && templateSteps.length > 0) {
@@ -633,14 +702,35 @@ Deno.serve(async (req: Request) => {
             service_id: string;
             template_step_id: string;
           }>) {
+            // materialise_as='none' and 'checklist_item' steps keep their
+            // process_step_instance row (the workflow timeline stays
+            // complete) but get no ClickUp task of their own — 'none' is
+            // just dropped; 'checklist_item' is folded into the service ×
+            // department task's checklist below instead.
+            // Internal-system guard first, so it logs regardless of materialise_as
+            // (a checklist_item/none internal step never reaches the task check below).
+            if (internalStepIds.has(instance.template_step_id)) {
+              console.warn(`[push-to-clickup] step ${instance.id} belongs to a kind='internal' system; skipping ClickUp task creation`);
+              continue;
+            }
+            const materialiseAs = templateStepsById.get(instance.template_step_id)?.materialise_as ?? "task";
+            if (materialiseAs !== "task") continue;
             try {
               const hours = instance.estimated_hours != null ? Number(instance.estimated_hours) : null;
-              // deptOwnerMap/deptWorkStreamById cover only this quote's frozen
-              // snapshot departments — a step whose department isn't in the
-              // snapshot silently omits assignee + Work Stream rather than
-              // re-querying. Revisit at P4.
-              const stepOwnerId = instance.department_id ? deptOwnerMap.get(instance.department_id) : null;
-              const stepOwner = stepOwnerId ? teamById.get(stepOwnerId) : null;
+              // Assignee chain (P4, widened): process_steps.owner_id first, falling
+              // back to department → primary team member. deptOwnerMap/deptWorkStreamById
+              // cover only this quote's frozen snapshot departments — a step whose
+              // department isn't in the snapshot silently omits the fallback rather
+              // than re-querying.
+              // Resolve on clickup_user_id, not the row: an owner_id that maps to a
+              // live team_member with no clickup_user_id has NOT resolved (spec: "owner_id
+              // → team_members.clickup_user_id; fall back to primary_team_member_id").
+              const stepTemplateOwnerId = templateStepsById.get(instance.template_step_id)?.owner_id ?? null;
+              const deptOwnerId = instance.department_id ? deptOwnerMap.get(instance.department_id) : null;
+              const stepAssigneeClickupId =
+                (stepTemplateOwnerId && teamById.get(stepTemplateOwnerId)?.clickup_user_id) ||
+                (deptOwnerId && teamById.get(deptOwnerId)?.clickup_user_id) ||
+                null;
               const workStream =
                 (instance.department_id && deptWorkStreamById.get(instance.department_id)) ||
                 serviceWsOverride.get(instance.service_id) ||
@@ -658,7 +748,7 @@ Deno.serve(async (req: Request) => {
                   engagementType: "Task",
                   sprintPoints: hours != null ? Math.min(10, Math.max(1, Math.round(hours / 4))) : 1,
                   dateOfEngagement,
-                  assigneeClickupId: stepOwner?.clickup_user_id ?? null,
+                  assigneeClickupId: stepAssigneeClickupId,
                   dueDateMs: stepDueDateMs,
                   timeEstimateMs: hours != null ? hours * 3_600_000 : null,
                 }),
@@ -686,11 +776,11 @@ Deno.serve(async (req: Request) => {
                   .from("process_step_instances")
                   .update({ clickup_task_id: stepTask.id })
                   .eq("id", instance.id);
-                // Sub-steps become this step task's checklist (P2 — see plan).
+                // Sub-steps become this step task's checklist (P2/P3 — see plan).
                 // Non-fatal: addClickupChecklist already swallows its own errors.
-                const subStepTitles = subStepsByParent.get(instance.template_step_id);
+                const subStepTitles = checklistByStepId.get(instance.template_step_id);
                 if (subStepTitles && subStepTitles.length > 0) {
-                  await addClickupChecklist(clickupPat, stepTask.id, subStepTitles, stepOwner?.clickup_user_id ?? null);
+                  await addClickupChecklist(clickupPat, stepTask.id, subStepTitles, stepAssigneeClickupId);
                 }
               }
             } catch (e) {
@@ -698,6 +788,30 @@ Deno.serve(async (req: Request) => {
               // Continue — remaining steps should still be created
             }
           }
+        }
+      }
+
+      // materialise_as='checklist_item' top-level steps, plus any sub-steps
+      // that roll up under a non-task parent, land on the service ×
+      // department task — the first child created for that service (see
+      // firstChildTaskIdByService above). Non-fatal: addClickupChecklist
+      // already swallows its own errors.
+      // Runs AFTER the projects row is committed, so a throw here would 500 a
+      // push that actually succeeded and leave the quote un-retryable (unique
+      // constraint on projects.quote_id) — same reason the step-task checklist
+      // call above is wrapped. addClickupChecklist swallows HTTP errors but not
+      // a network-level fetch rejection.
+      for (const [serviceId, plan] of materialisePlanByService) {
+        if (plan.serviceChecklist.length === 0) continue;
+        const taskId = firstChildTaskIdByService.get(serviceId);
+        if (!taskId) {
+          console.error(`[push-to-clickup] no service×department task for service ${serviceId}; dropped ${plan.serviceChecklist.length} checklist item(s)`);
+          continue;
+        }
+        try {
+          await addClickupChecklist(clickupPat, taskId, plan.serviceChecklist);
+        } catch (e) {
+          console.error(`[push-to-clickup] service checklist failed for service ${serviceId}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
     }
