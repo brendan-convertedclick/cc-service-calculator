@@ -1,14 +1,16 @@
 // src/pages/SystemDetail.tsx
 //
-// /systems/:id — one system: goal, owner, steps, and (kind='internal' only) an
-// overhead-vs-estimate read. The drag-and-drop canvas is Phase 6 — this page
-// only reserves its slot. ZERO ClickUp writes happen from this page.
+// /systems/:id — one system: goal, owner, steps, revisions, and (kind='internal'
+// only) an overhead-vs-estimate read, plus the Phase 6 drag-and-drop canvas
+// (mounted at the bottom, its own window bar owns Tidy up/Propose/Unsaved).
+// ZERO ClickUp writes happen from this page.
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutPanelTop } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
+  MATERIALISE_LABEL,
   PLACEHOLDER_GOAL,
   SYSTEM_BANDS,
   SYSTEM_BAND_LABEL,
@@ -19,6 +21,13 @@ import {
   type SystemDefinitionWithJoins,
 } from "@/hooks/useSystemDefinitions";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
+import {
+  useProposeRevision,
+  usePublishRevision,
+  useRequestChanges,
+  useSystemRevisions,
+} from "@/hooks/useSystemRevisions";
+import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useTeam } from "@/hooks/useTeam";
 import { Button } from "@/components/ui/button";
@@ -27,13 +36,64 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { Database } from "@/types/db";
+// Reused as-is from the edge function's shared lib — pure TS, type-only here
+// (erased at build time), same cross-import pattern useSystemRevisions.ts
+// already uses at runtime for `diffSteps`.
+import type { DiffSummary } from "../../supabase/functions/_shared/system-diff";
 
-const MATERIALISE_LABEL: Record<string, string> = {
-  task: "Task",
-  checklist_item: "Checklist item",
-  none: "Not materialised",
+// @xyflow/react is lazy-loaded like every other page in this app so it never
+// enters the main bundle — this is a component within a page, not a route,
+// so it needs its own Suspense boundary (see the mount site below) rather
+// than relying on App.tsx's route-level one.
+const SystemCanvas = lazy(() =>
+  import("@/components/systems/SystemCanvas").then((m) => ({ default: m.SystemCanvas }))
+);
+
+type DeptRow = Database["public"]["Tables"]["departments"]["Row"];
+type TeamRow = Database["public"]["Tables"]["team_members"]["Row"];
+type SystemRevisionRow = Database["public"]["Tables"]["system_revisions"]["Row"];
+
+const REVISION_STATE_BADGE: Record<string, { variant: "muted" | "warning" | "success" | "outline"; label: string }> = {
+  draft: { variant: "muted", label: "Draft" },
+  proposed: { variant: "warning", label: "Proposed" },
+  published: { variant: "success", label: "Published" },
+  superseded: { variant: "outline", label: "Superseded" },
 };
+
+// The five fields diffSteps() (system-diff.ts) compares on a 'changed' step.
+const DIFF_FIELD_LABEL: Record<string, string> = {
+  title: "Title",
+  estimated_hours: "Hours",
+  department_id: "Department",
+  owner_id: "Owner",
+  materialise_as: "Materialise as",
+};
+
+function formatDiffValue(
+  field: string,
+  value: unknown,
+  deptById: Map<string, DeptRow>,
+  teamById: Map<string, TeamRow>
+): string {
+  if (value === null || value === undefined) return "—";
+  if (field === "department_id") return deptById.get(String(value))?.name ?? "Unknown dept";
+  if (field === "owner_id") return teamById.get(String(value))?.full_name ?? "Unknown";
+  if (field === "estimated_hours") return `${value}h`;
+  if (field === "materialise_as")
+    return MATERIALISE_LABEL[String(value) as keyof typeof MATERIALISE_LABEL] ?? String(value);
+  return String(value);
+}
 
 type FormState = {
   name: string;
@@ -70,11 +130,19 @@ export function SystemDetail() {
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
   const update = useUpdateSystem();
+  const { data: revisions = [], isLoading: revisionsLoading } = useSystemRevisions(id);
+  const { role } = useCurrentRole();
+  const canApprove = role === "admin" || role === "owner";
 
   const deptById = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
   const teamById = useMemo(() => new Map(team.map((t) => [t.id, t])), [team]);
 
   const [form, setForm] = useState<FormState | null>(null);
+  // Lifted so both RevisionsCard's own trigger AND the canvas window bar's
+  // "Propose" button (P5's dialog, wired per this phase's task) can open the
+  // same dialog instance.
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [proposeReason, setProposeReason] = useState("");
 
   // Re-seed whenever the *identity* of the system changes (route param swap
   // or first load) — not on every background refetch, which would clobber an
@@ -141,6 +209,7 @@ export function SystemDetail() {
 
   const totalStepHours = steps.reduce((sum, s) => sum + (s.estimated_hours ?? 0), 0);
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
+  const latestRevision = revisions[0] ?? null;
 
   return (
     <div className="flex h-full">
@@ -166,6 +235,11 @@ export function SystemDetail() {
                   <Badge variant="outline">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
                   {linkLabel && <span className="text-label-small text-m-on-surface-variant">{linkLabel}</span>}
                   {isUnmapped && <Badge variant="warning">No goal set</Badge>}
+                  {latestRevision && (
+                    <span className="text-label-small text-m-on-surface-variant/70">
+                      — {latestRevision.state} rev {latestRevision.revision}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -341,20 +415,38 @@ export function SystemDetail() {
           </CardContent>
         </Card>
 
+        <RevisionsCard
+          systemId={system.id}
+          revisions={revisions}
+          isLoading={revisionsLoading}
+          canApprove={canApprove}
+          deptById={deptById}
+          teamById={teamById}
+          proposeOpen={proposeOpen}
+          setProposeOpen={setProposeOpen}
+          proposeReason={proposeReason}
+          setProposeReason={setProposeReason}
+        />
+
         {system.kind === "internal" && (
           <OverheadPanel system={system} totalStepHours={totalStepHours} />
         )}
 
-        {/* Phase 6 placeholder */}
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-            <LayoutPanelTop className="h-6 w-6 text-m-on-surface-variant" />
-            <p className="text-title-small text-m-on-surface">Canvas — Phase 6</p>
-            <p className="max-w-sm text-body-small text-m-on-surface-variant">
-              Drag-and-drop visual mapping of this system's steps, handoffs and department
-              ownership lands in a later phase.
-            </p>
-          </CardContent>
+        {/* Canvas — drag-and-drop visual mapping of this system's steps,
+            handoffs and department ownership. The window bar (breadcrumb,
+            Unsaved, Tidy up, Propose) is rendered inside SystemCanvas itself
+            — that's where the state it depends on already lives — so this
+            card is just a frame around it, no separate CardHeader. */}
+        <Card className="overflow-hidden p-0">
+          <Suspense
+            fallback={
+              <div className="flex h-[680px] items-center justify-center text-body-medium text-m-on-surface-variant">
+                Loading canvas…
+              </div>
+            }
+          >
+            <SystemCanvas systemId={system.id} systemName={system.name} onPropose={() => setProposeOpen(true)} />
+          </Suspense>
         </Card>
         </div>
       </div>
@@ -421,6 +513,283 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
     <div>
       <p className="text-label-small text-m-on-surface-variant">{label}</p>
       <p className={cn("font-mono text-title-large", warn ? "text-m-error" : "text-m-on-surface")}>{value}</p>
+    </div>
+  );
+}
+
+// Revision history + propose/approve. Published is the prominent entry
+// (highlighted border); proposed entries default their diff open since
+// that's the one someone needs to act on.
+function RevisionsCard({
+  systemId,
+  revisions,
+  isLoading,
+  canApprove,
+  deptById,
+  teamById,
+  proposeOpen,
+  setProposeOpen,
+  proposeReason: reason,
+  setProposeReason: setReason,
+}: {
+  systemId: string;
+  revisions: SystemRevisionRow[];
+  isLoading: boolean;
+  canApprove: boolean;
+  deptById: Map<string, DeptRow>;
+  teamById: Map<string, TeamRow>;
+  // Lifted to SystemDetail so the canvas window bar's "Propose" button opens
+  // this same dialog instance, not a second one.
+  proposeOpen: boolean;
+  setProposeOpen: (open: boolean) => void;
+  proposeReason: string;
+  setProposeReason: (reason: string) => void;
+}) {
+  const propose = useProposeRevision();
+  const publish = usePublishRevision();
+  const requestChanges = useRequestChanges();
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-title-medium">
+          Revisions <span className="text-label-medium font-normal text-m-on-surface-variant">· {revisions.length}</span>
+        </CardTitle>
+        <Dialog
+          open={proposeOpen}
+          onOpenChange={(open) => {
+            setProposeOpen(open);
+            if (!open) setReason("");
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline">Propose changes</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Propose a change to this system</DialogTitle>
+              <DialogDescription>
+                Snapshots the current steps as a new revision. An admin or owner must approve it
+                before it publishes — nothing reaches ClickUp until then.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label htmlFor="reason-for-change">Reason for change</Label>
+              <Textarea
+                id="reason-for-change"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="Why is this system changing?"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setProposeOpen(false)}>Cancel</Button>
+              <Button
+                disabled={!reason.trim() || propose.isPending}
+                onClick={() => {
+                  propose.mutate(
+                    { systemId, reasonForChange: reason.trim() },
+                    {
+                      onSuccess: () => {
+                        toast.success("Revision proposed");
+                        setProposeOpen(false);
+                        setReason("");
+                      },
+                      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not propose revision"),
+                    }
+                  );
+                }}
+              >
+                {propose.isPending ? "Proposing…" : "Propose"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent className="space-y-3 p-5 pt-0">
+        {isLoading && <p className="text-body-medium text-m-on-surface-variant">Loading…</p>}
+        {!isLoading && revisions.length === 0 && (
+          <p className="text-body-medium text-m-on-surface-variant">
+            No revisions yet — this system has never been published.
+          </p>
+        )}
+        {revisions.map((rev) => (
+          <RevisionRow
+            key={rev.id}
+            rev={rev}
+            canApprove={canApprove}
+            deptById={deptById}
+            teamById={teamById}
+            approvePending={publish.isPending}
+            requestPending={requestChanges.isPending}
+            onApprove={(revisionId) =>
+              publish.mutate(
+                { revisionId, systemId },
+                {
+                  onSuccess: () => toast.success("Revision published"),
+                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not publish revision"),
+                }
+              )
+            }
+            onRequestChanges={(revisionId) =>
+              requestChanges.mutate(
+                { revisionId, systemId },
+                {
+                  onSuccess: () => toast.success("Sent back to draft"),
+                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update revision"),
+                }
+              )
+            }
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevisionRow({
+  rev,
+  canApprove,
+  deptById,
+  teamById,
+  approvePending,
+  requestPending,
+  onApprove,
+  onRequestChanges,
+}: {
+  rev: SystemRevisionRow;
+  canApprove: boolean;
+  deptById: Map<string, DeptRow>;
+  teamById: Map<string, TeamRow>;
+  approvePending: boolean;
+  requestPending: boolean;
+  onApprove: (revisionId: string) => void;
+  onRequestChanges: (revisionId: string) => void;
+}) {
+  const badge = REVISION_STATE_BADGE[rev.state] ?? { variant: "muted" as const, label: rev.state };
+  const proposer = rev.proposed_by ? teamById.get(rev.proposed_by)?.full_name : null;
+  const approver = rev.approved_by ? teamById.get(rev.approved_by)?.full_name : null;
+  const diff = rev.diff_summary ? (rev.diff_summary as unknown as DiffSummary) : null;
+  // Each date stays paired with its own label — the shared dev login
+  // (team@) resolves to a null team_members id (see CLAUDE.md), so
+  // `approver`/`proposer` can be null while the date is still real; a bare
+  // unlabelled date reads as ambiguous, so the action verb always shows.
+  const meta = [
+    rev.proposed_at && `Proposed${proposer ? ` by ${proposer}` : ""} ${new Date(rev.proposed_at).toLocaleDateString()}`,
+    rev.approved_at && `Approved${approver ? ` by ${approver}` : ""} ${new Date(rev.approved_at).toLocaleDateString()}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3",
+        rev.state === "published" ? "border-m-primary/40 bg-m-primary-container/10" : "border-m-outline-variant"
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-label-medium text-m-on-surface-variant">Rev {rev.revision}</span>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+        </div>
+        {rev.state === "proposed" && canApprove && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
+              Request changes
+            </Button>
+            <Button size="sm" disabled={approvePending} onClick={() => onApprove(rev.id)}>
+              {approvePending ? "Approving…" : "Approve"}
+            </Button>
+          </div>
+        )}
+      </div>
+      <p className="mt-1.5 text-body-small text-m-on-surface">{rev.reason_for_change}</p>
+      {meta && <p className="mt-1 text-label-small text-m-on-surface-variant">{meta}</p>}
+      {diff && (
+        <details open={rev.state === "proposed"} className="mt-2 rounded-md border border-m-outline-variant">
+          <summary className="cursor-pointer select-none px-2.5 py-1.5 text-label-small font-medium text-m-on-surface-variant">
+            View diff
+          </summary>
+          <div className="border-t border-m-outline-variant p-2.5">
+            <RevisionDiffView diff={diff} deptById={deptById} teamById={teamById} />
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// Two-column before/after: removed (red strikethrough) on the left, added
+// (green) on the right, changed steps below with per-field "from → to". No
+// amber M3 role exists (tokens.css has primary/secondary/tertiary/error only)
+// — changed rows use secondary-container as the closest neutral-but-distinct
+// role rather than inventing a token or a hex.
+function RevisionDiffView({
+  diff,
+  deptById,
+  teamById,
+}: {
+  diff: DiffSummary;
+  deptById: Map<string, DeptRow>;
+  teamById: Map<string, TeamRow>;
+}) {
+  const hasChanges = diff.added.length + diff.removed.length + diff.changed.length > 0;
+  if (!hasChanges) {
+    return <p className="text-label-small text-m-on-surface-variant">No step changes — reason-only revision.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">Before</p>
+          {diff.removed.length === 0 ? (
+            <p className="text-label-small text-m-on-surface-variant">No steps removed.</p>
+          ) : (
+            diff.removed.map((s) => (
+              <p
+                key={s.id}
+                className="rounded bg-m-error-container px-2 py-1 text-label-small text-m-on-error-container line-through"
+              >
+                {s.title}
+              </p>
+            ))
+          )}
+        </div>
+        <div className="space-y-1">
+          <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">After</p>
+          {diff.added.length === 0 ? (
+            <p className="text-label-small text-m-on-surface-variant">No steps added.</p>
+          ) : (
+            diff.added.map((s) => (
+              <p key={s.id} className="rounded bg-m-tertiary-container px-2 py-1 text-label-small text-m-on-tertiary-container">
+                + {s.title}
+              </p>
+            ))
+          )}
+        </div>
+      </div>
+      {diff.changed.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">Changed</p>
+          {diff.changed.map((c) => (
+            <div key={c.id} className="rounded bg-m-secondary-container px-2.5 py-1.5 text-m-on-secondary-container">
+              <p className="text-body-small font-medium">{c.title}</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {c.fields.map((f) => (
+                  <li key={f.field} className="text-label-small">
+                    {DIFF_FIELD_LABEL[f.field] ?? f.field}: {formatDiffValue(f.field, f.from, deptById, teamById)}
+                    {" → "}
+                    {formatDiffValue(f.field, f.to, deptById, teamById)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -35,6 +35,14 @@ export const SYSTEM_KIND_LABEL: Record<Database["public"]["Enums"]["system_kind"
   reference: "Reference",
 };
 
+// Shared between SystemDetail's steps list and BlockInspector's editable
+// select — one label map, not two.
+export const MATERIALISE_LABEL: Record<Database["public"]["Enums"]["materialise_mode"], string> = {
+  task: "Task",
+  checklist_item: "Checklist item",
+  none: "Not materialised",
+};
+
 export type SystemDefinitionWithJoins = SystemDefinition & {
   service_name: string | null;
   recurring_service_name: string | null;

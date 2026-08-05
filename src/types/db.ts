@@ -2441,6 +2441,8 @@ export type Database = {
           ordinal: number
           owner_id: string | null
           parent_id: string | null
+          pos_x: number | null
+          pos_y: number | null
           service_id: string | null
           system_id: string | null
           title: string
@@ -2459,6 +2461,8 @@ export type Database = {
           ordinal: number
           owner_id?: string | null
           parent_id?: string | null
+          pos_x?: number | null
+          pos_y?: number | null
           service_id?: string | null
           system_id?: string | null
           title: string
@@ -2477,6 +2481,8 @@ export type Database = {
           ordinal?: number
           owner_id?: string | null
           parent_id?: string | null
+          pos_x?: number | null
+          pos_y?: number | null
           service_id?: string | null
           system_id?: string | null
           title?: string
@@ -4267,6 +4273,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "system_definitions_current_revision_id_fkey"
+            columns: ["current_revision_id"]
+            isOneToOne: false
+            referencedRelation: "system_revisions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "system_definitions_expert_id_fkey"
             columns: ["expert_id"]
             isOneToOne: false
@@ -4306,6 +4319,138 @@ export type Database = {
             columns: ["time_category_id"]
             isOneToOne: false
             referencedRelation: "time_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_edges: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          source_step_id: string
+          system_id: string
+          target_step_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          source_step_id: string
+          system_id: string
+          target_step_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          source_step_id?: string
+          system_id?: string
+          target_step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_edges_source_step_id_fkey"
+            columns: ["source_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_edges_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_edges_target_step_id_fkey"
+            columns: ["target_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_revisions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: Json
+          created_at: string
+          diff_summary: Json | null
+          effective_date: string | null
+          id: string
+          proposed_at: string | null
+          proposed_by: string | null
+          reason_for_change: string
+          revision: number
+          schema_version: number
+          state: string
+          supersedes_id: string | null
+          system_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: Json
+          created_at?: string
+          diff_summary?: Json | null
+          effective_date?: string | null
+          id?: string
+          proposed_at?: string | null
+          proposed_by?: string | null
+          reason_for_change: string
+          revision: number
+          schema_version?: number
+          state: string
+          supersedes_id?: string | null
+          system_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: Json
+          created_at?: string
+          diff_summary?: Json | null
+          effective_date?: string | null
+          id?: string
+          proposed_at?: string | null
+          proposed_by?: string | null
+          reason_for_change?: string
+          revision?: number
+          schema_version?: number
+          state?: string
+          supersedes_id?: string | null
+          system_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_revisions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_revisions_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_revisions_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "system_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_revisions_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
             referencedColumns: ["id"]
           },
         ]
@@ -4761,6 +4906,40 @@ export type Database = {
         }
         Relationships: []
       }
+      system_handoffs: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          is_handoff: boolean | null
+          label: string | null
+          source_step_id: string | null
+          system_id: string | null
+          target_step_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_edges_source_step_id_fkey"
+            columns: ["source_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_edges_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_edges_target_step_id_fkey"
+            columns: ["target_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_foundations_coverage: {
         Row: {
           baseline_label: string | null
@@ -4822,6 +5001,7 @@ export type Database = {
       }
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
+      publish_system_revision: { Args: { p_revision_id: string }; Returns: undefined }
       queue_pending_client: {
         Args: { p_domain: string; p_sender: string; p_subject: string }
         Returns: {

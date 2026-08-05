@@ -1,0 +1,158 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Database, Json } from "@/types/db";
+import { useAuth } from "@/context/AuthContext";
+import { SYSTEMS_KEY, SYSTEM_DETAIL_KEY } from "@/hooks/useSystemDefinitions";
+// Reused as-is from the edge function's shared lib — pure TS, no Deno APIs,
+// same cross-import pattern already used by src/lib/scope-disposition.test.ts.
+import { diffSteps, type DiffStep } from "../../supabase/functions/_shared/system-diff";
+
+type SystemRevision = Database["public"]["Tables"]["system_revisions"]["Row"];
+type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
+
+export const SYSTEM_REVISIONS_KEY = (systemId: string) => ["system_revisions", systemId] as const;
+
+function toDiffStep(s: StepRow): DiffStep {
+  return {
+    id: s.id,
+    title: s.title,
+    estimated_hours: s.estimated_hours,
+    department_id: s.department_id,
+    owner_id: s.owner_id,
+    materialise_as: s.materialise_as,
+  };
+}
+
+// Every revision for a system, newest first — the approval history / list.
+export function useSystemRevisions(systemId: string | undefined) {
+  return useQuery({
+    enabled: !!systemId,
+    queryKey: systemId ? SYSTEM_REVISIONS_KEY(systemId) : ["system_revisions", "none"],
+    queryFn: async (): Promise<SystemRevision[]> => {
+      if (!systemId) return [];
+      const { data, error } = await supabase
+        .from("system_revisions")
+        .select("*")
+        .eq("system_id", systemId)
+        .order("revision", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Snapshots the system's current steps into a new 'proposed' revision,
+// diffed against whatever is currently 'published' (or against nothing, for
+// a system's first-ever revision — diffSteps([], after) reports every step
+// as added).
+export function useProposeRevision() {
+  const qc = useQueryClient();
+  const { currentUserId } = useAuth();
+  return useMutation({
+    mutationFn: async ({ systemId, reasonForChange }: { systemId: string; reasonForChange: string }) => {
+      // A kind='service' system's steps aren't reliably reachable by
+      // system_id alone: useSetServiceChecklist/useReplaceSteps (the
+      // service-editor mutations) write `service_id` only, with no
+      // `system_id` — only the 0105 backfill stamped that column, so any
+      // step edited since carries service_id but not system_id. Match how
+      // push-to-clickup actually reaches steps (service_id OR system_id) so
+      // the snapshot isn't silently empty for an edited service.
+      const { data: sys, error: sysErr } = await supabase
+        .from("system_definitions")
+        .select("kind,service_id")
+        .eq("id", systemId)
+        .single();
+      if (sysErr) throw sysErr;
+
+      let stepsQuery = supabase.from("process_steps").select("*").order("ordinal");
+      stepsQuery =
+        sys.kind === "service" && sys.service_id
+          ? stepsQuery.or(`system_id.eq.${systemId},service_id.eq.${sys.service_id}`)
+          : stepsQuery.eq("system_id", systemId);
+      const { data: currentSteps, error: stepsErr } = await stepsQuery;
+      if (stepsErr) throw stepsErr;
+
+      const { data: publishedRev, error: pubErr } = await supabase
+        .from("system_revisions")
+        .select("body")
+        .eq("system_id", systemId)
+        .eq("state", "published")
+        .maybeSingle();
+      if (pubErr) throw pubErr;
+
+      const { data: lastRev, error: lastErr } = await supabase
+        .from("system_revisions")
+        .select("revision")
+        .eq("system_id", systemId)
+        .order("revision", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastErr) throw lastErr;
+
+      const before = ((publishedRev?.body as StepRow[] | null) ?? []).map(toDiffStep);
+      const after = (currentSteps ?? []).map(toDiffStep);
+
+      const { data, error } = await supabase
+        .from("system_revisions")
+        .insert({
+          system_id: systemId,
+          revision: (lastRev?.revision ?? 0) + 1,
+          body: currentSteps ?? [],
+          state: "proposed",
+          reason_for_change: reasonForChange,
+          proposed_by: currentUserId ?? null,
+          proposed_at: new Date().toISOString(),
+          // DiffSummary's `from`/`to` are deliberately `unknown` (values from
+          // any of the five compared fields); the object is still plain JSON
+          // at runtime, just not structurally assignable to Json's recursive
+          // type without this cast.
+          diff_summary: diffSteps(before, after) as unknown as Json,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) }),
+  });
+}
+
+// Atomic publish via the security-definer RPC (0106) — never do the
+// supersede/publish/repoint sequence from the client.
+export function usePublishRevision() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ revisionId }: { revisionId: string; systemId: string }) => {
+      const { error } = await supabase.rpc("publish_system_revision", { p_revision_id: revisionId });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
+      qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // current_revision_id moved
+      qc.invalidateQueries({ queryKey: SYSTEM_DETAIL_KEY(vars.systemId) });
+    },
+  });
+}
+
+// "Request changes": send a proposed revision back to draft. Plain update,
+// not the RPC — no publish-state invariant to protect here.
+export function useRequestChanges() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ revisionId }: { revisionId: string; systemId: string }) => {
+      // .select() so a zero-row match (already published/draft/superseded)
+      // surfaces as a real error instead of a silent no-op success.
+      const { data, error } = await supabase
+        .from("system_revisions")
+        .update({ state: "draft" })
+        .eq("id", revisionId)
+        .eq("state", "proposed")
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Revision is no longer in 'proposed' state — nothing to send back to draft.");
+      }
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) }),
+  });
+}

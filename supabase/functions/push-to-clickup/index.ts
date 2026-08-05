@@ -574,17 +574,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // Instantiate process steps for this project.
-    // Each service on the quote may have template steps in process_steps.
-    // We create one process_step_instance per template step, in service-line
+    // Each service on the quote may have template steps in process_steps —
+    // OR, once its kind='service' system has a published revision (Phase 5),
+    // that revision's frozen body snapshot instead. We create one
+    // process_step_instance per resolved template step, in service-line
     // order, then create a corresponding ClickUp child task for each.
     const serviceIdsOrdered = items.map((i) => i.service_id);
     if (serviceIdsOrdered.length > 0) {
-      const { data: templateSteps } = await supabase
-        .from("process_steps")
-        .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id")
-        .in("service_id", serviceIdsOrdered)
-        .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
-        .order("service_id,ordinal");
       type TemplateStep = {
         id: string;
         service_id: string;
@@ -597,7 +593,124 @@ Deno.serve(async (req: Request) => {
         owner_id: string | null;
         system_id: string | null;
       };
-      const templateStepsById = new Map((templateSteps ?? []).map((s: TemplateStep) => [s.id, s]));
+      type SubStepRow = { id: string; parent_id: string | null; title: string; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
+      // Shape of a row inside system_revisions.body: a full process_steps
+      // snapshot (top-level AND sub-steps — parent_id tells them apart).
+      type BodyStep = TemplateStep & { parent_id: string | null };
+
+      // Materialisation rule (Phase 5, spec "Error handling"): a service's
+      // kind='service' system, if it has a published revision, materialises
+      // from that frozen snapshot; a system with none — or no system at all
+      // (pre-Phase-4 services) — falls back to live process_steps, exactly
+      // as Phase 1-4 behaved. Reachability today: current_revision_id is
+      // only ever set by publish_system_revision, and nothing calls it yet
+      // outside the (new) Systems approval UI — so on the live DB every
+      // service currently takes the fallback branch below. Wired, not yet
+      // exercised.
+      const { data: serviceSystems } = await supabase
+        .from("system_definitions")
+        .select("id,service_id,current_revision_id")
+        .in("service_id", serviceIdsOrdered)
+        .eq("kind", "service")
+        // system_definitions_one_per_service_idx (0106) only guarantees one
+        // service-kind system per service *while archived_at is null* — so an
+        // archived system that still carries a current_revision_id would
+        // otherwise win publishedBodyByServiceId below and materialise a
+        // retired snapshot over the live one.
+        .is("archived_at", null);
+      type ServiceSystem = { id: string; service_id: string; current_revision_id: string | null };
+      const revisionIds = ((serviceSystems ?? []) as ServiceSystem[])
+        .map((s) => s.current_revision_id)
+        .filter((id): id is string => !!id);
+      const { data: publishedRevs } = revisionIds.length > 0
+        ? await supabase.from("system_revisions").select("system_id,body").in("id", revisionIds).eq("state", "published")
+        : { data: [] as { system_id: string; body: unknown }[] };
+      const serviceIdBySystemId = new Map(
+        ((serviceSystems ?? []) as ServiceSystem[]).map((s) => [s.id, s.service_id]),
+      );
+      // Defensive backstop: a published body with zero TOP-LEVEL steps is
+      // treated as "no published revision" rather than "materialise
+      // nothing" — protects against any snapshot source (present or
+      // future) that fails to stamp system_id on every step and so
+      // silently captures an empty/partial body. Falls through to the raw
+      // process_steps query + warning below instead of vanishing.
+      const publishedBodyByServiceId = new Map<string, BodyStep[]>();
+      for (const rev of (publishedRevs ?? []) as { system_id: string; body: unknown }[]) {
+        const svcId = serviceIdBySystemId.get(rev.system_id);
+        if (!svcId) continue;
+        const body = (rev.body as BodyStep[] | null) ?? [];
+        if (body.some((s) => !s.parent_id)) publishedBodyByServiceId.set(svcId, body);
+      }
+
+      const servicesNeedingRaw = serviceIdsOrdered.filter((id) => !publishedBodyByServiceId.has(id));
+      for (const id of servicesNeedingRaw) {
+        console.warn(`[push-to-clickup] service ${id} has no published system revision — materialising from live process_steps`);
+      }
+
+      const { data: rawTopLevel } = servicesNeedingRaw.length > 0
+        ? await supabase
+            .from("process_steps")
+            .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id")
+            .in("service_id", servicesNeedingRaw)
+            .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
+            .order("service_id,ordinal")
+        : { data: [] as TemplateStep[] };
+      const rawTopLevelIds = ((rawTopLevel ?? []) as TemplateStep[]).map((s) => s.id);
+      const { data: rawSubSteps } = rawTopLevelIds.length > 0
+        ? await supabase
+            .from("process_steps")
+            .select("id,parent_id,title,ordinal,materialise_as")
+            .in("parent_id", rawTopLevelIds)
+            .order("ordinal")
+        : { data: [] as SubStepRow[] };
+
+      // Body-sourced steps: split the snapshot by parent_id and stamp
+      // service_id (the snapshot is scoped to a system, not a column on the
+      // row itself). Guard against a step deleted since publish — inserting
+      // a process_step_instance with a template_step_id that no longer
+      // exists in process_steps would 23503 the whole batch insert below.
+      const bodyTopLevel: TemplateStep[] = [];
+      const bodySubSteps: SubStepRow[] = [];
+      for (const [serviceId, steps] of publishedBodyByServiceId) {
+        for (const s of steps) {
+          if (s.parent_id) {
+            bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, ordinal: s.ordinal, materialise_as: s.materialise_as });
+          } else {
+            bodyTopLevel.push({
+              id: s.id,
+              service_id: serviceId,
+              ordinal: s.ordinal,
+              title: s.title,
+              description: s.description ?? null,
+              department_id: s.department_id ?? null,
+              estimated_hours: s.estimated_hours ?? null,
+              materialise_as: s.materialise_as,
+              owner_id: s.owner_id ?? null,
+              system_id: s.system_id ?? null,
+            });
+          }
+        }
+      }
+      const bodyStepIds = [...bodyTopLevel, ...bodySubSteps].map((s) => s.id);
+      const { data: stillLive } = bodyStepIds.length > 0
+        ? await supabase.from("process_steps").select("id").in("id", bodyStepIds)
+        : { data: [] as { id: string }[] };
+      const liveIds = new Set((stillLive ?? []).map((r) => r.id));
+      const droppedCount = bodyStepIds.filter((id) => !liveIds.has(id)).length;
+      if (droppedCount > 0) {
+        console.warn(`[push-to-clickup] ${droppedCount} step(s) in a published revision snapshot no longer exist in process_steps; skipping`);
+      }
+
+      const templateSteps: TemplateStep[] = [
+        ...((rawTopLevel ?? []) as TemplateStep[]),
+        ...bodyTopLevel.filter((s) => liveIds.has(s.id)),
+      ];
+      const subStepRows: SubStepRow[] = [
+        ...((rawSubSteps ?? []) as SubStepRow[]),
+        ...bodySubSteps.filter((s) => liveIds.has(s.id)),
+      ];
+
+      const templateStepsById = new Map(templateSteps.map((s) => [s.id, s]));
 
       // Internal-system guard (spec "Error handling"): kind='internal' systems
       // attribute time via the perpetual [Internal] {member} — {category} task
@@ -605,16 +718,16 @@ Deno.serve(async (req: Request) => {
       // today — templateSteps above is queried by service_id, and kind='internal'
       // systems carry time_category_id, not service_id — but guard cheaply anyway.
       const stepSystemIds = [...new Set(
-        (templateSteps ?? []).map((s: TemplateStep) => s.system_id).filter((id): id is string => !!id),
+        templateSteps.map((s) => s.system_id).filter((id): id is string => !!id),
       )];
       const { data: systemRows } = stepSystemIds.length > 0
         ? await supabase.from("system_definitions").select("id,kind").in("id", stepSystemIds)
         : { data: [] as { id: string; kind: string }[] };
       const systemKindById = new Map((systemRows ?? []).map((s: { id: string; kind: string }) => [s.id, s.kind]));
       const internalStepIds = new Set(
-        (templateSteps ?? [])
-          .filter((s: TemplateStep) => s.system_id && systemKindById.get(s.system_id) === "internal")
-          .map((s: TemplateStep) => s.id),
+        templateSteps
+          .filter((s) => s.system_id && systemKindById.get(s.system_id) === "internal")
+          .map((s) => s.id),
       );
 
       // Sub-steps roll into a ClickUp artefact per the materialise_as matrix
@@ -623,16 +736,6 @@ Deno.serve(async (req: Request) => {
       // — a sibling item on the service × department task instead.
       // planMaterialisation (pure, tested separately) makes that call; here we
       // just group steps by service and feed it.
-      const topLevelIds = (templateSteps ?? []).map((s) => s.id);
-      type SubStepRow = { id: string; parent_id: string | null; title: string; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
-      const { data: subStepRows } = topLevelIds.length > 0
-        ? await supabase
-            .from("process_steps")
-            .select("id,parent_id,title,ordinal,materialise_as")
-            .in("parent_id", topLevelIds)
-            .order("ordinal")
-        : { data: [] as SubStepRow[] };
-
       const stepsByService = new Map<string, MaterialiseStep[]>();
       for (const s of (templateSteps ?? []) as TemplateStep[]) {
         if (internalStepIds.has(s.id)) continue; // internal-system guard, see above
