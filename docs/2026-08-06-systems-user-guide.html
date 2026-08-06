@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conductor — Systems: how to use it</title>
+<style>
+@page { size: A4; margin: 16mm 14mm 14mm; }
+
+/* Every value below is a Conductor M3 token from tokens/base.json — this is a
+   Conductor document, so it uses the house palette rather than its own. */
+:root{
+  --ink:#09090B;            /* on-surface        */
+  --muted:#5B4A7A;          /* on-surface-variant*/
+  --primary:#7C3AED;        /* primary           */
+  --deep:#2E1065;           /* on-primary-container */
+  --pc:#EDE9FE;             /* primary-container / outline-variant */
+  --line:#EDE9FE;           /* outline-variant   */
+  --line2:#C4B5FD;          /* outline           */
+  --sc:#F5F3FF;             /* surface-container */
+  --cyan:#0891B2;           /* tertiary          */
+  --cyan-bg:#CFFAFE;        /* tertiary-container*/
+  --cyan-ink:#083344;       /* on-tertiary-container */
+  --err:#DC2626;            /* error             */
+  --err-bg:#FEE2E2;         /* error-container   */
+  --err-ink:#7F1D1D;        /* on-error-container*/
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  color:var(--ink); font-size:10.2pt; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em}
+code{background:var(--pc);padding:.1em .35em;border-radius:4px;color:var(--deep)}
+
+/* ---- cover ---- */
+.cover{
+  background:linear-gradient(135deg,#2E1065,#4C1D95 45%,#7C3AED);
+  color:#fff; padding:26mm 16mm 20mm; margin:-16mm -14mm 10mm;
+}
+.cover .eyebrow{font-size:8.5pt;letter-spacing:.16em;text-transform:uppercase;opacity:.72;font-weight:600;margin-bottom:8px}
+.cover h1{font-size:30pt;line-height:1.08;margin:0 0 10px;font-weight:650;letter-spacing:-.02em}
+.cover p{font-size:11pt;line-height:1.55;opacity:.92;margin:0;max-width:135mm}
+.cover .meta{margin-top:16px;font-size:8.5pt;opacity:.75}
+
+h2{
+  font-size:15pt;font-weight:650;letter-spacing:-.01em;margin:0 0 3px;color:var(--deep);
+  padding-top:2px; break-after:avoid;
+}
+h2 .num{color:var(--primary);font-variant-numeric:tabular-nums}
+h3{font-size:11pt;font-weight:650;margin:15px 0 5px;color:var(--ink);break-after:avoid}
+.lede{color:var(--muted);margin:0 0 12px;font-size:10pt}
+section{margin-bottom:20px}          /* flow freely; the guards below stop orphans */
+h2,h3{break-after:avoid}
+table,.box,.step,pre{break-inside:avoid}
+thead{break-after:avoid}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+
+ol,ul{margin:6px 0 6px;padding-left:19px}
+li{margin-bottom:5px}
+li::marker{color:var(--primary);font-weight:600}
+ul.plain{list-style:none;padding-left:0}
+ul.plain li{padding-left:16px;position:relative}
+ul.plain li::before{content:'▸';position:absolute;left:0;color:var(--primary);font-size:.9em}
+
+table{width:100%;border-collapse:collapse;margin:8px 0;font-size:9.3pt}
+th{
+  text-align:left;background:var(--pc);color:var(--deep);font-weight:650;
+  padding:6px 8px;border:1px solid var(--line2);font-size:8.6pt;
+  letter-spacing:.03em;text-transform:uppercase;
+}
+td{padding:6px 8px;border:1px solid var(--line);vertical-align:top}
+tbody tr:nth-child(even){background:var(--sc)}
+
+/* Callouts carry their meaning in the tint and the coloured label. A single
+   1px border all round, not a thick left rule. */
+.box{border-radius:8px;padding:10px 13px;margin:11px 0;font-size:9.6pt;line-height:1.5;break-inside:avoid}
+.box p{margin:0}
+.box p + p{margin-top:6px}
+.box .t{font-weight:700;display:block;margin-bottom:3px;font-size:9.4pt;letter-spacing:.01em}
+.warn{background:var(--cyan-bg);border:1px solid var(--cyan)}
+.warn .t{color:var(--cyan-ink)}
+.stop{background:var(--err-bg);border:1px solid var(--err)}
+.stop .t{color:var(--err-ink)}
+.note{background:var(--sc);border:1px solid var(--line2)}
+.note .t{color:var(--primary)}
+
+pre{
+  background:var(--deep);color:var(--pc);border-radius:8px;padding:10px 13px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8.6pt;line-height:1.6;
+  overflow-x:auto;margin:8px 0;white-space:pre-wrap;word-break:break-word;
+}
+pre .c{color:var(--line2)}
+
+.step{
+  display:flex;gap:11px;margin-bottom:9px;break-inside:avoid;
+}
+.step .n{
+  flex:none;width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;
+  font-size:8.6pt;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;
+}
+.step .b{flex:1}
+.step .b b{font-weight:650}
+
+.ui{
+  display:inline-block;background:#fff;border:1px solid var(--line2);border-radius:4px;
+  padding:.05em .4em;font-size:.9em;font-weight:600;color:var(--deep);white-space:nowrap;
+  box-shadow:0 1px 0 rgba(46,16,101,.06);
+}
+.path{color:var(--deep);font-weight:600}
+
+.legend{display:flex;gap:7px;flex-wrap:wrap;margin:9px 0}
+.chip{
+  border:1px solid var(--line2);border-radius:9999px;padding:3px 10px;font-size:8.6pt;
+  background:#fff;display:flex;align-items:center;gap:6px;
+}
+.sw{width:9px;height:9px;border-radius:4px;flex:none}
+
+.foot{margin-top:24px;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:8.3pt}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="eyebrow">Conductor · Internal guide</div>
+  <h1>Systems</h1>
+  <p>Untethering process from price. How to document the way work actually gets done — and have it show up in ClickUp as real, owned, estimated tasks.</p>
+  <div class="meta">6 August 2026 · branch <span class="mono">feat/systems</span> · migrations 0103–0108</div>
+</div>
+
+<section>
+  <h2><span class="num">0.</span> Before you can use it</h2>
+  <p class="lede">The database and the ClickUp integration are already live. The screens are not.</p>
+
+  <table>
+    <thead><tr><th style="width:38%">Piece</th><th style="width:20%">Status</th><th>What that means</th></tr></thead>
+    <tbody>
+      <tr><td>Migrations 0103–0108</td><td><b>Live</b></td><td>Applied to the production database already.</td></tr>
+      <tr><td><span class="mono">push-to-clickup</span> v38<br><span class="mono">analyze-brief-sow</span> v15</td><td><b>Live</b></td><td>Deployed. The next real quote push already uses the new behaviour.</td></tr>
+      <tr><td>The <span class="mono">/systems</span> screens</td><td><b>Not merged</b></td><td>They exist only on the branch. There is no <span class="ui">Systems</span> nav item in the app you open today.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>To get the screens running</h3>
+<pre><span class="c"># from the main checkout — the one serving :5391</span>
+git merge feat/systems
+npm install          <span class="c"># @xyflow/react + dagre are new dependencies</span></pre>
+  <p>The dev server picks it up on reload. <span class="ui">Systems</span> then appears in the left nav under <span class="path">Delivery</span>, next to Services. Admin and owner only — staff are bounced to <span class="mono">/staff</span>.</p>
+
+  <div class="box note">
+    <span class="t">Not ready to merge yet?</span>
+    <p>Everything in sections 1–6 still describes the branch. The one thing already affecting you today is section 6 — the ClickUp side is live regardless of whether you merge.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <h2><span class="num">1.</span> What a System is</h2>
+  <p class="lede">A named, owned, goal-bearing way of doing something. The process behind the price.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><b>System</b></td><td>The top-level object. Has a goal, an owner, and steps.</td></tr>
+      <tr><td><b>Step</b></td><td>One unit of work inside it. Normally becomes a ClickUp task.</td></tr>
+      <tr><td><b>Sub-step</b></td><td>Detail within a step. Becomes a checklist item on that step's task.</td></tr>
+      <tr><td><b>Canvas</b></td><td>The drag-and-drop <i>view</i> of a system. A view, not the product.</td></tr>
+      <tr><td><b>Revision</b></td><td>An immutable published version. Only published revisions reach ClickUp.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Four kinds</h3>
+  <table>
+    <thead><tr><th style="width:20%">Kind</th><th style="width:32%">Links to</th><th>Use it for</th></tr></thead>
+    <tbody>
+      <tr><td><b>service</b></td><td>A service</td><td>How a sellable service actually gets delivered.</td></tr>
+      <tr><td><b>recurring</b></td><td>A retainer recurring service</td><td>Repeating retainer work.</td></tr>
+      <tr><td><b>internal</b></td><td>A time category</td><td>Sales, marketing, admin. <b>Never creates ClickUp tasks.</b></td></tr>
+      <tr><td><b>reference</b></td><td>Nothing</td><td>A documented process that isn't billed or tracked.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">2.</span> Creating a system</h2>
+  <p class="lede">Go to <span class="path">Systems</span> in the nav, then <span class="ui">+ New system</span>.</p>
+
+  <div class="step"><div class="n">1</div><div class="b"><b>Name</b> — e.g. "Outbound sales".</div></div>
+  <div class="step"><div class="n">2</div><div class="b"><b>Kind</b> — picking this changes the next field.</div></div>
+  <div class="step"><div class="n">3</div><div class="b"><b>The link</b> — <span class="ui">Service</span>, <span class="ui">Recurring service</span> or <span class="ui">Time category</span>, depending on kind. <span class="ui">reference</span> needs none. This is enforced by a database constraint, so a mismatch fails the save rather than creating something half-formed.</div></div>
+  <div class="step"><div class="n">4</div><div class="b"><b>Band</b> — attract, convert, deliver, retain, internal. Purely for grouping the list.</div></div>
+  <div class="step"><div class="n">5</div><div class="b"><b>Goal statement</b> — <b>mandatory.</b> "What does this system exist to achieve?" There is no way to create a system without one; that is deliberate.</div></div>
+
+  <h3>Finding systems later</h3>
+  <p>The left rail filters by <b>Band</b>, <b>Kind</b>, and a <b>Health</b> checkbox: <span class="ui">Unmapped / no goal</span>.</p>
+
+  <div class="box warn">
+    <span class="t">Start with the Unmapped filter</span>
+    <p>Every existing service with process steps was auto-converted into a system, with the placeholder goal <span class="mono">"TODO: set a goal for this system"</span>. Those are the ones the Unmapped filter surfaces. Writing real goals for them is the first useful pass through this feature.</p>
+  </div>
+</section>
+
+<hr>
+
+<section>
+  <h2><span class="num">3.</span> Adding steps</h2>
+  <p class="lede">This is the one genuinely awkward part. Read it before you go hunting for a button.</p>
+
+  <div class="box stop">
+    <span class="t">There is no "add step" button on the Systems page</span>
+    <p>Not on the detail page, not on the canvas. The canvas will tell you "No steps yet — add steps to this system to see them on the canvas" without offering any way to do it. This is a known gap, not something you're missing.</p>
+  </div>
+
+  <h3>For a <span class="mono">service</span> system — use the service</h3>
+  <ol>
+    <li>Go to <span class="path">Services → [the service] → Process flow</span>.</li>
+    <li>Click <span class="ui">Add step</span>. Set its title, department and estimated hours.</li>
+    <li>Reorder with the up/down arrows; delete with the bin icon.</li>
+    <li>Open the matching system — the steps are there.</li>
+  </ol>
+  <p>They attach automatically: a database trigger stamps each step with its service's system as it's written. You don't have to link anything by hand.</p>
+
+  <h3>For <span class="mono">internal</span> and <span class="mono">reference</span> systems</h3>
+  <p>There is no route at all — these have no service to borrow the Process flow from. Until an add-step UI exists, steps have to be inserted directly into the database. Worth knowing before you plan a session mapping out the sales system.</p>
+
+  <div class="box note">
+    <span class="t">Sub-steps</span>
+    <p>Sub-steps carry no hours — only top-level steps do. That's enforced by a constraint, and it's what keeps the service allocation percentages correct.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">4.</span> The canvas</h2>
+  <p class="lede">On the system detail page. Lane-free by design: department is a colour, person is an avatar.</p>
+
+  <h3>Reading a block</h3>
+  <ul class="plain">
+    <li><b>Coloured left spine</b> — the department, straight from <span class="mono">departments.color</span>.</li>
+    <li><b>Avatar + name</b> — who is responsible.</li>
+    <li><b>Monospace pill</b> — estimated hours.</li>
+    <li><b>Red dashed block</b> — nobody owns this. Deliberately loud; this is how gaps in a process surface.</li>
+    <li><b>Amber dashed connector labelled ⇄ Handoff</b> — work crossing departments. Handoffs are where things get dropped, so they're drawn, not implied.</li>
+  </ul>
+
+  <h3>Working on it</h3>
+  <table>
+    <thead><tr><th style="width:34%">To do this</th><th>Do that</th></tr></thead>
+    <tbody>
+      <tr><td>Move a block</td><td>Drag it. Position saves automatically about a second after you let go.</td></tr>
+      <tr><td>Connect two blocks</td><td>Drag from one block's handle to another.</td></tr>
+      <tr><td>Delete a connector</td><td>Click it, then press Backspace or Delete.</td></tr>
+      <tr><td>Auto-arrange</td><td><span class="ui">Tidy up</span> — lays the graph out left to right.</td></tr>
+      <tr><td>Edit a block</td><td>Click it; the inspector opens on the right.</td></tr>
+      <tr><td>Focus one person</td><td>Click an avatar — everything not theirs dims. Click again to clear.</td></tr>
+      <tr><td>Open sub-steps</td><td>Double-click a block that has them.</td></tr>
+    </tbody>
+  </table>
+  <p>An <span class="ui">Unsaved</span> badge appears while writes are still in flight. Loops are allowed — a marketing system that cycles back on itself is real, so cycles aren't blocked.</p>
+
+  <h3>The inspector</h3>
+  <p>Title · Goal / purpose · Department · Responsible · Estimated hours · <b>Materialise as</b> · Incoming · Revision. The hours field is hidden on sub-steps, since they can't carry hours.</p>
+
+  <h3>The rollup strip</h3>
+  <p>Along the bottom: hours per department, a count of unassigned blocks, and a total. For a service system this should match the allocation on <span class="path">Services → [service]</span>.</p>
+</section>
+
+<hr>
+
+<section>
+  <h2><span class="num">5.</span> Revisions — changing a system safely</h2>
+  <p class="lede">Publishing a system changes what lands in someone's ClickUp task list, so it needs approval.</p>
+
+  <div class="step"><div class="n">1</div><div class="b">Edit the steps however you like. Draft edits never reach ClickUp.</div></div>
+  <div class="step"><div class="n">2</div><div class="b">Click <span class="ui">Propose changes</span>. A <b>reason for change</b> is required — the dialog won't submit without one.</div></div>
+  <div class="step"><div class="n">3</div><div class="b">The proposal shows a <b>before / after diff</b>: added, removed, and changed steps, with which of title, hours, department, owner or materialise-as moved.</div></div>
+  <div class="step"><div class="n">4</div><div class="b">An admin or owner clicks <span class="ui">Approve</span> — or <span class="ui">Request changes</span> to send it back to draft.</div></div>
+  <div class="step"><div class="n">5</div><div class="b">On approval the new revision publishes and the previous one is marked superseded, in a single database transaction. A system can never have two live revisions.</div></div>
+
+  <div class="box warn">
+    <span class="t">Two things to know</span>
+    <p><b>Existing projects never change.</b> A revision affects future materialisation only. Work already pushed to ClickUp is a frozen snapshot of the system as it stood.</p>
+    <p><b>Staff can't propose yet.</b> The spec says they should, but <span class="mono">/systems</span> is admin/owner-only, so in practice proposals are an admin/owner action today.</p>
+  </div>
+
+  <div class="box stop">
+    <span class="t">Don't publish a revision and then edit the service's steps</span>
+    <p>The service editor replaces steps with fresh ones. A published revision points at the old ones, and the push drops steps it can no longer find — so that service would push <b>zero</b> step tasks. Nothing has been published yet, so this hasn't bitten anyone. Pick one or the other per service until it's fixed.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">6.</span> How steps reach ClickUp</h2>
+  <p class="lede">This part is live right now, whether or not you merge the screens.</p>
+
+  <p>Each step has a <b>Materialise as</b> setting, edited in the canvas inspector:</p>
+  <table>
+    <thead><tr><th style="width:24%">Setting</th><th>What appears in ClickUp</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">task</span> <i>(default)</i></td><td>A subtask under the project, carrying assignee, time estimate, points and due date. Its sub-steps become that task's checklist.</td></tr>
+      <tr><td><span class="mono">checklist_item</span></td><td>Just a checklist item on the service × department task. No task of its own.</td></tr>
+      <tr><td><span class="mono">none</span></td><td>Nothing in ClickUp. The step still shows in Conductor's workflow timeline with zero actual hours.</td></tr>
+    </tbody>
+  </table>
+  <p>Sub-steps never get their own task. If their parent isn't a <span class="mono">task</span>, they roll up as checklist items on the service × department task rather than disappearing.</p>
+
+  <div class="box stop">
+    <span class="t">Live issue: ClickUp's parent rollup now double-counts</span>
+    <p>Step tasks previously carried no time estimate. They do now — and they sit under the same ClickUp parent as the service × department task, whose estimate comes from the <i>same</i> hours. So the parent's rolled-up estimate is roughly double.</p>
+    <p>Conductor's own numbers are unaffected — actuals are tracked per step instance, and nothing in Conductor reads ClickUp's estimate. It's the ClickUp project view that reads high.</p>
+    <p><b>The fix is a judgement call per service:</b> decide whether the detail belongs as step tasks or as the department task, and set the other side to <span class="mono">checklist_item</span> or <span class="mono">none</span>. Because <span class="mono">task</span> is the default, every existing step currently counts twice.</p>
+  </div>
+
+  <h3>Internal systems create nothing</h3>
+  <p>A <span class="mono">kind='internal'</span> system writes nothing to ClickUp, ever. Time is already collected by the perpetual <span class="mono">[Internal] {name} — {category}</span> tasks. The system detail page shows an <b>Overhead consumed</b> panel — actual hours from those tasks against the sum of the system's step estimates. That's how you find out the sales system is budgeted at 14h and consuming 30.</p>
+</section>
+
+<hr>
+
+<section>
+  <h2><span class="num">7.</span> Known gaps</h2>
+  <p class="lede">Honest list. None of these are mysteries — they're all understood and written up.</p>
+  <table>
+    <thead><tr><th style="width:36%">Gap</th><th>Consequence</th></tr></thead>
+    <tbody>
+      <tr><td>No add-step UI</td><td>Steps only via a service's Process flow. Internal and reference systems can't be given steps through the app at all.</td></tr>
+      <tr><td>ClickUp rollup double-counts</td><td>Live. Needs a per-service <b>Materialise as</b> decision. See section 6.</td></tr>
+      <tr><td>Never tested against real ClickUp</td><td>Request payloads are unit-tested; no push has been made to a live workspace. The first real quote push is the test.</td></tr>
+      <tr><td>Staff can't propose revisions</td><td><span class="mono">/systems</span> is admin/owner-only. Contradicts the spec; needs a product decision.</td></tr>
+      <tr><td>Published revision + service edit</td><td>Would push zero step tasks for that service. See section 5.</td></tr>
+      <tr><td>Checklist absorption unexercised</td><td>No service had checklist items when the migration ran, so that path has never seen real data.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>A sensible first session</h3>
+  <ol>
+    <li>Merge the branch and <span class="mono">npm install</span>.</li>
+    <li>Open <span class="path">Systems</span>, filter to <span class="ui">Unmapped / no goal</span>, and write real goals.</li>
+    <li>Pick <i>one</i> service. Decide its <b>Materialise as</b> split, so its ClickUp estimate stops doubling.</li>
+    <li>Push one quote for that service and check the ClickUp shape by eye — subtasks, checklist, assignees, estimates.</li>
+    <li>Only then create an internal system for sales or marketing, knowing you'll need help adding its steps.</li>
+  </ol>
+</section>
+
+<div class="foot">
+  Conductor · Systems guide · 6 August 2026 · Full technical detail in
+  <span class="mono">docs/superpowers/plans/2026-08-05-systems.md</span> ·
+  Spec in <span class="mono">docs/superpowers/specs/2026-08-05-systems-design.md</span>
+</div>
+
+</body>
+</html>
