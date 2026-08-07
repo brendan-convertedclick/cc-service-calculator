@@ -204,24 +204,18 @@ npm install          <span class="c"># @xyflow/react + dagre are new dependencie
 
 <section>
   <h2><span class="num">3.</span> Adding steps</h2>
-  <p class="lede">This is the one genuinely awkward part. Read it before you go hunting for a button.</p>
+  <p class="lede">Two routes in, both landing in the same place.</p>
 
-  <div class="box stop">
-    <span class="t">There is no "add step" button on the Systems page</span>
-    <p>Not on the detail page, not on the canvas. The canvas will tell you "No steps yet — add steps to this system to see them on the canvas" without offering any way to do it. This is a known gap, not something you're missing.</p>
-  </div>
-
-  <h3>For a <span class="mono">service</span> system — use the service</h3>
   <ol>
-    <li>Go to <span class="path">Services → [the service] → Process flow</span>.</li>
-    <li>Click <span class="ui">Add step</span>. Set its title, department and estimated hours.</li>
-    <li>Reorder with the up/down arrows; delete with the bin icon.</li>
-    <li>Open the matching system — the steps are there.</li>
+    <li>Open the system, find the <b>Steps</b> card, and click <span class="ui">+ Add step</span>.</li>
+    <li>A step called "New step" appears, unassigned and with no hours.</li>
+    <li>Click its block on the canvas below and fill in the inspector: title, goal, department, responsible, estimated hours, and <b>Materialise as</b>.</li>
+    <li>Drag it into place and connect it to the steps either side.</li>
   </ol>
-  <p>They attach automatically: a database trigger stamps each step with its service's system as it's written. You don't have to link anything by hand.</p>
+  <p>This works for every kind of system, including <span class="mono">internal</span> and <span class="mono">reference</span> ones that have no service behind them.</p>
 
-  <h3>For <span class="mono">internal</span> and <span class="mono">reference</span> systems</h3>
-  <p>There is no route at all — these have no service to borrow the Process flow from. Until an add-step UI exists, steps have to be inserted directly into the database. Worth knowing before you plan a session mapping out the sales system.</p>
+  <h3>The other route, for <span class="mono">service</span> systems</h3>
+  <p><span class="path">Services → [the service] → Process flow → <span class="ui">Add step</span></span> also works, and is the better place when you are thinking about the service's costing rather than its process. Steps added either way show up in both places — a database trigger stamps each one with its service's system as it is written, so nothing needs linking by hand.</p>
 
   <div class="box note">
     <span class="t">Sub-steps</span>
@@ -322,7 +316,6 @@ npm install          <span class="c"># @xyflow/react + dagre are new dependencie
   <table>
     <thead><tr><th style="width:36%">Gap</th><th>Consequence</th></tr></thead>
     <tbody>
-      <tr><td>No add-step UI</td><td>Steps only via a service's Process flow. Internal and reference systems can't be given steps through the app at all.</td></tr>
       <tr><td>ClickUp rollup double-counts</td><td>Live. Needs a per-service <b>Materialise as</b> decision. See section 6.</td></tr>
       <tr><td>Never tested against real ClickUp</td><td>Request payloads are unit-tested; no push has been made to a live workspace. The first real quote push is the test.</td></tr>
       <tr><td>Staff can't propose revisions</td><td><span class="mono">/systems</span> is admin/owner-only. Contradicts the spec; needs a product decision.</td></tr>
@@ -337,7 +330,7 @@ npm install          <span class="c"># @xyflow/react + dagre are new dependencie
     <li>Open <span class="path">Systems</span>, filter to <span class="ui">Unmapped / no goal</span>, and write real goals.</li>
     <li>Pick <i>one</i> service. Decide its <b>Materialise as</b> split, so its ClickUp estimate stops doubling.</li>
     <li>Push one quote for that service and check the ClickUp shape by eye — subtasks, checklist, assignees, estimates.</li>
-    <li>Only then create an internal system for sales or marketing, knowing you'll need help adding its steps.</li>
+    <li>Only then create an internal system for sales or marketing and map out its steps.</li>
   </ol>
 </section>
 

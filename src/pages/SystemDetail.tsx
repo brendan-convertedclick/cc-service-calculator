@@ -8,7 +8,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import {
   MATERIALISE_LABEL,
   PLACEHOLDER_GOAL,
@@ -20,7 +20,7 @@ import {
   useUpdateSystem,
   type SystemDefinitionWithJoins,
 } from "@/hooks/useSystemDefinitions";
-import { useSystemSteps } from "@/hooks/useProcessSteps";
+import { useCreateStep, useSystemSteps } from "@/hooks/useProcessSteps";
 import {
   useProposeRevision,
   usePublishRevision,
@@ -127,6 +127,29 @@ export function SystemDetail() {
   const { id } = useParams();
   const { data: system, isLoading } = useSystemDefinition(id);
   const { data: steps = [] } = useSystemSteps(id);
+  const addStep = useCreateStep();
+
+  // The system page is where people look for this, so it lives here rather
+  // than only on the service's Process flow. For a kind='service' system the
+  // step carries service_id too, so it shows up in both places and stays in
+  // one bucket of process_steps_ordinal_idx.
+  function onAddStep() {
+    if (!id) return;
+    addStep.mutate(
+      {
+        system_id: id,
+        service_id: system?.service_id ?? null,
+        ordinal: steps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
+        title: "New step",
+        department_id: null,
+        estimated_hours: null,
+      },
+      {
+        onSuccess: () => toast.success("Step added — set its department and hours on the canvas"),
+        onError: (e) => toast.error((e as { message?: string })?.message || "Could not add step"),
+      },
+    );
+  }
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
   const update = useUpdateSystem();
@@ -366,15 +389,20 @@ export function SystemDetail() {
           </CardContent>
         </Card>
 
-        {/* Steps — read-only-ish list. Full editing is Phase 6's canvas. */}
+        {/* Steps — add here, then shape them on the canvas below. */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-title-medium">
               Steps <span className="text-label-medium font-normal text-m-on-surface-variant">· {steps.length}</span>
             </CardTitle>
-            {totalStepHours > 0 && (
-              <span className="font-mono text-label-medium text-m-on-surface-variant">{totalStepHours}h estimated</span>
-            )}
+            <div className="flex items-center gap-3">
+              {totalStepHours > 0 && (
+                <span className="font-mono text-label-medium text-m-on-surface-variant">{totalStepHours}h estimated</span>
+              )}
+              <Button size="sm" variant="outline" className="gap-1.5" disabled={addStep.isPending} onClick={onAddStep}>
+                <Plus className="h-4 w-4" /> Add step
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {steps.length === 0 ? (

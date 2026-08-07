@@ -49,6 +49,16 @@ function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
+/** Turn a create failure into something an operator can act on. 23505 is the
+ *  one they'll actually hit — a service already backing a live system. */
+function createSystemError(e: unknown): string {
+  const err = e as { code?: string; message?: string } | null;
+  if (err?.code === "23505") {
+    return "That service already has a system — open the existing one instead of creating a second.";
+  }
+  return err?.message || "Could not create system";
+}
+
 export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
@@ -285,6 +295,23 @@ function NewSystemDialog({
   const { data: timeCategories = [] } = useTimeCategories();
   const { data: recurringOptions = [] } = useRecurringServiceOptions();
 
+  // A service (or recurring service, or time category) can back exactly one
+  // live system — enforced by the partial unique indexes in 0107. Taken
+  // options stay visible but disabled: silently omitting them just raises
+  // "where did my service go?", and picking one is a 23505 on submit.
+  const { data: existing = [] } = useSystemDefinitions();
+  const taken = useMemo(() => {
+    const t = { service: new Set<string>(), recurring: new Set<string>(), internal: new Set<string>() };
+    for (const s of existing) {
+      if (s.archived_at) continue;
+      if (s.service_id) t.service.add(s.service_id);
+      if (s.recurring_service_id) t.recurring.add(s.recurring_service_id);
+      if (s.time_category_id) t.internal.add(s.time_category_id);
+    }
+    return t;
+  }, [existing]);
+
+
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SystemKind>("service");
   const [goal, setGoal] = useState("");
@@ -346,7 +373,10 @@ function NewSystemDialog({
           reset();
           onCreated(s.id);
         },
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create system"),
+        // supabase-js rejects with a PostgrestError, which is a plain object —
+        // `instanceof Error` is false for it, so the real reason was being
+        // swallowed and every failure read "Could not create system".
+        onError: (e) => toast.error(createSystemError(e)),
       },
     );
   }
@@ -388,7 +418,9 @@ function NewSystemDialog({
               >
                 <option value="">— select a service</option>
                 {services.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id} disabled={taken.service.has(s.id)}>
+                    {s.name}{taken.service.has(s.id) ? " — already has a system" : ""}
+                  </option>
                 ))}
               </select>
             </div>
@@ -405,7 +437,9 @@ function NewSystemDialog({
               >
                 <option value="">— select a recurring service</option>
                 {recurringOptions.map((r) => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
+                  <option key={r.id} value={r.id} disabled={taken.recurring.has(r.id)}>
+                    {r.label}{taken.recurring.has(r.id) ? " — already has a system" : ""}
+                  </option>
                 ))}
               </select>
             </div>
@@ -422,7 +456,9 @@ function NewSystemDialog({
               >
                 <option value="">— select a time category</option>
                 {timeCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id} disabled={taken.internal.has(c.id)}>
+                    {c.label}{taken.internal.has(c.id) ? " — already has a system" : ""}
+                  </option>
                 ))}
               </select>
             </div>
