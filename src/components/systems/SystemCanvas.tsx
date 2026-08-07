@@ -15,6 +15,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
+  useReactFlow,
   type Connection,
   type EdgeTypes,
   type NodeTypes,
@@ -76,6 +77,15 @@ function isDecisionTitle(title: string): boolean {
   return title.trim().endsWith("?");
 }
 
+// Vertical drop for a step added after the initial layout, so it lands below
+// the existing graph and inside the viewport rather than stacking at 0,0.
+const NEW_NODE_GAP_Y = 140;
+
+// Half a block, so setCenter lands on the block's middle rather than its
+// top-left corner.
+const NODE_CENTRE_X = 90;
+const NODE_CENTRE_Y = 45;
+
 function buildNode(step: Step): CanvasNode {
   const position = { x: step.pos_x ?? 0, y: step.pos_y ?? 0 };
   // Seed with a minimal, correct-typed placeholder — the renderNodes overlay
@@ -96,14 +106,17 @@ export function SystemCanvas({
   systemId,
   systemName,
   onPropose,
+  focusStepId,
 }: {
   systemId: string;
   systemName: string;
   onPropose: () => void;
+  /** Step to select and centre — bumped when a Steps-list row is clicked. */
+  focusStepId?: { id: string; nonce: number } | null;
 }) {
   return (
     <ReactFlowProvider>
-      <SystemCanvasInner systemId={systemId} systemName={systemName} onPropose={onPropose} />
+      <SystemCanvasInner systemId={systemId} systemName={systemName} onPropose={onPropose} focusStepId={focusStepId} />
     </ReactFlowProvider>
   );
 }
@@ -112,10 +125,12 @@ function SystemCanvasInner({
   systemId,
   systemName,
   onPropose,
+  focusStepId,
 }: {
   systemId: string;
   systemName: string;
   onPropose: () => void;
+  focusStepId?: { id: string; nonce: number } | null;
 }) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
@@ -195,6 +210,8 @@ function SystemCanvasInner({
         // carrying selection ourselves no edge is ever deletable and the
         // "remove" branch of onEdgesChange below is dead code.
         selected: selectedEdgeIds.has(e.id),
+        // Restore the branch this edge left from, or a split collapses on reload.
+        sourceHandle: e.source_handle ?? undefined,
         data: { isHandoff },
       };
     });
@@ -229,6 +246,75 @@ function SystemCanvasInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemId, stepsLoading, subStepsLoading, edgesLoading]);
 
+  // Reconcile steps added or deleted AFTER the seed. The seed above runs once
+  // per system so a refetch can't clobber an in-flight drag — which also meant
+  // a newly added step never became a node and simply didn't render (the
+  // rollup strip still counted it, since that reads the query data). This adds
+  // and removes nodes only, never touching an existing node's position.
+  useEffect(() => {
+    if (stepsLoading || seededFor.current !== systemId) return;
+    setNodes((cur) => {
+      const known = new Set(cur.map((n) => n.id));
+      const live = new Set(topSteps.map((s) => s.id));
+      const added = topSteps.filter((s) => !known.has(s.id));
+      const kept = cur.filter((n) => live.has(n.id));
+      if (added.length === 0 && kept.length === cur.length) return cur;
+
+      // A new step has no stored position. Drop it below the lowest block so it
+      // lands in view rather than stacking at the origin, and persist that so
+      // the next load agrees with what was just shown.
+      let nextY = kept.reduce((m, n) => Math.max(m, n.position.y), 0);
+      const placed = added.map((s) => {
+        const node = buildNode(s);
+        if (s.pos_x == null || s.pos_y == null) {
+          nextY += NEW_NODE_GAP_Y;
+          node.position = { x: 0, y: nextY };
+        }
+        return node;
+      });
+      return [...kept, ...placed];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topSteps, systemId, stepsLoading]);
+
+  // Persist positions for steps that arrived without one. Kept out of the
+  // setNodes updater above: React may invoke an updater twice (StrictMode),
+  // and a mutation is not something to fire twice. The ref is load-bearing —
+  // savePosition deliberately does NOT invalidate ["process_steps"], so the
+  // cached row keeps its null pos_x and this would otherwise re-fire on every
+  // nodes change forever.
+  const positionSeeded = useRef(new Set<string>());
+  useEffect(() => {
+    for (const n of nodes) {
+      const step = topStepById.get(n.id);
+      if (!step || positionSeeded.current.has(n.id)) continue;
+      if (step.pos_x == null || step.pos_y == null) {
+        positionSeeded.current.add(n.id);
+        // savePos, not savePosition.mutate — several new steps can seed at once
+        // and concurrent .mutate() calls on one useMutation only run the last
+        // one's callbacks (see savePos's comment above).
+        void savePos(n.id, n.position.x, n.position.y);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, topStepById]);
+
+  // Clicking a row in SystemDetail's Steps list selects that block and centres
+  // it. Keyed on a nonce, not the id, so clicking the same row twice re-centres
+  // instead of doing nothing.
+  const { setCenter } = useReactFlow();
+  useEffect(() => {
+    if (!focusStepId) return;
+    const node = nodes.find((n) => n.id === focusStepId.id);
+    if (!node) return;
+    setSelectedStepId(focusStepId.id);
+    setCenter(node.position.x + NODE_CENTRE_X, node.position.y + NODE_CENTRE_Y, {
+      zoom: 1,
+      duration: 400,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStepId?.id, focusStepId?.nonce, nodes.length]);
+
   const handleAvatarClick = useCallback((ownerId: string) => {
     setHighlightedOwnerId((cur) => (cur === ownerId ? null : ownerId));
   }, []);
@@ -247,7 +333,11 @@ function SystemCanvasInner({
       const step = topStepById.get(n.id);
       if (!step) return n;
       if (isDecisionTitle(step.title)) {
-        const decisionNode: DecisionNodeType = { ...n, type: "decision", data: { step } };
+        const decisionNode: DecisionNodeType = {
+          ...n,
+          type: "decision",
+          data: { step, dimmed: highlightedOwnerId != null && step.owner_id !== highlightedOwnerId },
+        };
         return decisionNode;
       }
       const department = step.department_id ? deptById.get(step.department_id) ?? null : null;
@@ -352,7 +442,11 @@ function SystemCanvasInner({
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      connect.mutate({ source: connection.source, target: connection.target });
+      connect.mutate({
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle,
+      });
     },
     [connect]
   );

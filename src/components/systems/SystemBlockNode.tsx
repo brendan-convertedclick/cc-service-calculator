@@ -71,6 +71,15 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
       >
         <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-none !bg-m-outline" />
         <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-none !bg-m-outline" />
+        {/* A second output so a step can fork without every branch leaving from
+            the same point. Flow splits are real (a step that kicks off two
+            parallel workstreams), not only decisions. */}
+        <Handle
+          id="branch"
+          type="source"
+          position={Position.Bottom}
+          className="!h-2 !w-2 !border-none !bg-m-outline"
+        />
 
         {unassigned ? (
           <p className="text-label-small font-bold uppercase tracking-wide text-m-error">

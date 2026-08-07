@@ -164,6 +164,9 @@ export function SystemDetail() {
   // Lifted so both RevisionsCard's own trigger AND the canvas window bar's
   // "Propose" button (P5's dialog, wired per this phase's task) can open the
   // same dialog instance.
+  // Clicking a Steps row selects and centres that block on the canvas. The
+  // nonce makes a repeat click on the same row re-centre.
+  const [focusStep, setFocusStep] = useState<{ id: string; nonce: number } | null>(null);
   const [proposeOpen, setProposeOpen] = useState(false);
   const [proposeReason, setProposeReason] = useState("");
 
@@ -415,7 +418,13 @@ export function SystemDetail() {
                   const dept = s.department_id ? deptById.get(s.department_id) : null;
                   const owner = s.owner_id ? teamById.get(s.owner_id) : null;
                   return (
-                    <li key={s.id} className="flex items-center gap-3 px-5 py-3">
+                    <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setFocusStep({ id: s.id, nonce: Date.now() })}
+                      title="Show this step on the canvas"
+                      className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-m-surface-container"
+                    >
                       <span className="w-5 flex-none text-center font-mono text-label-small text-m-on-surface-variant">
                         {s.ordinal}
                       </span>
@@ -424,7 +433,7 @@ export function SystemDetail() {
                         <p className="flex items-center gap-1.5 truncate text-label-small text-m-on-surface-variant">
                           <span
                             className="h-2 w-2 flex-none rounded-full"
-                            style={{ background: dept?.color ?? "var(--mcolor-outline-variant)" }}
+                            style={{ background: dept?.color ?? "hsl(var(--mcolor-outline-variant))" }}
                           />
                           {dept?.name ?? "No department"}{owner ? ` · ${owner.full_name}` : ""}
                         </p>
@@ -435,6 +444,7 @@ export function SystemDetail() {
                       <span className="w-14 flex-none text-right font-mono text-label-small text-m-on-surface-variant">
                         {s.estimated_hours != null ? `${s.estimated_hours}h` : "—"}
                       </span>
+                    </button>
                     </li>
                   );
                 })}
@@ -473,7 +483,12 @@ export function SystemDetail() {
               </div>
             }
           >
-            <SystemCanvas systemId={system.id} systemName={system.name} onPropose={() => setProposeOpen(true)} />
+            <SystemCanvas
+              systemId={system.id}
+              systemName={system.name}
+              onPropose={() => setProposeOpen(true)}
+              focusStepId={focusStep}
+            />
           </Suspense>
         </Card>
         </div>

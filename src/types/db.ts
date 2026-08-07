@@ -4326,6 +4326,7 @@ export type Database = {
       system_edges: {
         Row: {
           created_at: string
+          source_handle: string | null
           id: string
           label: string | null
           source_step_id: string
@@ -4334,6 +4335,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          source_handle?: string | null
           id?: string
           label?: string | null
           source_step_id: string
@@ -4342,6 +4344,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          source_handle?: string | null
           id?: string
           label?: string | null
           source_step_id?: string

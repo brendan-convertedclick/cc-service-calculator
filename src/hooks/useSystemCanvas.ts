@@ -61,10 +61,10 @@ export function useSaveStepPosition() {
 export function useConnectSteps(systemId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ source, target }: { source: string; target: string }) => {
+    mutationFn: async ({ source, target, sourceHandle }: { source: string; target: string; sourceHandle?: string | null }) => {
       const { error } = await supabase
         .from("system_edges")
-        .insert({ system_id: systemId, source_step_id: source, target_step_id: target });
+        .insert({ system_id: systemId, source_step_id: source, target_step_id: target, source_handle: sourceHandle ?? null });
       // 23505 = unique(source_step_id, target_step_id) violation — the
       // connection already exists. Not an error from the user's point of
       // view; swallow it instead of surfacing a toast for a no-op.
