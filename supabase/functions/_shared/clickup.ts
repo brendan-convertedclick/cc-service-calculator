@@ -129,6 +129,12 @@ export type BriefTaskInput = {
   dateOfEngagement: string;
   assigneeClickupId?: number | null;
   dueDateMs?: number | null;
+  // Overrides the points-derived time_estimate below. Points are a coarse
+  // 1-10 scale (see the cap in push-to-clickup), so deriving the estimate
+  // from points loses precision callers that know real estimated_hours
+  // (e.g. a process step) already have — e.g. a 4h step rounds to 1 point,
+  // which would otherwise produce a 15-minute estimate.
+  timeEstimateMs?: number | null;
 };
 
 /**
@@ -186,7 +192,9 @@ export function buildBriefTaskBody(
     // rejects very large point values on create, so the caller retries without
     // `points` if the create fails.
     points: input.sprintPoints,
-    time_estimate: Math.round(input.sprintPoints * POINT_TO_MIN * 60_000),
+    time_estimate: input.timeEstimateMs && input.timeEstimateMs > 0
+      ? Math.round(input.timeEstimateMs)
+      : Math.round(input.sprintPoints * POINT_TO_MIN * 60_000),
     custom_fields: cf,
   };
   if (input.assigneeClickupId) body.assignees = [input.assigneeClickupId];

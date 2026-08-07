@@ -107,6 +107,74 @@ Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when giv
   assertEquals((body as { due_date?: number }).due_date, 1780000000000);
 });
 
+Deno.test("buildBriefTaskBody: timeEstimateMs overrides the points-derived estimate", () => {
+  // A 4.0h step → 1 point → the points formula alone would give 15 minutes
+  // (C1). timeEstimateMs must win so the task reflects estimated_hours.
+  const body = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: 1, dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null, timeEstimateMs: 4 * 3_600_000,
+  });
+  assertEquals(body.time_estimate, 14_400_000);
+  assertEquals((body as { points?: unknown }).points, 1);
+});
+
+Deno.test("buildBriefTaskBody: omitting timeEstimateMs preserves the points-derived estimate exactly", () => {
+  const body = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: 4, dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null,
+  });
+  assertEquals(body.time_estimate, 4 * 15 * 60_000);
+});
+
+Deno.test("buildBriefTaskBody: a null/zero timeEstimateMs also falls back to the points-derived estimate", () => {
+  for (const bad of [null, 0, -100]) {
+    const body = buildBriefTaskBody([], {
+      name: "n", description: "d", clientName: "C", workStream: "W",
+      engagementType: "Task", sprintPoints: 2, dateOfEngagement: "2026-07-08",
+      assigneeClickupId: null, dueDateMs: null, timeEstimateMs: bad,
+    });
+    assertEquals(body.time_estimate, 2 * 15 * 60_000);
+  }
+});
+
+Deno.test("buildBriefTaskBody: points cap — 40h rounds down to the max of 10, 0.5h rounds up to the min of 1", () => {
+  // Mirrors the push-to-clickup cap: Math.min(10, Math.max(1, Math.round(hours / 4))).
+  const capPoints = (hours: number) => Math.min(10, Math.max(1, Math.round(hours / 4)));
+  const bigBody = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: capPoints(40), dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null, timeEstimateMs: 40 * 3_600_000,
+  });
+  assertEquals((bigBody as { points?: unknown }).points, 10);
+  assertEquals(bigBody.time_estimate, 40 * 3_600_000); // hours-derived estimate unaffected by the points cap
+
+  const smallBody = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: capPoints(0.5), dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null, timeEstimateMs: 0.5 * 3_600_000,
+  });
+  assertEquals((smallBody as { points?: unknown }).points, 1);
+  assertEquals(smallBody.time_estimate, 0.5 * 3_600_000);
+});
+
+Deno.test("buildBriefTaskBody: assignee present is included, omitted resolves to no assignees key", () => {
+  const withAssignee = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: 1, dateOfEngagement: "2026-07-08",
+    assigneeClickupId: 42, dueDateMs: null,
+  });
+  assertEquals((withAssignee as { assignees?: number[] }).assignees, [42]);
+
+  const withoutAssignee = buildBriefTaskBody([], {
+    name: "n", description: "d", clientName: "C", workStream: "W",
+    engagementType: "Task", sprintPoints: 1, dateOfEngagement: "2026-07-08",
+    assigneeClickupId: null, dueDateMs: null,
+  });
+  assertEquals((withoutAssignee as { assignees?: unknown }).assignees, undefined);
+});
+
 // --- cuFetch -----------------------------------------------------------
 
 function fakeFetch(statuses: number[], calls: string[]) {

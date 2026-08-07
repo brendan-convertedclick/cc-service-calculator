@@ -1,0 +1,496 @@
+// The drag-and-drop canvas for one system's steps. Lane-free per
+// docs/2026-08-05-systems-canvas-visual-spec.html: department is a colour on
+// the block, not a container around it.
+//
+// Loaded via React.lazy from SystemDetail.tsx so @xyflow/react never enters
+// the main bundle. Only this file (and its lazy-loaded siblings) pull in the
+// library, so the CSS import lives here too, not in index.css/main.tsx.
+import "@xyflow/react/dist/style.css";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Background,
+  BackgroundVariant,
+  Controls,
+  MarkerType,
+  ReactFlow,
+  ReactFlowProvider,
+  useNodesState,
+  type Connection,
+  type EdgeTypes,
+  type NodeTypes,
+  type OnEdgesChange,
+  type OnNodesChange,
+} from "@xyflow/react";
+import { LayoutGrid } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import { useSystemSteps } from "@/hooks/useProcessSteps";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useTeam } from "@/hooks/useTeam";
+import { useSystemRevisions } from "@/hooks/useSystemRevisions";
+import {
+  useConnectSteps,
+  useDisconnectSteps,
+  useSaveStepPosition,
+  useSystemEdges,
+  useSystemSubSteps,
+} from "@/hooks/useSystemCanvas";
+import { SystemBlockNode, type BlockNodeType } from "./SystemBlockNode";
+import { SystemDecisionNode, type DecisionNodeType } from "./SystemDecisionNode";
+import { HandoffEdge, type HandoffEdgeType } from "./HandoffEdge";
+import { BlockInspector } from "./BlockInspector";
+import { DeptRollup } from "./DeptRollup";
+import { useAutoLayout } from "./useAutoLayout";
+import type { Database } from "@/types/db";
+
+type Step = Database["public"]["Tables"]["process_steps"]["Row"];
+type DeptRow = Database["public"]["Tables"]["departments"]["Row"];
+
+type CanvasNode = BlockNodeType | DecisionNodeType;
+
+// Module-level constants — nodeTypes/edgeTypes must not be recreated every
+// render, or React Flow remounts every node/edge.
+const nodeTypes: NodeTypes = { block: SystemBlockNode, decision: SystemDecisionNode };
+const edgeTypes: EdgeTypes = { handoff: HandoffEdge };
+
+const POSITION_SAVE_DEBOUNCE_MS = 800;
+
+// Position writes deliberately bypass useSaveStepPosition (see that hook's
+// comment): N concurrent .mutate() calls on one useMutation instance only run
+// the last one's callbacks, which would strand ids in `pendingIds` forever.
+// A supabase builder is lazy — it only issues the request when `then` is
+// called — so this must return the promise, never the bare builder.
+function savePos(id: string, x: number, y: number): PromiseLike<unknown> {
+  return supabase
+    .from("process_steps")
+    .update({ pos_x: Math.round(x), pos_y: Math.round(y) })
+    .eq("id", id)
+    .then((r) => r);
+}
+
+// A step "is a decision" when its title reads like one — matches the visual
+// spec's own example ("◇ Won?") and needs no new column: the plan explicitly
+// says not to add one if an existing signal will do.
+function isDecisionTitle(title: string): boolean {
+  return title.trim().endsWith("?");
+}
+
+function buildNode(step: Step): CanvasNode {
+  const position = { x: step.pos_x ?? 0, y: step.pos_y ?? 0 };
+  // Seed with a minimal, correct-typed placeholder — the renderNodes overlay
+  // below fills in real department/owner/subSteps/dimmed on every render, so
+  // this shape only needs to satisfy the type, never to be visually correct.
+  if (isDecisionTitle(step.title)) {
+    return { id: step.id, type: "decision", position, data: { step } };
+  }
+  return {
+    id: step.id,
+    type: "block",
+    position,
+    data: { step, department: null, owner: null, subSteps: [] },
+  };
+}
+
+export function SystemCanvas({
+  systemId,
+  systemName,
+  onPropose,
+}: {
+  systemId: string;
+  systemName: string;
+  onPropose: () => void;
+}) {
+  return (
+    <ReactFlowProvider>
+      <SystemCanvasInner systemId={systemId} systemName={systemName} onPropose={onPropose} />
+    </ReactFlowProvider>
+  );
+}
+
+function SystemCanvasInner({
+  systemId,
+  systemName,
+  onPropose,
+}: {
+  systemId: string;
+  systemName: string;
+  onPropose: () => void;
+}) {
+  const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
+  const { data: depts = [] } = useDepartments();
+  const { data: team = [] } = useTeam();
+  // Same query key SystemDetail.tsx already fetches — reused from cache, not
+  // a second network round-trip, for the bar's "— draft rev 2" and the
+  // inspector's "Revision" field.
+  const { data: revisions = [] } = useSystemRevisions(systemId);
+
+  const topLevelIds = useMemo(() => topSteps.map((s) => s.id), [topSteps]);
+  const { data: subSteps = [], isLoading: subStepsLoading } = useSystemSubSteps(topLevelIds);
+  const { data: edgeRows = [], isLoading: edgesLoading } = useSystemEdges(systemId);
+
+  const deptById = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
+  const teamById = useMemo(() => new Map(team.map((t) => [t.id, t])), [team]);
+  const topStepById = useMemo(() => new Map(topSteps.map((s) => [s.id, s])), [topSteps]);
+  const subStepsByParent = useMemo(() => {
+    const m = new Map<string, Step[]>();
+    for (const s of subSteps) {
+      if (!s.parent_id) continue;
+      const arr = m.get(s.parent_id);
+      if (arr) arr.push(s);
+      else m.set(s.parent_id, [s]);
+    }
+    return m;
+  }, [subSteps]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>([]);
+  // Guards the seeding effect below to "once per system", not "once per
+  // steps value" — see the effect's own comment and useSystemCanvas.ts's
+  // note on useSaveStepPosition never invalidating.
+  const seededFor = useRef<string | null>(null);
+
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  // Edges are derived from the query, never held in state, so their selection
+  // flag has to live somewhere — see the edges useMemo for why it's needed.
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
+  const [highlightedOwnerId, setHighlightedOwnerId] = useState<string | null>(null);
+  // Steps with a position write in flight or queued behind the drag debounce
+  // — a Set (not a boolean) so two overlapping drags don't clear the
+  // "Unsaved" indicator the moment either one settles.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const markPending = useCallback((id: string) => setPendingIds((prev) => new Set(prev).add(id)), []);
+  const clearPending = useCallback(
+    (id: string) =>
+      setPendingIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      }),
+    []
+  );
+
+  const savePosition = useSaveStepPosition();
+  const connect = useConnectSteps(systemId);
+  const disconnect = useDisconnectSteps(systemId);
+  const { layoutNodes } = useAutoLayout();
+
+  const edges: HandoffEdgeType[] = useMemo(() => {
+    return edgeRows.map((e) => {
+      const source = topStepById.get(e.source_step_id);
+      const target = topStepById.get(e.target_step_id);
+      // Matches `is distinct from` in every null combination: both null →
+      // false, one null → true, both set and equal → false, else → true.
+      const isHandoff = (source?.department_id ?? null) !== (target?.department_id ?? null);
+      return {
+        id: e.id,
+        source: e.source_step_id,
+        target: e.target_step_id,
+        type: "handoff",
+        markerEnd: { type: MarkerType.ArrowClosed },
+        // React Flow is fully controlled here, and in controlled mode its
+        // store only *reports* selection changes — it never writes them back
+        // (`triggerEdgeChanges` guards `setEdges` on `hasDefaultEdges`). The
+        // Backspace handler then does `edges.filter(selected)`, so without
+        // carrying selection ourselves no edge is ever deletable and the
+        // "remove" branch of onEdgesChange below is dead code.
+        selected: selectedEdgeIds.has(e.id),
+        data: { isHandoff },
+      };
+    });
+  }, [edgeRows, topStepById, selectedEdgeIds]);
+
+  // Seed local node state once per system (on identity, not on every steps/
+  // edges refetch): the position mutation never invalidates ["process_steps"]
+  // precisely so drags don't get raced by a refetch, so re-running this on
+  // every data change would be the only other way a save could get clobbered
+  // mid-session. A route change to a different system resets the guard.
+  useEffect(() => {
+    if (stepsLoading || subStepsLoading || edgesLoading) return;
+    if (seededFor.current === systemId) return;
+    seededFor.current = systemId;
+
+    let built = topSteps.map(buildNode);
+    const missingIds = new Set(topSteps.filter((s) => s.pos_x == null || s.pos_y == null).map((s) => s.id));
+    if (missingIds.size > 0) {
+      const laidOut = layoutNodes(
+        built,
+        edgeRows.map((e) => ({ source: e.source_step_id, target: e.target_step_id }))
+      );
+      const laidOutById = new Map(laidOut.map((n) => [n.id, n]));
+      built = built.map((n) => (missingIds.has(n.id) ? laidOutById.get(n.id) ?? n : n));
+      for (const n of built) {
+        if (missingIds.has(n.id)) {
+          savePosition.mutate({ id: n.id, pos_x: Math.round(n.position.x), pos_y: Math.round(n.position.y) });
+        }
+      }
+    }
+    setNodes(built);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemId, stepsLoading, subStepsLoading, edgesLoading]);
+
+  const handleAvatarClick = useCallback((ownerId: string) => {
+    setHighlightedOwnerId((cur) => (cur === ownerId ? null : ownerId));
+  }, []);
+
+  const handleSelectSubStep = useCallback((subStep: Step) => {
+    setSelectedStepId(subStep.id);
+  }, []);
+
+  // Content (title/department/owner/hours/subSteps/dimmed) is derived fresh
+  // from query data on every render; `nodes` above only owns position, which
+  // is why a step edited from BlockInspector shows up on the block without
+  // waiting for a reload, while an in-progress drag is never overwritten by
+  // a background refetch.
+  const renderNodes: CanvasNode[] = useMemo(() => {
+    return nodes.map((n): CanvasNode => {
+      const step = topStepById.get(n.id);
+      if (!step) return n;
+      if (isDecisionTitle(step.title)) {
+        const decisionNode: DecisionNodeType = { ...n, type: "decision", data: { step } };
+        return decisionNode;
+      }
+      const department = step.department_id ? deptById.get(step.department_id) ?? null : null;
+      const owner = step.owner_id ? teamById.get(step.owner_id) ?? null : null;
+      const dimmed = highlightedOwnerId != null && owner?.id !== highlightedOwnerId;
+      const blockNode: BlockNodeType = {
+        ...n,
+        type: "block",
+        data: {
+          step,
+          department,
+          owner,
+          subSteps: subStepsByParent.get(step.id) ?? [],
+          dimmed,
+          onAvatarClick: handleAvatarClick,
+          onSelectSubStep: handleSelectSubStep,
+        },
+      };
+      return blockNode;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, topStepById, deptById, teamById, subStepsByParent, highlightedOwnerId]);
+
+  const allStepsById = useMemo(() => {
+    const m = new Map<string, Step>();
+    for (const s of topSteps) m.set(s.id, s);
+    for (const s of subSteps) m.set(s.id, s);
+    return m;
+  }, [topSteps, subSteps]);
+  const selectedStep = selectedStepId ? allStepsById.get(selectedStepId) ?? null : null;
+
+  const incomingLabel = useMemo(() => {
+    if (!selectedStep) return null;
+    if (selectedStep.parent_id) return "Sub-step — no direct connections";
+    const incoming = edges.filter((e) => e.target === selectedStep.id);
+    if (incoming.length === 0) return "No incoming connection";
+    const handoff = incoming.find((e) => e.data?.isHandoff);
+    if (!handoff) return "Continues within department";
+    const fromDeptId = topStepById.get(handoff.source)?.department_id ?? null;
+    const fromDeptName = fromDeptId ? deptById.get(fromDeptId)?.name ?? "Unknown" : "Unassigned";
+    return `⇄ Handoff from ${fromDeptName}`;
+  }, [selectedStep, edges, topStepById, deptById]);
+
+  const latestRevision = revisions[0] ?? null;
+  const revisionBarLabel = latestRevision ? `${latestRevision.state} rev ${latestRevision.revision}` : null;
+  const revisionInspectorLabel = latestRevision
+    ? `Rev ${latestRevision.revision} ${latestRevision.state}`
+    : "No revisions yet";
+
+  const rollup = useMemo(() => {
+    const byDept = new Map<string, { dept: DeptRow; hours: number }>();
+    let unassignedCount = 0;
+    let totalHours = 0;
+    for (const s of topSteps) {
+      const hours = s.estimated_hours ?? 0;
+      totalHours += hours;
+      const dept = s.department_id ? deptById.get(s.department_id) ?? null : null;
+      if (!dept) {
+        unassignedCount += 1;
+        continue;
+      }
+      const entry = byDept.get(dept.id);
+      if (entry) entry.hours += hours;
+      else byDept.set(dept.id, { dept, hours });
+    }
+    return { items: Array.from(byDept.values()), unassignedCount, totalHours };
+  }, [topSteps, deptById]);
+
+  // Queued drag saves: the timer plus the position it is going to write.
+  const dragTimers = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; x: number; y: number }>());
+  useEffect(
+    () => () => {
+      // FLUSH on unmount, don't just clear. A debounce that drops its timers
+      // when the component goes away silently loses the very last drag
+      // (navigate off the page inside the 800ms window and the position is
+      // gone) — the exact opposite of this phase's "drag → reload → identical"
+      // bar. clearPending is skipped here on purpose: we're unmounting.
+      for (const [id, p] of dragTimers.current) {
+        clearTimeout(p.timer);
+        void savePos(id, p.x, p.y);
+      }
+      dragTimers.current.clear();
+    },
+    []
+  );
+
+  const onNodeDragStop = useCallback(
+    (_event: unknown, node: CanvasNode) => {
+      const existing = dragTimers.current.get(node.id);
+      if (existing) clearTimeout(existing.timer);
+      markPending(node.id);
+      const { x, y } = node.position;
+      const timer = setTimeout(() => {
+        dragTimers.current.delete(node.id);
+        void savePos(node.id, x, y).then(() => clearPending(node.id));
+      }, POSITION_SAVE_DEBOUNCE_MS);
+      dragTimers.current.set(node.id, { timer, x, y });
+    },
+    [markPending, clearPending]
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      connect.mutate({ source: connection.source, target: connection.target });
+    },
+    [connect]
+  );
+
+  const onEdgesChange: OnEdgesChange<HandoffEdgeType> = useCallback(
+    (changes) => {
+      for (const c of changes) {
+        if (c.type === "remove") disconnect.mutate(c.id);
+      }
+      const selects = changes.filter((c) => c.type === "select" || c.type === "remove");
+      if (selects.length === 0) return;
+      setSelectedEdgeIds((prev) => {
+        const next = new Set(prev);
+        for (const c of selects) {
+          if (c.type === "select" && c.selected) next.add(c.id);
+          else next.delete(c.id);
+        }
+        return next;
+      });
+    },
+    [disconnect]
+  );
+
+  // Blocks are click-selectable now (for the inspector), which means a
+  // Backspace/Delete with a block selected would otherwise emit a node
+  // "remove" change and silently drop it from local state with no DB write
+  // (step still exists, reload resurrects it, confusing half-deleted UI in
+  // between). Node deletion isn't in this phase's scope, so filter it; edge
+  // removal (the actual Backspace affordance for disconnecting) is untouched
+  // — it comes through the separate onEdgesChange above.
+  const handleNodesChange: OnNodesChange<CanvasNode> = useCallback(
+    (changes) => onNodesChange(changes.filter((c) => c.type !== "remove")),
+    [onNodesChange]
+  );
+
+  const onNodeClick = useCallback((_event: unknown, node: CanvasNode) => {
+    setSelectedStepId(node.id);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedStepId(null);
+  }, []);
+
+  const handleTidyUp = useCallback(() => {
+    // Layout + set local state first; mutate calls happen after, not inside
+    // the setNodes updater — a side effect inside a state updater runs twice
+    // under StrictMode.
+    const laidOut = layoutNodes(
+      nodes,
+      edges.map((e) => ({ source: e.source, target: e.target }))
+    );
+    setNodes(laidOut);
+    // Cancel any drag save still sitting in its debounce window: it holds the
+    // pre-tidy position and would fire *after* these writes, leaving the DB
+    // disagreeing with what's on screen until the next reload.
+    for (const [id, p] of dragTimers.current) {
+      clearTimeout(p.timer);
+      clearPending(id);
+    }
+    dragTimers.current.clear();
+    for (const n of laidOut) {
+      markPending(n.id);
+      void savePos(n.id, n.position.x, n.position.y).then(() => clearPending(n.id));
+    }
+  }, [layoutNodes, edges, nodes, setNodes, markPending, clearPending]);
+
+  const isUnsaved = pendingIds.size > 0 || connect.isPending || disconnect.isPending;
+
+  return (
+    <div className="flex h-[680px] w-full flex-col overflow-hidden">
+      {/* Window bar — breadcrumb-ish title, Unsaved indicator, Tidy up,
+          Propose. Matches docs/2026-08-05-systems-canvas-visual-spec.html's
+          `.winbar`. Rendered unconditionally (ahead of the loading/empty
+          states below) so it doesn't flicker in and out. */}
+      <div className="flex flex-none items-center gap-2 border-b border-m-outline-variant bg-m-surface-container-high px-3 py-2">
+        <span className="min-w-0 truncate text-label-medium font-semibold text-m-on-surface">
+          Systems <span className="text-m-on-surface-variant">›</span> {systemName}
+          {revisionBarLabel && (
+            <span className="ml-1.5 font-normal text-m-on-surface-variant">— {revisionBarLabel}</span>
+          )}
+        </span>
+        <div className="ml-auto flex flex-none items-center gap-2">
+          {isUnsaved && <Badge variant="warning">Unsaved</Badge>}
+          <Button size="sm" variant="outline" onClick={handleTidyUp} className="gap-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" /> Tidy up
+          </Button>
+          <Button size="sm" onClick={onPropose}>
+            Propose
+          </Button>
+        </div>
+      </div>
+
+      {stepsLoading || subStepsLoading || edgesLoading ? (
+        <div className="flex flex-1 items-center justify-center text-body-medium text-m-on-surface-variant">
+          Loading canvas…
+        </div>
+      ) : topSteps.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 border-t border-dashed border-m-outline-variant text-center text-body-medium text-m-on-surface-variant">
+          No steps yet — add steps to this system to see them on the canvas.
+        </div>
+      ) : (
+        <>
+          <div className="flex min-h-0 flex-1">
+            <div className="min-w-0 flex-1 bg-m-surface-container-low">
+              <ReactFlow
+                nodes={renderNodes}
+                edges={edges}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeDragStop={onNodeDragStop}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                fitView
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={16}
+                  size={1}
+                  color="hsl(var(--mcolor-outline-variant))"
+                />
+                <Controls />
+              </ReactFlow>
+            </div>
+            <BlockInspector
+              step={selectedStep}
+              depts={depts}
+              team={team}
+              incomingLabel={incomingLabel}
+              revisionLabel={revisionInspectorLabel}
+            />
+          </div>
+          <DeptRollup items={rollup.items} unassignedCount={rollup.unassignedCount} totalHours={rollup.totalHours} />
+        </>
+      )}
+    </div>
+  );
+}

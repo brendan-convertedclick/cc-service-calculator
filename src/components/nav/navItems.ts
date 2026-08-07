@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   TrendingUp,
   Users,
+  Waypoints,
   Wrench,
   Workflow,
   Zap,
@@ -53,6 +54,7 @@ const pulse: NavItem        = { to: "/pulse",         label: "Pulse",         ic
 const productivity: NavItem = { to: "/productivity",  label: "Productivity",  icon: TrendingUp,        end: false }
 
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false }
+const systems: NavItem        = { to: "/systems",       label: "Systems",       icon: Waypoints,         end: false }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false }
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false }
 const retainers: NavItem      = { to: "/retainers",     label: "Retainers",     icon: Repeat,            end: false }
@@ -77,7 +79,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, briefs, projects, sow, retainers, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

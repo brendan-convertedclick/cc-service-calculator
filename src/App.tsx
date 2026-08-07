@@ -127,6 +127,12 @@ const SowManage = lazy(() =>
 const Reports = lazy(() =>
   import("@/pages/Reports").then((m) => ({ default: m.Reports })),
 );
+const SystemsList = lazy(() =>
+  import("@/pages/SystemsList").then((m) => ({ default: m.SystemsList })),
+);
+const SystemDetail = lazy(() =>
+  import("@/pages/SystemDetail").then((m) => ({ default: m.SystemDetail })),
+);
 
 /**
  * Phase 1 role gates.
@@ -218,6 +224,8 @@ export default function App() {
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
+              <Route path="systems" element={<SystemsList />} />
+              <Route path="systems/:id" element={<SystemDetail />} />
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />
