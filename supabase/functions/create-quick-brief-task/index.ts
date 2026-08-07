@@ -11,21 +11,33 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
-import { briefBriefedMessage, CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import { briefBriefedMessage, isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const b = (await req.json()) as {
+    type Body = {
       brief_id?: string; task_name?: string; description?: string;
       assignee_member_id?: string | null;
       sprint_points?: number; work_stream?: string; due_date?: string | null;
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
-      billing_type?: string;
+      billing_type?: string; checklist_items?: string[];
     };
+    // File attachments arrive as multipart/form-data (payload = JSON string,
+    // one or more "file" entries); no attachments → plain JSON, as before.
+    let b: Body;
+    let attachmentFiles: File[] = [];
+    const contentType = req.headers.get("content-type") ?? "";
+    if (contentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      b = JSON.parse((form.get("payload") as string) ?? "{}") as Body;
+      attachmentFiles = form.getAll("file").filter((f): f is File => f instanceof File);
+    } else {
+      b = (await req.json()) as Body;
+    }
     if (!b.brief_id || !b.task_name || !b.work_stream || !b.sprint_points) {
       return json({ error: "brief_id, task_name, work_stream, sprint_points required" }, 400);
     }
@@ -35,7 +47,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: brief, error: bErr } = await sb
       .from("briefs")
-      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id)")
+      .select("id, raw_subject, raw_body, status, clickup_task_id, clickup_task_url, client:clients(id, name, clickup_client_name, clickup_folder_id)")
       .eq("id", b.brief_id)
       .single();
     if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
@@ -45,7 +57,7 @@ Deno.serve(async (req: Request) => {
       return json({ clickup_task_id: brief.clickup_task_id, clickup_task_url: brief.clickup_task_url, already_briefed: true });
     }
 
-    const client = (brief as unknown as { client?: { id: string; name: string; clickup_client_name: string | null; clickup_folder_id: string | null; clickup_chat_channel_id: string | null } | null }).client;
+    const client = (brief as unknown as { client?: { id: string; name: string; clickup_client_name: string | null; clickup_folder_id: string | null } | null }).client;
     if (!client) return json({ error: "Brief has no client — assign a client first." }, 400);
     if (!client.clickup_folder_id) return json({ error: `Client ${client.name} has no ClickUp folder configured.` }, 400);
 
@@ -137,6 +149,26 @@ Deno.serve(async (req: Request) => {
     if (!createRes.ok) return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
     const created = (await createRes.json()) as { id: string; url: string };
 
+    if ((b.checklist_items ?? []).some((c) => c && c.trim())) {
+      await addClickupChecklist(clickupPat, created.id, b.checklist_items ?? [], assigneeClickupId);
+    }
+
+    // Best-effort per file: the task already exists, so a failed upload must
+    // not fail the request — log it so it can be attached manually. ClickUp's
+    // attachment endpoint takes one file per call, so upload each in turn.
+    for (const file of attachmentFiles) {
+      const attachForm = new FormData();
+      attachForm.append("attachment", file, file.name);
+      const attachRes = await fetch(`https://api.clickup.com/api/v2/task/${created.id}/attachment`, {
+        method: "POST",
+        headers: { Authorization: clickupPat },
+        body: attachForm,
+      });
+      if (!attachRes.ok) {
+        console.error(`[create-quick-brief-task] attachment upload failed for task ${created.id} (${file.name}): ${attachRes.status} ${await attachRes.text()}`);
+      }
+    }
+
     const comment = buildBriefComment({
       client_name: client.name, engagement_type: "Task", work_stream: b.work_stream,
       sprint_points: b.sprint_points, date_of_engagement: dateOfEngagement,
@@ -172,16 +204,20 @@ Deno.serve(async (req: Request) => {
       }, 500);
     }
 
-    // Notify the client's ClickUp Chat channel + ping the assignee. Best-effort:
-    // the brief is already briefed, so a failed channel post must never fail the
-    // request. But a *silently* dropped post is invisible — the task looks briefed
-    // yet no one is pinged (see the 2026-07-22 Trellidor miss). So we (1) retry the
-    // post a few times to ride out a transient ClickUp hiccup / rate-limit, and
-    // (2) if it still fails, drop a visible note on the brief timeline so an
-    // operator can re-send instead of never knowing.
+    // Notify the workspace-wide New Tasks channel + ping the assignee.
+    // Best-effort: the brief is already briefed, so a failed channel post
+    // must never fail the request. But a *silently* dropped post is
+    // invisible — the task looks briefed yet no one is pinged (see the
+    // 2026-07-22 Trellidor miss). So we (1) retry the post a few times to
+    // ride out a transient ClickUp hiccup / rate-limit, and (2) if it still
+    // fails, drop a visible note on the brief timeline so an operator can
+    // re-send instead of never knowing.
     {
-      // Post to the client's channel, or fall back to Converted Click if none.
-      const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
+      // Global channel, not the client's own (2026-08-06) — client channels
+      // stay human-only; clients aren't members of this one. A task briefed
+      // under the "Internal Meeting"/"Client Meeting" Work Stream IS a
+      // meeting, so route it to the Meetings channel instead of New Tasks.
+      const chatChannelId = isMeetingWorkStream(b.work_stream) ? MEETINGS_CHANNEL_ID : NEW_TASKS_CHANNEL_ID;
       const mention = mentionToken({ clickupUserId: assigneeClickupId, name: assigneeName });
       const chatContent = briefBriefedMessage({
         mention,

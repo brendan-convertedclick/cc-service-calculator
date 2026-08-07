@@ -5,8 +5,10 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useTeam } from "@/hooks/useTeam";
+import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateMeeting, useUpdateMeeting } from "@/hooks/useInternalMeetings";
 import type { InternalMeetingWithDetails, ManageMeetingResponse } from "@/types/internal-meetings";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +24,18 @@ import { MultiSelect } from "@/components/ui/multi-select";
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const NO_PROJECT = "__none__";
+const NO_WORK_STREAM = "__none__";
+const STATUS_DEFAULT = "__default__";
+
+/** Same priority order manage-internal-meeting's resolveMeetingListId uses to
+ * pick a meeting's ClickUp list — mirrored here purely to scope the Status
+ * dropdown to the right list's options; the server remains the source of
+ * truth for which list the task actually lands in. */
+const MEETING_LIST_NAMES = ["meetings", "overhead", "admin", "administration"];
+
+type MeetingListStatus = { status: string; color: string | null; type: string; orderindex: number };
+type MeetingListOption = { id: string; name: string; statuses: MeetingListStatus[] };
+type MeetingWorkStreamOption = { id: string; name: string };
 
 /**
  * Africa/Johannesburg is a fixed +02:00 offset (no DST), so a wall-clock
@@ -68,6 +82,7 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
   const { currentUserId } = useAuth();
   const { data: clients = [] } = useClientProjects();
   const { data: team = [] } = useTeam();
+  const { data: departments = [] } = useDepartments();
   const createMeeting = useCreateMeeting();
   const updateMeeting = useUpdateMeeting();
 
@@ -85,6 +100,8 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
   const [attendeeIds, setAttendeeIds] = useState<string[]>(
     meeting?.attendees.map((a) => a.team_member_id) ?? [],
   );
+  const [workStream, setWorkStream] = useState(meeting?.work_stream_override ?? NO_WORK_STREAM);
+  const [status, setStatus] = useState(meeting?.clickup_status_override ?? STATUS_DEFAULT);
   const [submitting, setSubmitting] = useState(false);
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
 
@@ -115,6 +132,81 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
     [clients, clientId],
   );
 
+  // Real ClickUp Work Stream options + the meeting-list's statuses, for the
+  // client's folder — mirrors QuickBriefSheet's fetch pattern. Gated on
+  // clientId so picking a client is what triggers the lookup.
+  const [listOptions, setListOptions] = useState<MeetingListOption[]>([]);
+  const [workStreamOptions, setWorkStreamOptions] = useState<MeetingWorkStreamOption[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [listsError, setListsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!clientId) {
+      setListOptions([]);
+      setWorkStreamOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingLists(true);
+    setListsError(null);
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ client_id: clientId }),
+        });
+        const body = (await res.json()) as {
+          lists?: MeetingListOption[];
+          work_stream_options?: MeetingWorkStreamOption[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          setListsError(body.error ?? "Failed to load lists");
+          setListOptions([]);
+          setWorkStreamOptions([]);
+          return;
+        }
+        setListOptions(body.lists ?? []);
+        setWorkStreamOptions(body.work_stream_options ?? []);
+      } catch (e) {
+        if (!cancelled) setListsError(errorMessage(e));
+      } finally {
+        if (!cancelled) setLoadingLists(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
+  // Same list-name priority the server (resolveMeetingListId) uses, so the
+  // Status dropdown reflects the list the task will actually land in.
+  const meetingList = useMemo(() => {
+    for (const name of MEETING_LIST_NAMES) {
+      const hit = listOptions.find((l) => l.name.trim().toLowerCase() === name);
+      if (hit) return hit;
+    }
+    return listOptions[0];
+  }, [listOptions]);
+
+  // ClickUp's real "Work Stream" options are the correct label set; fall
+  // back to Conductor's department names if the fetch failed or came back
+  // empty, so staff are never hard-blocked from picking one.
+  const workStreamSource = workStreamOptions.length > 0 ? workStreamOptions : departments;
+
+  // Reset to the list default whenever the resolved meeting list changes
+  // (e.g. client switched) — an edit's saved status only applies to its own
+  // meeting list.
+  useEffect(() => {
+    if (!isEdit) setStatus(STATUS_DEFAULT);
+  }, [meetingList?.id, isEdit]);
+
   const teamOptions = useMemo(
     () => team.map((m) => ({ value: m.id, label: m.full_name })),
     [team],
@@ -138,6 +230,8 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
     setSubmitting(true);
     try {
       const projectValue = projectId === NO_PROJECT ? null : projectId;
+      const workStreamValue = workStream === NO_WORK_STREAM ? null : workStream;
+      const statusValue = status === STATUS_DEFAULT ? null : status;
       if (isEdit && meeting) {
         const res = await updateMeeting.mutateAsync({
           meeting_id: meeting.id,
@@ -148,6 +242,8 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
           starts_at: startIso,
           ends_at: endIso,
           attendee_member_ids: attendeeIds,
+          work_stream_override: workStreamValue,
+          clickup_status_override: statusValue,
         });
         reportSyncWarnings(res);
         toast.success("Meeting updated.");
@@ -161,6 +257,8 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
           starts_at: startIso,
           ends_at: endIso,
           attendee_member_ids: attendeeIds,
+          work_stream_override: workStreamValue,
+          clickup_status_override: statusValue,
         });
         reportSyncWarnings(res);
         toast.success(
@@ -174,6 +272,8 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
         setStartTime("");
         setEndTime("");
         setAttendeeIds([]);
+        setWorkStream(NO_WORK_STREAM);
+        setStatus(STATUS_DEFAULT);
       }
       onSaved?.();
     } catch (err) {
@@ -244,6 +344,54 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
           searchPlaceholder="Search team…"
           emptyLabel="No team members found."
         />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="meeting-work-stream">Work stream (optional)</Label>
+          <Select
+            value={workStream}
+            onValueChange={setWorkStream}
+            disabled={!clientId || loadingLists}
+          >
+            <SelectTrigger id="meeting-work-stream">
+              <SelectValue
+                placeholder={
+                  !clientId
+                    ? "Pick a client first"
+                    : loadingLists
+                      ? "Loading…"
+                      : "Project/list default"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_WORK_STREAM}>Project/list default</SelectItem>
+              {workStreamSource.map((d) => (
+                <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {listsError && (
+            <p className="text-body-small text-m-on-surface-variant">
+              Couldn't load ClickUp's Work Stream options ({listsError}) — showing departments instead.
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="meeting-status">Status (optional)</Label>
+          <Select value={status} onValueChange={setStatus} disabled={!meetingList}>
+            <SelectTrigger id="meeting-status">
+              <SelectValue placeholder="— List default —" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={STATUS_DEFAULT}>— List default —</SelectItem>
+              {(meetingList?.statuses ?? []).map((s) => (
+                <SelectItem key={s.status} value={s.status}>{s.status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">

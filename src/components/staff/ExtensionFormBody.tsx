@@ -132,11 +132,11 @@ export function ExtensionFormBody() {
     [tasks, taskId],
   );
 
-  // Every request states a budget, even if that budget is zero. An approver
-  // can't sign off on "more time" without knowing what it costs, and a blank
-  // field is silence rather than an answer — so 0 is allowed, empty is not.
-  const budgetStated = extraPoints.trim() !== "" && Number.isFinite(Number(extraPoints)) && Number(extraPoints) >= 0;
-  const pointsRequested = budgetStated && Number(extraPoints) > 0;
+  // Points are only mandatory when the requester is actually asking for
+  // extra points — a due-date-only request has nothing to state a budget
+  // for, so a blank field defaults to 0 rather than blocking submission.
+  const budgetStated = extraPoints.trim() === "" || (Number.isFinite(Number(extraPoints)) && Number(extraPoints) >= 0);
+  const pointsRequested = extraPoints.trim() !== "" && Number(extraPoints) > 0;
   const pointsTier = useMemo(() => {
     const original = selectedTask?.sprint_points ?? 0;
     const extra = Number(extraPoints);
@@ -191,7 +191,7 @@ export function ExtensionFormBody() {
       // The budget always goes on the row — a stated 0 is what tells the
       // approver this costs nothing, and it's the difference between "no extra
       // points needed" and nobody having said.
-      insertPayload.extra_points = Number(extraPoints);
+      insertPayload.extra_points = extraPoints.trim() === "" ? 0 : Number(extraPoints);
       insertPayload.delta_pct = pointsTier?.deltaPct ?? (pointsRequested ? null : 0);
       if (selectedTask.sprint_points) insertPayload.original_points = selectedTask.sprint_points;
       if (pointsRequested) insertPayload.reason = reason.trim();
@@ -322,13 +322,10 @@ export function ExtensionFormBody() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="ext-extra">
-            Extra sprint points <span className="text-m-error">*</span>
-          </Label>
+          <Label htmlFor="ext-extra">Extra sprint points</Label>
           <Input
             id="ext-extra"
             type="number"
-            required
             min={0}
             step={0.25}
             aria-describedby="ext-extra-help"
@@ -337,8 +334,7 @@ export function ExtensionFormBody() {
             onChange={(e) => setExtraPoints(e.target.value)}
           />
           <p id="ext-extra-help" className="text-label-small text-m-on-surface-variant">
-            Enter <span className="font-mono">0</span> if the work needs more time but no extra
-            budget. Nobody can approve a request that doesn't say what it costs.
+            Leave blank if this is only a due-date push with no extra budget needed.
           </p>
         </div>
         <div className="space-y-2">

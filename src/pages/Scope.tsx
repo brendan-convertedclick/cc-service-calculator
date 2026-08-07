@@ -1,8 +1,10 @@
 // src/pages/Scope.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Copy, Pencil } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Copy, Link2, Pencil, Unlink } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +33,9 @@ import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { BriefedTaskPanel } from "@/components/briefs/BriefedTaskPanel";
+import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
+import { useAssignBriefToProject } from "@/hooks/useAssignBriefToProject";
 import { useClients } from "@/hooks/useClients";
 import { useScope, useUpsertScope } from "@/hooks/useScopes";
 import {
@@ -118,9 +122,39 @@ export function Scope() {
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(false);
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
 
   const { data: brief } = useBrief(id);
   const { data: clients } = useClients();
+  const unlinkProject = useAssignBriefToProject();
+  const linkedProjectId = brief?.parent_project_id ?? null;
+  const { data: linkedProject } = useQuery({
+    enabled: !!linkedProjectId,
+    queryKey: ["project-name", linkedProjectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("id", linkedProjectId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  async function handleUnlinkProject() {
+    if (!id) return;
+    try {
+      await unlinkProject.mutateAsync({
+        briefId: id,
+        projectId: null,
+        previousProjectId: linkedProjectId,
+      });
+      toast.success("Unlinked from project");
+    } catch {
+      toast.error("Failed to unlink");
+    }
+  }
   const { data: intelligence, isLoading: intelLoading } = useBriefIntelligence(id, {
     paused: editingIntel,
   });
@@ -320,6 +354,38 @@ export function Scope() {
             Brief as-is
           </Button>
         )}
+        {linkedProjectId ? (
+          <div className="flex items-center gap-1">
+            <Button asChild variant="outline" size="sm" className="max-w-56 text-label-small">
+              <Link to={`/projects/${linkedProjectId}`} title={linkedProject?.name ?? "Project"}>
+                <span className="truncate">{linkedProject?.name ?? "Project"}</span>
+                <span className="shrink-0">→</span>
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Change project"
+              onClick={() => setAssignOpen(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Unlink from project"
+              disabled={unlinkProject.isPending}
+              onClick={handleUnlinkProject}
+            >
+              <Unlink className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+            <Link2 className="mr-1.5 h-3.5 w-3.5" />
+            Link to project
+          </Button>
+        )}
       </div>
 
       <DuplicateBriefDialog
@@ -327,6 +393,14 @@ export function Scope() {
         open={duplicateOpen}
         onOpenChange={setDuplicateOpen}
       />
+
+      {brief && (
+        <InboxAssignModal
+          brief={brief}
+          open={assignOpen}
+          onClose={() => setAssignOpen(false)}
+        />
+      )}
 
       <QuickBriefSheet
         open={quickBriefOpen}

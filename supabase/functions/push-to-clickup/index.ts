@@ -30,8 +30,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { buildBriefComment, findCustomField } from "../_shared/clickup.ts";
-import { CONVERTED_CLICK_CHANNEL_ID, mentionToken, postChatMessage } from "../_shared/clickup-chat.ts";
+import { addClickupChecklist, buildBriefComment, findCustomField } from "../_shared/clickup.ts";
+import { isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
           id: string;
           raw_subject: string | null;
           client_id: string;
-          client: { id: string; name: string; clickup_folder_id: string | null; clickup_client_name: string | null; clickup_chat_channel_id: string | null } | null;
+          client: { id: string; name: string; clickup_folder_id: string | null; clickup_client_name: string | null } | null;
         } | null;
       };
     }).scope;
@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
     const { data: svcRows } = serviceIds.length > 0
       ? await supabase
           .from("services")
-          .select("id,default_due_days,clickup_work_stream")
+          .select("id,default_due_days,clickup_work_stream,checklist_items")
           .in("id", serviceIds)
       : { data: [] };
     const dueDaysMap = new Map<string, number | null>(
@@ -264,6 +264,12 @@ Deno.serve(async (req: Request) => {
       (svcRows ?? [])
         .filter((s: { clickup_work_stream: string | null }) => !!s.clickup_work_stream)
         .map((s: { id: string; clickup_work_stream: string }) => [s.id, s.clickup_work_stream]),
+    );
+    // Default checklist to stamp on every child task created from this service.
+    const checklistMap = new Map<string, string[]>(
+      (svcRows ?? [])
+        .filter((s: { checklist_items: string[] | null }) => (s.checklist_items ?? []).length > 0)
+        .map((s: { id: string; checklist_items: string[] }) => [s.id, s.checklist_items]),
     );
     // Resolve assignees from department → primary team member → clickup_user_id.
     const deptIds = [...new Set(items.flatMap((i) => i.allocation.map((a) => a.dept_id)))];
@@ -325,8 +331,10 @@ Deno.serve(async (req: Request) => {
       planned_hours: number;
     };
     const actualsRows: ActualRow[] = [];
-    // Collected for a single end-of-push ClickUp Chat summary message.
-    const chatLines: Array<{ name: string; url: string; mention: string | null }> = [];
+    // Collected for the end-of-push ClickUp Chat summary message(s) — split by
+    // work stream below (isMeetingWorkStream) so meeting tasks land in the
+    // Meetings channel instead of New Tasks.
+    const chatLines: Array<{ name: string; url: string; mention: string | null; workStream: string }> = [];
     let childCount = 0;
 
     // Flatten (item × allocation) so we can batch across the entire push
@@ -345,15 +353,14 @@ Deno.serve(async (req: Request) => {
     for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null } }> => {
+        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null; workStream: string } }> => {
           const ownerId = deptOwnerMap.get(alloc.dept_id);
           const owner = ownerId ? teamById.get(ownerId) : null;
 
           const taskCf = [...sharedCustomFields];
-          const wsCf = resolveDropdownOption(
-            "Work Stream",
-            serviceWsOverride.get(item.service_id) ?? deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name,
-          );
+          const workStreamLabel =
+            serviceWsOverride.get(item.service_id) ?? deptWorkStreamById.get(alloc.dept_id) ?? alloc.dept_name;
+          const wsCf = resolveDropdownOption("Work Stream", workStreamLabel);
           if (wsCf) taskCf.push(wsCf);
 
           const dueDays = dueDaysMap.get(item.service_id);
@@ -395,6 +402,9 @@ Deno.serve(async (req: Request) => {
           }
           const child = await childRes.json();
 
+          const checklistItems = checklistMap.get(item.service_id);
+          if (checklistItems) await addClickupChecklist(clickupPat, child.id, checklistItems, owner?.clickup_user_id ?? null);
+
           // BRIEF:: audit comment (matches /brief grammar).
           const commentRes = await fetch(
             `https://api.clickup.com/api/v2/task/${child.id}/comment`,
@@ -433,6 +443,7 @@ Deno.serve(async (req: Request) => {
               mention: ownerRec
                 ? mentionToken({ clickupUserId: ownerRec.clickup_user_id, name: ownerRec.full_name })
                 : null,
+              workStream: workStreamLabel,
             },
           };
         }),
@@ -630,34 +641,39 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Notify the client's ClickUp Chat channel with ONE summary message (not
-    // one-per-task — avoids channel spam). Best-effort: the project is already
-    // created, so a failed post must never fail the request — log and move on.
-    // Post to the client's channel, or fall back to Converted Click if none.
-    const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
-    if (chatLines.length > 0) {
-      const projectName = scope.brief?.raw_subject ?? client.name;
-      const header = `🆕 ${chatLines.length} task${chatLines.length === 1 ? "" : "s"} briefed for ${client.name} — ${projectName}`;
-      const bullets = chatLines
+    // Notify the workspace-wide channels with ONE summary message per channel
+    // (not one-per-task — avoids channel spam). Meeting-work-stream lines
+    // (Internal Meeting / Client Meeting) go to Meetings, everything else to
+    // New Tasks — a push can contain both, hence two possible messages.
+    // Best-effort: the project is already created, so a failed post must
+    // never fail the request — log and move on. Global channels, not the
+    // client's own (2026-08-06) — client channels stay human-only; clients
+    // aren't members of either one.
+    const workspaceId = settings.clickup_workspace_id ? String(settings.clickup_workspace_id) : undefined;
+    const projectName = scope.brief?.raw_subject ?? client.name;
+
+    async function notifyChannel(channelId: string, lines: typeof chatLines) {
+      if (lines.length === 0) return;
+      const header = `🆕 ${lines.length} task${lines.length === 1 ? "" : "s"} briefed for ${client!.name} — ${projectName}`;
+      const bullets = lines
         .map((l) => `- ${l.mention ? `${l.mention} · ` : ""}${l.name} · ${l.url}`)
         .join("\n");
-      const workspaceId = settings.clickup_workspace_id ? String(settings.clickup_workspace_id) : undefined;
       const chatBody = `${header}\n${bullets}`;
 
       // Retry with linear backoff to ride out a transient ClickUp chat 5xx/429
       // (3 attempts @ 0/500/1000ms) instead of silently dropping the ping.
-      let chatRes = await postChatMessage(clickupPat, chatChannelId, chatBody, workspaceId);
+      let chatRes = await postChatMessage(clickupPat, channelId, chatBody, workspaceId);
       for (let attempt = 1; attempt < 3 && !chatRes.ok; attempt++) {
         await new Promise((r) => setTimeout(r, attempt * 500));
         console.warn(
-          `[push-to-clickup] chat notify retry ${attempt} for project ${projectId} (channel ${chatChannelId}): prev ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[push-to-clickup] chat notify retry ${attempt} for project ${projectId} (channel ${channelId}): prev ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
-        chatRes = await postChatMessage(clickupPat, chatChannelId, chatBody, workspaceId);
+        chatRes = await postChatMessage(clickupPat, channelId, chatBody, workspaceId);
       }
 
       if (!chatRes.ok) {
         console.error(
-          `[push-to-clickup] chat notify FAILED after retries for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[push-to-clickup] chat notify FAILED after retries for project ${projectId} (channel ${channelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
         // Surface the miss on the brief timeline so it's not invisible.
         const failBriefId = scope.brief?.id;
@@ -669,7 +685,7 @@ Deno.serve(async (req: Request) => {
               direction: "note",
               body_text:
                 `⚠ Channel notification did not send for this push (ClickUp chat ${chatRes.status ?? "error"}). ` +
-                `The project and ${chatLines.length} task${chatLines.length === 1 ? "" : "s"} were created fine — only the channel ping failed. Re-send it manually if needed.`,
+                `The project and ${lines.length} task${lines.length === 1 ? "" : "s"} were created fine — only the channel ping failed. Re-send it manually if needed.`,
               relayed_by: "conductor",
               sent_at: new Date().toISOString(),
               to_emails: [],
@@ -681,6 +697,11 @@ Deno.serve(async (req: Request) => {
         }
       }
     }
+
+    const meetingChatLines = chatLines.filter((l) => isMeetingWorkStream(l.workStream));
+    const taskChatLines = chatLines.filter((l) => !isMeetingWorkStream(l.workStream));
+    await notifyChannel(NEW_TASKS_CHANNEL_ID, taskChatLines);
+    await notifyChannel(MEETINGS_CHANNEL_ID, meetingChatLines);
 
     return json({
       project_id: projectId,

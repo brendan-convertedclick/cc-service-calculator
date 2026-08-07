@@ -644,6 +644,8 @@ function RevCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <RequestContext taskId={row.parent_clickup_task_id} clientId={row.client_id} />
+
         {rejecting ? (
           <RejectBox
             value={rejectReason}

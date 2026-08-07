@@ -27,8 +27,10 @@ import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 import {
-  CONVERTED_CLICK_CHANNEL_ID,
+  isMeetingWorkStream,
   mentionToken,
+  MEETINGS_CHANNEL_ID,
+  NEW_TASKS_CHANNEL_ID,
   postChatMessage,
 } from "../_shared/clickup-chat.ts";
 
@@ -101,7 +103,7 @@ Deno.serve(async (req: Request) => {
     const { data: brief, error: bErr } = await sb
       .from("briefs")
       .select(
-        "id, raw_subject, status, client:clients(id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id)",
+        "id, raw_subject, status, client:clients(id, name, clickup_client_name, clickup_folder_id)",
       )
       .eq("id", b.brief_id)
       .single();
@@ -113,7 +115,6 @@ Deno.serve(async (req: Request) => {
         name: string;
         clickup_client_name: string | null;
         clickup_folder_id: string | null;
-        clickup_chat_channel_id: string | null;
       } | null;
     }).client;
     if (!client) return json({ error: "Brief has no client — assign a client first." }, 400);
@@ -217,6 +218,7 @@ Deno.serve(async (req: Request) => {
       points: number;
       url: string;
       assigneeClickupId: number | null;
+      workStream: string;
     }> = [];
     let skipped = 0;
 
@@ -320,6 +322,7 @@ Deno.serve(async (req: Request) => {
         points,
         url: cuTask.url,
         assigneeClickupId: o?.assignee_clickup_id ?? null,
+        workStream,
       });
     }
 
@@ -340,25 +343,35 @@ Deno.serve(async (req: Request) => {
           if (m.clickup_user_id != null && m.full_name) nameByClickupId.set(m.clickup_user_id, m.full_name);
         }
       }
-      const chatChannelId = client.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
-      const content =
-        `🆕 New tasks briefed: **${brief.raw_subject ?? "brief"}** (${client.name}) · ` +
-        `${chatItems.length} task${chatItems.length !== 1 ? "s" : ""} → "${list.name}"\n` +
-        chatItems
-          .map((c) => {
-            const mention = mentionToken({
-              clickupUserId: c.assigneeClickupId,
-              name: c.assigneeClickupId != null ? nameByClickupId.get(c.assigneeClickupId) ?? null : null,
-            });
-            return `• ${mention} — ${c.name} · ${c.points} pt · ${c.url}`;
-          })
-          .join("\n");
-      const chatRes = await postChatMessage(clickupPat, chatChannelId, content);
-      if (!chatRes.ok) {
-        console.error(
-          `[schedule-brief-tasks] chat notify failed for brief ${brief.id} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
-        );
-      }
+      // Global channels, not the client's own (2026-08-06) — client channels
+      // stay human-only; clients aren't members of either one. Meeting-work-
+      // stream tasks (Internal Meeting / Client Meeting) go to Meetings,
+      // everything else to New Tasks — a batch can contain both.
+      const notifyGroup = async (channelId: string, items: typeof chatItems) => {
+        if (items.length === 0) return;
+        const content =
+          `🆕 New tasks briefed: **${brief.raw_subject ?? "brief"}** (${client.name}) · ` +
+          `${items.length} task${items.length !== 1 ? "s" : ""} → "${list.name}"\n` +
+          items
+            .map((c) => {
+              const mention = mentionToken({
+                clickupUserId: c.assigneeClickupId,
+                name: c.assigneeClickupId != null ? nameByClickupId.get(c.assigneeClickupId) ?? null : null,
+              });
+              return `• ${mention} — ${c.name} · ${c.points} pt · ${c.url}`;
+            })
+            .join("\n");
+        const chatRes = await postChatMessage(clickupPat, channelId, content);
+        if (!chatRes.ok) {
+          console.error(
+            `[schedule-brief-tasks] chat notify failed for brief ${brief.id} (channel ${channelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          );
+        }
+      };
+      const meetingItems = chatItems.filter((c) => isMeetingWorkStream(c.workStream));
+      const taskItems = chatItems.filter((c) => !isMeetingWorkStream(c.workStream));
+      await notifyGroup(NEW_TASKS_CHANNEL_ID, taskItems);
+      await notifyGroup(MEETINGS_CHANNEL_ID, meetingItems);
     }
 
     if (created.length > 0 || skipped > 0) {

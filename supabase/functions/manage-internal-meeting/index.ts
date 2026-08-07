@@ -1,12 +1,14 @@
 // supabase/functions/manage-internal-meeting/index.ts
 //
 // Request:  POST { action: "create", organiser_member_id, client_id, project_id?,
-//                   title, agenda?, starts_at, ends_at, attendee_member_ids: string[] }
+//                   title, agenda?, starts_at, ends_at, attendee_member_ids: string[],
+//                   work_stream_override?, clickup_status_override? }
 //           → 200 { meeting_id, google_meet_url, google_html_link, clickup_task_url,
 //                    google_sync_error?, clickup_sync_error? }
 //
 //           POST { action: "update", meeting_id, title?, agenda?, client_id?,
-//                   project_id?, starts_at?, ends_at?, attendee_member_ids? }
+//                   project_id?, starts_at?, ends_at?, attendee_member_ids?,
+//                   work_stream_override?, clickup_status_override? }
 //           → 200 { meeting_id, google_meet_url, clickup_task_url,
 //                    google_sync_error?, clickup_sync_error? }
 //
@@ -18,6 +20,11 @@
 // recorded in google_sync_error / clickup_sync_error and returned to the caller,
 // but never loses the meeting record or fails the request. A later successful
 // sync (another update, or a retry) clears the corresponding error column.
+//
+// ClickUp is synced BEFORE Google (both on create and update) so every
+// attendee's own task URL is known in time to include in the Calendar invite
+// description (each attendee gets their own task — see
+// 0099_internal_meeting_tasks).
 //
 // Google Calendar events live on the MEETING ORGANISER's own calendar
 // (getGoogleAccessToken resolves by organiser_member_id on create). The
@@ -33,11 +40,14 @@ import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
 import { createEvent, deleteEvent, getEvent, patchEvent, type AttendeeInput } from "../_shared/google-calendar.ts";
 import { resolveDropdownOption, type CuField } from "../_shared/clickup.ts";
+import { postChatMessage, mentionToken, MEETINGS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import {
   buildMeetingDescription,
   buildMeetingTaskName,
   extractMeetUrl,
+  meetingScheduledMessage,
   meetingSprintPoints,
+  type MeetingTaskLink,
 } from "../_shared/meeting-logic.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -76,6 +86,8 @@ interface MeetingRow {
   clickup_task_id: string | null;
   clickup_task_url: string | null;
   clickup_sync_error: string | null;
+  work_stream_override: string | null;
+  clickup_status_override: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -90,6 +102,8 @@ interface CreateBody {
   starts_at?: string;
   ends_at?: string;
   attendee_member_ids?: string[];
+  work_stream_override?: string | null;
+  clickup_status_override?: string | null;
 }
 interface UpdateBody {
   action: "update";
@@ -101,6 +115,8 @@ interface UpdateBody {
   starts_at?: string;
   ends_at?: string;
   attendee_member_ids?: string[];
+  work_stream_override?: string | null;
+  clickup_status_override?: string | null;
 }
 interface CancelBody {
   action: "cancel";
@@ -116,6 +132,16 @@ interface GoogleSyncResult {
   error: string | null;
 }
 interface ClickupSyncResult {
+  taskId: string | null;
+  taskUrl: string | null;
+  error: string | null;
+  /** Every person's own task link (name + url) — the organiser's task alone
+   * (taskId/taskUrl above) isn't enough once each attendee has their own. */
+  personTaskLinks: MeetingTaskLink[];
+}
+/** One person's ClickUp task outcome (create or update) within a meeting sync. */
+interface PersonTaskResult {
+  teamMemberId: string;
   taskId: string | null;
   taskUrl: string | null;
   error: string | null;
@@ -144,7 +170,7 @@ async function safeGoogleSync(
 
 async function safeClickupSync(
   fn: () => Promise<ClickupSyncResult>,
-  fallback: Pick<ClickupSyncResult, "taskId" | "taskUrl">,
+  fallback: Pick<ClickupSyncResult, "taskId" | "taskUrl" | "personTaskLinks">,
 ): Promise<ClickupSyncResult> {
   try {
     return await fn();
@@ -180,6 +206,10 @@ function nativeMeetingTaskBody(input: {
   startsAtMs: number;
   endsAtMs: number;
   points: number;
+  /** Staff-picked status override. Omitted (not even the key) when unset —
+   * a hardcoded status otherwise fails with CRTSK_001 on lists whose
+   * default status isn't "to do". */
+  statusOverride?: string | null;
 }): Record<string, unknown> {
   return {
     description: input.description,
@@ -189,6 +219,7 @@ function nativeMeetingTaskBody(input: {
     start_date_time: true,
     due_date: input.endsAtMs,
     due_date_time: true,
+    ...(input.statusOverride ? { status: input.statusOverride } : {}),
   };
 }
 
@@ -219,6 +250,10 @@ interface GoogleSyncCtx {
   /** True only when the caller's request explicitly changed attendee_member_ids.
    * Unset/false on create (irrelevant — a new event always sends the full list). */
   attendeesChanged?: boolean;
+  /** Every person's ClickUp task link, when already known (ClickUp is
+   * synced BEFORE Google — see handleCreate/handleUpdate) — included in the
+   * invite description so each attendee can find their own task. */
+  clickupTaskLinks: MeetingTaskLink[];
 }
 
 async function syncGoogleCreate(req: Request, ctx: GoogleSyncCtx): Promise<GoogleSyncResult> {
@@ -243,6 +278,7 @@ async function syncGoogleCreate(req: Request, ctx: GoogleSyncCtx): Promise<Googl
     projectName: ctx.project?.name ?? null,
     attendeeNames: ctx.attendees.map((a) => a.full_name),
     meetUrl: null, // not known yet — the event doesn't exist until this call returns
+    clickupTaskLinks: ctx.clickupTaskLinks,
     meetingId: ctx.meeting.id,
   });
   const result = await createEvent(resolved.accessToken, {
@@ -335,6 +371,7 @@ async function syncGoogleUpdate(req: Request, ctx: GoogleSyncCtx): Promise<Googl
     projectName: ctx.project?.name ?? null,
     attendeeNames: ctx.attendees.map((a) => a.full_name),
     meetUrl: ctx.meeting.google_meet_url,
+    clickupTaskLinks: ctx.clickupTaskLinks,
     meetingId: ctx.meeting.id,
   });
   const result = await patchEvent(resolved.accessToken, ctx.meeting.google_event_id, {
@@ -381,6 +418,7 @@ interface ClickupSyncCreateCtx {
   meeting: MeetingRow;
   client: ClientRow;
   project: ProjectRow | null;
+  organiser: TeamMember;
   attendees: TeamMember[];
   meetUrl: string | null;
 }
@@ -430,16 +468,16 @@ async function resolveMeetingListId(
 async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promise<ClickupSyncResult> {
   const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
   if (!listId) {
-    return { taskId: null, taskUrl: null, error: NO_CLICKUP_LIST_ERROR };
+    return { taskId: null, taskUrl: null, personTaskLinks: [], error: NO_CLICKUP_LIST_ERROR };
   }
   const { token: pat } = await getOperatorClickupToken(req);
   if (!pat) {
-    return { taskId: null, taskUrl: null, error: "No ClickUp token available (CLICKUP_PAT secret not set)." };
+    return { taskId: null, taskUrl: null, personTaskLinks: [], error: "No ClickUp token available (CLICKUP_PAT secret not set)." };
   }
   const CU = { headers: { Authorization: pat, "Content-Type": "application/json" } };
   const fieldsRes = await fetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU);
   if (!fieldsRes.ok) {
-    return { taskId: null, taskUrl: null, error: `ClickUp fields ${fieldsRes.status}: ${await fieldsRes.text()}` };
+    return { taskId: null, taskUrl: null, personTaskLinks: [], error: `ClickUp fields ${fieldsRes.status}: ${await fieldsRes.text()}` };
   }
   const cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
 
@@ -453,40 +491,106 @@ async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promi
     meetUrl: ctx.meetUrl,
     meetingId: ctx.meeting.id,
   });
-  const assignees = ctx.attendees
-    .map((a) => a.clickup_user_id)
-    .filter((id): id is number => typeof id === "number");
   const startsAtMs = Date.parse(ctx.meeting.starts_at);
   const endsAtMs = Date.parse(ctx.meeting.ends_at);
   const points = meetingSprintPoints(ctx.meeting.starts_at, ctx.meeting.ends_at);
+  const taskName = buildMeetingTaskName(clickupClientName, ctx.meeting.title);
+  // Staff pick on the meeting takes priority over the linked project's
+  // override; status stays unset (list default) unless staff explicitly
+  // picked one — see nativeMeetingTaskBody's CRTSK_001 note.
+  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? null;
+  const customFields = meetingCustomFields(cuFields, clickupClientName, workStream);
 
-  const taskBody: Record<string, unknown> = {
-    name: buildMeetingTaskName(clickupClientName, ctx.meeting.title),
-    ...nativeMeetingTaskBody({ description, startsAtMs, endsAtMs, points }),
-    // Deliberately OMIT `status` — a hardcoded status fails with CRTSK_001 on
-    // lists (like the internal one) whose default status isn't "to do".
-    custom_fields: meetingCustomFields(cuFields, clickupClientName, ctx.project?.clickup_work_stream_override ?? null),
+  // ClickUp splits Sprint Points PER ASSIGNEE on a shared task (confirmed
+  // empirically: a 2pt task with two assignees credited only one of them).
+  // So each person gets their OWN task with the full points, not co-assigned
+  // to one shared task. De-dup by id in case the organiser is also listed as
+  // an attendee.
+  const people = Array.from(new Map([ctx.organiser, ...ctx.attendees].map((p) => [p.id, p])).values());
+
+  const results: PersonTaskResult[] = [];
+  for (const person of people) {
+    const taskBody: Record<string, unknown> = {
+      name: taskName,
+      ...nativeMeetingTaskBody({
+        description, startsAtMs, endsAtMs, points,
+        statusOverride: ctx.meeting.clickup_status_override,
+      }),
+      custom_fields: customFields,
+    };
+    if (person.clickup_user_id) taskBody.assignees = [person.clickup_user_id];
+
+    const createUrl = `https://api.clickup.com/api/v2/list/${listId}/task`;
+    let createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
+    // ClickUp rejects very large sprint-point values on create; retry once
+    // without `points` rather than fail the task (time_estimate still carries
+    // the effort).
+    if (!createRes.ok && "points" in taskBody) {
+      const errText = await createRes.text();
+      console.warn(
+        `[manage-internal-meeting] ClickUp create failed with points for ${person.full_name} (${createRes.status}: ${errText}); retrying without points`,
+      );
+      const { points: _dropped, ...noPoints } = taskBody;
+      createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
+    }
+    if (!createRes.ok) {
+      results.push({ teamMemberId: person.id, taskId: null, taskUrl: null, error: `ClickUp create ${createRes.status}: ${await createRes.text()}` });
+      continue;
+    }
+    const created = (await createRes.json()) as { id: string; url: string };
+    results.push({ teamMemberId: person.id, taskId: created.id, taskUrl: created.url, error: null });
+  }
+
+  const { error: upsertErr } = await ctx.sb.from("internal_meeting_tasks").upsert(
+    results.map((r) => ({
+      meeting_id: ctx.meeting.id,
+      team_member_id: r.teamMemberId,
+      clickup_task_id: r.taskId,
+      clickup_task_url: r.taskUrl,
+      clickup_sync_error: r.error,
+    })),
+    { onConflict: "meeting_id,team_member_id" },
+  );
+  if (upsertErr) {
+    console.error(`[manage-internal-meeting] failed to persist per-person meeting tasks for ${ctx.meeting.id}: ${upsertErr.message}`);
+  }
+
+  // One chat message for the whole meeting (not one per task, to avoid
+  // spamming the channel) — mentions everyone, links each person's OWN task.
+  // Posted to the workspace-wide Meetings channel, not the client's own
+  // channel — clients aren't members of it, so nothing internal leaks.
+  const personTaskLinks: MeetingTaskLink[] = results
+    .filter((r): r is PersonTaskResult & { taskUrl: string } => !!r.taskUrl)
+    .map((r) => ({
+      name: people.find((p) => p.id === r.teamMemberId)?.full_name ?? r.teamMemberId,
+      url: r.taskUrl,
+    }));
+  const chatContent = meetingScheduledMessage({
+    people: people.map((p) => ({
+      mention: mentionToken({ clickupUserId: p.clickup_user_id, name: p.full_name }),
+      taskUrl: results.find((r) => r.teamMemberId === p.id)?.taskUrl ?? null,
+    })),
+    title: ctx.meeting.title,
+  });
+  if (personTaskLinks.length > 0) {
+    await postChatMessage(pat, MEETINGS_CHANNEL_ID, chatContent);
+  }
+
+  const organiserResult = results.find((r) => r.teamMemberId === ctx.organiser.id);
+  const failed = results.filter((r) => r.error);
+  const aggregateError = failed.length > 0
+    ? `Some meeting tasks failed: ${failed.map((f) => {
+        const person = people.find((p) => p.id === f.teamMemberId);
+        return `${person?.full_name ?? f.teamMemberId}: ${f.error}`;
+      }).join("; ")}`
+    : null;
+
+  return {
+    taskId: organiserResult?.taskId ?? null,
+    taskUrl: organiserResult?.taskUrl ?? null,
+    personTaskLinks,
+    error: aggregateError,
   };
-  if (assignees.length > 0) taskBody.assignees = assignees;
-
-  const createUrl = `https://api.clickup.com/api/v2/list/${listId}/task`;
-  let createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
-  // ClickUp rejects very large sprint-point values on create; retry once
-  // without `points` rather than fail the task (time_estimate still carries
-  // the effort).
-  if (!createRes.ok && "points" in taskBody) {
-    const errText = await createRes.text();
-    console.warn(
-      `[manage-internal-meeting] ClickUp create failed with points (${createRes.status}: ${errText}); retrying without points`,
-    );
-    const { points: _dropped, ...noPoints } = taskBody;
-    createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
-  }
-  if (!createRes.ok) {
-    return { taskId: null, taskUrl: null, error: `ClickUp create ${createRes.status}: ${await createRes.text()}` };
-  }
-  const created = (await createRes.json()) as { id: string; url: string };
-  return { taskId: created.id, taskUrl: created.url, error: null };
 }
 
 interface ClickupSyncUpdateCtx extends ClickupSyncCreateCtx {
@@ -494,29 +598,8 @@ interface ClickupSyncUpdateCtx extends ClickupSyncCreateCtx {
   attendeesChanged: boolean;
 }
 
-/** GET the task's current assignees and diff against the desired set. Returns
- * null (rather than throwing) if the GET fails, so the caller can skip the
- * assignee update without failing the whole sync. */
-async function resolveAssigneeDiff(
-  pat: string,
-  taskId: string,
-  desiredIds: number[],
-): Promise<{ add: number[]; rem: number[] } | null> {
-  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
-    headers: { Authorization: pat, "Content-Type": "application/json" },
-  });
-  if (!res.ok) return null;
-  const task = (await res.json()) as { assignees?: Array<{ id: number }> };
-  const currentIds = (task.assignees ?? []).map((a) => a.id);
-  return {
-    add: desiredIds.filter((id) => !currentIds.includes(id)),
-    rem: currentIds.filter((id) => !desiredIds.includes(id)),
-  };
-}
-
 async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promise<ClickupSyncResult> {
-  const taskId = ctx.meeting.clickup_task_id;
-  if (!taskId) {
+  if (!ctx.meeting.clickup_task_id) {
     // Never synced before (list wasn't configured, or a prior failure) —
     // attempt the create now so fixing the config later self-heals.
     return syncClickupCreate(req, ctx);
@@ -524,7 +607,7 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
 
   const { token: pat } = await getOperatorClickupToken(req);
   if (!pat) {
-    return { taskId, taskUrl: ctx.meeting.clickup_task_url, error: "No ClickUp token available (CLICKUP_PAT secret not set)." };
+    return { taskId: ctx.meeting.clickup_task_id, taskUrl: ctx.meeting.clickup_task_url, personTaskLinks: [], error: "No ClickUp token available (CLICKUP_PAT secret not set)." };
   }
   const CU = { headers: { Authorization: pat, "Content-Type": "application/json" } };
 
@@ -541,62 +624,126 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
   const startsAtMs = Date.parse(ctx.meeting.starts_at);
   const endsAtMs = Date.parse(ctx.meeting.ends_at);
   const points = meetingSprintPoints(ctx.meeting.starts_at, ctx.meeting.ends_at);
+  const taskName = buildMeetingTaskName(clickupClientName, ctx.meeting.title);
 
-  const putBody: Record<string, unknown> = {
-    name: buildMeetingTaskName(clickupClientName, ctx.meeting.title),
-    ...nativeMeetingTaskBody({ description, startsAtMs, endsAtMs, points }),
-  };
-
-  if (ctx.attendeesChanged) {
-    const desired = ctx.attendees
-      .map((a) => a.clickup_user_id)
-      .filter((id): id is number => typeof id === "number");
-    const diff = await resolveAssigneeDiff(pat, taskId, desired);
-    if (!diff) {
-      console.warn(`[manage-internal-meeting] could not read current ClickUp assignees for task ${taskId}; leaving assignees unchanged`);
-    } else if (diff.add.length > 0 || diff.rem.length > 0) {
-      putBody.assignees = diff;
-    }
-  }
-
-  const putRes = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
-    ...CU,
-    method: "PUT",
-    body: JSON.stringify(putBody),
-  });
-  if (!putRes.ok) {
-    return { taskId, taskUrl: ctx.meeting.clickup_task_url, error: `ClickUp update ${putRes.status}: ${await putRes.text()}` };
-  }
-
-  // Dropdown custom fields aren't settable via the general task PUT — each
-  // needs its own POST to /task/{id}/field/{field_id}. Client/work stream can
-  // change on an edit, so refresh them (best-effort; never fails the update).
-  // The list id is only needed for this field-definitions lookup — the PUT
-  // above already addresses the task directly, so it must not be gated on
-  // the internal list still being configured (an edit to an already-synced
-  // task should keep working even if the client's lists are later remapped).
+  // Field defs are needed both to refresh dropdown custom fields on existing
+  // tasks and to build new ones for newly-added attendees — resolve once.
+  // Not gated on the internal list still being configured: an edit to
+  // already-synced tasks must keep working even if lists are later remapped.
   const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
   const fieldsRes = listId ? await fetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU) : null;
-  if (fieldsRes?.ok) {
-    const cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
-    const customFields = meetingCustomFields(cuFields, clickupClientName, ctx.project?.clickup_work_stream_override ?? null);
+  const cuFields = fieldsRes?.ok ? ((await fieldsRes.json()).fields ?? []) as CuField[] : [];
+  if (fieldsRes && !fieldsRes.ok) {
+    console.warn(`[manage-internal-meeting] could not refresh ClickUp field defs for list ${listId}: ${fieldsRes.status}`);
+  } else if (!fieldsRes) {
+    console.warn(`[manage-internal-meeting] no ClickUp list resolved for client ${ctx.client.id} — skipping custom-field refresh`);
+  }
+  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? null;
+  const customFields = meetingCustomFields(cuFields, clickupClientName, workStream);
+
+  const people = Array.from(new Map([ctx.organiser, ...ctx.attendees].map((p) => [p.id, p])).values());
+  const { data: existingRows } = await ctx.sb
+    .from("internal_meeting_tasks")
+    .select("team_member_id, clickup_task_id, clickup_task_url")
+    .eq("meeting_id", ctx.meeting.id);
+  const existingByMember = new Map(
+    ((existingRows ?? []) as Array<{ team_member_id: string; clickup_task_id: string | null; clickup_task_url: string | null }>)
+      .map((r) => [r.team_member_id, r]),
+  );
+
+  const results: PersonTaskResult[] = [];
+  for (const person of people) {
+    const existing = existingByMember.get(person.id);
+    const existingTaskId = existing?.clickup_task_id ?? null;
+    if (!existingTaskId) {
+      // New attendee since last sync — create their task from scratch.
+      const taskBody: Record<string, unknown> = {
+        name: taskName,
+        ...nativeMeetingTaskBody({
+          description, startsAtMs, endsAtMs, points,
+          statusOverride: ctx.meeting.clickup_status_override,
+        }),
+        custom_fields: customFields,
+      };
+      if (person.clickup_user_id) taskBody.assignees = [person.clickup_user_id];
+      const createUrl = `https://api.clickup.com/api/v2/list/${listId}/task`;
+      const createRes = listId
+        ? await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) })
+        : null;
+      if (!createRes || !createRes.ok) {
+        results.push({
+          teamMemberId: person.id, taskId: null, taskUrl: null,
+          error: !listId ? NO_CLICKUP_LIST_ERROR : `ClickUp create ${createRes!.status}: ${await createRes!.text()}`,
+        });
+        continue;
+      }
+      const created = (await createRes.json()) as { id: string; url: string };
+      results.push({ teamMemberId: person.id, taskId: created.id, taskUrl: created.url, error: null });
+      continue;
+    }
+
+    const putBody: Record<string, unknown> = {
+      name: taskName,
+      ...nativeMeetingTaskBody({
+        description, startsAtMs, endsAtMs, points,
+        statusOverride: ctx.meeting.clickup_status_override,
+      }),
+    };
+    const putRes = await fetch(`https://api.clickup.com/api/v2/task/${existingTaskId}`, {
+      ...CU, method: "PUT", body: JSON.stringify(putBody),
+    });
+    if (!putRes.ok) {
+      results.push({ teamMemberId: person.id, taskId: existingTaskId, taskUrl: existing?.clickup_task_url ?? null, error: `ClickUp update ${putRes.status}: ${await putRes.text()}` });
+      continue;
+    }
+    // Dropdown custom fields aren't settable via the general task PUT — each
+    // needs its own POST to /task/{id}/field/{field_id}.
     await Promise.all(
       customFields.map(async (cf) => {
-        const r = await fetch(`https://api.clickup.com/api/v2/task/${taskId}/field/${cf.id}`, {
-          ...CU,
-          method: "POST",
-          body: JSON.stringify({ value: cf.value }),
+        const r = await fetch(`https://api.clickup.com/api/v2/task/${existingTaskId}/field/${cf.id}`, {
+          ...CU, method: "POST", body: JSON.stringify({ value: cf.value }),
         });
-        if (!r.ok) console.warn(`[manage-internal-meeting] custom field ${cf.id} update failed for task ${taskId}: ${r.status}`);
+        if (!r.ok) console.warn(`[manage-internal-meeting] custom field ${cf.id} update failed for task ${existingTaskId}: ${r.status}`);
       }),
     );
-  } else if (fieldsRes) {
-    console.warn(`[manage-internal-meeting] could not refresh ClickUp field defs for list ${listId}: ${fieldsRes.status}`);
-  } else {
-    console.warn(`[manage-internal-meeting] no ClickUp list resolved for client ${ctx.client.id} — skipping custom-field refresh for task ${taskId}`);
+    results.push({ teamMemberId: person.id, taskId: existingTaskId, taskUrl: existing?.clickup_task_url ?? null, error: null });
   }
 
-  return { taskId, taskUrl: ctx.meeting.clickup_task_url, error: null };
+  const { error: upsertErr } = await ctx.sb.from("internal_meeting_tasks").upsert(
+    results.map((r) => ({
+      meeting_id: ctx.meeting.id,
+      team_member_id: r.teamMemberId,
+      clickup_task_id: r.taskId,
+      clickup_task_url: r.taskUrl,
+      clickup_sync_error: r.error,
+    })),
+    { onConflict: "meeting_id,team_member_id" },
+  );
+  if (upsertErr) {
+    console.error(`[manage-internal-meeting] failed to persist per-person meeting task updates for ${ctx.meeting.id}: ${upsertErr.message}`);
+  }
+
+  const organiserResult = results.find((r) => r.teamMemberId === ctx.organiser.id);
+  const personTaskLinks: MeetingTaskLink[] = results
+    .filter((r): r is PersonTaskResult & { taskUrl: string } => !!r.taskUrl)
+    .map((r) => ({
+      name: people.find((p) => p.id === r.teamMemberId)?.full_name ?? r.teamMemberId,
+      url: r.taskUrl,
+    }));
+  const failed = results.filter((r) => r.error);
+  const aggregateError = failed.length > 0
+    ? `Some meeting tasks failed: ${failed.map((f) => {
+        const person = people.find((p) => p.id === f.teamMemberId);
+        return `${person?.full_name ?? f.teamMemberId}: ${f.error}`;
+      }).join("; ")}`
+    : null;
+
+  return {
+    taskId: organiserResult?.taskId ?? ctx.meeting.clickup_task_id,
+    taskUrl: organiserResult?.taskUrl ?? ctx.meeting.clickup_task_url,
+    personTaskLinks,
+    error: aggregateError,
+  };
 }
 
 // ── Caller auth ──────────────────────────────────────────────────────────
@@ -643,7 +790,11 @@ function isPrivileged(caller: Caller): boolean {
 // ── Action handlers ─────────────────────────────────────────────────────
 
 async function loadClient(sb: SupabaseClient, clientId: string): Promise<ClientRow | null> {
-  const { data } = await sb.from("clients").select("id, name, clickup_client_name").eq("id", clientId).maybeSingle();
+  const { data } = await sb
+    .from("clients")
+    .select("id, name, clickup_client_name")
+    .eq("id", clientId)
+    .maybeSingle();
   return (data as ClientRow | null) ?? null;
 }
 
@@ -701,6 +852,8 @@ async function handleCreate(req: Request, sb: SupabaseClient, caller: Caller, bo
       starts_at: body.starts_at,
       ends_at: body.ends_at,
       status: "scheduled",
+      work_stream_override: body.work_stream_override?.trim() || null,
+      clickup_status_override: body.clickup_status_override?.trim() || null,
     })
     .select("*")
     .single();
@@ -716,13 +869,17 @@ async function handleCreate(req: Request, sb: SupabaseClient, caller: Caller, bo
     console.error(`[manage-internal-meeting] attendee insert failed for meeting ${meeting.id}: ${attErr.message}`);
   }
 
-  const googleResult = await safeGoogleSync(
-    () => syncGoogleCreate(req, { meeting, organiser, client, project, attendees }),
-    { eventId: null, googleEmail: null, meetUrl: null, htmlLink: null },
-  );
+  // ClickUp BEFORE Google: the calendar invite links back to everyone's own
+  // task, so those URLs must exist first. The ClickUp tasks' own descriptions
+  // won't have the Meet link until the next edit (self-heals then, like
+  // every other field in this file) — a one-edit lag, not a lost link.
   const clickupResult = await safeClickupSync(
-    () => syncClickupCreate(req, { sb, meeting, client, project, attendees, meetUrl: googleResult.meetUrl }),
-    { taskId: null, taskUrl: null },
+    () => syncClickupCreate(req, { sb, meeting, client, project, organiser, attendees, meetUrl: null }),
+    { taskId: null, taskUrl: null, personTaskLinks: [] },
+  );
+  const googleResult = await safeGoogleSync(
+    () => syncGoogleCreate(req, { meeting, organiser, client, project, attendees, clickupTaskLinks: clickupResult.personTaskLinks }),
+    { eventId: null, googleEmail: null, meetUrl: null, htmlLink: null },
   );
 
   const { error: syncUpdErr } = await sb
@@ -775,6 +932,12 @@ async function handleUpdate(req: Request, sb: SupabaseClient, caller: Caller, bo
   const projectId = body.project_id !== undefined ? body.project_id : current.project_id;
   const startsAt = body.starts_at !== undefined ? body.starts_at : current.starts_at;
   const endsAt = body.ends_at !== undefined ? body.ends_at : current.ends_at;
+  const workStreamOverride = body.work_stream_override !== undefined
+    ? (body.work_stream_override?.trim() || null)
+    : current.work_stream_override;
+  const clickupStatusOverride = body.clickup_status_override !== undefined
+    ? (body.clickup_status_override?.trim() || null)
+    : current.clickup_status_override;
   const startsMs = Date.parse(startsAt);
   const endsMs = Date.parse(endsAt);
   if (!Number.isFinite(startsMs) || !Number.isFinite(endsMs)) {
@@ -809,6 +972,7 @@ async function handleUpdate(req: Request, sb: SupabaseClient, caller: Caller, bo
     .from("internal_meetings")
     .update({
       title, agenda, client_id: clientId, project_id: projectId, starts_at: startsAt, ends_at: endsAt,
+      work_stream_override: workStreamOverride, clickup_status_override: clickupStatusOverride,
       updated_at: new Date().toISOString(),
     })
     .eq("id", current.id);
@@ -824,23 +988,39 @@ async function handleUpdate(req: Request, sb: SupabaseClient, caller: Caller, bo
     }
   }
 
-  const meeting: MeetingRow = { ...current, title, agenda, client_id: clientId, project_id: projectId, starts_at: startsAt, ends_at: endsAt };
+  const meeting: MeetingRow = {
+    ...current, title, agenda, client_id: clientId, project_id: projectId, starts_at: startsAt, ends_at: endsAt,
+    work_stream_override: workStreamOverride, clickup_status_override: clickupStatusOverride,
+  };
 
+  // ClickUp BEFORE Google, same reasoning as handleCreate: the invite
+  // description needs everyone's (possibly just-created-on-self-heal) task
+  // links. If the whole sync throws, fall back to just the organiser's
+  // previously-stored link rather than nothing — a best-effort degrade, not
+  // a full per-person history lookup.
+  const clickupResult = await safeClickupSync(
+    () =>
+      syncClickupUpdate(req, {
+        sb, meeting, client, project, organiser, attendees, meetUrl: meeting.google_meet_url, attendeesChanged,
+      }),
+    {
+      taskId: meeting.clickup_task_id,
+      taskUrl: meeting.clickup_task_url,
+      personTaskLinks: meeting.clickup_task_url ? [{ name: organiser.full_name, url: meeting.clickup_task_url }] : [],
+    },
+  );
   const googleResult = await safeGoogleSync(
-    () => syncGoogleUpdate(req, { meeting, organiser, client, project, attendees, attendeesChanged }),
+    () =>
+      syncGoogleUpdate(req, {
+        meeting, organiser, client, project, attendees, attendeesChanged,
+        clickupTaskLinks: clickupResult.personTaskLinks,
+      }),
     {
       eventId: meeting.google_event_id,
       googleEmail: meeting.google_calendar_email,
       meetUrl: meeting.google_meet_url,
       htmlLink: meeting.google_html_link,
     },
-  );
-  const clickupResult = await safeClickupSync(
-    () =>
-      syncClickupUpdate(req, {
-        sb, meeting, client, project, attendees, meetUrl: googleResult.meetUrl, attendeesChanged,
-      }),
-    { taskId: meeting.clickup_task_id, taskUrl: meeting.clickup_task_url },
   );
 
   const { error: syncUpdErr } = await sb
@@ -915,23 +1095,40 @@ async function handleCancel(req: Request, sb: SupabaseClient, caller: Caller, bo
     }
   }
 
+  // Each person has their own task (see 0099_internal_meeting_tasks) — delete
+  // all of them. Falls back to the legacy single clickup_task_id for meetings
+  // created before that migration, which have no internal_meeting_tasks rows.
   let clickupError: string | null = null;
-  if (meeting.clickup_task_id) {
-    try {
-      const { token: pat } = await getOperatorClickupToken(req);
-      if (!pat) {
-        clickupError = "No ClickUp token available (CLICKUP_PAT secret not set).";
-      } else {
-        const res = await fetch(`https://api.clickup.com/api/v2/task/${meeting.clickup_task_id}`, {
-          method: "DELETE",
-          headers: { Authorization: pat, "Content-Type": "application/json" },
-        });
-        if (!res.ok && res.status !== 404) {
-          clickupError = `ClickUp delete ${res.status}: ${await res.text()}`;
+  const { data: personTasks } = await sb
+    .from("internal_meeting_tasks")
+    .select("team_member_id, clickup_task_id")
+    .eq("meeting_id", meeting.id);
+  const taskIdsToDelete = ((personTasks ?? []) as Array<{ clickup_task_id: string | null }>)
+    .map((t) => t.clickup_task_id)
+    .filter((id): id is string => !!id);
+  if (taskIdsToDelete.length === 0 && meeting.clickup_task_id) {
+    taskIdsToDelete.push(meeting.clickup_task_id);
+  }
+  if (taskIdsToDelete.length > 0) {
+    const { token: pat } = await getOperatorClickupToken(req);
+    if (!pat) {
+      clickupError = "No ClickUp token available (CLICKUP_PAT secret not set).";
+    } else {
+      const errors: string[] = [];
+      for (const taskId of taskIdsToDelete) {
+        try {
+          const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+            method: "DELETE",
+            headers: { Authorization: pat, "Content-Type": "application/json" },
+          });
+          if (!res.ok && res.status !== 404) {
+            errors.push(`${taskId}: ClickUp delete ${res.status}: ${await res.text()}`);
+          }
+        } catch (e) {
+          errors.push(`${taskId}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-    } catch (e) {
-      clickupError = e instanceof Error ? e.message : String(e);
+      if (errors.length > 0) clickupError = errors.join("; ");
     }
   }
 

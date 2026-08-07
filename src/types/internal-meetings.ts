@@ -21,6 +21,8 @@ export type InternalMeetingRow = {
   clickup_task_id: string | null;
   clickup_task_url: string | null;
   clickup_sync_error: string | null;
+  work_stream_override: string | null;
+  clickup_status_override: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -46,6 +48,8 @@ export type CreateMeetingArgs = {
   starts_at: string;
   ends_at: string;
   attendee_member_ids: string[];
+  work_stream_override?: string | null;
+  clickup_status_override?: string | null;
 };
 
 export type UpdateMeetingArgs = {
@@ -57,6 +61,8 @@ export type UpdateMeetingArgs = {
   starts_at?: string;
   ends_at?: string;
   attendee_member_ids?: string[];
+  work_stream_override?: string | null;
+  clickup_status_override?: string | null;
 };
 
 export type ManageMeetingResponse = {

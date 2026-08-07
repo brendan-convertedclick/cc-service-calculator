@@ -14,6 +14,10 @@ export type CreateQuickBriefArgs = {
   status?: string;
   briefed_by_member_id?: string | null;
   billing_type?: "retainer" | "adhoc";
+  /** One item per line — creates a ClickUp checklist on the task. */
+  checklist_items?: string[];
+  /** Optional files — each uploaded as a ClickUp task attachment after create. */
+  attachments?: File[];
 };
 
 type CreateQuickBriefResult = { clickup_task_id: string; clickup_task_url: string };
@@ -26,8 +30,16 @@ export function useCreateQuickBriefTask(): UseMutationResult<
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: CreateQuickBriefArgs): Promise<CreateQuickBriefResult> => {
+      const { attachments, ...rest } = args;
+      let body: CreateQuickBriefArgs | FormData = rest;
+      if (attachments && attachments.length > 0) {
+        const form = new FormData();
+        form.append("payload", JSON.stringify(rest));
+        attachments.forEach((file) => form.append("file", file));
+        body = form;
+      }
       const { data, error } = await supabase.functions.invoke("create-quick-brief-task", {
-        body: args,
+        body,
       });
       if (error) throw error;
       const result = data as (CreateQuickBriefResult & { error?: string }) | null;

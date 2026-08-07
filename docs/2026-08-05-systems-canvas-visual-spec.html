@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conductor — Drawing Board, lane-free</title>
+<style>
+:root{
+  --primary:#7C3AED; --pink:#EC4899; --teal:#0891B2; --gold:#F59E0B;
+  --slate:#475569; --error:#DC2626; --green:#16A34A;
+  --ink:#09090B; --muted:#5B4A7A;
+  --surface:#fff; --sc-low:#FAFAFA; --sc:#F5F3FF; --sc-high:#EDE9FE;
+  --outline:#C4B5FD; --outline-var:#EDE9FE;
+  --r-sm:.5rem; --r-md:.75rem; --r-lg:1rem; --r-xl:1.5rem;
+  --e1:0 1px 2px rgba(46,16,101,.08),0 1px 3px rgba(46,16,101,.06);
+  --e2:0 2px 6px rgba(46,16,101,.10);
+  --e3:0 8px 24px rgba(46,16,101,.12),0 2px 6px rgba(46,16,101,.06);
+  --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--sc-low);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 90px}
+
+.hero{background:linear-gradient(135deg,#2E1065,#4C1D95 45%,#7C3AED);
+  color:#fff;padding:48px 0 42px;margin-bottom:38px}
+.hero .wrap{padding-bottom:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:600;opacity:.72;margin-bottom:12px}
+.hero h1{font-size:40px;line-height:1.1;font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
+.hero p{font-size:16.5px;line-height:1.6;max-width:720px;opacity:.9;margin:0}
+.chips{display:flex;gap:9px;flex-wrap:wrap;margin-top:24px}
+.chip{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:500}
+.chip.cut{background:rgba(220,38,38,.22);border-color:rgba(252,165,165,.45);text-decoration:line-through;opacity:.75}
+
+section{margin-bottom:50px}
+h2{font-size:26px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+h3{font-size:18px;font-weight:600;margin:0 0 8px}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 22px;max-width:760px}
+
+/* window */
+.win{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--e3)}
+.winbar{background:var(--sc-high);padding:9px 14px;display:flex;align-items:center;
+  gap:9px;border-bottom:1px solid var(--outline)}
+.lights{display:flex;gap:5px}.lights i{width:9px;height:9px;border-radius:50%;display:block}
+.winbar .t{font-size:11.5px;font-weight:600;color:#2E1065}
+.winbar .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.pill{border-radius:999px;padding:3px 9px;font-size:10px;font-weight:600;
+  background:var(--sc-high);color:#2E1065;white-space:nowrap}
+.pill.p{background:var(--primary);color:#fff}
+.pill.a{background:#FEF3C7;color:#78350F}
+.pill.r{background:#FEE2E2;color:#7F1D1D}
+.pill.g{background:#DCFCE7;color:#14532D}
+.pill.k{background:#E4E4E7;color:#3F3F46}
+.pill.b{background:#CFFAFE;color:#083344}
+
+.shell{display:grid;grid-template-columns:44px 1fr 186px}
+.tools{background:var(--sc);border-right:1px solid var(--outline-var);
+  padding:10px 0;display:flex;flex-direction:column;gap:5px;align-items:center}
+.tool{width:28px;height:28px;border-radius:var(--r-sm);display:grid;place-items:center;
+  font-size:13px;color:var(--muted)}
+.tool.on{background:var(--primary);color:#fff}
+
+.board{padding:20px 18px;background:
+  radial-gradient(circle at 1px 1px, rgba(124,58,237,.16) 1px, transparent 0) 0 0/16px 16px;
+  position:relative;min-height:330px}
+.row{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+
+/* BLOCK — dept colour is the left spine + tint */
+.blk{background:var(--surface);border:1.5px solid var(--outline-var);border-radius:var(--r-md);
+  padding:9px 12px 9px 13px;box-shadow:var(--e1);position:relative;min-width:150px;
+  border-left-width:5px;transition:all .18s ease}
+.blk:hover{box-shadow:var(--e3);transform:translateY(-2px)}
+.blk .bt{font-size:12.5px;font-weight:600;line-height:1.25;margin-bottom:3px}
+.blk .bd{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:5px}
+.blk .bg{font-size:10.5px;color:var(--muted);line-height:1.35;margin-bottom:7px;font-style:italic}
+.blk .bf{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.blk .who{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600}
+
+/* department palette */
+.d-sales{border-left-color:var(--pink)} .d-sales .bd{color:var(--pink)}
+.d-acct {border-left-color:var(--primary)} .d-acct .bd{color:var(--primary)}
+.d-seo  {border-left-color:var(--teal)} .d-seo .bd{color:var(--teal)}
+.d-cont {border-left-color:var(--gold)} .d-cont .bd{color:#B45309}
+.d-dev  {border-left-color:var(--slate)} .d-dev .bd{color:var(--slate)}
+.d-none {border-left-color:var(--error);border-style:dashed;background:#FEF2F2}
+.d-none .bd{color:var(--error)}
+
+.av{width:19px;height:19px;border-radius:50%;color:#fff;font-size:8.5px;font-weight:700;
+  display:grid;place-items:center;flex:none}
+.a-bg{background:var(--pink)}.a-lr{background:var(--primary)}
+.a-jm{background:var(--teal)}.a-tk{background:var(--gold)}.a-sn{background:var(--slate)}
+.hrs{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--primary);
+  background:var(--sc-high);padding:2px 6px;border-radius:var(--r-sm)}
+
+/* CONNECTORS — the handoff signal that replaces lanes */
+.conn{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 4px;min-width:56px;flex:none}
+.conn .ln{width:100%;height:2px;background:var(--outline);position:relative}
+.conn .ln::after{content:'▸';position:absolute;right:-5px;top:-10px;
+  color:var(--outline);font-size:14px}
+.conn .lbl{font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:3px;white-space:nowrap}
+.conn.ho .ln{height:2.5px;background:repeating-linear-gradient(90deg,var(--gold) 0 5px,transparent 5px 9px)}
+.conn.ho .ln::after{color:var(--gold)}
+.conn.ho .lbl{color:#B45309}
+.conn.slow .ln{background:repeating-linear-gradient(90deg,var(--error) 0 5px,transparent 5px 9px)}
+.conn.slow .ln::after{color:var(--error)}
+.conn.slow .lbl{color:var(--error)}
+
+.gapblk{border:1.5px dashed var(--error);background:#FEF2F2;border-radius:var(--r-md);
+  padding:9px 12px;min-width:170px;opacity:.9}
+.gapblk .bt{font-size:12.5px;font-weight:600;color:var(--error);margin-bottom:3px}
+.gapblk .bg{font-size:10.5px;color:var(--muted);font-style:italic}
+
+.nested{position:absolute;right:16px;bottom:16px;background:var(--surface);
+  border:1.5px solid var(--primary);border-radius:var(--r-md);padding:10px 12px;
+  box-shadow:var(--e3);width:200px}
+.nested .nh{font-size:9.5px;color:var(--primary);font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+.nested .nr{font-size:10.5px;padding:4px 7px;background:var(--sc);
+  border-radius:var(--r-sm);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
+
+/* inspector */
+.insp{background:var(--sc);border-left:1px solid var(--outline-var);padding:13px 12px}
+.insp-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:700;margin-bottom:10px}
+.fld{margin-bottom:10px}
+.fld label{display:block;font-size:9.5px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.fld .box{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-sm);padding:6px 8px;font-size:11px;line-height:1.35;
+  display:flex;align-items:center;gap:6px}
+.swatch{width:11px;height:11px;border-radius:3px;flex:none}
+
+/* rollup strip */
+.rollup{background:var(--sc);border-top:1px solid var(--outline-var);
+  padding:11px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.rollup .rl{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);font-weight:700}
+.ritem{display:flex;align-items:center;gap:6px;font-size:11.5px}
+.ritem .sw{width:9px;height:9px;border-radius:2px}
+.ritem b{font-family:var(--mono);font-size:11px}
+
+/* comparison */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:800px){.cols{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--outline-var);
+  border-radius:var(--r-lg);padding:20px 22px;box-shadow:var(--e1)}
+.card.keep{border-left:4px solid var(--green)}
+.card.drop{border-left:4px solid var(--error)}
+.card h3{margin-bottom:4px;font-size:16px}
+.card .lead{font-size:12.5px;color:var(--muted);margin:0 0 14px}
+.card ul{margin:0;padding-left:17px}
+.card li{font-size:13px;margin-bottom:8px;line-height:1.5}
+.card li b{font-weight:600}
+
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.lg{display:flex;align-items:center;gap:7px;background:var(--surface);
+  border:1px solid var(--outline-var);border-radius:999px;padding:5px 13px 5px 8px;
+  font-size:12px;box-shadow:var(--e1)}
+.lg .sw{width:12px;height:12px;border-radius:3px}
+
+.schema{background:var(--ink);color:#E4E4E7;border-radius:var(--r-md);
+  padding:15px 17px;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+  overflow-x:auto;white-space:pre}
+.schema .kw{color:#A78BFA}.schema .cm{color:#71717A}.schema .st{color:#67E8F9}
+
+.note{background:#FFFBEB;border:1px solid var(--gold);border-radius:var(--r-md);
+  padding:15px 18px;font-size:13.5px;line-height:1.55;margin-top:20px}
+.note b{color:#78350F}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:40px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Conductor · Concept 02, revised</div>
+    <h1>The Drawing Board,<br>without the lanes.</h1>
+    <p>Same free canvas. Department becomes a colour on the block instead of a container around it — and the handoff signal that lanes were carrying moves onto the connectors, where it's actually more visible.</p>
+    <div class="chips">
+      <span class="chip">Free drag &amp; drop</span>
+      <span class="chip">Nested sub-blocks</span>
+      <span class="chip">Colour = department</span>
+      <span class="chip">Avatar = person</span>
+      <span class="chip cut">Swimlane containers</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <h2>The canvas</h2>
+  <p class="sub">Same sales system as before. Six blocks instead of three lanes wrapping six blocks — and you can still read who owns what at a glance.</p>
+
+  <div class="win">
+    <div class="winbar">
+      <div class="lights"><i style="background:#FCA5A5"></i><i style="background:#FCD34D"></i><i style="background:#86EFAC"></i></div>
+      <span class="t">Conductor › Systems › Sales System <span style="opacity:.6;font-weight:400">— draft rev 2</span></span>
+      <div class="r"><span class="pill a">Unsaved</span><span class="pill k">Tidy up ⌘L</span><span class="pill p">Propose ↑</span></div>
+    </div>
+    <div class="shell">
+      <div class="tools">
+        <div class="tool on">✥</div><div class="tool">▭</div><div class="tool">◇</div>
+        <div class="tool">↝</div><div class="tool" style="margin-top:8px">⌗</div><div class="tool">💬</div>
+      </div>
+      <div class="board">
+        <div class="row" style="margin-bottom:26px">
+          <div class="blk d-sales">
+            <div class="bd">Sales &amp; BD</div>
+            <div class="bt">Source</div>
+            <div class="bg">Goal: 30 net-new ICP contacts/mo</div>
+            <div class="bf"><span class="who"><span class="av a-bg">BG</span>Brendan</span><span class="hrs">4.0h</span></div>
+          </div>
+          <div class="conn"><div class="ln"></div></div>
+          <div class="blk d-sales">
+            <div class="bd">Sales &amp; BD</div>
+            <div class="bt">Qualify call</div>
+            <div class="bg">Goal: disqualify 60% before proposal</div>
+            <div class="bf"><span class="who"><span class="av a-bg">BG</span>Brendan</span><span class="hrs">0.5h ×8</span></div>
+          </div>
+          <div class="conn"><div class="ln"></div></div>
+          <div class="blk d-sales" style="border-color:var(--primary);border-left-color:var(--pink);box-shadow:var(--e3)">
+            <div class="bd">Sales &amp; BD</div>
+            <div class="bt">Proposal ⧉</div>
+            <div class="bg">Goal: out within 48h of call</div>
+            <div class="bf"><span class="who"><span class="av a-bg">BG</span>Brendan</span><span class="hrs">2.5h</span><span class="pill p">4 sub</span></div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-bottom:26px">
+          <div style="min-width:150px"></div>
+          <div class="conn"><div class="ln"></div></div>
+          <div class="blk" style="border-left-color:var(--outline);border-radius:999px;border-style:dashed;min-width:110px">
+            <div class="bt" style="margin-bottom:0">◇ Won?</div>
+          </div>
+          <div class="conn ho"><span class="lbl">⇄ Handoff</span><div class="ln"></div></div>
+          <div class="blk d-acct">
+            <div class="bd">Account Mgmt</div>
+            <div class="bt">Onboarding kickoff</div>
+            <div class="bg">Goal: booked within 5 days</div>
+            <div class="bf"><span class="who"><span class="av a-lr">LR</span>Lisa</span><span class="hrs">3.25h</span><span class="pill b">↗ Delivery map</span></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="gapblk">
+            <div class="bt">⚠ Nurture — nobody owns this</div>
+            <div class="bg">The part nobody has thought about yet. Drop a block to start.</div>
+          </div>
+          <div class="conn slow"><span class="lbl">no path</span><div class="ln"></div></div>
+        </div>
+
+        <div class="nested">
+          <div class="nh">⧉ Inside: Proposal</div>
+          <div class="nr"><span>1 · Pull scope from Conductor</span><b style="color:var(--primary)">0.5h</b></div>
+          <div class="nr"><span>2 · Draft SOW</span><b style="color:var(--primary)">1.0h</b></div>
+          <div class="nr"><span>3 · Internal price check</span><b style="color:var(--primary)">0.5h</b></div>
+          <div class="nr" style="margin-bottom:0"><span>4 · Send + log</span><b style="color:var(--primary)">0.5h</b></div>
+        </div>
+      </div>
+      <div class="insp">
+        <div class="insp-h">Block inspector</div>
+        <div class="fld"><label>Title</label><div class="box">Onboarding kickoff</div></div>
+        <div class="fld"><label>Goal / purpose</label>
+          <div class="box" style="font-style:italic;display:block">Kickoff booked within 5 working days of signature.</div></div>
+        <div class="fld"><label>Department</label>
+          <div class="box"><span class="swatch" style="background:var(--primary)"></span>Account Mgmt</div></div>
+        <div class="fld"><label>Responsible</label>
+          <div class="box"><span class="av a-lr" style="width:16px;height:16px;font-size:7.5px">LR</span>Lisa Rawson</div></div>
+        <div class="fld"><label>Estimated hours</label>
+          <div class="box" style="font-family:var(--mono);font-weight:600;color:var(--primary)">3.25</div></div>
+        <div class="fld"><label>Incoming</label>
+          <div class="box" style="color:#B45309">⇄ Handoff from Sales &amp; BD</div></div>
+        <div class="fld" style="margin-bottom:0"><label>Revision</label>
+          <div class="box">Rev 2 draft · edited today</div></div>
+      </div>
+    </div>
+    <div class="rollup">
+      <span class="rl">Rolled up by department</span>
+      <span class="ritem"><span class="sw" style="background:var(--pink)"></span>Sales &amp; BD <b>10.5h</b></span>
+      <span class="ritem"><span class="sw" style="background:var(--primary)"></span>Account Mgmt <b>3.25h</b></span>
+      <span class="ritem" style="color:var(--error)"><span class="sw" style="background:var(--error)"></span>Unassigned <b>1 block</b></span>
+      <span class="ritem" style="margin-left:auto;font-weight:700">Total <b>13.75h / mo</b></span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="lg"><span class="sw" style="background:var(--pink)"></span>Sales &amp; BD</span>
+    <span class="lg"><span class="sw" style="background:var(--primary)"></span>Account Mgmt</span>
+    <span class="lg"><span class="sw" style="background:var(--teal)"></span>SEO</span>
+    <span class="lg"><span class="sw" style="background:var(--gold)"></span>Content</span>
+    <span class="lg"><span class="sw" style="background:var(--slate)"></span>Dev</span>
+    <span class="lg"><span class="sw" style="background:var(--error)"></span>Unassigned</span>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted);margin-top:10px">
+    These colours aren't invented — <span style="font-family:var(--mono);font-size:11.5px">departments.color</span> already exists in your schema and is already used across Conductor. The canvas just reads it.
+  </p>
+</section>
+
+<section>
+  <h2>What lanes were doing, and where it went</h2>
+  <p class="sub">Three jobs. Two of them didn't need a container in the first place.</p>
+  <div class="cols">
+    <div class="card keep">
+      <h3>Kept — moved somewhere better</h3>
+      <p class="lead">Same signal, less furniture</p>
+      <ul>
+        <li><b>Who owns this step</b> → the coloured spine plus a named avatar on the block. At 6–12 blocks per process this reads faster than scanning which row a block sits in.</li>
+        <li><b>Hours per department</b> → the roll-up strip along the bottom. It was always a computed number; drawing a box around blocks to get it was doing the sum by eye.</li>
+        <li><b>Handoffs</b> → the connector. When the department changes between two blocks, the arrow goes amber and says <b>⇄ Handoff</b>. This is <em>more</em> visible than a lane jump, and it maps directly onto the <span style="font-family:var(--mono);font-size:11.5px">process_step_handoffs</span> view you already have — so it can later show real wait time between steps.</li>
+      </ul>
+    </div>
+    <div class="card drop">
+      <h3>Genuinely lost</h3>
+      <p class="lead">Worth knowing before you commit</p>
+      <ul>
+        <li><b>Scanning one person's whole day.</b> With lanes you can trace a row and see everything Lisa touches. Without them you're picking purple blocks out of a graph. Fix: a "highlight by person" filter — one click dims everything else. Cheap to add.</li>
+        <li><b>Legibility past ~20 blocks.</b> Colour coding degrades as block count rises. But the research was blunt on this: if a process needs 20+ blocks it's two processes. The constraint is a feature.</li>
+        <li><b>Empty-lane gaps.</b> The "Nurture — nobody owns this" prompt was doing real work in the lane version. Replaced with a red dashed ghost block, which is arguably louder anyway.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What this saves you</h2>
+  <p class="sub">Dropping lanes isn't just visual simplification — it removes the single fiddliest part of the React Flow build.</p>
+  <div class="cols">
+    <div class="card">
+      <h3>Build complexity</h3>
+      <ul style="margin-top:12px">
+        <li>No <span style="font-family:var(--mono);font-size:11.5px">parentId</span> group nodes for lanes — which means no child-position-relative-to-parent maths, no lane resize handling, no "block dragged half out of its lane" edge cases.</li>
+        <li>Nesting still uses <span style="font-family:var(--mono);font-size:11.5px">parentId</span>, but only for genuine sub-processes, which is the well-trodden path in React Flow.</li>
+        <li>Auto-layout via Dagre gets simpler — laying out a flat graph is a solved problem; laying out a lane-constrained graph means constraining ranks per lane.</li>
+        <li><b>Realistically ~1 week off the estimate.</b> Call it 4–6 weeks rather than 5–7.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Data model — simpler too</h3>
+      <div class="schema"><span class="cm">-- no lane entity at all</span>
+<span class="kw">create table</span> process_blocks (
+  id            uuid <span class="kw">primary key</span>,
+  graph_id      uuid <span class="kw">references</span> process_graphs,
+  parent_id     uuid <span class="kw">references</span> process_blocks,
+  title         text,
+  <span class="st">goal_statement</span> text,
+  <span class="st">department_id</span> uuid <span class="kw">references</span> departments,
+  <span class="st">owner_id</span>      uuid <span class="kw">references</span> team_members,
+  estimated_hours numeric(6,2),
+  pos_x int, pos_y int
+);
+<span class="cm">-- handoff = department change across an edge.</span>
+<span class="cm">-- derived, never stored:</span>
+<span class="kw">create view</span> process_block_handoffs <span class="kw">as</span>
+<span class="kw">select</span> e.*, <span class="kw">true</span> <span class="kw">as</span> is_handoff
+<span class="kw">from</span> process_edges e
+<span class="kw">join</span> process_blocks a <span class="kw">on</span> a.id = e.source
+<span class="kw">join</span> process_blocks b <span class="kw">on</span> b.id = e.target
+<span class="kw">where</span> a.department_id <span class="kw">is distinct from</span> b.department_id;</div>
+    </div>
+  </div>
+</section>
+
+<div class="note">
+  <b>One thing to decide later, not now:</b> a person who spans two departments. Jamie is SEO but runs some account work — is her block teal or purple? The clean answer is that the <em>block</em> has a department (it's work, and work belongs to a department for costing) while the <em>person</em> is just who does it. That keeps colour meaningful for the hours roll-up and keeps allocation consistent with how <span style="font-family:var(--mono);font-size:11.5px">service_allocation_resolved</span> already works — per department, never per person. Worth confirming when you build the inspector.
+</div>
+
+<div class="foot">Conductor · Concept 02 revised, lane-free · 05 August 2026</div>
+</div>
+</body>
+</html>

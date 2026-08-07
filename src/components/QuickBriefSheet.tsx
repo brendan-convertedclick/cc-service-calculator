@@ -57,12 +57,19 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
+  const [successCriteria, setSuccessCriteria] = useState("");
+  const [measurableOutcome, setMeasurableOutcome] = useState("");
   const [assignee, setAssignee] = useState<string>(UNASSIGNED);
   const [sprintPoints, setSprintPoints] = useState(1);
   const [workStream, setWorkStream] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
   const [billingType, setBillingType] = useState<"retainer" | "adhoc">("retainer");
+  const [checklistItems, setChecklistItems] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
+  // <input type="file"> is uncontrolled — bump this to force a remount (and
+  // clear the displayed filenames) whenever the selection is reset.
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
 
   const [lists, setLists] = useState<QuickBriefListOption[]>([]);
   const [workStreamOptions, setWorkStreamOptions] = useState<QuickBriefWorkStreamOption[]>([]);
@@ -77,6 +84,8 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     const draft = draftFromSuggestion(brief.quick_task_suggestion, brief.raw_subject ?? "");
     setTaskName(draft.task_name);
     setDescription("");
+    setSuccessCriteria("");
+    setMeasurableOutcome("");
     setAssignee(brief.assignee_id ?? UNASSIGNED);
     setSprintPoints(draft.sprint_points);
     setWorkStream(draft.work_stream);
@@ -84,6 +93,9 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setBriefedBy(UNASSIGNED);
     setStatus(STATUS_DEFAULT);
     setBillingType(brief.billing_type === "adhoc" ? "adhoc" : "retainer");
+    setChecklistItems("");
+    setAttachments([]);
+    setAttachmentInputKey((k) => k + 1);
   }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type, brief.assignee_id]);
 
   // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors
@@ -166,10 +178,15 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
   const handleCreate = async () => {
     try {
+      const extras = [
+        successCriteria.trim() && `**What success looks like**\n${successCriteria.trim()}`,
+        measurableOutcome.trim() && `**Expected output**\n${measurableOutcome.trim()}`,
+      ].filter(Boolean) as string[];
+      const composedDescription = [description.trim(), ...extras].filter(Boolean).join("\n\n");
       const { clickup_task_url } = await createTask.mutateAsync({
         brief_id: brief.id,
         task_name: taskName.trim() || "Untitled task",
-        description: description.trim() || undefined,
+        description: composedDescription || undefined,
         assignee_member_id: assignee === UNASSIGNED ? null : assignee,
         sprint_points: Math.max(1, Math.round(sprintPoints)),
         work_stream: workStream,
@@ -178,6 +195,8 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         status: status === STATUS_DEFAULT ? undefined : status,
         briefed_by_member_id: briefedBy === UNASSIGNED ? null : briefedBy,
         billing_type: billingType,
+        checklist_items: checklistItems.split("\n").filter((i) => i.trim()),
+        attachments,
       });
       toast.success("Task created in ClickUp", {
         action: clickup_task_url
@@ -222,6 +241,68 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional — left blank, the task carries the brief's text."
+            />
+            <Input
+              key={attachmentInputKey}
+              id="qb-attachment"
+              type="file"
+              multiple
+              className="max-w-xs"
+              onChange={(e) => {
+                setAttachments((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                // Reset so picking the same file again (after removing it) still fires onChange.
+                setAttachmentInputKey((k) => k + 1);
+              }}
+            />
+            {attachments.length > 0 && (
+              <ul className="space-y-1">
+                {attachments.map((file, i) => (
+                  <li key={`${file.name}-${i}`} className="flex items-center justify-between gap-2 text-body-small text-m-on-surface-variant">
+                    <span className="truncate">{file.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="qb-success">What does success look like?</Label>
+            <Textarea
+              id="qb-success"
+              rows={2}
+              value={successCriteria}
+              onChange={(e) => setSuccessCriteria(e.target.value)}
+              placeholder="Describe the finished state."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="qb-measurable">What's the expected output, in numbers?</Label>
+            <Textarea
+              id="qb-measurable"
+              rows={2}
+              value={measurableOutcome}
+              onChange={(e) => setMeasurableOutcome(e.target.value)}
+              placeholder="e.g. 40 creatives, 1 Excel export, 3 landing pages — a count someone can check this against later."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="qb-checklist">Checklist items</Label>
+            <Textarea
+              id="qb-checklist"
+              rows={3}
+              value={checklistItems}
+              onChange={(e) => setChecklistItems(e.target.value)}
+              placeholder="One per line — optional. Creates a checklist on the ClickUp task."
             />
           </div>
 
@@ -301,6 +382,13 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               {!workStreamValid && (
                 <p className="text-body-small text-m-on-surface-variant">
                   Pick a work stream — it sets the ClickUp dropdown and the invoice trail.
+                </p>
+              )}
+              {hasClient && !loadingLists && workStreamOptions.length === 0 && (
+                <p className="text-body-small text-amber-700">
+                  Couldn't load ClickUp's real Work Stream options — showing Conductor's
+                  department names instead, which don't all match. Close and reopen this
+                  panel to retry, or double-check the field in ClickUp after creating.
                 </p>
               )}
             </div>

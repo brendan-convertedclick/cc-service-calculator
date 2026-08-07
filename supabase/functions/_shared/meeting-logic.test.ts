@@ -3,6 +3,7 @@ import {
   buildMeetingDescription,
   buildMeetingTaskName,
   extractMeetUrl,
+  meetingScheduledMessage,
   meetingSprintPoints,
   sastLocalToIso,
 } from "./meeting-logic.ts";
@@ -113,4 +114,69 @@ Deno.test("buildMeetingDescription omits the project slash when there is no proj
   assertEquals(desc.includes("Agenda:"), false);
   assertEquals(desc.includes("Attendees:"), false);
   assertEquals(desc.includes("Join:"), false);
+  assertEquals(desc.includes("ClickUp tasks:"), false);
+});
+
+Deno.test("buildMeetingDescription lists every person's ClickUp task link when given", () => {
+  const desc = buildMeetingDescription({
+    title: "Weekly sync",
+    agenda: null,
+    clientName: "Acme",
+    attendeeNames: [],
+    meetUrl: null,
+    clickupTaskLinks: [
+      { name: "Brendan", url: "https://app.clickup.com/t/abc123" },
+      { name: "Lisa", url: "https://app.clickup.com/t/xyz789" },
+    ],
+    meetingId: "m-3",
+  });
+  assertEquals(desc.includes("ClickUp tasks:"), true);
+  assertEquals(desc.includes("Brendan: https://app.clickup.com/t/abc123"), true);
+  assertEquals(desc.includes("Lisa: https://app.clickup.com/t/xyz789"), true);
+});
+
+Deno.test("buildMeetingDescription omits the ClickUp tasks section when the list is empty", () => {
+  const desc = buildMeetingDescription({
+    title: "Weekly sync",
+    agenda: null,
+    clientName: "Acme",
+    attendeeNames: [],
+    meetUrl: null,
+    clickupTaskLinks: [],
+    meetingId: "m-4",
+  });
+  assertEquals(desc.includes("ClickUp tasks:"), false);
+});
+
+Deno.test("meetingScheduledMessage lists a task link per person under the header", () => {
+  const msg = meetingScheduledMessage({
+    people: [
+      { mention: "@Brendan", taskUrl: "https://app.clickup.com/t/abc123" },
+      { mention: "@Lisa", taskUrl: "https://app.clickup.com/t/xyz789" },
+    ],
+    title: "Weekly sync",
+  });
+  assertEquals(
+    msg,
+    '📅 @Brendan @Lisa — meeting scheduled: "Weekly sync"\n@Brendan: https://app.clickup.com/t/abc123\n@Lisa: https://app.clickup.com/t/xyz789',
+  );
+});
+
+Deno.test("meetingScheduledMessage omits a person's link line when their task failed, but still mentions them", () => {
+  const msg = meetingScheduledMessage({
+    people: [
+      { mention: "@Brendan", taskUrl: "https://app.clickup.com/t/abc123" },
+      { mention: "@Lisa", taskUrl: null },
+    ],
+    title: "Weekly sync",
+  });
+  assertEquals(
+    msg,
+    '📅 @Brendan @Lisa — meeting scheduled: "Weekly sync"\n@Brendan: https://app.clickup.com/t/abc123',
+  );
+});
+
+Deno.test("meetingScheduledMessage falls back to 'team' with no people", () => {
+  const msg = meetingScheduledMessage({ people: [], title: "Weekly sync" });
+  assertEquals(msg, '📅 team — meeting scheduled: "Weekly sync"');
 });

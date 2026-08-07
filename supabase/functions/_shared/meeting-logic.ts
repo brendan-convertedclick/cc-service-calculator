@@ -67,6 +67,14 @@ export function extractMeetUrl(event: unknown): string | null {
   return null;
 }
 
+/** One person's ClickUp task, by name — each attendee gets their own task
+ * (see 0099_internal_meeting_tasks), so both the invite and the chat
+ * announcement need to list all of them, not just the organiser's. */
+export interface MeetingTaskLink {
+  name: string;
+  url: string;
+}
+
 export interface MeetingDescriptionInput {
   title: string;
   agenda?: string | null;
@@ -74,6 +82,10 @@ export interface MeetingDescriptionInput {
   projectName?: string | null;
   attendeeNames: string[];
   meetUrl?: string | null;
+  /** Every person's ClickUp task link, when known — included in the Google
+   * Calendar invite (and each task's own description) so everyone can find
+   * their own task, not just the organiser's. */
+  clickupTaskLinks?: MeetingTaskLink[] | null;
   meetingId: string;
 }
 
@@ -94,6 +106,28 @@ export function buildMeetingDescription(input: MeetingDescriptionInput): string 
   if (input.meetUrl) {
     lines.push("", `Join: ${input.meetUrl}`);
   }
+  if (input.clickupTaskLinks && input.clickupTaskLinks.length > 0) {
+    lines.push("", "ClickUp tasks:");
+    for (const t of input.clickupTaskLinks) {
+      lines.push(`${t.name}: ${t.url}`);
+    }
+  }
   lines.push("", `Scheduled via Conductor (internal meeting ${input.meetingId}).`);
   return lines.join("\n");
+}
+
+/**
+ * "📅 {mentions} — meeting scheduled: "{title}"" header, followed by one
+ * "{mention}: {taskUrl}" line per person with a task — posted to the
+ * client's ClickUp Chat channel once, on create only (an edit doesn't
+ * re-announce). People with no task (a failed sync) are omitted from the
+ * link list but still mentioned in the header.
+ */
+export function meetingScheduledMessage(
+  { people, title }: { people: Array<{ mention: string; taskUrl: string | null }>; title: string },
+): string {
+  const mentions = people.map((p) => p.mention);
+  const header = `📅 ${mentions.length > 0 ? mentions.join(" ") : "team"} — meeting scheduled: "${title}"`;
+  const links = people.filter((p) => p.taskUrl).map((p) => `${p.mention}: ${p.taskUrl}`);
+  return [header, ...links].join("\n");
 }

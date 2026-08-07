@@ -9,6 +9,7 @@ import { MeetingFormBody } from "@/components/staff/MeetingFormBody";
 import { MyMeetingsList } from "@/components/staff/MyMeetingsList";
 import { MyRequestsList } from "@/components/staff/MyRequestsList";
 import { RevisionFormBody } from "@/components/staff/RevisionFormBody";
+import { ClickUpConnectCard } from "@/components/ClickUpConnectCard";
 
 /**
  * Staff portal: the single page that staff-role users see when they log in.
@@ -55,7 +56,8 @@ export function StaffBriefForm() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-10">
+      <main className="mx-auto max-w-4xl space-y-6 px-4 py-10">
+        <ClickUpConnectCard />
         <Card className="shadow-elev-2">
           <CardHeader>
             <CardTitle className="text-headline-small">Submit work</CardTitle>

@@ -44,6 +44,8 @@ type MeetingJoinRow = {
   clickup_task_id: string | null;
   clickup_task_url: string | null;
   clickup_sync_error: string | null;
+  work_stream_override: string | null;
+  clickup_status_override: string | null;
   created_at: string;
   updated_at: string;
   clients: { name: string } | null;

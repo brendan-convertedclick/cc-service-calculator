@@ -24,6 +24,17 @@ type XeroConnection = {
   expires_at: string; // ISO timestamptz
 };
 
+// Xero's JSON responses wrap dates as "/Date(1594166400000+0000)/" rather than
+// ISO 8601 (a long-standing quirk of the Accounting API). Postgres rejects that
+// format outright, so every raw Date field must go through this before a
+// timestamptz/date column.
+function parseXeroDate(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const m = /\/Date\((\d+)(?:[+-]\d{4})?\)\//.exec(raw);
+  if (!m) return raw;
+  return new Date(Number(m[1])).toISOString();
+}
+
 async function refreshIfNeeded(
   conn: XeroConnection,
   clientId: string,
@@ -118,38 +129,47 @@ Deno.serve(async (req: Request) => {
       ? new Date(lastRow.synced_at).toISOString()
       : "2020-01-01T00:00:00Z";
 
-    // Fetch invoices from Xero
-    const invoicesUrl = new URL(`${XERO_API}/Invoices`);
-    invoicesUrl.searchParams.set("Statuses", "AUTHORISED,PAID");
-    invoicesUrl.searchParams.set("ModifiedAfter", modifiedAfter);
-    invoicesUrl.searchParams.set("page", "1");
+    // Fetch invoices from Xero. Type=="ACCREC" restricts to sales invoices
+    // (money clients owe CC) — without it, Xero also returns ACCPAY bills
+    // (CC's own supplier spend: Facebook ads, Adobe, Cloudflare, etc.), which
+    // can never match a Conductor client and used to swamp xero_invoices.
+    // Xero caps each page at 100 rows, so page until a short page comes back.
+    type XeroInvoice = {
+      InvoiceID: string;
+      InvoiceNumber?: string;
+      Status: string;
+      Contact: { ContactID: string; Name: string };
+      Total: number;
+      DueDateString?: string;
+      FullyPaidOnDate?: string;
+    };
+    const invoices: XeroInvoice[] = [];
+    for (let page = 1; page <= 50; page++) {
+      const invoicesUrl = new URL(`${XERO_API}/Invoices`);
+      invoicesUrl.searchParams.set("Statuses", "AUTHORISED,PAID");
+      invoicesUrl.searchParams.set("where", 'Type=="ACCREC"');
+      invoicesUrl.searchParams.set("ModifiedAfter", modifiedAfter);
+      invoicesUrl.searchParams.set("page", String(page));
 
-    const xeroRes = await fetch(invoicesUrl.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Xero-Tenant-Id": (conn as XeroConnection).tenant_id,
-        Accept: "application/json",
-      },
-    });
+      const xeroRes = await fetch(invoicesUrl.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Xero-Tenant-Id": (conn as XeroConnection).tenant_id,
+          Accept: "application/json",
+        },
+      });
 
-    if (!xeroRes.ok) {
-      const text = await xeroRes.text();
-      return json({ error: `Xero API error: ${text}` }, 502);
+      if (!xeroRes.ok) {
+        const text = await xeroRes.text();
+        return json({ error: `Xero API error: ${text}` }, 502);
+      }
+
+      const xeroData = await xeroRes.json() as { Invoices?: XeroInvoice[] };
+      const pageInvoices = xeroData.Invoices ?? [];
+      invoices.push(...pageInvoices);
+      if (pageInvoices.length < 100) break;
     }
 
-    const xeroData = await xeroRes.json() as {
-      Invoices?: Array<{
-        InvoiceID: string;
-        InvoiceNumber?: string;
-        Status: string;
-        Contact: { ContactID: string; Name: string };
-        Total: number;
-        DueDateString?: string;
-        FullyPaidOnDate?: string;
-      }>;
-    };
-
-    const invoices = xeroData.Invoices ?? [];
     if (invoices.length === 0) {
       return json({ synced: 0, message: "No new invoices to sync." });
     }
@@ -163,7 +183,7 @@ Deno.serve(async (req: Request) => {
       status: inv.Status as "AUTHORISED" | "PAID",
       amount_cents: Math.round(inv.Total * 100),
       due_date: inv.DueDateString ?? null,
-      paid_at: inv.FullyPaidOnDate ?? null,
+      paid_at: parseXeroDate(inv.FullyPaidOnDate),
       invoice_number: inv.InvoiceNumber ?? null,
       synced_at: now,
     }));
@@ -174,16 +194,21 @@ Deno.serve(async (req: Request) => {
 
     if (upsertErr) return json({ error: upsertErr.message }, 500);
 
-    // Auto-link client_id: match xero_contact_name to clients.name case-insensitively
+    // Auto-link client_id: Xero contacts carry legal-entity names that rarely
+    // match clients.name exactly (e.g. "Trellicor (PTY) LTD" vs "Trellidor"),
+    // so prefer the manually-set clients.xero_contact_name alias; fall back to
+    // an exact clients.name match for the few that happen to coincide.
     const contactNames = [...new Set(rows.map((r) => r.xero_contact_name))];
     if (contactNames.length > 0) {
       const { data: clients } = await supabase
         .from("clients")
-        .select("id, name")
+        .select("id, name, xero_contact_name")
         .is("archived_at", null);
 
       for (const contactName of contactNames) {
         const matched = (clients ?? []).find(
+          (c) => c.xero_contact_name?.toLowerCase() === contactName.toLowerCase(),
+        ) ?? (clients ?? []).find(
           (c) => c.name.toLowerCase() === contactName.toLowerCase(),
         );
         if (matched) {

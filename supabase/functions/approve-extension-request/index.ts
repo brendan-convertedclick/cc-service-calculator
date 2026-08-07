@@ -1,14 +1,15 @@
 // supabase/functions/approve-extension-request/index.ts
 //
 // Request:  POST { extension_request_id: string }
-// Response: 200 { clickup_subtask_id?, clickup_subtask_url?, due_date_applied? }
+// Response: 200 { due_date_applied? }
 //
 // Approves an extension request. Points and due-date asks are independent
 // and a request may carry either or both:
-//   - extra_points set      → creates a linked subtask in ClickUp under the
-//                              parent task with the extra points + reason.
+//   - extra_points set      → adds the extra points onto the parent task's
+//                              own Sprint Points field directly, + an audit
+//                              comment (no subtask).
 //   - requested_due_date set → PUTs the new due_date directly onto the parent
-//                              task (no subtask) + an audit comment.
+//                              task + an audit comment.
 // Idempotent: re-approving an already-approved request is a no-op success.
 //
 // Two-stage: every request needing a human goes to the admin leg first. An
@@ -27,8 +28,6 @@ import {
 } from "../_shared/extension-logic.ts";
 import { cuFetch } from "../_shared/clickup.ts";
 import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
-
-const POINT_TO_MIN = 15;
 
 /** "YYYY-MM-DD" → ms epoch (UTC midnight), or null. */
 function dateStrToMs(s: string | null | undefined): number | null {
@@ -141,25 +140,10 @@ Deno.serve(async (req: Request) => {
       headers: { Authorization: clickupPat, "Content-Type": "application/json" },
     };
 
-    let created: { id: string; url: string } | null = null;
-
+    // No subtask — just bump the parent task's own Sprint Points directly.
+    // (Previously created a linked subtask; that buried the extra points
+    // somewhere other than the task everyone's actually looking at.)
     if (row.extra_points) {
-      const subtaskBody: Record<string, unknown> = {
-        name: `[Extension] ${row.parent_task_name} — +${row.extra_points}pt`,
-        description:
-          `**Extension request**\n\n${row.reason}\n\n---\n` +
-          `_+${row.extra_points} pts · tier=${row.tier} · approved by ${callerEmail}_\n` +
-          `EXTENSION:: ${row.id}`,
-        // Omit `status` — let ClickUp use the list's default. Client spaces use
-        // custom status sets, so hardcoding "to do" fails with CRTSK_001.
-        parent: row.parent_clickup_task_id,
-        time_estimate: Math.round(row.extra_points * POINT_TO_MIN * 60_000),
-      };
-      if (member.clickup_user_id) {
-        subtaskBody.assignees = [member.clickup_user_id];
-      }
-
-      // Subtasks are created on the parent's list. Need the parent's list_id.
       const parentRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
         CU,
@@ -167,18 +151,16 @@ Deno.serve(async (req: Request) => {
       if (!parentRes.ok) {
         return json({ error: `ClickUp parent ${parentRes.status}: ${await parentRes.text()}` }, 502);
       }
-      const parent = (await parentRes.json()) as { list?: { id: string } };
-      const parentListId = parent.list?.id;
-      if (!parentListId) return json({ error: "Parent task has no list" }, 502);
+      const parent = (await parentRes.json()) as { points?: number | null };
+      const newPoints = (parent.points ?? 0) + row.extra_points;
 
-      const createRes = await cuFetch(
-        `https://api.clickup.com/api/v2/list/${parentListId}/task`,
-        { ...CU, method: "POST", body: JSON.stringify(subtaskBody) },
+      const pointsRes = await cuFetch(
+        `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
+        { ...CU, method: "PUT", body: JSON.stringify({ points: newPoints }) },
       );
-      if (!createRes.ok) {
-        return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
+      if (!pointsRes.ok) {
+        return json({ error: `ClickUp points update ${pointsRes.status}: ${await pointsRes.text()}` }, 502);
       }
-      created = (await createRes.json()) as { id: string; url: string };
 
       // Audit comment on the parent.
       await cuFetch(`https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}/comment`, {
@@ -190,7 +172,7 @@ Deno.serve(async (req: Request) => {
               extension_request_id: row.id,
               extra_points: row.extra_points,
               tier: row.tier,
-              subtask_id: created.id,
+              new_points: newPoints,
             })}`,
           notify_all: false,
         }),
@@ -236,22 +218,19 @@ Deno.serve(async (req: Request) => {
         status: "approved",
         approver_id: caller.id,
         approved_at: new Date().toISOString(),
-        ...(created ? { clickup_subtask_id: created.id, clickup_subtask_url: created.url } : {}),
       })
       .eq("id", row.id)
       .select("id");
     if (updateErr || !finalised || finalised.length === 0) {
       return json({
         error: `ClickUp updated but DB update failed: ${updateErr?.message ?? "blocked by RLS"}`,
-        clickup_subtask_id: created?.id,
-        clickup_subtask_url: created?.url,
       }, 500);
     }
 
     // Confirm to the requester in chat that their extension went through.
     const mention = mentionToken({ clickupUserId: member.clickup_user_id, name: member.full_name });
     const summaryParts: string[] = [];
-    if (created) summaryParts.push(`+${row.extra_points}pt`);
+    if (row.extra_points) summaryParts.push(`+${row.extra_points}pt`);
     if (row.requested_due_date) summaryParts.push(`due → ${row.requested_due_date}`);
     await postChatMessage(
       clickupPat,
@@ -260,8 +239,6 @@ Deno.serve(async (req: Request) => {
     );
 
     return json({
-      clickup_subtask_id: created?.id,
-      clickup_subtask_url: created?.url,
       due_date_applied: row.requested_due_date ?? undefined,
     });
   } catch (e) {

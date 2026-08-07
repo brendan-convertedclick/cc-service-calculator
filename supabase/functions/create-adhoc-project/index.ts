@@ -39,8 +39,10 @@ import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 import {
   CLICKUP_WORKSPACE_ID,
-  CONVERTED_CLICK_CHANNEL_ID,
+  isMeetingWorkStream,
   mentionToken,
+  MEETINGS_CHANNEL_ID,
+  NEW_TASKS_CHANNEL_ID,
   postChatMessage,
 } from "../_shared/clickup-chat.ts";
 
@@ -99,7 +101,7 @@ Deno.serve(async (req: Request) => {
     // --- Step 1: load the client (must have a ClickUp folder) ---
     const { data: client, error: cErr } = await sb
       .from("clients")
-      .select("id, name, clickup_client_name, clickup_folder_id, clickup_chat_channel_id")
+      .select("id, name, clickup_client_name, clickup_folder_id")
       .eq("id", client_id)
       .single();
     if (cErr || !client) return json({ error: cErr?.message ?? "Client not found" }, 404);
@@ -241,7 +243,7 @@ Deno.serve(async (req: Request) => {
     // --- Step 6: create one child task per row ---
     const created_task_ids: string[] = [];
     const task_failures: Array<{ task_name: string; error: string }> = [];
-    const chatLines: string[] = [];
+    const chatLines: Array<{ line: string; workStream: string }> = [];
 
     for (const t of tasks) {
       const taskName = t.task_name!.trim();
@@ -331,33 +333,41 @@ Deno.serve(async (req: Request) => {
           clickupUserId: assigneeClickupId,
           name: t.assignee_member_id ? memberNameById.get(t.assignee_member_id) ?? null : null,
         });
-        chatLines.push(
-          `• ${mention} — ${taskName} · ${t.sprint_points} pt · https://app.clickup.com/t/${createdTask.id}`,
-        );
+        chatLines.push({
+          line: `• ${mention} — ${taskName} · ${t.sprint_points} pt · https://app.clickup.com/t/${createdTask.id}`,
+          workStream: t.work_stream!,
+        });
       } catch (te) {
         task_failures.push({ task_name: taskName, error: te instanceof Error ? te.message : String(te) });
       }
     }
 
-    // Notify the client's ClickUp Chat channel (or the Converted Click fallback)
-    // that the project + its tasks exist — mirrors create-quick-brief-task.
-    // Best-effort: everything is already created, so a failed post must never
-    // fail the request — log and move on.
-    if (created_task_ids.length > 0) {
-      const chatChannelId =
-        (client as { clickup_chat_channel_id?: string | null }).clickup_chat_channel_id ??
-        CONVERTED_CLICK_CHANNEL_ID;
+    // Notify the workspace-wide channels that the project + its tasks exist —
+    // mirrors create-quick-brief-task. Best-effort: everything is already
+    // created, so a failed post must never fail the request — log and move
+    // on. Global channels, not the client's own (2026-08-06) — client
+    // channels stay human-only; clients aren't members of either one.
+    // Meeting-work-stream tasks (Internal Meeting / Client Meeting) go to
+    // Meetings, everything else to New Tasks — a batch can contain both.
+    const notifyGroup = async (channelId: string, lines: typeof chatLines) => {
+      if (lines.length === 0) return;
       const listUrl = `https://app.clickup.com/${CLICKUP_WORKSPACE_ID}/v/li/${newListId}`;
       const content =
         `🆕 New project briefed: **${listName}** (${client.name}) · ` +
-        `${created_task_ids.length} task${created_task_ids.length !== 1 ? "s" : ""} · ${listUrl}\n` +
-        chatLines.join("\n");
-      const chatRes = await postChatMessage(clickupPat, chatChannelId, content);
+        `${lines.length} task${lines.length !== 1 ? "s" : ""} · ${listUrl}\n` +
+        lines.map((l) => l.line).join("\n");
+      const chatRes = await postChatMessage(clickupPat, channelId, content);
       if (!chatRes.ok) {
         console.error(
-          `[create-adhoc-project] chat notify failed for project ${projectId} (channel ${chatChannelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
+          `[create-adhoc-project] chat notify failed for project ${projectId} (channel ${channelId}): ${chatRes.status ?? ""} ${chatRes.error ?? ""}`.trim(),
         );
       }
+    };
+    if (created_task_ids.length > 0) {
+      const meetingLines = chatLines.filter((l) => isMeetingWorkStream(l.workStream));
+      const taskLines = chatLines.filter((l) => !isMeetingWorkStream(l.workStream));
+      await notifyGroup(NEW_TASKS_CHANNEL_ID, taskLines);
+      await notifyGroup(MEETINGS_CHANNEL_ID, meetingLines);
     }
 
     return json({

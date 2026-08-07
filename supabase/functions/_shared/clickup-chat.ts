@@ -29,6 +29,27 @@ export const CLICKUP_WORKSPACE_ID = "37345392";
 // notifications go to the client's channel, or here if none is set.
 export const CONVERTED_CLICK_CHANNEL_ID = "13kp3g-26752";
 
+// Global "Ops" channels (2026-08-06) — automated task/meeting notifications
+// route HERE, workspace-wide, instead of into a client's own channel. Client
+// channels stay human-only (staff↔client conversation); clients are never
+// members of these two, so nothing internal leaks to them. One channel per
+// notification TYPE, not per-client — see create-quick-brief-task,
+// schedule-brief-tasks, push-to-clickup, create-adhoc-project (new tasks) and
+// manage-internal-meeting (meetings).
+export const NEW_TASKS_CHANNEL_ID = "13kp3g-34832";
+export const MEETINGS_CHANNEL_ID = "13kp3g-34852";
+
+// Work Stream option labels (departments.clickup_work_stream) that mean the
+// task itself IS a meeting rather than deliverable work — created via the
+// generic brief/task-creation functions (not manage-internal-meeting), but
+// its chat notification should still land in the Meetings channel, not
+// New Tasks, so staff can find meeting-related tasks in one place.
+const MEETING_WORK_STREAMS = new Set(["internal meeting", "client meeting"]);
+
+export function isMeetingWorkStream(workStream: string | null | undefined): boolean {
+  return !!workStream && MEETING_WORK_STREAMS.has(workStream.trim().toLowerCase());
+}
+
 export type PostChatResult = { ok: boolean; status?: number; error?: string; message_id?: string };
 
 /**
