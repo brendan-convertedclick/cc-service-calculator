@@ -1,4 +1,4 @@
--- 0107_system_edges_positions.sql
+-- 0108_system_edges_positions.sql
 -- Apply via mcp__cc-supabase__apply_migration (name: system_edges_positions)
 --
 -- Phase 6: the canvas. Edges connect process_steps within a system; blocks
@@ -20,7 +20,7 @@ create index system_edges_system_idx on system_edges(system_id);
 alter table process_steps add column pos_x int, add column pos_y int;
 
 -- RLS: authenticated read, admin/owner write. Two-policy pattern from
--- 0106_system_revisions (the corrected house pattern — both `to authenticated`),
+-- 0107_system_revisions (the corrected house pattern — both `to authenticated`),
 -- not 0105's original single wide-open policy.
 alter table system_edges enable row level security;
 

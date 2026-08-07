@@ -612,7 +612,7 @@ Deno.serve(async (req: Request) => {
         .select("id,service_id,current_revision_id")
         .in("service_id", serviceIdsOrdered)
         .eq("kind", "service")
-        // system_definitions_one_per_service_idx (0106) only guarantees one
+        // system_definitions_one_per_service_idx (0107) only guarantees one
         // service-kind system per service *while archived_at is null* — so an
         // archived system that still carries a current_revision_id would
         // otherwise win publishedBodyByServiceId below and materialise a

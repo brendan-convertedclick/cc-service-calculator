@@ -117,7 +117,7 @@ export function useProposeRevision() {
   });
 }
 
-// Atomic publish via the security-definer RPC (0106) — never do the
+// Atomic publish via the security-definer RPC (0107) — never do the
 // supersede/publish/repoint sequence from the client.
 export function usePublishRevision() {
   const qc = useQueryClient();

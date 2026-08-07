@@ -1,4 +1,4 @@
--- 0103_process_steps_nesting.sql
+-- 0104_process_steps_nesting.sql
 -- Apply via mcp__cc-supabase__apply_migration (name: process_steps_nesting)
 --
 -- Nested steps: process_steps can now parent other process_steps (one level
@@ -48,7 +48,7 @@ on conflict (coalesce(service_id, '00000000-0000-0000-0000-000000000000'::uuid),
              coalesce(parent_id,  '00000000-0000-0000-0000-000000000000'::uuid),
              ordinal) do nothing;
 
-comment on column services.checklist_items is 'DEPRECATED (0103): superseded by nested
+comment on column services.checklist_items is 'DEPRECATED (0104): superseded by nested
 process_steps. Not dropped — retainer_recurring_services.checklist_items and ad-hoc items
 still use the same shape.';
 

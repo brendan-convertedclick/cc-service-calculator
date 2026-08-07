@@ -1,4 +1,4 @@
--- 0108_process_steps_system_scope.sql
+-- 0109_process_steps_system_scope.sql
 -- APPLIED to lpgwxacoqiqpcfpkklib on 2026-08-06 as `process_steps_system_scope`.
 -- Re-runnable: every statement below is idempotent.
 --
@@ -6,7 +6,7 @@
 -- the time (2 process_steps rows, 0 with service_id null) and both bite the
 -- first time anyone gives a system its own steps.
 --
--- D1  process_steps_ordinal_idx (0103) keys on
+-- D1  process_steps_ordinal_idx (0104) keys on
 --     (coalesce(service_id,S), coalesce(parent_id,S), ordinal). 0105 added
 --     system_id and made service_id nullable but never widened the index, so
 --     two DIFFERENT systems each holding a top-level step at the same ordinal

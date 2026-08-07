@@ -1,4 +1,4 @@
--- 0104_system_kinds_materialise.sql
+-- 0105_system_kinds_materialise.sql
 -- Apply via mcp__cc-supabase__apply_migration (name: system_kinds_materialise)
 --
 -- system_kind is created here but not wired into any table until Phase 4

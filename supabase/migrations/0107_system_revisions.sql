@@ -1,4 +1,4 @@
--- 0106_system_revisions.sql
+-- 0107_system_revisions.sql
 -- Apply via mcp__cc-supabase__apply_migration (name: system_revisions)
 --
 -- Phase 5: revisions and the publication gate. A system_definition's steps

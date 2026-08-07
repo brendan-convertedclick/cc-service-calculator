@@ -1,4 +1,4 @@
--- 0105_system_definitions.sql
+-- 0106_system_definitions.sql
 -- Apply via mcp__cc-supabase__apply_migration (name: system_definitions)
 --
 -- Systems untether from services (Phase 4). system_definitions is the new
