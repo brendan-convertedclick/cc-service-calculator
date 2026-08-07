@@ -2,6 +2,7 @@
 // Sub-steps carry no hours (process_steps_substep_no_hours), so summing
 // top-level rows only is already the complete total; no separate filter
 // needed. Matches docs/2026-08-05-systems-canvas-visual-spec.html's rollup.
+import { pointsFromHours } from "@/types/placement-tasks";
 import type { Database } from "@/types/db";
 
 type DeptRow = Database["public"]["Tables"]["departments"]["Row"];
@@ -34,6 +35,7 @@ export function DeptRollup({
           />
           {dept.name}
           <span className="font-mono font-semibold">{formatHours(hours)}h</span>
+          <span className="font-mono text-m-on-surface-variant">{pointsFromHours(hours)}pt</span>
         </span>
       ))}
       {unassignedCount > 0 && (
@@ -44,6 +46,9 @@ export function DeptRollup({
       )}
       <span className="ml-auto flex items-center gap-1.5 text-body-small font-semibold text-m-on-surface">
         Total <span className="font-mono">{formatHours(totalHours)}h</span>
+        <span className="font-mono font-normal text-m-on-surface-variant">
+          · {pointsFromHours(totalHours)}pt
+        </span>
       </span>
     </div>
   );

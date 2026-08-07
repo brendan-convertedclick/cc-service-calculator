@@ -18,21 +18,24 @@ import {
   useReactFlow,
   type Connection,
   type EdgeTypes,
+  type FinalConnectionState,
   type NodeTypes,
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
 import { LayoutGrid } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useDepartments } from "@/hooks/useDepartments";
-import { useTeam } from "@/hooks/useTeam";
+import { memberColors, useTeam } from "@/hooks/useTeam";
 import { useSystemRevisions } from "@/hooks/useSystemRevisions";
 import {
   useConnectSteps,
   useDisconnectSteps,
+  useReconnectEdge,
   useSaveStepPosition,
   useSystemEdges,
   useSystemSubSteps,
@@ -41,6 +44,7 @@ import { SystemBlockNode, type BlockNodeType } from "./SystemBlockNode";
 import { SystemDecisionNode, type DecisionNodeType } from "./SystemDecisionNode";
 import { HandoffEdge, type HandoffEdgeType } from "./HandoffEdge";
 import { BlockInspector } from "./BlockInspector";
+import { DeleteStepDialog } from "./DeleteStepDialog";
 import { DeptRollup } from "./DeptRollup";
 import { useAutoLayout } from "./useAutoLayout";
 import type { Database } from "@/types/db";
@@ -102,36 +106,36 @@ function buildNode(step: Step): CanvasNode {
   };
 }
 
-export function SystemCanvas({
-  systemId,
-  systemName,
-  onPropose,
-  focusStepId,
-}: {
+/**
+ * Creates one step and (optionally) the edge that reaches it. Owned by
+ * SystemDetail because only that page knows the system's service_id and the
+ * next ordinal — the canvas just supplies where the line was dropped.
+ */
+export type CreateStepFn = (opts: {
+  pos_x?: number;
+  pos_y?: number;
+  connectFrom?: string | null;
+  sourceHandle?: string | null;
+}) => Promise<unknown>;
+
+type CanvasProps = {
   systemId: string;
   systemName: string;
   onPropose: () => void;
+  onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
   focusStepId?: { id: string; nonce: number } | null;
-}) {
+};
+
+export function SystemCanvas(props: CanvasProps) {
   return (
     <ReactFlowProvider>
-      <SystemCanvasInner systemId={systemId} systemName={systemName} onPropose={onPropose} focusStepId={focusStepId} />
+      <SystemCanvasInner {...props} />
     </ReactFlowProvider>
   );
 }
 
-function SystemCanvasInner({
-  systemId,
-  systemName,
-  onPropose,
-  focusStepId,
-}: {
-  systemId: string;
-  systemName: string;
-  onPropose: () => void;
-  focusStepId?: { id: string; nonce: number } | null;
-}) {
+function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focusStepId }: CanvasProps) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
@@ -146,6 +150,7 @@ function SystemCanvasInner({
 
   const deptById = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
   const teamById = useMemo(() => new Map(team.map((t) => [t.id, t])), [team]);
+  const colorByOwner = useMemo(() => memberColors(team), [team]);
   const topStepById = useMemo(() => new Map(topSteps.map((s) => [s.id, s])), [topSteps]);
   const subStepsByParent = useMemo(() => {
     const m = new Map<string, Step[]>();
@@ -165,6 +170,7 @@ function SystemCanvasInner({
   const seededFor = useRef<string | null>(null);
 
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Step | null>(null);
   // Edges are derived from the query, never held in state, so their selection
   // flag has to live somewhere — see the edges useMemo for why it's needed.
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
@@ -188,6 +194,7 @@ function SystemCanvasInner({
   const savePosition = useSaveStepPosition();
   const connect = useConnectSteps(systemId);
   const disconnect = useDisconnectSteps(systemId);
+  const reconnect = useReconnectEdge(systemId);
   const { layoutNodes } = useAutoLayout();
 
   const edges: HandoffEdgeType[] = useMemo(() => {
@@ -302,7 +309,7 @@ function SystemCanvasInner({
   // Clicking a row in SystemDetail's Steps list selects that block and centres
   // it. Keyed on a nonce, not the id, so clicking the same row twice re-centres
   // instead of doing nothing.
-  const { setCenter } = useReactFlow();
+  const { setCenter, screenToFlowPosition } = useReactFlow();
   useEffect(() => {
     if (!focusStepId) return;
     const node = nodes.find((n) => n.id === focusStepId.id);
@@ -352,6 +359,7 @@ function SystemCanvasInner({
           owner,
           subSteps: subStepsByParent.get(step.id) ?? [],
           dimmed,
+          ownerColor: owner ? colorByOwner.get(owner.id) ?? null : null,
           onAvatarClick: handleAvatarClick,
           onSelectSubStep: handleSelectSubStep,
         },
@@ -359,7 +367,7 @@ function SystemCanvasInner({
       return blockNode;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, topStepById, deptById, teamById, subStepsByParent, highlightedOwnerId]);
+  }, [nodes, topStepById, deptById, teamById, colorByOwner, subStepsByParent, highlightedOwnerId]);
 
   const allStepsById = useMemo(() => {
     const m = new Map<string, Step>();
@@ -441,20 +449,80 @@ function SystemCanvasInner({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
-      connect.mutate({
-        source: connection.source,
-        target: connection.target,
-        sourceHandle: connection.sourceHandle,
-      });
+      // A step pointing at itself draws nothing and means nothing; the DB
+      // would happily store it.
+      if (!connection.source || !connection.target || connection.source === connection.target) return;
+      connect.mutate(
+        {
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+        },
+        { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not connect those steps") }
+      );
     },
     [connect]
+  );
+
+  // Let go of a connection over empty canvas → that's a request for a step
+  // that doesn't exist yet. `isValid` is null (not false) on a void drop, so
+  // this must test truthiness, never `=== false`, or it misses the only case
+  // it exists for.
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+      if (state.isValid || !state.fromNode) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      const dropped = screenToFlowPosition({ x: point.clientX, y: point.clientY });
+      // A node's position is its top-left, so drop the block centred on the
+      // cursor rather than hanging below-right of it.
+      void onCreateStep({
+        pos_x: dropped.x - NODE_CENTRE_X,
+        pos_y: dropped.y - NODE_CENTRE_Y,
+        connectFrom: state.fromNode.id,
+        sourceHandle: state.fromHandle?.id ?? null,
+      });
+    },
+    [screenToFlowPosition, onCreateStep]
+  );
+
+  // Drag either end of an existing edge onto a different handle. The edges
+  // here are derived from query data, so a rejected move needs no undo — the
+  // mutation's onSettled invalidate is what snaps the line back.
+  const onReconnect = useCallback(
+    (oldEdge: HandoffEdgeType, connection: Connection) => {
+      if (!connection.source || !connection.target || connection.source === connection.target) return;
+      reconnect.mutate(
+        {
+          id: oldEdge.id,
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+        },
+        {
+          onError: (e) =>
+            toast.error(
+              (e as { code?: string })?.code === "23505"
+                ? "Those two steps are already connected."
+                : "Could not move that connection"
+            ),
+        }
+      );
+    },
+    [reconnect]
   );
 
   const onEdgesChange: OnEdgesChange<HandoffEdgeType> = useCallback(
     (changes) => {
       for (const c of changes) {
-        if (c.type === "remove") disconnect.mutate(c.id);
+        if (c.type !== "remove") continue;
+        // No confirm — a connection is one drag to redraw, unlike a step. But
+        // it does get announced: Backspace over a selected edge otherwise
+        // removes it with no feedback at all, and you don't notice until the
+        // line you were relying on isn't there.
+        disconnect.mutate(c.id, {
+          onSuccess: () => toast.success("Connection removed"),
+          onError: (e) => toast.error(e instanceof Error ? e.message : "Could not remove that connection"),
+        });
       }
       const selects = changes.filter((c) => c.type === "select" || c.type === "remove");
       if (selects.length === 0) return;
@@ -470,16 +538,21 @@ function SystemCanvasInner({
     [disconnect]
   );
 
-  // Blocks are click-selectable now (for the inspector), which means a
-  // Backspace/Delete with a block selected would otherwise emit a node
-  // "remove" change and silently drop it from local state with no DB write
-  // (step still exists, reload resurrects it, confusing half-deleted UI in
-  // between). Node deletion isn't in this phase's scope, so filter it; edge
-  // removal (the actual Backspace affordance for disconnecting) is untouched
-  // — it comes through the separate onEdgesChange above.
+  // Backspace/Delete on a selected block asks to delete the step. The change
+  // is NOT forwarded to local state: the confirm decides, and dropping the
+  // node first would leave a half-deleted canvas if it's cancelled. Keyed on
+  // the change's own id rather than `selectedStepId`, which can be pointing at
+  // a sub-step (no canvas node of its own) and would name the wrong row.
   const handleNodesChange: OnNodesChange<CanvasNode> = useCallback(
-    (changes) => onNodesChange(changes.filter((c) => c.type !== "remove")),
-    [onNodesChange]
+    (changes) => {
+      const removed = changes.find((c) => c.type === "remove");
+      if (removed) {
+        const step = topStepById.get(removed.id);
+        if (step) setDeleteTarget(step);
+      }
+      onNodesChange(changes.filter((c) => c.type !== "remove"));
+    },
+    [onNodesChange, topStepById]
   );
 
   const onNodeClick = useCallback((_event: unknown, node: CanvasNode) => {
@@ -513,7 +586,7 @@ function SystemCanvasInner({
     }
   }, [layoutNodes, edges, nodes, setNodes, markPending, clearPending]);
 
-  const isUnsaved = pendingIds.size > 0 || connect.isPending || disconnect.isPending;
+  const isUnsaved = pendingIds.size > 0 || connect.isPending || disconnect.isPending || reconnect.isPending;
 
   return (
     <div className="flex h-[680px] w-full flex-col overflow-hidden">
@@ -557,6 +630,8 @@ function SystemCanvasInner({
                 onNodesChange={handleNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onConnectEnd={onConnectEnd}
+                onReconnect={onReconnect}
                 onNodeDragStop={onNodeDragStop}
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
@@ -580,11 +655,27 @@ function SystemCanvasInner({
               team={team}
               incomingLabel={incomingLabel}
               revisionLabel={revisionInspectorLabel}
+              onDelete={() => selectedStep && setDeleteTarget(selectedStep)}
             />
           </div>
           <DeptRollup items={rollup.items} unassignedCount={rollup.unassignedCount} totalHours={rollup.totalHours} />
         </>
       )}
+
+      <DeleteStepDialog
+        step={deleteTarget}
+        subStepCount={deleteTarget ? (subStepsByParent.get(deleteTarget.id) ?? []).length : 0}
+        edgeCount={
+          deleteTarget
+            ? edges.filter((e) => e.source === deleteTarget.id || e.target === deleteTarget.id).length
+            : 0
+        }
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(stepId) => {
+          setSelectedStepId((cur) => (cur === stepId ? null : cur));
+          setNodes((cur) => cur.filter((n) => n.id !== stepId));
+        }}
+      />
     </div>
   );
 }

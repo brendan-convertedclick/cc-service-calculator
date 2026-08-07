@@ -4,7 +4,10 @@
 // the one legitimate inline-style exception; everything else is `m-` classes.
 import { useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useCreateStep, useDeleteStep, useUpdateStep } from "@/hooks/useProcessSteps";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
@@ -30,6 +34,11 @@ export type BlockNodeData = {
   // overlay when someone's avatar is toggled on; dims blocks that aren't
   // theirs. Not persisted, view-only.
   dimmed?: boolean;
+  // The owner's colour from the shared team palette (memberColors in
+  // useTeam.ts) — same colour that person carries on the productivity Team
+  // rail, so an avatar is recognisable at a glance instead of every block
+  // wearing the same container tint.
+  ownerColor?: string | null;
   onAvatarClick?: (ownerId: string) => void;
   // Lets a nested sub-step row point the BlockInspector at itself (the only
   // way a sub-step becomes selectable — sub-steps have no canvas node of
@@ -47,17 +56,23 @@ export function initials(fullName: string): string {
 }
 
 export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
-  const { step, department, owner, subSteps, dimmed, onAvatarClick, onSelectSubStep } = data;
+  const { step, department, owner, subSteps, dimmed, ownerColor, onAvatarClick, onSelectSubStep } = data;
   const [nestedOpen, setNestedOpen] = useState(false);
+  const addSub = useCreateStep();
+  const updateSub = useUpdateStep();
+  const deleteSub = useDeleteStep();
   const unassigned = !department;
   const hasSubSteps = subSteps.length > 0;
 
   return (
     <>
       <div
+        // Opens whether or not sub-steps exist: gating on hasSubSteps meant
+        // the first sub-step could never be created, since this dialog is the
+        // only place they're managed.
         onDoubleClick={(e) => {
           e.stopPropagation();
-          if (hasSubSteps) setNestedOpen(true);
+          setNestedOpen(true);
         }}
         className={cn(
           "min-w-[200px] max-w-[240px] rounded-md border-l-[5px] bg-m-surface px-3 py-2.5 shadow-elev-1 transition-all hover:shadow-elev-3",
@@ -122,7 +137,11 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                   e.stopPropagation();
                   onAvatarClick?.(owner.id);
                 }}
-                className="grid h-6 w-6 flex-none cursor-pointer place-items-center rounded-full bg-m-secondary-container text-label-small font-bold leading-none text-m-on-secondary-container"
+                className={cn(
+                  "grid h-6 w-6 flex-none cursor-pointer place-items-center rounded-full text-label-small font-bold leading-none",
+                  ownerColor ? "text-white" : "bg-m-secondary-container text-m-on-secondary-container"
+                )}
+                style={ownerColor ? { background: ownerColor } : undefined}
                 title={`Highlight ${owner.full_name}'s blocks`}
               >
                 {initials(owner.full_name)}
@@ -144,40 +163,127 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
       </div>
 
       <Dialog open={nestedOpen} onOpenChange={setNestedOpen}>
-        <DialogContent>
+        {/* Every handler in here stops propagation. React portals (this Dialog
+            renders into one) still bubble through the REACT tree, not just the
+            DOM tree — without it a click continues past the Dialog/Portal
+            boundary into React Flow's node-click wrapper (an ancestor in the
+            React tree, even though physically it's nowhere near this portaled
+            DOM node) and fires onNodeClick for the PARENT block. */}
+        <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Inside: {step.title}</DialogTitle>
             <DialogDescription>
               Sub-steps materialise as checklist items on this step's ClickUp task — they carry no
-              hours of their own. Click one to edit it in the inspector.
+              hours of their own. Rename one here, or open it in the inspector.
             </DialogDescription>
           </DialogHeader>
           <ol className="space-y-1.5">
             {subSteps.map((s) => (
               <li
                 key={s.id}
-                onClick={(e) => {
-                  // React portals (this Dialog renders into one) still
-                  // bubble through the REACT tree, not just the DOM tree —
-                  // without this, the click continues past Dialog/Portal
-                  // boundaries up into React Flow's own node-click wrapper
-                  // (an ancestor of this component in the React tree, even
-                  // though physically it's nowhere near this portaled DOM
-                  // node), firing onNodeClick for the PARENT block right
-                  // after this one selects the sub-step, clobbering it.
-                  e.stopPropagation();
-                  onSelectSubStep?.(s);
-                  setNestedOpen(false);
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-m-surface-container px-2.5 py-1.5 text-body-small text-m-on-surface hover:bg-m-surface-container-high"
+                className="flex items-center gap-2 rounded-md bg-m-surface-container px-2.5 py-1.5 text-body-small text-m-on-surface"
               >
                 <span className="w-5 flex-none text-center font-mono text-label-small text-m-on-surface-variant">
                   {s.ordinal}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                <input
+                  key={s.title}
+                  defaultValue={s.title}
+                  aria-label={`Sub-step ${s.ordinal} title`}
+                  onBlur={(e) => {
+                    const el = e.target;
+                    const value = el.value.trim();
+                    if (value === s.title) return;
+                    if (!value) {
+                      toast.error("A sub-step needs a title");
+                      el.value = s.title;
+                      return;
+                    }
+                    updateSub.mutate(
+                      { id: s.id, patch: { title: value } },
+                      {
+                        onError: (err) => {
+                          toast.error(err instanceof Error ? err.message : "Could not rename sub-step");
+                          el.value = s.title;
+                        },
+                      }
+                    );
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      e.currentTarget.value = s.title;
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  className="min-w-0 flex-1 truncate rounded-sm bg-transparent px-1 py-0.5 outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                />
+                <button
+                  type="button"
+                  aria-label={`Open "${s.title}" in the inspector`}
+                  title="Open in the inspector"
+                  onClick={() => {
+                    onSelectSubStep?.(s);
+                    setNestedOpen(false);
+                  }}
+                  className="flex-none rounded-md px-1.5 py-0.5 text-label-small text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+                >
+                  Inspect
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Delete sub-step "${s.title}"`}
+                  title="Delete this sub-step"
+                  disabled={deleteSub.isPending}
+                  onClick={() =>
+                    deleteSub.mutate(
+                      { id: s.id },
+                      {
+                        onSuccess: () => toast.success("Sub-step deleted"),
+                        onError: (err) =>
+                          toast.error(err instanceof Error ? err.message : "Could not delete sub-step"),
+                      }
+                    )
+                  }
+                  className="flex-none rounded-md p-1 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </li>
             ))}
+            {subSteps.length === 0 && (
+              <li className="px-1 py-1 text-body-small text-m-on-surface-variant">
+                No sub-steps yet.
+              </li>
+            )}
           </ol>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full gap-1.5"
+            disabled={addSub.isPending}
+            onClick={() =>
+              addSub.mutate(
+                {
+                  parent_id: step.id,
+                  // Mirrors the parent's scope so siblings share one bucket of
+                  // process_steps_ordinal_idx, and hours stay null per
+                  // process_steps_substep_no_hours.
+                  system_id: step.system_id,
+                  service_id: step.service_id,
+                  ordinal: subSteps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
+                  title: "New sub-step",
+                  estimated_hours: null,
+                },
+                {
+                  onError: (err) =>
+                    toast.error(err instanceof Error ? err.message : "Could not add sub-step"),
+                }
+              )
+            }
+          >
+            <Plus className="h-3.5 w-3.5" /> Add sub-step
+          </Button>
         </DialogContent>
       </Dialog>
     </>

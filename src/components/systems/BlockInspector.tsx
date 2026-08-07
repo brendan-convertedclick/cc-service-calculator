@@ -5,14 +5,16 @@
 // this component loads its own useUpdateStep mutation and commits per-field
 // on blur / on select — no form wrapper exists in this codebase, so each
 // field is wired by hand.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
+import { memberColors } from "@/hooks/useTeam";
 import { MATERIALISE_LABEL } from "@/hooks/useSystemDefinitions";
 import { initials } from "./SystemBlockNode";
 import type { Database } from "@/types/db";
@@ -54,24 +56,30 @@ export function BlockInspector({
   team,
   incomingLabel,
   revisionLabel,
+  onDelete,
 }: {
   step: Step | null;
   depts: DeptRow[];
   team: TeamRow[];
   incomingLabel: string | null;
   revisionLabel: string;
+  /** Opens the canvas's confirm dialog — this panel never deletes directly. */
+  onDelete?: () => void;
 }) {
   const update = useUpdateStep();
+  const colorById = useMemo(() => memberColors(team), [team]);
   const [form, setForm] = useState<InspectorForm | null>(step ? toForm(step) : null);
 
-  // Re-seed only when the *selected step's identity* changes, not on every
-  // background refetch (a mutation from this very panel invalidates
-  // ["process_steps"]) — same convention as SystemDetail.tsx's own `form`,
+  // Re-seed on the selected step's identity, not on every background refetch
+  // (a mutation from this very panel invalidates ["process_steps"]) —
   // otherwise a keystroke could get clobbered mid-edit by its own refetch.
+  // Title is the one exception: the Steps list renames in place too, and
+  // without it this panel keeps showing the old title — then writes it back
+  // on the next blur, silently undoing the rename.
   useEffect(() => {
     setForm(step ? toForm(step) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step?.id]);
+  }, [step?.id, step?.title]);
 
   if (!step || !form) {
     return (
@@ -164,7 +172,13 @@ export function BlockInspector({
       <Field label="Responsible">
         <div className="flex min-w-0 items-center gap-1.5">
           {owner && (
-            <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-m-secondary-container text-label-small font-bold leading-none text-m-on-secondary-container">
+            <span
+              className={cn(
+                "grid h-5 w-5 flex-none place-items-center rounded-full text-label-small font-bold leading-none",
+                colorById.has(owner.id) ? "text-white" : "bg-m-secondary-container text-m-on-secondary-container"
+              )}
+              style={colorById.has(owner.id) ? { background: colorById.get(owner.id) } : undefined}
+            >
               {initials(owner.full_name)}
             </span>
           )}
@@ -265,6 +279,17 @@ export function BlockInspector({
       <Field label="Revision">
         <p className="text-label-medium text-m-on-surface-variant">{revisionLabel}</p>
       </Field>
+
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-m-outline-variant py-1.5 text-label-medium text-m-on-surface-variant hover:border-m-error hover:bg-m-error-container hover:text-m-on-error-container"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete {isSubStep ? "sub-step" : "step"}
+        </button>
+      )}
     </div>
   );
 }

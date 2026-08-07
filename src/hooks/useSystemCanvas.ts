@@ -74,6 +74,34 @@ export function useConnectSteps(systemId: string) {
   });
 }
 
+// Drag an existing edge's endpoint onto a different handle. React Flow is
+// fully controlled here and owns no edge state, so a rejected write needs no
+// undo — invalidating on BOTH paths is what snaps the line back to whatever
+// the DB still says.
+export function useReconnectEdge(systemId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      source,
+      target,
+      sourceHandle,
+    }: {
+      id: string;
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("system_edges")
+        .update({ source_step_id: source, target_step_id: target, source_handle: sourceHandle ?? null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: EDGES_KEY(systemId) }),
+  });
+}
+
 export function useDisconnectSteps(systemId: string) {
   const qc = useQueryClient();
   return useMutation({

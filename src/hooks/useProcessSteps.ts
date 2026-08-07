@@ -81,13 +81,52 @@ export function useUpdateStep() {
   });
 }
 
+// serviceId is optional: a system's steps are deleted by id alone, and the
+// row's scope isn't reliably known at the call site anyway (see the ROOT_KEY
+// note above). ProcessFlow still passes it; nothing reads it.
 export function useDeleteStep() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, serviceId }: { id: string; serviceId: string }) => {
+    mutationFn: async ({ id }: { id: string; serviceId?: string }) => {
       const { error } = await supabase.from("process_steps").delete().eq("id", id);
       if (error) throw error;
-      return serviceId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ROOT_KEY });
+      // system_edges FKs are ON DELETE CASCADE both ways, so deleting a step
+      // silently removes its connections too — without this the canvas's edge
+      // cache still holds rows that no longer exist.
+      qc.invalidateQueries({ queryKey: ["system_edges"] });
+    },
+  });
+}
+
+// Swap two steps' ordinals. process_steps_ordinal_idx is UNIQUE on
+// (system_id, service_id, parent_id, ordinal), so writing b's ordinal onto a
+// while b still holds it trips the index — one row has to be parked on a free
+// ordinal first. The caller passes max(ordinal) + 1 for that bucket, which is
+// free by construction (a negative or fixed sentinel is not: concurrent swaps
+// would collide on it). All three writes live in one mutation so the list
+// invalidates once, at the end, rather than rendering the parked state.
+export function useReorderStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      a,
+      b,
+      parkOrdinal,
+    }: {
+      a: { id: string; ordinal: number };
+      b: { id: string; ordinal: number };
+      parkOrdinal: number;
+    }) => {
+      const setOrdinal = async (id: string, ordinal: number) => {
+        const { error } = await supabase.from("process_steps").update({ ordinal }).eq("id", id);
+        if (error) throw error;
+      };
+      await setOrdinal(a.id, parkOrdinal);
+      await setOrdinal(b.id, a.ordinal);
+      await setOrdinal(a.id, b.ordinal);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ROOT_KEY }),
   });

@@ -45,15 +45,9 @@ export interface ProductivityData {
   pointModifications: PointModification[];
 }
 
-export const MEMBER_COLORS = [
-  "#7C3AED",
-  "#EC4899",
-  "#0891B2",
-  "#059669",
-  "#D97706",
-  "#E11D48",
-  "#4F46E5",
-];
+// Moved to useTeam.ts (main bundle) and re-exported here so existing importers
+// are untouched — see the comment there for why the direction matters.
+export { MEMBER_COLORS } from "@/hooks/useTeam";
 
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
