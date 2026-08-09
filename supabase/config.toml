@@ -114,3 +114,107 @@ verify_jwt = false
 
 [functions.get-invoice-report]
 verify_jwt = false
+
+# --- Backfilled: every function must declare verify_jwt = false. The API
+# gateway cannot validate the ES256 user tokens this project issues, so a
+# function deployed with the default (true) returns 401 for every caller.
+# 33 functions were undeclared and would have 401'd on their next deploy.
+
+[functions.approve-revision-request]
+verify_jwt = false
+
+[functions.auto-scope]
+verify_jwt = false
+
+[functions.clickup-oauth]
+verify_jwt = false
+
+[functions.clickup-webhook]
+verify_jwt = false
+
+[functions.create-adhoc-project]
+verify_jwt = false
+
+[functions.create-client-list]
+verify_jwt = false
+
+[functions.create-quick-brief-task]
+verify_jwt = false
+
+[functions.get-clickup-task-context]
+verify_jwt = false
+
+[functions.get-delivery-metrics]
+verify_jwt = false
+
+[functions.get-output-multiplier]
+verify_jwt = false
+
+[functions.get-productivity]
+verify_jwt = false
+
+[functions.google-token]
+verify_jwt = false
+
+[functions.list-chat-channels]
+verify_jwt = false
+
+[functions.log-ai-session]
+verify_jwt = false
+
+[functions.manage-internal-meeting]
+verify_jwt = false
+
+[functions.match-tasks-to-sow]
+verify_jwt = false
+
+[functions.notify-extension-request]
+verify_jwt = false
+
+[functions.notify-revision-request]
+verify_jwt = false
+
+[functions.notify-staff-brief]
+verify_jwt = false
+
+[functions.parse-retainer-invoice]
+verify_jwt = false
+
+[functions.push-to-xero]
+verify_jwt = false
+
+[functions.render-ce-pdf]
+verify_jwt = false
+
+[functions.render-cost-estimate-pdf]
+verify_jwt = false
+
+[functions.request-brief-extension]
+verify_jwt = false
+
+[functions.respond-to-info-request]
+verify_jwt = false
+
+[functions.schedule-brief-tasks]
+verify_jwt = false
+
+[functions.set-brief-project]
+verify_jwt = false
+
+[functions.setup-unallocated-ai-bucket]
+verify_jwt = false
+
+[functions.sync-client-clickup-structure]
+verify_jwt = false
+
+[functions.update-briefed-task]
+verify_jwt = false
+
+[functions.xero-oauth]
+verify_jwt = false
+
+[functions.xero-sync]
+verify_jwt = false
+
+[functions.xero-sync-quotes]
+verify_jwt = false
