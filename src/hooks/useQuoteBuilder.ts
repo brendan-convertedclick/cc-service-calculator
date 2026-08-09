@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import { useBrief, useUpdateBrief } from "@/hooks/useBriefs";
 import { useBriefIntelligence } from "@/hooks/useBriefIntelligence";
 import { useScope } from "@/hooks/useScopes";
@@ -349,7 +350,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       });
       if (!silent) toast.success("Draft saved");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      toast.error(`Save failed: ${errorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -376,7 +377,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       );
       setSuggestOpen(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "AI suggest failed");
+      toast.error(`AI suggest failed: ${errorMessage(e)}`);
     } finally {
       setSuggesting(false);
     }
@@ -399,7 +400,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       await updateQuote.mutateAsync({ id: liveQuote.id, patch: { sow_html: data.sow_html } });
       toast.success("SOW drafted");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Draft SOW failed");
+      toast.error(`Draft SOW failed: ${errorMessage(e)}`);
     } finally {
       setDrafting(false);
     }
@@ -453,7 +454,7 @@ export function useQuoteBuilder(briefId: string | undefined): UseQuoteBuilderRes
       await updateBrief.mutateAsync({ id: briefId, patch: { status: "quoted" } });
       navigate(`/quotes/${liveQuote.id}/send`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Finalise failed");
+      toast.error(`Finalise failed: ${errorMessage(e)}`);
     } finally {
       setFinalising(false);
     }

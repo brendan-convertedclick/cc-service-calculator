@@ -29,7 +29,12 @@ jobs:
       # Warnings are the pre-existing backlog; the cap ratchets down as it is
       # paid off. Any *new* warning fails the build.
       - name: Lint
-        run: npx eslint . --max-warnings 55
+        run: npx eslint . --max-warnings 47
+
+      # Dead files were 11 before this refactor and 0 after. Gating here is what
+      # stops them silently accumulating again.
+      - name: Dead code
+        run: npm run lint:dead
 
       - name: Unit tests
         run: npm run test

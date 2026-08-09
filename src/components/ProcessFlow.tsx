@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChecklistSummary } from "@/components/ChecklistSummary";
 import { SaveAsRuleModal } from "@/components/SaveAsRuleModal";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 
 interface Props {
   serviceId: string;
@@ -94,7 +95,7 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
       });
       toast.success(`Generated ${data.steps.length} steps`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "AI generation failed");
+      toast.error(`AI generation failed: ${errorMessage(e)}`);
     } finally {
       setAiLoading(false);
     }

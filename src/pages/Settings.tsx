@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useClickUpSpaces } from "@/hooks/useClients";
 import { useXeroConnectionStatus } from "@/hooks/useClientMargin";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ClickUpConnectCard } from "@/components/ClickUpConnectCard";
 import { Button } from "@/components/ui/button";
@@ -71,27 +73,13 @@ export function Settings() {
   const handleXeroSync = async () => {
     setSyncing(true);
     try {
-      const { data: sessionData } = await (await import("@/lib/supabase")).supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token ?? "";
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/xero-sync`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        },
-      );
-      const body = await res.json() as { synced?: number; message?: string; error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Sync failed");
+      const body = await callEdgeFn<{ synced?: number; message?: string }>("xero-sync", {});
       toast.success(body.message ?? `Synced ${body.synced} invoice(s)`);
       await qc.invalidateQueries({ queryKey: ["xeroConnectionStatus"] });
       await qc.invalidateQueries({ queryKey: ["xeroHasInvoices"] });
       await qc.invalidateQueries({ queryKey: ["clientMargin"] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Sync failed");
+      toast.error(errorMessage(e));
     } finally {
       setSyncing(false);
     }
@@ -117,7 +105,7 @@ export function Settings() {
       await qc.invalidateQueries({ queryKey: ["settings"] });
       toast.success("Xero disconnected");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+      toast.error(`Disconnect failed: ${errorMessage(e)}`);
     } finally {
       setDisconnecting(false);
     }
@@ -750,7 +738,7 @@ function ClickUpSpaceSelect({
   if (error) {
     return (
       <div className="text-body-small text-destructive">
-        Couldn't load spaces: {error instanceof Error ? error.message : String(error)}
+        Couldn't load spaces: {errorMessage(error)}
       </div>
     );
   }

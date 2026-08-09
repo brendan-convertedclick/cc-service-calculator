@@ -41,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import {
   useCreateSowDocument,
   useCreateSowTemplate,
@@ -112,7 +112,7 @@ export function SowList() {
       { title: tpl.name, body: tpl.body, template_id: tpl.id },
       {
         onSuccess: (doc) => navigate(`/sow/docs/${doc.id}`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create SOW"),
+        onError: (e) => toast.error(`Could not create SOW: ${errorMessage(e)}`),
       },
     );
 
@@ -121,7 +121,7 @@ export function SowList() {
       { title: "Untitled SOW", body: [] },
       {
         onSuccess: (doc) => navigate(`/sow/docs/${doc.id}`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create SOW"),
+        onError: (e) => toast.error(`Could not create SOW: ${errorMessage(e)}`),
       },
     );
 
@@ -130,7 +130,7 @@ export function SowList() {
       { name: "Untitled template", department: area },
       {
         onSuccess: (tpl) => navigate(`/sow/templates/${tpl.id}`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create template"),
+        onError: (e) => toast.error(`Could not create template: ${errorMessage(e)}`),
       },
     );
 
@@ -138,7 +138,7 @@ export function SowList() {
     if (!window.confirm(`Delete template "${tpl.name}"? This cannot be undone.`)) return;
     deleteTpl.mutate(tpl.id, {
       onSuccess: () => toast.success("Template deleted"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not delete"),
+      onError: (e) => toast.error(`Could not delete: ${errorMessage(e)}`),
     });
   };
 
@@ -146,7 +146,7 @@ export function SowList() {
     if (!window.confirm(`Delete SOW "${title}"?`)) return;
     deleteDoc.mutate(id, {
       onSuccess: () => toast.success("SOW deleted"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not delete"),
+      onError: (e) => toast.error(`Could not delete: ${errorMessage(e)}`),
     });
   };
 
@@ -265,7 +265,7 @@ export function SowList() {
                             onClick={() =>
                               duplicateTpl.mutate(tpl, {
                                 onSuccess: () => toast.success("Duplicated"),
-                                onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+                                onError: (e) => toast.error(errorMessage(e)),
                               })
                             }
                           />
@@ -277,7 +277,7 @@ export function SowList() {
                                 { id: tpl.id, archived_at: new Date().toISOString() },
                                 {
                                   onSuccess: () => toast.success("Archived"),
-                                  onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+                                  onError: (e) => toast.error(errorMessage(e)),
                                 },
                               )
                             }
@@ -381,7 +381,7 @@ export function SowList() {
                 toast.success("Saved");
                 setEditing(null);
               },
-              onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
+              onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
             },
           );
         }}

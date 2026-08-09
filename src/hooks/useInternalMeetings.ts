@@ -10,6 +10,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
 import type {
   CreateMeetingArgs,
   InternalMeetingWithDetails,
@@ -21,7 +22,6 @@ import type {
 const sb = supabase as unknown as SupabaseClient;
 
 const KEY = ["internal-meetings"] as const;
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 // Raw shape of the joined select below. clients/projects are to-one FKs so
 // PostgREST returns single objects (not arrays); projects is null whenever
@@ -82,18 +82,7 @@ export function useInternalMeetings() {
 }
 
 async function callManageMeeting(body: Record<string, unknown>): Promise<ManageMeetingResponse> {
-  const session = (await supabase.auth.getSession()).data.session;
-  const res = await fetch(`${FUNCTIONS_BASE}/manage-internal-meeting`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${session?.access_token ?? ""}`,
-    },
-    body: JSON.stringify(body),
-  });
-  const result = (await res.json()) as ManageMeetingResponse;
-  if (!res.ok) throw new Error(result.error ?? `Request failed (${res.status})`);
-  return result;
+  return callEdgeFn<ManageMeetingResponse>("manage-internal-meeting", body);
 }
 
 export function useCreateMeeting() {

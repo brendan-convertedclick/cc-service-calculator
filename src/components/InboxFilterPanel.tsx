@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, toggleInSet } from "@/lib/utils";
 import type { FilterTree } from "@/hooks/useInboxFilterTree";
 
 interface InboxFilterPanelProps {
@@ -28,11 +28,7 @@ export function InboxFilterPanel({
   const q = search.trim().toLowerCase();
 
   function toggleExpand(id: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setExpandedIds((prev) => toggleInSet(prev, id));
   }
 
   function handleSelectClient(clientId: string) {

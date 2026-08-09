@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -203,7 +203,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       { id: s.id, patch: { title: value } },
                       {
                         onError: (err) => {
-                          toast.error(err instanceof Error ? err.message : "Could not rename sub-step");
+                          toast.error(`Could not rename sub-step: ${errorMessage(err)}`);
                           el.value = s.title;
                         },
                       }
@@ -241,7 +241,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       {
                         onSuccess: () => toast.success("Sub-step deleted"),
                         onError: (err) =>
-                          toast.error(err instanceof Error ? err.message : "Could not delete sub-step"),
+                          toast.error(`Could not delete sub-step: ${errorMessage(err)}`),
                       }
                     )
                   }
@@ -277,7 +277,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                 },
                 {
                   onError: (err) =>
-                    toast.error(err instanceof Error ? err.message : "Could not add sub-step"),
+                    toast.error(`Could not add sub-step: ${errorMessage(err)}`),
                 }
               )
             }

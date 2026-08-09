@@ -1,13 +1,6 @@
 import { useProjectProfitability } from "@/hooks/useProjectProfitability";
+import { formatZar } from "@/lib/utils";
 import { ProfitabilityTable } from "./ProfitabilityTable";
-
-function formatZar(cents: number): string {
-  return Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
 
 function formatPct(value: number): string {
   return `${value.toFixed(1)}%`;

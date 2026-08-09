@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Calculator, ChevronRight, ScrollText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { errorMessage, formatZar, toggleInSet } from "@/lib/utils";
 import { useBrief } from "@/hooks/useBriefs";
 import { buildSowBodyFromPlacements } from "@/lib/sow-doc";
 import { useCreateSowDocument } from "@/hooks/useSowComposer";
@@ -51,7 +52,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatCurrency } from "@/lib/format";
 import {
   isBillablePlacement,
   placementDisposition,
@@ -104,7 +104,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
       },
       {
         onSuccess: (doc) => navigate(`/sow/docs/${doc.id}`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not create SOW"),
+        onError: (e) => toast.error(`Could not create SOW: ${errorMessage(e)}`),
       },
     );
   };
@@ -177,7 +177,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           `Mapped ${res.placements.length} item(s) against ${res.sow_slugs.length} SOW(s).`,
         );
       },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Analysis failed"),
+      onError: (e) => toast.error(`Analysis failed: ${errorMessage(e)}`),
     });
   };
 
@@ -203,12 +203,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
   }, [placements]);
 
   const handleToggleSelect = (ref: string) => {
-    setSelectedRefs((prev) => {
-      const next = new Set(prev);
-      if (next.has(ref)) next.delete(ref);
-      else next.add(ref);
-      return next;
-    });
+    setSelectedRefs((prev) => toggleInSet(prev, ref));
   };
 
   const handleOverride = (ref: string, isInside: boolean) => {
@@ -235,7 +230,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           });
         },
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Failed to update placement"),
+          toast.error(`Failed to update placement: ${errorMessage(e)}`),
       },
     );
   };
@@ -267,7 +262,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
           });
         },
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Failed to update placement"),
+          toast.error(`Failed to update placement: ${errorMessage(e)}`),
       },
     );
   };
@@ -289,7 +284,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
         navigate(`/briefs/${briefId}/builder`);
       },
       onError: (e) =>
-        toast.error(e instanceof Error ? e.message : "Failed to approve placements"),
+        toast.error(`Failed to approve placements: ${errorMessage(e)}`),
     });
   };
 
@@ -338,7 +333,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
                 : "Failed to load scope placements."}
             </p>
             <p className="text-body-small text-m-on-surface-variant">
-              {error instanceof Error ? error.message : String(error)}
+              {errorMessage(error)}
             </p>
             <Button
               variant="outline"
@@ -509,7 +504,7 @@ function SowCheckInner({ briefId }: { briefId: string }) {
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                   <span className="text-body-medium text-m-on-surface">
                     <strong className="font-mono tabular-nums">{selectedItems.length}</strong> item(s) selected · est.{" "}
-                    <strong className="font-mono tabular-nums">{formatCurrency(selectedEstimateCents / 100)}</strong>
+                    <strong className="font-mono tabular-nums">{formatZar(selectedEstimateCents)}</strong>
                   </span>
                   <Button onClick={() => setEstimateOpen(true)} className="gap-2">
                     <Calculator className="h-4 w-4" />

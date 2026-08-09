@@ -9,7 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, toggleInSet } from "@/lib/utils";
 import { timeAgo } from "@/lib/timeAgo";
 import type { OpsOverviewData, OpsProject } from "@/hooks/useOpsOverview";
 import type { DeliveryRate } from "@/hooks/useDeliveryRate";
@@ -230,12 +230,7 @@ export function BoardOverview({
   // All lanes open by default — "On track" included — so the board shows the
   // full picture up front; each lane can still be collapsed individually.
   const [collapsed, setCollapsed] = useState<Set<LaneKey>>(() => new Set<LaneKey>());
-  const toggle = (k: LaneKey) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(k) ? next.delete(k) : next.add(k);
-      return next;
-    });
+  const toggle = (k: LaneKey) => setCollapsed((prev) => toggleInSet(prev, k));
 
   const byStatus = (status: string) => opsData.projects.filter((p) => p.scopeStatus === status);
   const rate = deliveryRate && deliveryRate.total > 0 ? `${deliveryRate.rate}%` : "—";

@@ -21,6 +21,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { TeamMember } from "@/hooks/useTeam";
 import { TOOLTIP_STYLE_BORDERED, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE } from "./chartShared";
+import { errorMessage } from "@/lib/utils";
 
 interface Props {
   members: TeamMember[];
@@ -221,7 +222,7 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
 
       {isError && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-body-medium text-destructive">
-          Failed to load task breakdown: {error instanceof Error ? error.message : "unknown error"}
+          Failed to load task breakdown: {errorMessage(error)}
         </p>
       )}
 

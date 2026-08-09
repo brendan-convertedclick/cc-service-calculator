@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { cn } from '@/lib/utils'
+import { cn, formatZar as fmt } from '@/lib/utils'
 import type { ArAgingBand, ClientHealthRow, RetainerBurnRow, WipFunnelData } from '@/types/pulse'
-
-const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
-const fmt = (cents: number) => ZAR.format(cents / 100)
 
 interface PulseScoreboardProps {
   arBands: ArAgingBand[] | null

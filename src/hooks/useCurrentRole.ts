@@ -35,6 +35,9 @@ export function useCurrentRole(): { role: TeamMemberRole | null; isLoading: bool
     }
     let cancelled = false;
     (async () => {
+      // error intentionally ignored: this is a route gate, and failing closed
+      // (role=null) on a transient query error is the safe default — throwing
+      // here would just crash the gate instead of degrading to "no access".
       const { data } = await supabase
         .from("team_members")
         .select("role")

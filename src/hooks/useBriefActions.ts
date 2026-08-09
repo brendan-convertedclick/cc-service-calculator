@@ -59,25 +59,28 @@ export function useRollbackBriefStage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ briefId, from }: { briefId: string; from: "quote" | "scope" }) => {
-      const { data: scope } = await supabase
+      const { data: scope, error: scopeErr } = await supabase
         .from("scopes")
         .select("id")
         .eq("brief_id", briefId)
         .maybeSingle();
+      if (scopeErr) throw scopeErr;
 
       if (scope) {
-        const { data: quotes } = await supabase
+        const { data: quotes, error: qErr } = await supabase
           .from("quotes")
           .select("id")
           .eq("scope_id", scope.id);
+        if (qErr) throw qErr;
         const quoteIds = (quotes ?? []).map((q) => q.id);
 
         if (quoteIds.length > 0) {
-          const { data: project } = await supabase
+          const { data: project, error: pErr } = await supabase
             .from("projects")
             .select("id")
             .in("quote_id", quoteIds)
             .maybeSingle();
+          if (pErr) throw pErr;
           if (project) {
             throw new Error(
               "Cannot delete: a project has already been created from this quote.",
@@ -120,14 +123,15 @@ export function useBriefDownstream(briefId: string | undefined) {
     queryFn: async (): Promise<DownstreamLink> => {
       if (!briefId) return { kind: "none" };
 
-      const { data: scope } = await supabase
+      const { data: scope, error: scopeErr } = await supabase
         .from("scopes")
         .select("id")
         .eq("brief_id", briefId)
         .maybeSingle();
+      if (scopeErr) throw scopeErr;
       if (!scope) return { kind: "none" };
 
-      const { data: quote } = await supabase
+      const { data: quote, error: quoteErr } = await supabase
         .from("quotes")
         .select("id, status")
         .eq("scope_id", scope.id)
@@ -135,13 +139,15 @@ export function useBriefDownstream(briefId: string | undefined) {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (quoteErr) throw quoteErr;
       if (!quote) return { kind: "scope", id: scope.id, label: "Scope" };
 
-      const { data: project } = await supabase
+      const { data: project, error: projectErr } = await supabase
         .from("projects")
         .select("id, name")
         .eq("quote_id", quote.id)
         .maybeSingle();
+      if (projectErr) throw projectErr;
       if (project) return { kind: "project", id: project.id, label: project.name ?? "Project" };
 
       return { kind: "quote", id: quote.id, label: "Quote" };

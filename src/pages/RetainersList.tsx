@@ -20,7 +20,7 @@ import { usePulseRetainerBurn, currentMonthKey } from "@/hooks/usePulseRetainerB
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { HoursUsedCell } from "@/components/retainers/HoursUsedCell";
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
-import { formatZar, cn } from "@/lib/utils";
+import { formatZar, cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
@@ -144,27 +144,17 @@ export function RetainersList() {
   }
 
   function toggleClient(name: string) {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, name));
   }
 
   function toggleStatus(status: string) {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
+    setSelectedStatuses((prev) => toggleInSet(prev, status));
   }
 
   function handleSync(projectId?: string, label?: string) {
     sync.mutate(projectId, {
       onSuccess: () => toast.success(label ? `Synced ${label}` : "Synced all retainers"),
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Sync failed"),
+      onError: (err) => toast.error(`Sync failed: ${errorMessage(err)}`),
     });
   }
 
@@ -370,9 +360,7 @@ export function RetainersList() {
                                       deleteRetainer.mutate(r.id, {
                                         onSuccess: () => toast.success("Retainer deleted"),
                                         onError: (err) =>
-                                          toast.error(
-                                            err instanceof Error ? err.message : "Failed to delete retainer",
-                                          ),
+                                          toast.error(`Failed to delete retainer: ${errorMessage(err)}`),
                                       });
                                     }
                                   }}

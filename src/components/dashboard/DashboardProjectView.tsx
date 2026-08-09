@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { todayISO } from "@/lib/dates";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { ActivityFeed } from "@/components/scope/ActivityFeed";
@@ -14,7 +15,7 @@ import { StatusStrip } from "@/components/scope/StatusStrip";
 import { RecommendedBanner, type OverdueInvoice } from "./RecommendedBanner";
 
 function useOverdueInvoiceForClient(clientId: string | null | undefined): OverdueInvoice | null {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const { data } = useQuery({
     enabled: !!clientId,
     queryKey: ["overdueInvoice", clientId],

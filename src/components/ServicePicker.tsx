@@ -3,6 +3,7 @@ import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, useCreateService } from "@/hooks/useServices";
 import { useRules } from "@/hooks/useRules";
+import { errorMessage } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -70,7 +71,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
           toast.success(`Added "${created.name}"`);
         },
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Failed to create service"),
+          toast.error(`Failed to create service: ${errorMessage(e)}`),
       },
     );
   }

@@ -58,10 +58,11 @@ export function useService(id: string | undefined) {
         .single();
       if (error) throw error;
 
-      const { data: resolved } = await supabase
+      const { data: resolved, error: resolvedErr } = await supabase
         .from("service_allocation_resolved")
         .select("*")
         .eq("service_id", id);
+      if (resolvedErr) throw resolvedErr;
 
       return {
         service,

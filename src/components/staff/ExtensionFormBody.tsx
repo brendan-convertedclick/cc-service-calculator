@@ -3,6 +3,8 @@ import { ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,8 +46,6 @@ function daysBetween(fromEpochMs: number, toDateStr: string): number {
   return Math.round((to.getTime() - from.getTime()) / 86_400_000);
 }
 
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
-
 /**
  * Phase 2 extension request form. Submitter picks a client, then an open
  * task assigned to them in that client's folder, then requests extra
@@ -77,28 +77,15 @@ export function ExtensionFormBody() {
     setTasksError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-my-open-clickup-tasks`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: clientId }),
+        const body = await callEdgeFn<{ tasks?: CuTaskOption[] }>("list-my-open-clickup-tasks", {
+          client_id: clientId,
         });
-        const body = (await res.json()) as { tasks?: CuTaskOption[]; error?: string };
         if (cancelled) return;
-        if (!res.ok) {
-          setTasksError(body.error ?? "Failed to load tasks");
-          setTasks([]);
-          setTaskId("");
-          return;
-        }
         setTasks(body.tasks ?? []);
         setTaskId("");
       } catch (e) {
         if (cancelled) return;
-        setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksError(errorMessage(e));
       } finally {
         if (!cancelled) setLoadingTasks(false);
       }
@@ -193,18 +180,12 @@ export function ExtensionFormBody() {
       }
       // Auto-tier fires the approval pipeline immediately.
       if (tierPreview.tier === "auto") {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/approve-extension-request`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ extension_request_id: (inserted as { id: string }).id }),
-        });
-        const body = (await res.json()) as { error?: string; clickup_subtask_url?: string };
-        if (!res.ok) {
-          toast.error(`Auto-push failed (row saved): ${body.error ?? res.statusText}`);
+        try {
+          await callEdgeFn("approve-extension-request", {
+            extension_request_id: (inserted as { id: string }).id,
+          });
+        } catch (e) {
+          toast.error(`Auto-push failed (row saved): ${errorMessage(e)}`);
           return;
         }
         toast.success("Auto-approved · ClickUp subtask created.");
@@ -216,14 +197,8 @@ export function ExtensionFormBody() {
         );
         // Fire-and-forget: ping the approver(s) in ClickUp chat + email. Never
         // blocks the submit — the request is already saved either way.
-        const session = (await supabase.auth.getSession()).data.session;
-        fetch(`${FUNCTIONS_BASE}/notify-extension-request`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ extension_request_id: (inserted as { id: string }).id }),
+        callEdgeFn("notify-extension-request", {
+          extension_request_id: (inserted as { id: string }).id,
         }).catch(() => {});
       }
       setExtraPoints("");

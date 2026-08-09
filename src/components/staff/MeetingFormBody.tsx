@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useTeam } from "@/hooks/useTeam";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateMeeting, useUpdateMeeting } from "@/hooks/useInternalMeetings";
 import type { InternalMeetingWithDetails, ManageMeetingResponse } from "@/types/internal-meetings";
 import { errorMessage } from "@/lib/utils";
+import { callEdgeFn } from "@/lib/edge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const NO_PROJECT = "__none__";
 const NO_WORK_STREAM = "__none__";
 const STATUS_DEFAULT = "__default__";
@@ -112,11 +111,7 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
     let cancelled = false;
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/google-token?action=status`, {
-          headers: { authorization: `Bearer ${session?.access_token ?? ""}` },
-        });
-        const body = (await res.json()) as { connected?: boolean };
+        const body = await callEdgeFn<{ connected?: boolean }>("google-token?action=status");
         if (!cancelled) setGoogleConnected(!!body.connected);
       } catch {
         if (!cancelled) setGoogleConnected(null);
@@ -151,27 +146,11 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
     setListsError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: clientId }),
-        });
-        const body = (await res.json()) as {
+        const body = await callEdgeFn<{
           lists?: MeetingListOption[];
           work_stream_options?: MeetingWorkStreamOption[];
-          error?: string;
-        };
+        }>("list-client-clickup-lists", { client_id: clientId });
         if (cancelled) return;
-        if (!res.ok) {
-          setListsError(body.error ?? "Failed to load lists");
-          setListOptions([]);
-          setWorkStreamOptions([]);
-          return;
-        }
         setListOptions(body.lists ?? []);
         setWorkStreamOptions(body.work_stream_options ?? []);
       } catch (e) {
@@ -277,7 +256,7 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
       }
       onSaved?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save meeting.");
+      toast.error(`Failed to save meeting: ${errorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }

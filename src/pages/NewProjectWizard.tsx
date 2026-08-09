@@ -16,13 +16,11 @@ import { useTeam } from "@/hooks/useTeam";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useClients } from "@/hooks/useClients";
 import { useCreateAdhocProject, type AdhocTaskInput } from "@/hooks/useCreateAdhocProject";
-import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
+import { callEdgeFn } from "@/lib/edge";
 
 const UNASSIGNED = "__unassigned__";
 const STATUS_DEFAULT = "__default__";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type ListStatus = { status: string; color: string | null; type: string; orderindex: number };
 type ListOption = { id: string; name: string; statuses: ListStatus[] };
@@ -88,27 +86,12 @@ export function NewProjectWizard() {
     setListsError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: clientId }),
-        });
-        const body = (await res.json()) as {
+        const body = await callEdgeFn<{
           lists?: ListOption[];
           work_stream_options?: WorkStreamOption[];
           error?: string;
-        };
+        }>("list-client-clickup-lists", { client_id: clientId });
         if (cancelled) return;
-        if (!res.ok) {
-          setListsError(body.error ?? "Failed to load lists");
-          setWorkStreamOptions([]);
-          setStatuses([]);
-          return;
-        }
         setWorkStreamOptions(body.work_stream_options ?? []);
         // Statuses are Space-inherited — take them from any returned list.
         const withStatuses = (body.lists ?? []).find((l) => (l.statuses ?? []).length > 0);
@@ -116,6 +99,8 @@ export function NewProjectWizard() {
       } catch (e) {
         if (cancelled) return;
         setListsError(errorMessage(e));
+        setWorkStreamOptions([]);
+        setStatuses([]);
       } finally {
         if (!cancelled) setLoadingLists(false);
       }

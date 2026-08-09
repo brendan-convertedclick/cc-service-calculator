@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Money } from "@/components/ui/money";
-import { formatZar } from "@/lib/utils";
+import { errorMessage, formatZar } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 import { useScopeMapPlacements } from "@/hooks/useScopeMap";
 import { useBriefCE, useCreateBriefCE, useRenderCePdf } from "@/hooks/useBriefCE";
@@ -125,7 +125,7 @@ export function CostEstimateStage({ briefId, clientId, parentProjectId, summaryP
       });
       toast.success("Cost estimate created — PDF rendered.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create the estimate");
+      toast.error(`Failed to create the estimate: ${errorMessage(e)}`);
     }
   };
 
@@ -205,7 +205,7 @@ export function CostEstimateStage({ briefId, clientId, parentProjectId, summaryP
               renderPdf
                 .mutateAsync(ce.id)
                 .then(() => toast.success("PDF re-rendered"))
-                .catch((e) => toast.error(e instanceof Error ? e.message : "PDF render failed"))
+                .catch((e) => toast.error(`PDF render failed: ${errorMessage(e)}`))
             }
           >
             <RefreshCw className="h-4 w-4" />

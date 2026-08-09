@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBriefedTaskDetails, useUpdateBriefedTask } from "@/hooks/useBriefedTask";
+import { errorMessage } from "@/lib/utils";
 
 interface EditBriefedTaskDialogProps {
   /** Briefed brief to edit. null keeps the dialog mounted but closed. */
@@ -65,7 +66,7 @@ export function EditBriefedTaskDialog({ brief, open, onOpenChange }: EditBriefed
       toast.success("ClickUp task updated");
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update task");
+      toast.error(`Failed to update task: ${errorMessage(e)}`);
     }
   };
 
@@ -85,7 +86,7 @@ export function EditBriefedTaskDialog({ brief, open, onOpenChange }: EditBriefed
           </div>
         ) : details.isError ? (
           <div className="py-6 text-center text-body-small text-destructive">
-            {details.error instanceof Error ? details.error.message : "Couldn't load the ClickUp task."}
+            {`Couldn't load the ClickUp task: ${errorMessage(details.error)}`}
           </div>
         ) : (
           <div className="space-y-4">

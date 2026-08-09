@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
+import { toggleInSet } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -269,21 +270,11 @@ export function Briefs() {
   const hasFilters = selectedClients.size > 0 || selectedBilling.size > 0;
 
   const toggleClient = (id: string) => {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, id));
   };
 
   const toggleBilling = (t: BillingType) => {
-    setSelectedBilling((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
+    setSelectedBilling((prev) => toggleInSet(prev, t));
   };
 
   return (

@@ -18,6 +18,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { todayISO } from "@/lib/dates";
 
 /** A single still-open briefed task, for the open-backlog list. */
 export interface OpenTask {
@@ -101,7 +102,7 @@ export function useClientDeliveryScorecard(
 
       const startMs = new Date(cycleStartIso).getTime();
       const endMs = new Date(cycleEndIso).getTime();
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = todayISO();
 
       let delivered = 0;
       let onTime = 0;

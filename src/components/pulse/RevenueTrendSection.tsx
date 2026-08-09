@@ -1,9 +1,7 @@
 import { Link } from 'react-router-dom'
+import { formatZar as fmt } from '@/lib/utils'
 import { LimitedList } from './LimitedList'
 import type { RevenueTrendRow } from '@/types/pulse'
-
-const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
-const fmt = (cents: number) => ZAR.format(cents / 100)
 
 export function RevenueTrendSection({ rows }: { rows: RevenueTrendRow[] | null }) {
   if (!rows) {

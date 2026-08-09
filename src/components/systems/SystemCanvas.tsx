@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useDepartments } from "@/hooks/useDepartments";
 import { memberColors, useTeam } from "@/hooks/useTeam";
@@ -465,7 +466,7 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
           target: connection.target,
           sourceHandle: connection.sourceHandle,
         },
-        { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not connect those steps") }
+        { onError: (e) => toast.error(`Could not connect those steps: ${errorMessage(e)}`) }
       );
     },
     [connect]
@@ -528,7 +529,7 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
         // line you were relying on isn't there.
         disconnect.mutate(c.id, {
           onSuccess: () => toast.success("Connection removed"),
-          onError: (e) => toast.error(e instanceof Error ? e.message : "Could not remove that connection"),
+          onError: (e) => toast.error(`Could not remove that connection: ${errorMessage(e)}`),
         });
       }
       const selects = changes.filter((c) => c.type === "select" || c.type === "remove");

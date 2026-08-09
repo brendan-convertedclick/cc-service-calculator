@@ -4,6 +4,8 @@ import { CheckCircle2, HelpCircle, RefreshCw, Search, XCircle } from "lucide-rea
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage, toggleInSet } from "@/lib/utils";
 import { askForInfo } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,8 +24,6 @@ import {
   type EscalationRow,
   type ExtensionRequestRow,
 } from "@/types/extension-requests";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 const HOLDERS: EscalationHolder[] = ["owner", "admin", "requester", "done"];
 
@@ -179,20 +179,12 @@ export function Escalations() {
   const approve = async (id: string) => {
     setBusyId(id);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/approve-extension-request`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ extension_request_id: id }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) return toast.error(body.error ?? "Approve failed");
+      await callEdgeFn("approve-extension-request", { extension_request_id: id });
       toast.success("Approved.");
       close();
       await load();
+    } catch (e) {
+      toast.error(errorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -482,12 +474,7 @@ export function Escalations() {
 
 /** Set-toggle for the filter rail — same behaviour for both groups. */
 function toggle<T>(value: T): (prev: Set<T>) => Set<T> {
-  return (prev) => {
-    const next = new Set(prev);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    return next;
-  };
+  return (prev) => toggleInSet(prev, value);
 }
 
 function Empty({

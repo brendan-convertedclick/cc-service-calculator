@@ -3,7 +3,7 @@ import MDEditor from "@uiw/react-md-editor";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { formatCurrency } from "@/lib/format";
+import { formatZar } from "@/lib/utils";
 import { ServiceLineRow } from "@/components/scope-receipt/ServiceLineRow";
 import { BAND_TITLE } from "@/lib/scope-receipt";
 import type { ResolvedSection } from "@/lib/sow-doc";
@@ -110,7 +110,7 @@ export function SowDocPreview({
                 >
                   <span className="text-label-medium text-m-on-surface-variant">Billable subtotal</span>
                   <span className="text-body-medium font-mono font-semibold tabular-nums text-m-on-surface">
-                    {formatCurrency(section.receipt.billableTotalCents / 100)}
+                    {formatZar(section.receipt.billableTotalCents)}
                   </span>
                 </div>
               </div>
@@ -152,7 +152,7 @@ export function SowDocPreview({
           data-cents={grandTotalCents}
           className="text-headline-small font-mono font-semibold tabular-nums text-m-on-surface"
         >
-          {formatCurrency(grandTotalCents / 100)}
+          {formatZar(grandTotalCents)}
         </span>
       </div>
     </div>

@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { Bookmark, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -81,7 +82,7 @@ export function SavedReportsBar({
       toast.success("Report saved");
       setSaveOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn’t save report");
+      toast.error(`Couldn’t save report: ${errorMessage(e)}`);
     }
   };
 

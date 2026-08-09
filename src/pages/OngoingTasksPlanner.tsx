@@ -9,6 +9,7 @@ import {
   type MatrixResult,
 } from "@/hooks/useOngoingTasks";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { ClientList } from "@/types/ongoing";
 import { BillableBadge } from "@/components/BillableBadge";
@@ -140,8 +141,7 @@ export function OngoingTasksPlanner() {
             `Provisioned ${r.provisioned}, skipped ${r.skipped}, failed ${r.failed.length}`,
           );
         },
-        onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Provision failed"),
+        onError: (e) => toast.error(`Provision failed: ${errorMessage(e)}`),
       },
     );
   };

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
+import { toggleInSet } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -139,21 +140,11 @@ export function Projects() {
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
 
   const toggleClient = (id: string) => {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, id));
   };
 
   const toggleStatus = (s: DerivedStatus) => {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
+    setSelectedStatuses((prev) => toggleInSet(prev, s));
   };
 
   return (

@@ -7,6 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
 import {
   rollupCE,
   type ChangeEstimateLineItem,
@@ -17,8 +18,6 @@ import {
 // change_estimates isn't in the generated Database types yet — query untyped
 // and cast rows (same pattern as EstimateSheet / useRetainerSubItems).
 const sb = supabase as unknown as SupabaseClient;
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 export const BRIEF_CE_KEY = (briefId: string) => ["brief-ce", briefId] as const;
 
@@ -63,17 +62,9 @@ export type CreateCEInput = {
 };
 
 async function invokeRenderCePdf(ceId: string): Promise<string | null> {
-  const session = (await supabase.auth.getSession()).data.session;
-  const res = await fetch(`${FUNCTIONS_BASE}/render-ce-pdf`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${session?.access_token ?? ""}`,
-    },
-    body: JSON.stringify({ change_estimate_id: ceId }),
+  const body = await callEdgeFn<{ url?: string }>("render-ce-pdf", {
+    change_estimate_id: ceId,
   });
-  const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-  if (!res.ok) throw new Error(body.error ?? `PDF render failed (HTTP ${res.status})`);
   return body.url ?? null;
 }
 
@@ -234,18 +225,10 @@ export function useScheduleBriefTasks(briefId: string | undefined) {
       status?: string | null;
     }): Promise<ScheduleResult> => {
       if (!briefId) throw new Error("Missing brief id");
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/schedule-brief-tasks`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ brief_id: briefId, ...input }),
+      return callEdgeFn<ScheduleResult>("schedule-brief-tasks", {
+        brief_id: briefId,
+        ...input,
       });
-      const body = (await res.json().catch(() => ({}))) as ScheduleResult & { error?: string };
-      if (!res.ok) throw new Error(body.error ?? `Scheduling failed (HTTP ${res.status})`);
-      return body;
     },
     onSettled: () => {
       if (!briefId) return;

@@ -3,6 +3,8 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,8 +19,6 @@ import { ClientSelectField } from "./ClientSelectField";
 import { useStaffClients } from "./useStaffClients";
 
 type CuTaskOption = { id: string; name: string; list_name: string };
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 /**
  * Request a new revision-stage task (same base name, new DFT/REV suffix) for
@@ -48,28 +48,15 @@ export function RevisionFormBody() {
     setTasksError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-my-open-clickup-tasks`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: clientId }),
+        const body = await callEdgeFn<{ tasks?: CuTaskOption[] }>("list-my-open-clickup-tasks", {
+          client_id: clientId,
         });
-        const body = (await res.json()) as { tasks?: CuTaskOption[]; error?: string };
         if (cancelled) return;
-        if (!res.ok) {
-          setTasksError(body.error ?? "Failed to load tasks");
-          setTasks([]);
-          setTaskId("");
-          return;
-        }
         setTasks(body.tasks ?? []);
         setTaskId("");
       } catch (e) {
         if (cancelled) return;
-        setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksError(errorMessage(e));
       } finally {
         if (!cancelled) setLoadingTasks(false);
       }
@@ -110,14 +97,8 @@ export function RevisionFormBody() {
       toast.success("Submitted · awaiting admin approval.");
       // Fire-and-forget: ping admins in ClickUp chat + email. Never blocks
       // the submit — the request is already saved either way.
-      const session = (await supabase.auth.getSession()).data.session;
-      fetch(`${FUNCTIONS_BASE}/notify-revision-request`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ revision_request_id: (inserted as { id: string }).id }),
+      callEdgeFn("notify-revision-request", {
+        revision_request_id: (inserted as { id: string }).id,
       }).catch(() => {});
       setRevisionSuffix("");
     } finally {

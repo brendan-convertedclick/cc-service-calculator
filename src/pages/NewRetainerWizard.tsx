@@ -16,7 +16,8 @@ import { useSettings } from "@/hooks/useSettings";
 import { useClientAcceptedQuotes } from "@/hooks/useQuotes";
 import { useParseRetainerInvoice } from "@/hooks/useParseRetainerInvoice";
 import { retainerRowPreview, retainerRowStats } from "@/lib/retainerMath";
-import { formatZar } from "@/lib/utils";
+import { formatZar, errorMessage } from "@/lib/utils";
+import { todayISO } from "@/lib/dates";
 
 // Invoice-PDF import is gated until the ANTHROPIC_API_KEY secret is set in
 // Supabase (parse-retainer-invoice needs it). Flip to true once the key is in.
@@ -47,7 +48,7 @@ type ServiceRow = {
 let rowSeq = 0;
 const nextRowId = () => `row-${rowSeq++}`;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayISO;
 
 // --- Draft auto-save (browser-local) ---------------------------------------
 // The wizard holds everything in React state, so navigating away used to drop
@@ -417,7 +418,7 @@ export function NewRetainerWizard() {
             : ""),
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to read invoice");
+      toast.error(`Failed to read invoice: ${errorMessage(e)}`);
     }
   }
 
@@ -453,7 +454,7 @@ export function NewRetainerWizard() {
         navigate(`/projects/${result.project_id}`);
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : "Failed to create retainer");
+        toast.error(`Failed to create retainer: ${errorMessage(err)}`);
       },
     });
   }

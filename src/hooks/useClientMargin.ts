@@ -25,12 +25,13 @@ export function useXeroConnectionStatus() {
   return useQuery<XeroConnectionStatus>({
     queryKey: ["xeroConnectionStatus"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("xero_connection")
         .select("updated_at, tenant_name")
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) throw error;
 
       return {
         connected: !!data,
@@ -47,9 +48,10 @@ function useHasInvoices() {
   return useQuery<boolean>({
     queryKey: ["xeroHasInvoices"],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("xero_invoices")
         .select("id", { count: "exact", head: true });
+      if (error) throw error;
       return (count ?? 0) > 0;
     },
     staleTime: 5 * 60 * 1000,
@@ -130,9 +132,10 @@ export function useClientMargin() {
         if (aErr) throw aErr;
 
         // Fetch department cost rates
-        const { data: depts } = await supabase
+        const { data: depts, error: dErr } = await supabase
           .from("departments")
           .select("id, cost_rate_cents, hourly_rate_cents");
+        if (dErr) throw dErr;
 
         const deptCostRate = new Map(
           (depts ?? []).map((d) => [

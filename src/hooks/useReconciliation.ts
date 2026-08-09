@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { todayISO } from "@/lib/dates";
 
 export interface ReconciliationRow {
   clientId: string;
@@ -58,7 +59,7 @@ export function useReconciliation(year: number, month: number) {
     queryKey: ["reconciliation", year, month],
     queryFn: async () => {
       const { start, end } = monthRange(year, month);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayISO();
 
       // 1. Actuals for the month — group by client via project
       const { data: actuals, error: actualsError } = await supabase

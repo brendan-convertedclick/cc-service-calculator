@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
 import { useAuth } from "@/context/AuthContext";
 import {
   makeManualTaskRef,
@@ -19,8 +20,6 @@ import {
 // aren't in the generated Database types yet — query untyped and cast rows
 // (same pattern as useRetainerSubItems).
 const sb = supabase as unknown as SupabaseClient;
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 export const SCOPE_MAP_KEY = (briefId: string) => ["scope-map", briefId] as const;
 export const CLIENT_SOWS_KEY = (clientId: string) => ["client-sows", clientId] as const;
@@ -98,20 +97,10 @@ export function useAnalyzeBrief(briefId: string | undefined) {
   return useMutation({
     mutationFn: async (input: AnalyzeBriefInput = {}): Promise<AnalyzeBriefResult> => {
       if (!briefId) throw new Error("Missing brief id");
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/analyze-brief-sow`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ brief_id: briefId, ...input }),
+      return callEdgeFn<AnalyzeBriefResult>("analyze-brief-sow", {
+        brief_id: briefId,
+        ...input,
       });
-      const body = (await res.json().catch(() => ({}))) as AnalyzeBriefResult & {
-        error?: string;
-      };
-      if (!res.ok) throw new Error(body.error ?? `Analysis failed (HTTP ${res.status})`);
-      return body;
     },
     // onSettled (not onSuccess): the edge fn deletes/reinserts rows server-side
     // before a failure can surface, so a failed/aborted re-analysis must still

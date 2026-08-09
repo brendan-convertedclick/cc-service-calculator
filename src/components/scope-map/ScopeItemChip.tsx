@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ConfidenceBars } from "@/components/scope-map/ConfidenceBars";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { cn, formatZar } from "@/lib/utils";
 import type { BriefTaskSowPlacement } from "@/types/sow-placements";
 
 export interface ScopeItemChipProps {
@@ -156,7 +155,7 @@ export function ScopeItemChip({
             {item.suggested_service_id ? "Matched catalogue service" : "Ballpark estimate"}
             {item.estimated_cents !== null && (
               <span className="ml-1 font-medium font-mono tabular-nums">
-                {formatCurrency(item.estimated_cents / 100)}
+                {formatZar(item.estimated_cents)}
               </span>
             )}
           </p>

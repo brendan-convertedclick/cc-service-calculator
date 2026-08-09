@@ -8,6 +8,7 @@ import { ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useDelayTrend } from "@/hooks/useDelayTrend";
+import { errorMessage } from "@/lib/utils";
 
 interface DelayTrendReportProps {
   clientId: string;
@@ -44,7 +45,7 @@ export function DelayTrendReport({ clientId, cycleStartIso, cycleEndIso }: Delay
     return (
       <Card>
         <CardContent className="p-4 text-body-small text-m-error">
-          Couldn’t load the delay report: {(error as Error).message}
+          Couldn’t load the delay report: {errorMessage(error)}
         </CardContent>
       </Card>
     );

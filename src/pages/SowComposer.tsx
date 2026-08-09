@@ -21,6 +21,8 @@ import {
   useUpsertSowDocument,
 } from "@/hooks/useSowComposer";
 import { resolveSowDocument } from "@/lib/sow-doc";
+import { todayISO } from "@/lib/dates";
+import { errorMessage } from "@/lib/utils";
 import type { ReceiptCatalogService } from "@/lib/scope-receipt";
 import type { OverrideMap, SowBody, SowScenario } from "@/types/sow-composer";
 import { SectionList } from "@/components/sow-composer/SectionList";
@@ -29,10 +31,6 @@ import { ScenariosBar } from "@/components/sow-composer/ScenariosBar";
 import { SowDocPreview } from "@/components/sow-composer/SowDocPreview";
 
 const LIVE_SCENARIO = "Live values";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function SowComposer() {
   const { id } = useParams<{ id: string }>();
@@ -121,14 +119,14 @@ export function SowComposer() {
       return resolveSowDocument({
         body,
         registry,
-        recordValues: { "document.date": todayIso() },
+        recordValues: { "document.date": todayISO() },
         clientOverrides,
         docOverrides,
         scenarioOverrides,
         serviceById,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not resolve document");
+      toast.error(`Could not resolve document: ${errorMessage(e)}`);
       return null;
     }
   }, [body, registry, clientOverrides, docOverrides, scenarioOverrides, serviceById]);
@@ -154,7 +152,7 @@ export function SowComposer() {
       { clientId, overrides: { ...clientOverrides, [key]: value } },
       {
         onSuccess: () => toast.success(`Applied ${key} to this client`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not apply"),
+        onError: (e) => toast.error(`Could not apply: ${errorMessage(e)}`),
       },
     );
   };
@@ -176,7 +174,7 @@ export function SowComposer() {
       { id, status: "final" },
       {
         onSuccess: () => toast.success("Marked final"),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not finalize"),
+        onError: (e) => toast.error(`Could not finalize: ${errorMessage(e)}`),
       },
     );
   };

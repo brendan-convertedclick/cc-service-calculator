@@ -10,7 +10,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatCurrency } from "@/lib/format";
+import { formatZar } from "@/lib/utils";
 import { ServiceLineRow } from "@/components/scope-receipt/ServiceLineRow";
 import { type ReceiptCatalogService, type ReceiptLine } from "@/lib/scope-receipt";
 import type { Disposition } from "@/types/sow-placements";
@@ -118,7 +118,7 @@ export function ServiceTableSectionEditor({
                     <CommandItem key={svc.id} value={`${svc.code ?? ""} ${svc.name}`} onSelect={() => addLine(svc)}>
                       <span className="flex-1 truncate">{svc.name}</span>
                       <span className="ml-2 text-label-small font-mono tabular-nums text-m-on-surface-variant">
-                        {formatCurrency(svc.sell_price_cents / 100)}
+                        {formatZar(svc.sell_price_cents)}
                       </span>
                     </CommandItem>
                   ))}
@@ -133,7 +133,7 @@ export function ServiceTableSectionEditor({
           data-cents={billableCents}
           className="text-label-medium tabular-nums text-m-on-surface-variant"
         >
-          Billable <span className="font-mono tabular-nums">{formatCurrency(billableCents / 100)}</span>
+          Billable <span className="font-mono tabular-nums">{formatZar(billableCents)}</span>
         </span>
       </div>
     </div>
