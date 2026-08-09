@@ -45,6 +45,18 @@ export function formatZar(cents: number): string {
   return zarFormatter.format(cents / 100);
 }
 
+/** Returns a copy of `set` with `value` toggled in or out.
+ *
+ * Collapses the `setX((prev) => { const next = new Set(prev); next.has(v) ?
+ * next.delete(v) : next.add(v); return next; })` block that was written out
+ * 23 times across 14 files. */
+export function toggleInSet<T>(set: ReadonlySet<T>, value: T): Set<T> {
+  const next = new Set(set);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
+
 export function formatHours(hours: number): string {
   return `${hours.toFixed(2)} hr`;
 }

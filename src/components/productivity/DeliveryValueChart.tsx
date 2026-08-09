@@ -3,7 +3,7 @@ import {
   Tooltip, CartesianGrid, Legend,
 } from "recharts";
 import type { TeamMember } from "@/hooks/useTeam";
-import { MEMBER_COLORS } from "@/hooks/useProductivity";
+import { TOOLTIP_STYLE, visibleMembers, memberColorMap } from "./chartShared";
 
 interface Props {
   data: Record<string, number | string>[];
@@ -11,33 +11,14 @@ interface Props {
   selectedUserId: number | null;
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: "#1e293b",
-  border: "none",
-  borderRadius: 8,
-  color: "#e2e8f0",
-  fontSize: 12,
-  fontFamily: "var(--font-mono)",
-};
-
 function formatZarTick(value: number): string {
   if (value >= 1000) return `R${(value / 1000).toFixed(0)}K`;
   return `R${value}`;
 }
 
 export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
-  // Only members linked to ClickUp have a clickup_user_id — everyone else
-  // has no time-tracked data to chart here.
-  const membersWithClickUp = members.filter(
-    (m): m is TeamMember & { clickup_user_id: number } => m.clickup_user_id !== null,
-  );
-  const visibleMembers = selectedUserId
-    ? membersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
-    : membersWithClickUp;
-
-  const memberColorMap = Object.fromEntries(
-    membersWithClickUp.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
-  );
+  const visible = visibleMembers(members, selectedUserId);
+  const memberColor = memberColorMap(members);
 
   return (
     <div className="rounded-xl bg-m-surface-container p-5">
@@ -63,7 +44,7 @@ export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
               return [`R ${Number(value).toLocaleString()}`, label];
             }}
           />
-          {visibleMembers.length > 1 && (
+          {visible.length > 1 && (
             <Legend
               wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
               formatter={(value) => {
@@ -73,12 +54,12 @@ export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
               }}
             />
           )}
-          {visibleMembers.map((m) => (
+          {visible.map((m) => (
             <Bar
               key={`${m.clickup_user_id}_value`}
               dataKey={`${m.clickup_user_id}_value`}
               name={`${m.clickup_user_id}_value`}
-              fill={memberColorMap[m.clickup_user_id] ?? "#7C3AED"}
+              fill={memberColor[m.clickup_user_id] ?? "#7C3AED"}
               radius={[3, 3, 0, 0]}
               stackId="value"
             />

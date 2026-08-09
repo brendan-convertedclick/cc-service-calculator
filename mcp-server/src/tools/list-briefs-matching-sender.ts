@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { evaluatePattern } from '../sender-rules.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   client_id: z.string().describe('Client UUID'),
@@ -9,7 +10,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { data, error } = await supabase
       .from('briefs')
       .select('id, raw_subject, sender_email, received_at, status')
@@ -22,9 +23,6 @@ export async function handler(input: Input) {
       return evaluatePattern(input.pattern, b.sender_email)
     })
 
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ briefs }) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { briefs }
+  })
 }

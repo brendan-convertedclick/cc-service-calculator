@@ -3,7 +3,7 @@ import {
   Tooltip, CartesianGrid, Legend,
 } from "recharts";
 import type { TeamMember } from "@/hooks/useTeam";
-import { MEMBER_COLORS } from "@/hooks/useProductivity";
+import { TOOLTIP_STYLE, visibleMembers, memberColorMap } from "./chartShared";
 
 interface Props {
   data: Record<string, number | string>[];
@@ -11,28 +11,9 @@ interface Props {
   selectedUserId: number | null;
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: "#1e293b",
-  border: "none",
-  borderRadius: 8,
-  color: "#e2e8f0",
-  fontSize: 12,
-  fontFamily: "var(--font-mono)",
-};
-
 export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
-  // Only members linked to ClickUp have a clickup_user_id — everyone else
-  // has no time-tracked data to chart here.
-  const membersWithClickUp = members.filter(
-    (m): m is TeamMember & { clickup_user_id: number } => m.clickup_user_id !== null,
-  );
-  const visibleMembers = selectedUserId
-    ? membersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
-    : membersWithClickUp;
-
-  const memberColorMap = Object.fromEntries(
-    membersWithClickUp.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
-  );
+  const visible = visibleMembers(members, selectedUserId);
+  const memberColor = memberColorMap(members);
 
   return (
     <div className="rounded-xl bg-m-surface-container p-5">
@@ -62,8 +43,8 @@ export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
               return member?.full_name?.split(" ")[0] ?? value;
             }}
           />
-          {visibleMembers.map((m) => {
-            const color = memberColorMap[m.clickup_user_id] ?? "#7C3AED";
+          {visible.map((m) => {
+            const color = memberColor[m.clickup_user_id] ?? "#7C3AED";
             const stackId = String(m.clickup_user_id);
             return [
               <Bar

@@ -4,7 +4,6 @@ import type {
   ApplyFoundationsResult,
   BaselineList,
   BaselineTask,
-  FoundationsCoverageRow,
 } from "@/types/foundations";
 
 type BaselineListWithGroup = BaselineList & {
@@ -43,21 +42,6 @@ export function useBaselineTasks(baselineListId: string | null) {
   });
 }
 
-export function useFoundationsCoverage() {
-  return useQuery<FoundationsCoverageRow[]>({
-    queryKey: ["foundations-coverage"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("v_foundations_coverage")
-        .select("*")
-        .order("display_order")
-        .order("client_name");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
-
 export function useCreateBaselineList() {
   const qc = useQueryClient();
   return useMutation({
@@ -79,29 +63,6 @@ export function useCreateBaselineList() {
         .single();
       if (error) throw error;
       return data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["baseline-lists"] });
-      qc.invalidateQueries({ queryKey: ["foundations-coverage"] });
-    },
-  });
-}
-
-export function useUpdateBaselineList() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      id: string;
-      label?: string;
-      description?: string | null;
-      display_order?: number;
-    }) => {
-      const { id, ...patch } = input;
-      const { error } = await supabase
-        .from("baseline_lists")
-        .update(patch)
-        .eq("id", id);
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["baseline-lists"] });

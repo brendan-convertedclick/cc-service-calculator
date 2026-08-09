@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   domain: z.string().describe('Sender domain (lowercased before upsert)'),
@@ -9,7 +10,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const domain = input.domain.trim().toLowerCase()
     if (!domain) throw new Error('domain is required')
 
@@ -21,16 +22,6 @@ export async function handler(input: Input) {
 
     if (error) throw new Error(error.message)
     const row = Array.isArray(data) ? data[0] : data
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({ id: row?.id ?? null, seen_count: row?.seen_count ?? 1 }),
-        },
-      ],
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { id: row?.id ?? null, seen_count: row?.seen_count ?? 1 }
+  })
 }

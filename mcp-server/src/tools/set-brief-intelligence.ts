@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   brief_id:             z.string().uuid().describe('UUID of the brief this intelligence belongs to'),
@@ -46,7 +47,7 @@ function parseIfJsonString(v: unknown): unknown {
 const JSON_FIELDS = ['client_context_snap', 'requirements', 'suggested_services', 'assumed_exclusions', 'work_breakdown', 'open_questions', 'services_snapshot'] as const
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { audit_trail_entry, ...fields } = input
     for (const k of JSON_FIELDS) {
       if (k in fields) (fields as Record<string, unknown>)[k] = parseIfJsonString((fields as Record<string, unknown>)[k])
@@ -81,15 +82,6 @@ export async function handler(input: Input) {
 
     if (error || !data) throw new Error(error?.message ?? 'Upsert failed')
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({
-        id: data.id,
-        brief_id: data.brief_id,
-        am_status: data.am_status,
-      }) }],
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { id: data.id, brief_id: data.brief_id, am_status: data.am_status }
+  })
 }

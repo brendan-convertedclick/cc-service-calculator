@@ -21,8 +21,9 @@ import {
   initialStatusForTier,
   maxTier,
 } from "@/types/extension-requests";
+import { ClientSelectField } from "./ClientSelectField";
+import { useStaffClients } from "./useStaffClients";
 
-type ClientOption = { id: string; name: string };
 type CuTaskOption = {
   id: string;
   name: string;
@@ -52,7 +53,7 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
  */
 export function ExtensionFormBody() {
   const { currentUserId } = useAuth();
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  const clients = useStaffClients();
   const [tasks, setTasks] = useState<CuTaskOption[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -64,26 +65,6 @@ export function ExtensionFormBody() {
   const [dueDate, setDueDate] = useState("");
   const [dueDateReason, setDueDateReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .is("archived_at", null)
-        .order("name");
-      if (cancelled) return;
-      if (error) {
-        toast.error(`Could not load clients: ${error.message}`);
-        return;
-      }
-      setClients((data ?? []) as ClientOption[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!clientId) {
@@ -257,19 +238,7 @@ export function ExtensionFormBody() {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="ext-client">Client</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger id="ext-client">
-              <SelectValue placeholder="Pick a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ClientSelectField id="ext-client" clients={clients} value={clientId} onValueChange={setClientId} />
         <div className="space-y-2">
           <Label htmlFor="ext-task">Task</Label>
           <Select value={taskId} onValueChange={setTaskId} disabled={!clientId || loadingTasks}>

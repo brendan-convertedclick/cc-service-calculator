@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { fireAutoScope } from '../auto-scope.js'
 import { decide, type Rule } from '../sender-rules.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   gmail_thread_id: z.string().describe('Gmail thread ID — used as dedup key'),
@@ -15,7 +16,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { data: existing } = await supabase
       .from('briefs')
       .select('id')
@@ -23,7 +24,7 @@ export async function handler(input: Input) {
       .maybeSingle()
 
     if (existing) {
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ brief_id: existing.id, created: false }) }] }
+      return { brief_id: existing.id, created: false }
     }
 
     // Per-client sender rule check (block wins). Only meaningful when client_id is set.
@@ -36,9 +37,7 @@ export async function handler(input: Input) {
       if (rErr) throw new Error(rErr.message)
       ruleDecision = decide(input.sender_email, (rules ?? []) as Rule[])
       if (ruleDecision.decision === 'block') {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ blocked: true, reason: 'sender_blocked', rule_id: ruleDecision.rule_id }) }],
-        }
+        return { blocked: true, reason: 'sender_blocked', rule_id: ruleDecision.rule_id }
       }
     }
 
@@ -71,9 +70,6 @@ export async function handler(input: Input) {
 
     fireAutoScope(created.id)
 
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ brief_id: created.id, created: true }) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { brief_id: created.id, created: true }
+  })
 }

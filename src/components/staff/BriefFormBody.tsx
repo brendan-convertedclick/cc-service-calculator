@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ClientSelectField } from "./ClientSelectField";
+import { useStaffClients } from "./useStaffClients";
 
-type ClientOption = { id: string; name: string };
 type ListOption = { id: string; name: string };
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
@@ -26,7 +27,7 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
  */
 export function BriefFormBody() {
   const { currentUserId } = useAuth();
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  const clients = useStaffClients();
   const [lists, setLists] = useState<ListOption[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [listsError, setListsError] = useState<string | null>(null);
@@ -40,26 +41,6 @@ export function BriefFormBody() {
   const [successCriteria, setSuccessCriteria] = useState("");
   const [measurableOutcome, setMeasurableOutcome] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .is("archived_at", null)
-        .order("name");
-      if (cancelled) return;
-      if (error) {
-        toast.error(`Could not load clients: ${error.message}`);
-        return;
-      }
-      setClients((data ?? []) as ClientOption[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!clientId) {
@@ -171,19 +152,7 @@ export function BriefFormBody() {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="brief-client">Client</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger id="brief-client">
-              <SelectValue placeholder="Pick a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ClientSelectField id="brief-client" clients={clients} value={clientId} onValueChange={setClientId} />
         <div className="space-y-2">
           <Label htmlFor="brief-list">List / department</Label>
           <Select value={listId} onValueChange={setListId} disabled={!clientId}>

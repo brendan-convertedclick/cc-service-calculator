@@ -167,7 +167,7 @@ test.describe("Dynamic routes — click-through from list", () => {
   test("/clients/:clientId/projects/:projectId — ProjectScopeView via sidebar", async ({ page }) => {
     const errors = await smokeCheck(page, "/");
 
-    // The AppShell sidebar has ClientNavSection links to /clients/:id/projects/:id
+    // The AppShell sidebar has client nav links to /clients/:id/projects/:id
     const linkCount = await page
       .locator("aside nav a[href*='/projects/']")
       .count();

@@ -19,9 +19,8 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Database } from "@/types/db";
-
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+import type { TeamMember } from "@/hooks/useTeam";
+import { TOOLTIP_STYLE_BORDERED, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE } from "./chartShared";
 
 interface Props {
   members: TeamMember[];
@@ -310,10 +309,10 @@ function ByPersonView({
             <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
             <Tooltip
-              contentStyle={{ background: "#1e2433", border: "1px solid #2d3748", borderRadius: 8, fontSize: 12, fontFamily: "var(--font-mono)" }}
-              labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
+              contentStyle={TOOLTIP_STYLE_BORDERED}
+              labelStyle={TOOLTIP_LABEL_STYLE}
               formatter={(value, name) => [`${Number(value).toFixed(2)}h`, name]}
-              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             {orderedTasks.map((t, i) => (
               <Bar

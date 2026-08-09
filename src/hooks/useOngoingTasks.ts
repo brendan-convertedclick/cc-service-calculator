@@ -83,9 +83,6 @@ export function useTimeCategories() {
   });
 }
 
-// Canonical alias going forward.
-export const useTaskTemplates = useTimeCategories;
-
 export function useOngoingTasksForMember(memberId: string | null) {
   return useQuery<OngoingTaskWithCategory[]>({
     queryKey: ["ongoing-tasks", memberId],
@@ -198,9 +195,6 @@ export function useUpsertTimeCategory() {
   });
 }
 
-// Canonical alias.
-export const useUpsertTaskTemplate = useUpsertTimeCategory;
-
 export function useArchiveTimeCategory() {
   const qc = useQueryClient();
   return useMutation({
@@ -214,8 +208,6 @@ export function useArchiveTimeCategory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["time-categories"] }),
   });
 }
-
-export const useArchiveTaskTemplate = useArchiveTimeCategory;
 
 // Promote a custom (client-scoped) template into the global catalog so any
 // client can pick it on the next planning run. Existing ongoing_tasks rows

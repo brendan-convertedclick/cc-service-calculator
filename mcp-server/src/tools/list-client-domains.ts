@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { normalizeHost } from '../domain.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({})
 
 export async function handler(_input: z.infer<typeof schema>) {
-  try {
+  return guarded(async () => {
     const domains = new Set<string>()
 
     // Domains seen in past inbound emails attributed to a known client
@@ -49,10 +50,6 @@ export async function handler(_input: z.infer<typeof schema>) {
       if (host) domains.add(host)
     }
 
-    const result = [...domains].sort()
-    return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return [...domains].sort()
+  })
 }

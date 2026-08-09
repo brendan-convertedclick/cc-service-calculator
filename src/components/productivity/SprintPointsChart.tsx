@@ -11,10 +11,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { MEMBER_COLORS } from "@/hooks/useProductivity";
-import type { Database } from "@/types/db";
-
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+import type { TeamMember } from "@/hooks/useTeam";
+import {
+  visibleMembers,
+  memberColorMap,
+  TOOLTIP_STYLE_BORDERED,
+  TOOLTIP_LABEL_STYLE,
+  TOOLTIP_ITEM_STYLE,
+} from "./chartShared";
 
 interface Props {
   data: Record<string, number | string>[];
@@ -24,12 +28,8 @@ interface Props {
 }
 
 export function SprintPointsChart({ data, members, goalPoints, selectedUserId }: Props) {
-  const activeMembersWithClickUp = members.filter((m) => m.clickup_user_id !== null);
-
-  const displayMembers =
-    selectedUserId !== null
-      ? activeMembersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
-      : activeMembersWithClickUp;
+  const displayMembers = visibleMembers(members, selectedUserId);
+  const memberColor = memberColorMap(members);
 
   return (
     <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-5">
@@ -51,15 +51,9 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
               tickLine={false}
             />
             <Tooltip
-              contentStyle={{
-                background: "#1e2433",
-                border: "1px solid #2d3748",
-                borderRadius: 8,
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
-              }}
-              labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
+              contentStyle={TOOLTIP_STYLE_BORDERED}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             <ReferenceLine
               y={goalPoints}
@@ -68,10 +62,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
               label={{ value: `Goal ${goalPoints}`, position: "right", fill: "#f59e0b", fontSize: 10 }}
             />
             {displayMembers.map((member) => {
-              const originalIdx = activeMembersWithClickUp.findIndex(
-                (m) => m.id === member.id,
-              );
-              const color = MEMBER_COLORS[originalIdx % MEMBER_COLORS.length];
+              const color = memberColor[member.clickup_user_id] ?? "#7C3AED";
               // userId in SprintPoint = the ClickUp numeric ID, which matches team_members.clickup_user_id
               const uid = String(member.clickup_user_id);
               return [

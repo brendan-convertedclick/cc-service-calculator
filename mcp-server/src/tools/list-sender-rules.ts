@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   client_id: z.string().describe('Client UUID'),
@@ -7,7 +8,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { data, error } = await supabase
       .from('client_sender_rules')
       .select('id, client_id, pattern, mode, note, created_at')
@@ -17,9 +18,6 @@ export async function handler(input: Input) {
     const rows = data ?? []
     const allow = rows.filter((r) => r.mode === 'allow')
     const blocked = rows.filter((r) => r.mode === 'block')
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ allow, blocked }) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { allow, blocked }
+  })
 }

@@ -13,7 +13,7 @@ const SHARED_DEV_EMAIL = "team@convertedclick.co.za";
  * - Shared dev login (team@convertedclick.co.za): treated as 'owner' for dev
  *   ergonomics — the shared account has no team_members row by design.
  * - No matching team_members row: returns null (treated as no access by
- *   RequireRole; admin/owner gates close, staff gate also closes).
+ *   route gates; admin/owner gates close, staff gate also closes).
  */
 export function useCurrentRole(): { role: TeamMemberRole | null; isLoading: boolean } {
   const { session, loading } = useAuth();

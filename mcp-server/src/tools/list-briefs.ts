@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   client_id: z.string().optional().describe('Filter by client UUID'),
@@ -11,7 +12,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     let query = supabase
       .from('briefs')
       .select('id, raw_subject, sender_email, status, intent_type, created_at, message_count')
@@ -25,9 +26,6 @@ export async function handler(input: Input) {
       .limit(input.limit ?? 20)
 
     if (error) throw new Error(error.message)
-    return { content: [{ type: 'text' as const, text: JSON.stringify(data ?? []) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return data ?? []
+  })
 }

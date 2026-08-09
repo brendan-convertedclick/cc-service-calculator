@@ -43,9 +43,9 @@ export interface EstimateSheetProps {
 
 /**
  * Builds a Change Estimate (source 'intake_outside_scope') from the new-billable
- * items selected on the scope map. Modelled on AdjustPlanSheet; unlike it,
- * project_id and created_by may be null (intake CE for a new brief under the
- * shared login — relaxed by migration 0061).
+ * items selected on the scope map. Unlike other CE builders, project_id and
+ * created_by may be null (intake CE for a new brief under the shared login —
+ * relaxed by migration 0061).
  */
 export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateSheetProps) {
   const navigate = useNavigate();

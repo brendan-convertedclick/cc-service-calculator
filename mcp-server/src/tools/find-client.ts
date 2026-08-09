@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { normalizeHost, hostMatches } from '../domain.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   email_domain: z.string().optional().describe('Sender email domain e.g. acme.co.za'),
@@ -10,7 +11,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     if (!input.email_domain) {
       // Name lookup — partial match.
       const { data, error } = await supabase
@@ -19,7 +20,7 @@ export async function handler(input: Input) {
         .ilike('name', `%${input.name}%`)
         .maybeSingle()
       if (error) throw new Error(error.message)
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data ?? null) }] }
+      return data ?? null
     }
 
     // Domain lookup. Normalise both sides and match exact host or subdomain in JS.
@@ -35,7 +36,7 @@ export async function handler(input: Input) {
     )
     if (cdHit) {
       const client = Array.isArray(cdHit.client) ? cdHit.client[0] : cdHit.client
-      return { content: [{ type: 'text' as const, text: JSON.stringify(client ?? null) }] }
+      return client ?? null
     }
 
     // 2) clients.primary_domain (may be a bare host or a full URL).
@@ -48,26 +49,21 @@ export async function handler(input: Input) {
     const match = (clients ?? []).find((c) =>
       hostMatches(domain, normalizeHost(c.primary_domain as string)),
     )
-    if (match) return { content: [{ type: 'text' as const, text: JSON.stringify(match) }] }
+    if (match) return match
 
     // Fallback: look up client via brief_messages history when no primary_domain matches
-    {
-      const { data: msgs, error: msgError } = await supabase
-        .from('brief_messages')
-        .select('brief:briefs!inner(client:clients!inner(id, name, wiki_path, primary_domain))')
-        .ilike('from_email', `%@${domain}`)
-        .eq('direction', 'inbound')
-        .limit(1)
+    const { data: msgs, error: msgError } = await supabase
+      .from('brief_messages')
+      .select('brief:briefs!inner(client:clients!inner(id, name, wiki_path, primary_domain))')
+      .ilike('from_email', `%@${domain}`)
+      .eq('direction', 'inbound')
+      .limit(1)
 
-      if (msgError) throw new Error(msgError.message)
+    if (msgError) throw new Error(msgError.message)
 
-      const first = msgs?.[0]
-      const brief = Array.isArray(first?.brief) ? first?.brief[0] : first?.brief
-      const client = Array.isArray(brief?.client) ? brief?.client[0] : brief?.client
-      return { content: [{ type: 'text' as const, text: JSON.stringify(client ?? null) }] }
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    const first = msgs?.[0]
+    const brief = Array.isArray(first?.brief) ? first?.brief[0] : first?.brief
+    const client = Array.isArray(brief?.client) ? brief?.client[0] : brief?.client
+    return client ?? null
+  })
 }

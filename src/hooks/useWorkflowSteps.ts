@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/db'
 
@@ -52,30 +52,3 @@ export function useWorkflowHandoffs(projectId: string) {
   })
 }
 
-export function useUpdateStepInstance() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string
-      updates: Partial<Pick<ProcessStepInstance,
-        'status' | 'started_at' | 'completed_at' | 'actual_hours' | 'blocked_reason' | 'assignee_id' | 'manual_override'
-      >>
-    }) => {
-      const { data, error } = await supabase
-        .from('process_step_instances')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['workflow-steps', data.project_id] })
-      qc.invalidateQueries({ queryKey: ['workflow-handoffs', data.project_id] })
-    },
-  })
-}
