@@ -130,6 +130,9 @@ const Reports = lazy(() =>
 const SystemsList = lazy(() =>
   import("@/pages/SystemsList").then((m) => ({ default: m.SystemsList })),
 );
+const ProcedureWizard = lazy(() =>
+  import("@/pages/ProcedureWizard").then((m) => ({ default: m.ProcedureWizard })),
+);
 const SystemDetail = lazy(() =>
   import("@/pages/SystemDetail").then((m) => ({ default: m.SystemDetail })),
 );
@@ -226,6 +229,13 @@ export default function App() {
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
               <Route path="systems" element={<SystemsList />} />
               <Route path="systems/:id" element={<SystemDetail />} />
+              {/* /procedures was the old name for this surface — kept as an
+                  alias so bookmarks and pasted links don't 404. */}
+              <Route path="procedures" element={<Navigate to="/systems" replace />} />
+              <Route path="procedures/:id" element={<SystemDetail />} />
+              {/* Top-level, not /systems/wizard: it keeps the Systems nav
+                  item's active state honest on the detail route. */}
+              <Route path="procedure-wizard" element={<ProcedureWizard />} />
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />

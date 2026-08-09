@@ -10,8 +10,10 @@ import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   ChevronUp,
+  History,
   Plus,
   Settings2,
   Trash2,
@@ -24,6 +26,7 @@ import {
   SYSTEM_BANDS,
   SYSTEM_BAND_LABEL,
   SYSTEM_KIND_LABEL,
+  systemLayer,
   useSystemDefinition,
   useSystemOverhead,
   useUpdateSystem,
@@ -32,6 +35,7 @@ import {
 import { useCreateStep, useReorderStep, useSystemSteps, useUpdateStep } from "@/hooks/useProcessSteps";
 import { useConnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
 import { DeleteStepDialog } from "@/components/systems/DeleteStepDialog";
+import { SignalNoise, VerbSelect, VerdictPill, verdict } from "@/components/systems/StepSignal";
 import {
   useProposeRevision,
   usePublishRevision,
@@ -162,6 +166,9 @@ function toForm(s: SystemDefinitionWithJoins): FormState {
 export function SystemDetail() {
   const { id } = useParams();
   const { data: system, isLoading } = useSystemDefinition(id);
+  // A process's blocks are stages that carry procedures, not work that carries
+  // hours — this flag is what splits the two behaviours on this page.
+  const isProcess = system != null && systemLayer(system.kind) === "process";
   const { data: steps = [] } = useSystemSteps(id);
   const addStep = useCreateStep();
   const updateStep = useUpdateStep();
@@ -186,6 +193,7 @@ export function SystemDetail() {
       pos_y?: number;
       connectFrom?: string | null;
       sourceHandle?: string | null;
+      title?: string;
     } = {}) => {
       if (!id) return null;
       const prev = steps.length > 0 ? steps[steps.length - 1] : null;
@@ -197,9 +205,14 @@ export function SystemDetail() {
         const row = {
           system_id: id,
           service_id: system?.service_id ?? null,
-          title: "New step",
+          title: opts.title ?? "New step",
           department_id: null,
           estimated_hours: null,
+          // A process block is a stage, not work: its hours and its ClickUp
+          // artefact live on the procedures attached to it. materialise_as
+          // defaults to 'task', which would push a phantom task per stage and
+          // double-count against the procedures underneath.
+          ...(isProcess ? { materialise_as: "none" as const } : {}),
           pos_x: pos_x != null ? Math.round(pos_x) : null,
           pos_y: pos_y != null ? Math.round(pos_y) : null,
         };
@@ -230,13 +243,17 @@ export function SystemDetail() {
         if (from) {
           await connect.mutateAsync({ source: from, target: step.id, sourceHandle: opts.sourceHandle ?? null });
         }
+        // Mirrors clicking a Steps-list row: select + centre the new block on
+        // the canvas so its details populate the Block Inspector immediately,
+        // instead of leaving it unselected until the user clicks it by hand.
+        setFocusStep({ id: step.id, nonce: Date.now() });
         return step;
       } catch (e) {
         toast.error((e as { message?: string })?.message || "Could not add step");
         return null;
       }
     },
-    [id, steps, system?.service_id, addStep, connect]
+    [id, steps, system?.service_id, isProcess, addStep, connect]
   );
 
   function patchStep(step: StepRow, patch: StepUpdate, revert?: () => void) {
@@ -330,7 +347,7 @@ export function SystemDetail() {
   // against stale null positions and quietly move blocks that had just been
   // placed. It can't be mounted hidden from the start either: React Flow
   // measures 0×0 inside display:none and fitView would do nothing.
-  const [pane, setPane] = useState<"setup" | "steps">("setup");
+  const [pane, setPane] = useState<"setup" | "steps" | "revisions">("setup");
   const [seenSteps, setSeenSteps] = useState(false);
   useEffect(() => {
     if (pane === "steps") setSeenSteps(true);
@@ -402,7 +419,7 @@ export function SystemDetail() {
     return <div className="p-6 text-body-medium text-m-on-surface-variant">Loading…</div>;
   }
   if (!system) {
-    return <div className="p-6 text-body-medium text-m-on-surface-variant">System not found.</div>;
+    return <div className="p-6 text-body-medium text-m-on-surface-variant">Procedure not found.</div>;
   }
   if (!form) {
     return <div className="p-6 text-body-medium text-m-on-surface-variant">Loading…</div>;
@@ -443,6 +460,13 @@ export function SystemDetail() {
           onClick={() => setPane("steps")}
           count={steps.length}
         />
+        <PaneRow
+          icon={History}
+          label="Revisions"
+          active={pane === "revisions"}
+          onClick={() => setPane("revisions")}
+          count={revisions.length}
+        />
       </aside>
 
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
@@ -457,7 +481,7 @@ export function SystemDetail() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   onBlur={(e) => save("name", e.target.value)}
-                  aria-label="System name"
+                  aria-label="Procedure name"
                   className="h-auto border-none px-0 text-headline-small font-semibold shadow-none focus-visible:ring-0"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -547,7 +571,7 @@ export function SystemDetail() {
               onBlur={(e) => save("goal_statement", e.target.value)}
               rows={2}
               className="text-body-large"
-              placeholder="What does this system exist to achieve?"
+              placeholder="What does this procedure exist to achieve?"
             />
             <div className="space-y-1">
               <Label htmlFor="goal-metric">Goal metric</Label>
@@ -571,7 +595,7 @@ export function SystemDetail() {
                 onChange={(e) => setForm({ ...form, trigger_text: e.target.value })}
                 onBlur={(e) => save("trigger_text", e.target.value)}
                 rows={2}
-                placeholder="What kicks this system off?"
+                placeholder="What kicks this procedure off?"
               />
             </FieldLabel>
             <FieldLabel label="Definition of done" stacked>
@@ -580,7 +604,7 @@ export function SystemDetail() {
                 onChange={(e) => setForm({ ...form, definition_of_done: e.target.value })}
                 onBlur={(e) => save("definition_of_done", e.target.value)}
                 rows={2}
-                placeholder="How do we know this system's work is complete?"
+                placeholder="How do we know this procedure's work is complete?"
               />
             </FieldLabel>
             <FieldLabel label="Exceptions" stacked>
@@ -589,25 +613,21 @@ export function SystemDetail() {
                 onChange={(e) => setForm({ ...form, exceptions_md: e.target.value })}
                 onBlur={(e) => save("exceptions_md", e.target.value)}
                 rows={2}
-                placeholder="Edge cases this system doesn't cover"
+                placeholder="Edge cases this procedure doesn't cover"
               />
             </FieldLabel>
           </CardContent>
         </Card>
 
-        <RevisionsCard
-          systemId={system.id}
-          revisions={revisions}
-          isLoading={revisionsLoading}
-          canApprove={canApprove}
-          deptById={deptById}
-          teamById={teamById}
-          onPropose={() => setProposeOpen(true)}
-        />
-
         {system.kind === "internal" && (
           <OverheadPanel system={system} totalStepHours={totalStepHours} />
         )}
+
+        <div className="flex justify-end">
+          <Button size="sm" className="gap-1.5" onClick={() => setPane("steps")}>
+            Next: Steps <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
         </div>
 
         {/* ── Steps ─────────────────────────────────────────────────────────
@@ -714,6 +734,14 @@ export function SystemDetail() {
                                 the canvas inspector is the same fields on the
                                 selected block, not the only way in. */}
                             <div className="flex flex-wrap items-center gap-1.5">
+                              {/* One verb, one outcome: the verb lives in its
+                                  own column so `title` stays the outcome text
+                                  the canvas, revisions and ClickUp all read. */}
+                              <VerbSelect
+                                value={s.verb}
+                                label={`Verb for "${s.title}"`}
+                                onChange={(verb) => patchStep(s, { verb })}
+                              />
                               <select
                                 value={s.department_id ?? ""}
                                 aria-label={`Department for "${s.title}"`}
@@ -771,6 +799,20 @@ export function SystemDetail() {
                                 {s.estimated_hours != null && ` · ${pointsFromHours(s.estimated_hours)}pt`}
                               </span>
                             </div>
+                            {/* Collapsed by default with the verdict in the
+                                summary: five always-open questions per row
+                                would bury the list at eight steps. Native
+                                <details>, so no open/closed state to hold. */}
+                            <details className="group">
+                              <summary className="flex cursor-pointer list-none items-center gap-2 py-0.5 text-label-small text-m-on-surface-variant marker:content-none hover:text-m-on-surface">
+                                <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                                Signal or noise
+                                <VerdictPill value={verdict(s).effective} />
+                              </summary>
+                              <div className="pt-1.5">
+                                <SignalNoise step={s} onPatch={(patch) => patchStep(s, patch)} />
+                              </div>
+                            </details>
                           </div>
                           <div className="flex flex-none items-center gap-2 pt-1">
                             {/* On by default (materialise_as defaults to 'task');
@@ -840,6 +882,7 @@ export function SystemDetail() {
                 <SystemCanvas
                   systemId={system.id}
                   systemName={system.name}
+                  isProcess={isProcess}
                   onPropose={() => setProposeOpen(true)}
                   onCreateStep={createStep}
                   focusStepId={focusStep}
@@ -848,10 +891,23 @@ export function SystemDetail() {
             </Card>
           </div>
         )}
+
+        {/* ── Revisions ─────────────────────────────────────────────────────── */}
+        <div className={cn("mx-auto max-w-4xl space-y-6", pane !== "revisions" && "hidden")}>
+          <RevisionsCard
+            systemId={system.id}
+            revisions={revisions}
+            isLoading={revisionsLoading}
+            canApprove={canApprove}
+            deptById={deptById}
+            teamById={teamById}
+            onPropose={() => setProposeOpen(true)}
+          />
+        </div>
       </div>
 
-      {/* Propose lives outside both panes: the canvas window bar's button
-          opens it while the Revisions card (Setup) is unmounted. */}
+      {/* Propose lives outside all three panes: the canvas window bar's
+          button opens it while the Revisions pane is unmounted/hidden. */}
       <ProposeDialog
         systemId={system.id}
         open={proposeOpen}
@@ -995,7 +1051,7 @@ function ProposeDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Propose a change to this system</DialogTitle>
+          <DialogTitle>Propose a change to this procedure</DialogTitle>
           <DialogDescription>
             Snapshots the current steps as a new revision. An admin or owner must approve it
             before it publishes — nothing reaches ClickUp until then.
@@ -1008,7 +1064,7 @@ function ProposeDialog({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="Why is this system changing?"
+            placeholder="Why is this procedure changing?"
           />
         </div>
         <DialogFooter>

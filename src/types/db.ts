@@ -2427,6 +2427,45 @@ export type Database = {
           },
         ]
       }
+      process_step_procedures: {
+        Row: {
+          created_at: string
+          id: string
+          ordinal: number
+          step_id: string
+          system_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ordinal?: number
+          step_id: string
+          system_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ordinal?: number
+          step_id?: string
+          system_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_procedures_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_procedures_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_steps: {
         Row: {
           ai_generated: boolean
@@ -2437,6 +2476,7 @@ export type Database = {
           estimated_hours: number | null
           goal_statement: string | null
           id: string
+          keep_decision: string
           materialise_as: Database["public"]["Enums"]["materialise_mode"]
           ordinal: number
           owner_id: string | null
@@ -2444,9 +2484,15 @@ export type Database = {
           pos_x: number | null
           pos_y: number | null
           service_id: string | null
+          signal_q1: boolean | null
+          signal_q2: boolean | null
+          signal_q3: boolean | null
+          signal_q4: boolean | null
+          signal_q5: boolean | null
           system_id: string | null
           title: string
           updated_at: string
+          verb: string | null
         }
         Insert: {
           ai_generated?: boolean
@@ -2457,6 +2503,7 @@ export type Database = {
           estimated_hours?: number | null
           goal_statement?: string | null
           id?: string
+          keep_decision?: string
           materialise_as?: Database["public"]["Enums"]["materialise_mode"]
           ordinal: number
           owner_id?: string | null
@@ -2464,9 +2511,15 @@ export type Database = {
           pos_x?: number | null
           pos_y?: number | null
           service_id?: string | null
+          signal_q1?: boolean | null
+          signal_q2?: boolean | null
+          signal_q3?: boolean | null
+          signal_q4?: boolean | null
+          signal_q5?: boolean | null
           system_id?: string | null
           title: string
           updated_at?: string
+          verb?: string | null
         }
         Update: {
           ai_generated?: boolean
@@ -2477,6 +2530,7 @@ export type Database = {
           estimated_hours?: number | null
           goal_statement?: string | null
           id?: string
+          keep_decision?: string
           materialise_as?: Database["public"]["Enums"]["materialise_mode"]
           ordinal?: number
           owner_id?: string | null
@@ -2484,9 +2538,15 @@ export type Database = {
           pos_x?: number | null
           pos_y?: number | null
           service_id?: string | null
+          signal_q1?: boolean | null
+          signal_q2?: boolean | null
+          signal_q3?: boolean | null
+          signal_q4?: boolean | null
+          signal_q5?: boolean | null
           system_id?: string | null
           title?: string
           updated_at?: string
+          verb?: string | null
         }
         Relationships: [
           {
@@ -5060,7 +5120,13 @@ export type Database = {
       recurrence_interval: "weekly" | "biweekly" | "monthly" | "quarterly"
       recurrence_mode: "none" | "project" | "per_service"
       sender_rule_mode: "allow" | "block"
-      system_kind: "service" | "recurring" | "internal" | "reference"
+      system_kind:
+        | "service"
+        | "recurring"
+        | "internal"
+        | "reference"
+        | "policy"
+        | "process"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5207,7 +5273,14 @@ export const Constants = {
       recurrence_interval: ["weekly", "biweekly", "monthly", "quarterly"],
       recurrence_mode: ["none", "project", "per_service"],
       sender_rule_mode: ["allow", "block"],
-      system_kind: ["service", "recurring", "internal", "reference"],
+      system_kind: [
+        "service",
+        "recurring",
+        "internal",
+        "reference",
+        "policy",
+        "process",
+      ],
     },
   },
 } as const

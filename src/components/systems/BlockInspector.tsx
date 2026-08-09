@@ -6,8 +6,9 @@
 // on blur / on select — no form wrapper exists in this codebase, so each
 // field is wired by hand.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -15,8 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
 import { memberColors } from "@/hooks/useTeam";
-import { MATERIALISE_LABEL } from "@/hooks/useSystemDefinitions";
+import { MATERIALISE_LABEL, systemLayer, useSystemDefinitions } from "@/hooks/useSystemDefinitions";
+import {
+  useAttachProcedure,
+  useDetachProcedure,
+  useStepProcedures,
+  type AttachedProcedure,
+} from "@/hooks/useStepProcedures";
 import { initials } from "./SystemBlockNode";
+import { VerbSelect, VerdictPill, verdict } from "./StepSignal";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
@@ -52,6 +60,8 @@ function toForm(step: Step): InspectorForm {
 
 export function BlockInspector({
   step,
+  systemId,
+  isProcess = false,
   depts,
   team,
   incomingLabel,
@@ -59,6 +69,9 @@ export function BlockInspector({
   onDelete,
 }: {
   step: Step | null;
+  systemId: string;
+  /** kind='process': the block describes a stage and carries 0..N procedures. */
+  isProcess?: boolean;
   depts: DeptRow[];
   team: TeamRow[];
   incomingLabel: string | null;
@@ -69,6 +82,9 @@ export function BlockInspector({
   const update = useUpdateStep();
   const colorById = useMemo(() => memberColors(team), [team]);
   const [form, setForm] = useState<InspectorForm | null>(step ? toForm(step) : null);
+  // Only a process canvas has attachments — passing undefined disables the
+  // query outright so a procedure canvas costs nothing extra.
+  const { data: attachedByStep } = useStepProcedures(isProcess ? systemId : undefined);
 
   // Re-seed on the selected step's identity, not on every background refetch
   // (a mutation from this very panel invalidates ["process_steps"]) —
@@ -129,6 +145,22 @@ export function BlockInspector({
         />
       </Field>
 
+      {/* Verb only, plus the verdict read-only — the question grid that sets
+          that verdict lives in the Steps pane; this rail is 186px wide. */}
+      <Field label="Verb">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <VerbSelect
+            value={step.verb}
+            label="Verb for this step"
+            className="h-8 min-w-0 flex-1"
+            onChange={(verb) => commit({ verb })}
+          />
+        </div>
+        <div className="pt-1.5">
+          <VerdictPill value={verdict(step).effective} />
+        </div>
+      </Field>
+
       <Field label="Goal / purpose">
         <Textarea
           value={form.goal}
@@ -139,6 +171,15 @@ export function BlockInspector({
           placeholder="What is this step for?"
         />
       </Field>
+
+      {/* Sits directly under the goal on purpose: the pairing you read is
+          "this is the outcome — and this is what delivers it", so an outcome
+          with nothing under it reads as a gap rather than as a blank field. */}
+      {isProcess && (
+        <Field label="Procedures">
+          <StepProcedures stepId={step.id} attached={attachedByStep?.get(step.id) ?? []} />
+        </Field>
+      )}
 
       <Field label="Department">
         <div className="flex min-w-0 items-center gap-1.5">
@@ -205,7 +246,12 @@ export function BlockInspector({
         </div>
       </Field>
 
-      {isSubStep ? (
+      {isProcess ? (
+        // A stage carries no hours or ClickUp artefact of its own — both belong
+        // to the procedures underneath it. Showing the controls would invite
+        // double-counting against the very rollup they'd feed.
+        null
+      ) : isSubStep ? (
         // process_steps_substep_no_hours forbids hours on a sub-step, and the
         // P3 materialise matrix ignores materialise_as for sub-steps (always
         // a checklist item on the parent) — hiding both rather than shipping
@@ -290,6 +336,91 @@ export function BlockInspector({
           Delete {isSubStep ? "sub-step" : "step"}
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * The 0..N procedures behind one process block.
+ *
+ * Empty is a real state with its own message, not a blank list: a stage whose
+ * outcome nothing delivers is the gap this canvas exists to surface, and the
+ * procedure wizard is the thing that decides whether it's worth filling.
+ */
+function StepProcedures({ stepId, attached }: { stepId: string; attached: AttachedProcedure[] }) {
+  const { data: systems = [] } = useSystemDefinitions();
+  const attach = useAttachProcedure();
+  const detach = useDetachProcedure();
+  // The picker is an action, not a field — nothing should stay selected in it.
+  // Bumping this key remounts the Select so it falls back to its placeholder.
+  const [resetKey, setResetKey] = useState(0);
+
+  const attachedIds = new Set(attached.map((a) => a.system_id));
+  const options = systems.filter(
+    (s) => systemLayer(s.kind) === "procedure" && !attachedIds.has(s.id)
+  );
+
+  return (
+    <div className="space-y-1.5">
+      {attached.map((a) => (
+        <div key={a.id} className="flex items-start gap-1">
+          <Link
+            to={`/systems/${a.system_id}`}
+            className="min-w-0 flex-1 text-label-medium text-m-primary underline-offset-2 hover:underline"
+          >
+            {a.name}
+          </Link>
+          <button
+            type="button"
+            aria-label={`Detach ${a.name}`}
+            onClick={() =>
+              detach.mutate(a.id, {
+                onError: (e) => toast.error(e instanceof Error ? e.message : "Could not detach"),
+              })
+            }
+            className="mt-0.5 flex-none rounded-sm p-0.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+
+      {attached.length === 0 && (
+        <p className="text-label-small italic text-m-on-surface-variant">
+          No procedure yet — this stage isn't systemised.
+        </p>
+      )}
+
+      <Select
+        key={resetKey}
+        onValueChange={(systemId) => {
+          setResetKey((k) => k + 1);
+          attach.mutate(
+            { stepId, systemId },
+            { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not attach") }
+          );
+        }}
+      >
+        <SelectTrigger className="h-8 text-label-medium text-m-on-surface-variant">
+          <span className="flex items-center gap-1">
+            <Plus className="h-3 w-3" />
+            Attach procedure
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          {options.length === 0 ? (
+            <div className="px-2 py-1.5 text-label-small text-m-on-surface-variant">
+              No unattached procedures.
+            </div>
+          ) : (
+            options.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

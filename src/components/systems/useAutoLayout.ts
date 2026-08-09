@@ -16,7 +16,11 @@ const DECISION_SIZE = { width: 130, height: 56 };
 // every earlier same-type node's position with its own. Verified by a
 // standalone dagre repro (two nodes sharing one object end up `===` after
 // layout, both holding the last-written x/y).
-function sizeOf(node: Node): { width: number; height: number } {
+// Exported so callers (e.g. the canvas's post-tidy fitBounds) can compute an
+// exact bounding box from a node array without waiting on @xyflow's own
+// internal per-node size measurement, which can still be catching up to a
+// batch position update by the time a fit is requested.
+export function sizeOf(node: Node): { width: number; height: number } {
   return node.type === "decision" ? { ...DECISION_SIZE } : { ...BLOCK_SIZE };
 }
 

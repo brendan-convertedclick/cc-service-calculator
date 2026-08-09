@@ -1,10 +1,12 @@
 // src/pages/SystemsList.tsx
 //
-// /systems — named, owned, goal-bearing ways of doing something. Grouped by
-// band, left filter rail matches the SowList/ServicesList standard.
+// /systems — named, owned, goal-bearing ways of doing something, in three
+// layers: policies (the rule), processes (the flow), procedures (the steps).
+// Layer is the top-level grouping; band demotes to a rail filter. Rail matches
+// the SowList/ServicesList standard.
 
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlertTriangle, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,27 +19,33 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
+  ATTACHMENT_KINDS,
   PLACEHOLDER_GOAL,
   SYSTEM_BANDS,
   SYSTEM_BAND_LABEL,
   SYSTEM_KIND_LABEL,
+  SYSTEM_LAYERS,
+  SYSTEM_LAYER_BLURB,
+  SYSTEM_LAYER_LABEL,
+  SYSTEM_LAYER_NOUN,
+  systemLayer,
   useCreateSystem,
   useRecurringServiceOptions,
   useSystemDefinitions,
   type SystemBand,
   type SystemDefinitionWithJoins,
+  type SystemKind,
+  type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
-import type { Database } from "@/types/db";
-
-type SystemKind = Database["public"]["Enums"]["system_kind"];
 
 const UNBANDED = "unbanded";
 
@@ -51,12 +59,12 @@ function initials(name: string): string {
 
 /** Turn a create failure into something an operator can act on. 23505 is the
  *  one they'll actually hit — a service already backing a live system. */
-function createSystemError(e: unknown): string {
+function createSystemError(e: unknown, layer: SystemLayer): string {
   const err = e as { code?: string; message?: string } | null;
   if (err?.code === "23505") {
     return "That service already has a system — open the existing one instead of creating a second.";
   }
-  return err?.message || "Could not create system";
+  return err?.message || `Could not create ${SYSTEM_LAYER_NOUN[layer]}`;
 }
 
 export function SystemsList() {
@@ -66,7 +74,12 @@ export function SystemsList() {
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
   const [unmappedOnly, setUnmappedOnly] = useState(false);
-  const [creating, setCreating] = useState(false);
+  // ?new=<name> is how the wizard hands over: open the create dialog with the
+  // candidate's name already in it, then drop the param so a refresh doesn't
+  // reopen it. The wizard only ever proposes procedures.
+  const [params, setParams] = useSearchParams();
+  const wizardName = params.get("new");
+  const [creating, setCreating] = useState<SystemLayer | null>(wizardName != null ? "procedure" : null);
 
   const q = search.trim().toLowerCase();
 
@@ -82,21 +95,18 @@ export function SystemsList() {
     [systems, band, kind, unmappedOnly, q],
   );
 
+  // All three sections always render, empty or not — the taxonomy is the point
+  // of this page, and a missing "Policies" heading reads as "we don't do those"
+  // rather than "none written yet".
   const grouped = useMemo(() => {
-    const byBand = new Map<string, SystemDefinitionWithJoins[]>();
+    const byLayer = new Map<SystemLayer, SystemDefinitionWithJoins[]>();
     for (const s of filtered) {
-      const key = isBand(s.band) ? s.band : UNBANDED;
-      const arr = byBand.get(key) ?? [];
+      const key = systemLayer(s.kind);
+      const arr = byLayer.get(key) ?? [];
       arr.push(s);
-      byBand.set(key, arr);
+      byLayer.set(key, arr);
     }
-    return [...SYSTEM_BANDS, UNBANDED]
-      .map((k) => ({
-        key: k,
-        label: k === UNBANDED ? "Unbanded" : SYSTEM_BAND_LABEL[k as SystemBand],
-        items: byBand.get(k) ?? [],
-      }))
-      .filter((g) => g.items.length > 0);
+    return SYSTEM_LAYERS.map((l) => ({ layer: l, items: byLayer.get(l) ?? [] }));
   }, [filtered]);
 
   const bandCounts = useMemo(() => {
@@ -113,6 +123,8 @@ export function SystemsList() {
     for (const s of systems) counts[s.kind] = (counts[s.kind] ?? 0) + 1;
     return counts;
   }, [systems]);
+
+  const anyFilterActive = !!q || band !== null || kind !== null || unmappedOnly;
 
   const unmappedCount = useMemo(
     () => systems.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
@@ -153,10 +165,10 @@ export function SystemsList() {
         </div>
 
         <div>
-          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Kind</p>
+          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Attached to</p>
           <ul className="space-y-0.5">
-            <FilterRow label="All kinds" active={kind === null} onClick={() => setKind(null)} count={systems.length} />
-            {(Object.keys(SYSTEM_KIND_LABEL) as SystemKind[]).map((k) =>
+            <FilterRow label="Anything" active={kind === null} onClick={() => setKind(null)} count={systems.length} />
+            {ATTACHMENT_KINDS.map((k) =>
               kindCounts[k] ? (
                 <FilterRow key={k} label={SYSTEM_KIND_LABEL[k]} active={kind === k} onClick={() => setKind(k)} count={kindCounts[k]} />
               ) : null,
@@ -176,41 +188,49 @@ export function SystemsList() {
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
-        <div className="mb-6 flex items-end justify-between gap-3">
-          <div>
-            <h1 className="text-headline-medium">Systems</h1>
-            <p className="mt-1 text-body-medium text-m-on-surface-variant">
-              Named, owned, goal-bearing ways of doing something — the process behind the price.
-            </p>
-          </div>
-          <Button onClick={() => setCreating(true)} className="gap-1">
-            <Plus className="h-4 w-4" /> New system
-          </Button>
+        <div className="mb-6">
+          <h1 className="text-headline-medium">Systems</h1>
+          <p className="mt-1 text-body-medium text-m-on-surface-variant">
+            How the agency runs, in three layers — the rules, the flows between people, and the
+            steps one person follows.
+          </p>
         </div>
 
         {isLoading ? (
           <p className="text-body-medium text-m-on-surface-variant">Loading…</p>
-        ) : grouped.length === 0 ? (
-          <Card className="border-m-outline-variant">
-            <CardContent className="p-10 text-center text-body-medium text-m-on-surface-variant">
-              No systems match your filters.
-            </CardContent>
-          </Card>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {grouped.map((g) => (
-              <section key={g.key}>
-                <div className="mb-2 flex items-center gap-2">
-                  <h2 className="text-title-medium text-m-on-surface">{g.label}</h2>
-                  <span className="text-label-medium text-m-on-surface-variant">{g.items.length}</span>
+              <section key={g.layer}>
+                <div className="mb-2 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-title-medium text-m-on-surface">{SYSTEM_LAYER_LABEL[g.layer]}</h2>
+                      <span className="text-label-medium text-m-on-surface-variant">{g.items.length}</span>
+                    </div>
+                    <p className="mt-0.5 text-label-medium text-m-on-surface-variant">
+                      {SYSTEM_LAYER_BLURB[g.layer]}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setCreating(g.layer)} className="flex-none gap-1">
+                    <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[g.layer]}
+                  </Button>
                 </div>
                 <Card className="overflow-hidden border-m-outline-variant">
                   <CardContent className="p-0">
-                    <ul className="divide-y divide-m-outline-variant">
-                      {g.items.map((s) => (
-                        <SystemRow key={s.id} system={s} onClick={() => navigate(`/systems/${s.id}`)} />
-                      ))}
-                    </ul>
+                    {g.items.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-body-small text-m-on-surface-variant">
+                        {anyFilterActive
+                          ? `No ${SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} match your filters.`
+                          : `No ${SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} written up yet.`}
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-m-outline-variant">
+                        {g.items.map((s) => (
+                          <SystemRow key={s.id} system={s} onClick={() => navigate(`/systems/${s.id}`)} />
+                        ))}
+                      </ul>
+                    )}
                   </CardContent>
                 </Card>
               </section>
@@ -220,8 +240,12 @@ export function SystemsList() {
       </div>
 
       <NewSystemDialog
-        open={creating}
-        onClose={() => setCreating(false)}
+        layer={creating}
+        initialName={wizardName ?? ""}
+        onClose={() => {
+          setCreating(null);
+          if (wizardName != null) setParams({}, { replace: true });
+        }}
         onCreated={(id) => navigate(`/systems/${id}`)}
       />
     </div>
@@ -230,6 +254,7 @@ export function SystemsList() {
 
 function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onClick: () => void }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
+  const layer = systemLayer(system.kind);
   const linkLabel =
     system.kind === "service"
       ? system.service_name
@@ -238,6 +263,9 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
         : system.kind === "internal"
           ? system.time_category_label
           : null;
+  // A policy or process hangs off nothing, so the attachment line would always
+  // read "—". Show what it's *for* instead.
+  const subLine = linkLabel ?? (isUnmapped ? null : system.goal_statement);
 
   return (
     <li>
@@ -249,7 +277,9 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-title-small text-m-on-surface">{system.name}</span>
-            <Badge variant="outline" className="flex-none text-label-small">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
+            {layer === "procedure" && (
+              <Badge variant="outline" className="flex-none text-label-small">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
+            )}
             {isUnmapped && (
               <Badge variant="warning" className="flex-none gap-1 text-label-small">
                 <AlertTriangle className="h-3 w-3" /> No goal
@@ -257,12 +287,15 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
             )}
           </div>
           <p className="mt-0.5 truncate text-label-small text-m-on-surface-variant">
-            {linkLabel ?? "—"}
+            {subLine ?? "—"}
           </p>
         </div>
-        <span className="flex-none text-label-small text-m-on-surface-variant">
-          {system.step_count} step{system.step_count === 1 ? "" : "s"}
-        </span>
+        {/* A policy is prose, not steps — a "0 steps" tag on one reads as a gap. */}
+        {layer !== "policy" && (
+          <span className="flex-none text-label-small text-m-on-surface-variant">
+            {system.step_count} step{system.step_count === 1 ? "" : "s"}
+          </span>
+        )}
         {system.owner_name ? (
           <span
             className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-m-secondary-container text-label-small font-semibold text-m-on-secondary-container"
@@ -282,11 +315,14 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
 }
 
 function NewSystemDialog({
-  open,
+  layer,
+  initialName,
   onClose,
   onCreated,
 }: {
-  open: boolean;
+  /** null = closed. The section's button decides which layer you're adding. */
+  layer: SystemLayer | null;
+  initialName: string;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -312,8 +348,12 @@ function NewSystemDialog({
   }, [existing]);
 
 
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<SystemKind>("service");
+  const [name, setName] = useState(initialName);
+  // Only a procedure gets to choose an attachment; a policy or a process IS
+  // its kind.
+  const [attachment, setAttachment] = useState<SystemKind>("service");
+  const kind: SystemKind = layer && layer !== "procedure" ? layer : attachment;
+  const noun = SYSTEM_LAYER_NOUN[layer ?? "procedure"];
   const [goal, setGoal] = useState("");
   const [band, setBand] = useState("");
   const [serviceId, setServiceId] = useState("");
@@ -322,7 +362,7 @@ function NewSystemDialog({
 
   function reset() {
     setName("");
-    setKind("service");
+    setAttachment("service");
     setGoal("");
     setBand("");
     setServiceId("");
@@ -341,19 +381,19 @@ function NewSystemDialog({
       return;
     }
     if (!goal.trim()) {
-      toast.error("Goal is required — a system can't be created without one");
+      toast.error(`Goal is required — a ${noun} can't be created without one`);
       return;
     }
     if (kind === "service" && !serviceId) {
-      toast.error("Pick the service this system belongs to");
+      toast.error("Pick the service this procedure belongs to");
       return;
     }
     if (kind === "recurring" && !recurringId) {
-      toast.error("Pick the recurring service this system belongs to");
+      toast.error("Pick the recurring service this procedure belongs to");
       return;
     }
     if (kind === "internal" && !timeCategoryId) {
-      toast.error("Pick the time category this system attributes to");
+      toast.error("Pick the time category this procedure attributes to");
       return;
     }
 
@@ -369,43 +409,50 @@ function NewSystemDialog({
       },
       {
         onSuccess: (s) => {
-          toast.success("System created");
+          toast.success(`${noun[0].toUpperCase()}${noun.slice(1)} created`);
           reset();
           onCreated(s.id);
         },
         // supabase-js rejects with a PostgrestError, which is a plain object —
         // `instanceof Error` is false for it, so the real reason was being
-        // swallowed and every failure read "Could not create system".
-        onError: (e) => toast.error(createSystemError(e)),
+        // swallowed and every failure read "Could not create procedure".
+        onError: (e) => toast.error(createSystemError(e, layer ?? "procedure")),
       },
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && closeAndReset()}>
+    <Dialog open={layer !== null} onOpenChange={(o) => !o && closeAndReset()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New system</DialogTitle>
+          <DialogTitle>New {noun}</DialogTitle>
+          <DialogDescription>{SYSTEM_LAYER_BLURB[layer ?? "procedure"]}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="sys-name">Name</Label>
-            <Input id="sys-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Outbound sales" />
+            <Input id="sys-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={
+                layer === "policy" ? "e.g. Client refund policy"
+                : layer === "process" ? "e.g. Lead to live campaign"
+                : "e.g. Outbound sales"
+              } />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="sys-kind">Kind</Label>
-            <select
-              id="sys-kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as SystemKind)}
-              className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-3 text-body-medium text-m-on-surface"
-            >
-              {(Object.keys(SYSTEM_KIND_LABEL) as SystemKind[]).map((k) => (
-                <option key={k} value={k}>{SYSTEM_KIND_LABEL[k]}</option>
-              ))}
-            </select>
-          </div>
+          {layer === "procedure" && (
+            <div className="space-y-1">
+              <Label htmlFor="sys-kind">Attached to</Label>
+              <select
+                id="sys-kind"
+                value={attachment}
+                onChange={(e) => setAttachment(e.target.value as SystemKind)}
+                className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-3 text-body-medium text-m-on-surface"
+              >
+                {ATTACHMENT_KINDS.map((k) => (
+                  <option key={k} value={k}>{SYSTEM_KIND_LABEL[k]}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {kind === "service" && (
             <div className="space-y-1">
@@ -419,7 +466,7 @@ function NewSystemDialog({
                 <option value="">— select a service</option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id} disabled={taken.service.has(s.id)}>
-                    {s.name}{taken.service.has(s.id) ? " — already has a system" : ""}
+                    {s.name}{taken.service.has(s.id) ? " — already has a procedure" : ""}
                   </option>
                 ))}
               </select>
@@ -438,7 +485,7 @@ function NewSystemDialog({
                 <option value="">— select a recurring service</option>
                 {recurringOptions.map((r) => (
                   <option key={r.id} value={r.id} disabled={taken.recurring.has(r.id)}>
-                    {r.label}{taken.recurring.has(r.id) ? " — already has a system" : ""}
+                    {r.label}{taken.recurring.has(r.id) ? " — already has a procedure" : ""}
                   </option>
                 ))}
               </select>
@@ -457,7 +504,7 @@ function NewSystemDialog({
                 <option value="">— select a time category</option>
                 {timeCategories.map((c) => (
                   <option key={c.id} value={c.id} disabled={taken.internal.has(c.id)}>
-                    {c.label}{taken.internal.has(c.id) ? " — already has a system" : ""}
+                    {c.label}{taken.internal.has(c.id) ? " — already has a procedure" : ""}
                   </option>
                 ))}
               </select>
@@ -486,7 +533,7 @@ function NewSystemDialog({
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               rows={2}
-              placeholder="What does this system exist to achieve?"
+              placeholder={`What does this ${noun} exist to achieve?`}
             />
             <p className="text-label-small text-m-on-surface-variant">
               Required — a system can't be created without a goal.

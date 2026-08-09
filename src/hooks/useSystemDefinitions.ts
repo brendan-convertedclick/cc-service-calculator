@@ -28,12 +28,51 @@ export const SYSTEM_BAND_LABEL: Record<SystemBand, string> = {
   internal: "Internal",
 };
 
-export const SYSTEM_KIND_LABEL: Record<Database["public"]["Enums"]["system_kind"], string> = {
+// The three things a system can be. Ordered rule → flow → steps: that's the
+// order they're authored in and the order the list renders them.
+//
+// Layer is *derived from* `kind`, not a second column — 0112 extends the enum
+// rather than adding an orthogonal axis, so there's one place a system says
+// what it is. The four attachment kinds (service/recurring/internal/reference)
+// are all procedures; 'policy' and 'process' attach to nothing.
+export const SYSTEM_LAYERS = ["policy", "process", "procedure"] as const;
+export type SystemLayer = (typeof SYSTEM_LAYERS)[number];
+export type SystemKind = Database["public"]["Enums"]["system_kind"];
+
+export function systemLayer(kind: SystemKind): SystemLayer {
+  return kind === "policy" || kind === "process" ? kind : "procedure";
+}
+
+export const SYSTEM_LAYER_LABEL: Record<SystemLayer, string> = {
+  policy: "Policies",
+  process: "Processes",
+  procedure: "Procedures",
+};
+/** Singular form — dialogs, toasts, badges. */
+export const SYSTEM_LAYER_NOUN: Record<SystemLayer, string> = {
+  policy: "policy",
+  process: "process",
+  procedure: "procedure",
+};
+export const SYSTEM_LAYER_BLURB: Record<SystemLayer, string> = {
+  policy: "The rules. What is and isn't allowed, and who decides.",
+  process: "The flow. How work moves between people, end to end.",
+  procedure: "The steps. How one person actually does the thing.",
+};
+
+export const SYSTEM_KIND_LABEL: Record<SystemKind, string> = {
   service: "Service",
   recurring: "Recurring",
   internal: "Internal",
   reference: "Reference",
+  policy: "Policy",
+  process: "Process",
 };
+
+/** The kinds that are an *attachment* — what a procedure hangs off. Policies
+ *  and processes are their own sections, so repeating them in the Kind rail
+ *  (or the create dialog's attachment picker) would just be noise. */
+export const ATTACHMENT_KINDS = ["service", "recurring", "internal", "reference"] as const;
 
 // Shared between SystemDetail's steps list and BlockInspector's editable
 // select — one label map, not two.

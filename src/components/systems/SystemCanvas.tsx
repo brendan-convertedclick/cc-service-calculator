@@ -12,6 +12,7 @@ import {
   BackgroundVariant,
   Controls,
   MarkerType,
+  PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
@@ -23,7 +24,7 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
-import { LayoutGrid } from "lucide-react";
+import { Diamond, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ import { HandoffEdge, type HandoffEdgeType } from "./HandoffEdge";
 import { BlockInspector } from "./BlockInspector";
 import { DeleteStepDialog } from "./DeleteStepDialog";
 import { DeptRollup } from "./DeptRollup";
-import { useAutoLayout } from "./useAutoLayout";
+import { sizeOf, useAutoLayout } from "./useAutoLayout";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
@@ -116,11 +117,15 @@ export type CreateStepFn = (opts: {
   pos_y?: number;
   connectFrom?: string | null;
   sourceHandle?: string | null;
+  /** Seeds the title. A "?" ending is what makes it render as a diamond. */
+  title?: string;
 }) => Promise<unknown>;
 
 type CanvasProps = {
   systemId: string;
   systemName: string;
+  /** kind='process': blocks describe a stage and carry 0..N procedures. */
+  isProcess?: boolean;
   onPropose: () => void;
   onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
@@ -135,7 +140,7 @@ export function SystemCanvas(props: CanvasProps) {
   );
 }
 
-function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focusStepId }: CanvasProps) {
+function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose, onCreateStep, focusStepId }: CanvasProps) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
@@ -416,6 +421,8 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
 
   // Queued drag saves: the timer plus the position it is going to write.
   const dragTimers = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; x: number; y: number }>());
+  // Measured for Tidy up's post-layout re-centre — see handleTidyUp.
+  const flowWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(
     () => () => {
       // FLUSH on unmount, don't just clear. A debounce that drops its timers
@@ -584,7 +591,37 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
       markPending(n.id);
       void savePos(n.id, n.position.x, n.position.y).then(() => clearPending(n.id));
     }
-  }, [layoutNodes, edges, nodes, setNodes, markPending, clearPending]);
+    // Re-lay-out can make the graph wider (or shift it) than whatever the
+    // viewport happened to be showing, so without this the blocks move but
+    // the visible window doesn't follow — it looks like the button did
+    // nothing when it actually repositioned everything just off-screen.
+    // setCenter + a manually computed zoom, NOT fitView/fitBounds: fitView
+    // reads each node's *measured* size from @xyflow's internal store, which
+    // lags a render or two behind a batch position update (fits a stale,
+    // too-small box right after Tidy up); fitBounds resolves its promise
+    // `true` but — verified empirically, this @xyflow version — never
+    // actually applies the viewport transform when called here. setCenter is
+    // the one viewport helper already proven reliable in this file (the
+    // Steps-list-row-click focus above uses it), so compute the same
+    // {x, y, zoom} ourselves from `laidOut` + the wrapper's measured size.
+    if (laidOut.length > 0 && flowWrapperRef.current) {
+      const sizes = laidOut.map(sizeOf);
+      const left = Math.min(...laidOut.map((n) => n.position.x));
+      const top = Math.min(...laidOut.map((n) => n.position.y));
+      const right = Math.max(...laidOut.map((n, i) => n.position.x + sizes[i].width));
+      const bottom = Math.max(...laidOut.map((n, i) => n.position.y + sizes[i].height));
+      const boundsWidth = Math.max(right - left, 1);
+      const boundsHeight = Math.max(bottom - top, 1);
+      const { width: paneWidth, height: paneHeight } = flowWrapperRef.current.getBoundingClientRect();
+      const PADDING_FACTOR = 0.8; // leaves ~20% breathing room around the graph
+      const zoom = Math.min(
+        1, // never zoom PAST 100% just because a small graph would allow it
+        (paneWidth / boundsWidth) * PADDING_FACTOR,
+        (paneHeight / boundsHeight) * PADDING_FACTOR
+      );
+      setCenter((left + right) / 2, (top + bottom) / 2, { zoom, duration: 400 });
+    }
+  }, [layoutNodes, edges, nodes, setNodes, markPending, clearPending, setCenter]);
 
   const isUnsaved = pendingIds.size > 0 || connect.isPending || disconnect.isPending || reconnect.isPending;
 
@@ -596,13 +633,25 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
           states below) so it doesn't flicker in and out. */}
       <div className="flex flex-none items-center gap-2 border-b border-m-outline-variant bg-m-surface-container-high px-3 py-2">
         <span className="min-w-0 truncate text-label-medium font-semibold text-m-on-surface">
-          Systems <span className="text-m-on-surface-variant">›</span> {systemName}
+          Procedures <span className="text-m-on-surface-variant">›</span> {systemName}
           {revisionBarLabel && (
             <span className="ml-1.5 font-normal text-m-on-surface-variant">— {revisionBarLabel}</span>
           )}
         </span>
         <div className="ml-auto flex flex-none items-center gap-2">
           {isUnsaved && <Badge variant="warning">Unsaved</Badge>}
+          {/* The diamond is title-driven — a step ending in "?" renders as one
+              (isDecisionTitle). That's cheap but invisible, so this button is
+              the discoverable way in: it seeds the "?" for you. */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void onCreateStep({ title: "Decision?" })}
+            className="gap-1.5"
+            title="A block that splits the flow — rename it to the question being asked. Its branches can loop back."
+          >
+            <Diamond className="h-3.5 w-3.5" /> Add decision
+          </Button>
           <Button size="sm" variant="outline" onClick={handleTidyUp} className="gap-1.5">
             <LayoutGrid className="h-3.5 w-3.5" /> Tidy up
           </Button>
@@ -623,7 +672,7 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
       ) : (
         <>
           <div className="flex min-h-0 flex-1">
-            <div className="min-w-0 flex-1 bg-m-surface-container-low">
+            <div ref={flowWrapperRef} className="min-w-0 flex-1 bg-m-surface-container-low">
               <ReactFlow
                 nodes={renderNodes}
                 edges={edges}
@@ -639,6 +688,16 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
                 edgeTypes={edgeTypes}
                 fitView
                 proOptions={{ hideAttribution: true }}
+                // Default @xyflow behaviour maps trackpad two-finger scroll to
+                // zoom, not pan — a long step chain then has no way to reach
+                // via trackpad except pinch-zooming out. panOnScroll switches
+                // scroll to free-direction panning (so a horizontal swipe
+                // reaches steps off to the side); zoomOnPinch keeps pinch-to-
+                // zoom working, and the Controls zoom buttons still work too.
+                panOnScroll
+                panOnScrollMode={PanOnScrollMode.Free}
+                zoomOnScroll={false}
+                zoomOnPinch
               >
                 <Background
                   variant={BackgroundVariant.Dots}
@@ -651,6 +710,8 @@ function SystemCanvasInner({ systemId, systemName, onPropose, onCreateStep, focu
             </div>
             <BlockInspector
               step={selectedStep}
+              systemId={systemId}
+              isProcess={isProcess}
               depts={depts}
               team={team}
               incomingLabel={incomingLabel}
