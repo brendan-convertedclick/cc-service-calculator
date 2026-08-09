@@ -53,7 +53,7 @@ async function main() {
     console.error("Upsert failed:", error.message);
     process.exit(1);
   }
-  // eslint-disable-next-line no-console
+   
   console.log(`Upserted ${rows.length} SoWs to master_sows.`);
 }
 

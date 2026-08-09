@@ -308,7 +308,7 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
         void savePos(n.id, n.position.x, n.position.y);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [nodes, topStepById]);
 
   // Clicking a row in SystemDetail's Steps list selects that block and centres

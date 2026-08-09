@@ -58,7 +58,6 @@ export function MessageItem({ message }: { message: BriefMessage }) {
         {body_html ? (
           <div
             className="email-body text-body-medium"
-            // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: sanitize(body_html) }}
           />
         ) : (

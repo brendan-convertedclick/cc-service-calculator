@@ -116,7 +116,7 @@ export function useClientMargin() {
       );
 
       // Fetch actuals for those projects in the last 30 days
-      let costByClient = new Map<string, number>();
+      const costByClient = new Map<string, number>();
       if (projectIds.length > 0) {
         const { data: actuals, error: aErr } = await supabase
           .from("project_actuals_current")

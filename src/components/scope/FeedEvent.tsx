@@ -1,5 +1,4 @@
 import { Mail, FileText, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { ActivityEvent } from "@/hooks/useProjectActivity";
 
 const intentLabels: Record<string, string> = {

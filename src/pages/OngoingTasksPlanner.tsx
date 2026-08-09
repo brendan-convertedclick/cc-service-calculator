@@ -8,7 +8,6 @@ import {
   useProvisionMatrix,
   type MatrixResult,
 } from "@/hooks/useOngoingTasks";
-import { useClientLists } from "@/hooks/useClientLists";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import type { ClientList } from "@/types/ongoing";
