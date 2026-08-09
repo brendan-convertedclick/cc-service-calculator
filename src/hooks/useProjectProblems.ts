@@ -9,8 +9,8 @@ export function useProjectProblems(projectId: string | undefined) {
     enabled: !!projectId,
     queryKey: ["project-problems", projectId],
     queryFn: async (): Promise<ProjectProblemRow[]> => {
+      if (!projectId) throw new Error("projectId required");
       const { data, error } = await supabase
-        // @ts-expect-error project_problems added by migration 0055
         .from("project_problems")
         .select("*")
         .eq("project_id", projectId)
@@ -27,8 +27,8 @@ export function useProjectEvents(projectId: string | undefined, limit = 100) {
     enabled: !!projectId,
     queryKey: ["project-events", projectId, limit],
     queryFn: async (): Promise<ProjectEventRow[]> => {
+      if (!projectId) throw new Error("projectId required");
       const { data, error } = await supabase
-        // @ts-expect-error project_events added by migration 0055
         .from("project_events")
         .select("*")
         .eq("project_id", projectId)
@@ -45,7 +45,6 @@ export function useAllUnresolvedProblems() {
     queryKey: ["project-problems", "all-unresolved"],
     queryFn: async (): Promise<ProjectProblemRow[]> => {
       const { data, error } = await supabase
-        // @ts-expect-error project_problems added by migration 0055
         .from("project_problems")
         .select("*")
         .is("resolved_at", null);
@@ -60,7 +59,6 @@ export function useAcknowledgeProblem() {
   return useMutation({
     mutationFn: async ({ id, teamMemberId }: { id: string; teamMemberId: string | null }) => {
       const { error } = await supabase
-        // @ts-expect-error project_problems added by migration 0055
         .from("project_problems")
         .update({
           acknowledged_by: teamMemberId,

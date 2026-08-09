@@ -51,7 +51,7 @@ export function DeliverySpeedChart({ data }: Props) {
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={(value: number, name: string) =>
+            formatter={(value, name) =>
               name === "totalCompleted" ? [`${value} tasks`, "Completed"] : [`${value}d`, "Avg Cycle"]
             }
           />

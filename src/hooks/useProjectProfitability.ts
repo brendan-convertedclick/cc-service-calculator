@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 export type ProjectProfitabilityRow = {
   projectId: string;
   projectName: string;
-  clientId: string;
+  clientId: string | null;
   clientName: string;
   quotedCents: number;
   costCents: number;
@@ -27,8 +27,12 @@ export function useProjectProfitability() {
       if (!projects || projects.length === 0) return [];
 
       const projectIds = projects.map((p) => p.id);
-      const quoteIds = projects.map((p) => p.quote_id).filter(Boolean);
-      const clientIds = [...new Set(projects.map((p) => p.client_id))];
+      const quoteIds = projects
+        .map((p) => p.quote_id)
+        .filter((id): id is string => id !== null);
+      const clientIds = [...new Set(projects.map((p) => p.client_id))].filter(
+        (id): id is string => id !== null
+      );
 
       const [quotesRes, actualsRes, deptsRes, clientsRes] = await Promise.all([
         supabase
@@ -77,11 +81,15 @@ export function useProjectProfitability() {
 
       const actualsByProject = new Map<
         string,
-        { actual_hours: number; dept_id: string }[]
+        { actual_hours: number; dept_id: string | null }[]
       >();
       for (const row of actualsRes.data ?? []) {
+        if (!row.project_id) continue;
         const list = actualsByProject.get(row.project_id) ?? [];
-        list.push({ actual_hours: row.actual_hours, dept_id: row.dept_id });
+        list.push({
+          actual_hours: row.actual_hours ?? 0,
+          dept_id: row.dept_id,
+        });
         actualsByProject.set(row.project_id, list);
       }
 
@@ -92,7 +100,7 @@ export function useProjectProfitability() {
 
         const actuals = actualsByProject.get(project.id) ?? [];
         const costCents = actuals.reduce((sum, a) => {
-          const dept = deptMap.get(a.dept_id);
+          const dept = a.dept_id ? deptMap.get(a.dept_id) : undefined;
           const rate = dept
             ? (dept.cost_rate_cents ?? dept.hourly_rate_cents ?? 0)
             : 0;
@@ -110,7 +118,9 @@ export function useProjectProfitability() {
           marginPct = (marginCents / totalCents) * 100;
         }
 
-        const client = clientMap.get(project.client_id);
+        const client = project.client_id
+          ? clientMap.get(project.client_id)
+          : undefined;
         const targetPct = client?.margin_target_pct ?? 40;
 
         let rag: "green" | "amber" | "red";

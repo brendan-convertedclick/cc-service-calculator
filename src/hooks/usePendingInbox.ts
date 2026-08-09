@@ -75,10 +75,15 @@ export function useApprovePendingClient() {
       primary_domain: string;
       clickup_folder_id?: string | null;
     }) => {
+      const name = input.name.trim();
       const { error: insErr } = await supabase
         .from("clients")
         .insert({
-          name: input.name.trim(),
+          name,
+          // short_name is NOT NULL + unique (see migration 0048); defaults to
+          // `name`, same convention as that migration's backfill. Editable
+          // afterwards from client settings.
+          short_name: name,
           primary_domain: input.primary_domain.trim().toLowerCase(),
           clickup_folder_id: input.clickup_folder_id ?? null,
         });

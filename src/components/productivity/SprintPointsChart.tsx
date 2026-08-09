@@ -67,7 +67,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
               strokeDasharray="5 3"
               label={{ value: `Goal ${goalPoints}`, position: "right", fill: "#f59e0b", fontSize: 10 }}
             />
-            {displayMembers.map((member, idx) => {
+            {displayMembers.map((member) => {
               const originalIdx = activeMembersWithClickUp.findIndex(
                 (m) => m.id === member.id,
               );
@@ -97,7 +97,7 @@ export function SprintPointsChart({ data, members, goalPoints, selectedUserId }:
                     dataKey={`${uid}_total`}
                     position="top"
                     style={{ fontSize: 10, fill: color, fontWeight: 600, fontFamily: "var(--font-mono)" }}
-                    formatter={(v: number) => (v > 0 ? v : "")}
+                    formatter={(v) => (Number(v) > 0 ? v : "")}
                   />
                 </Bar>,
               ];

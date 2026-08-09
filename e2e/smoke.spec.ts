@@ -8,7 +8,12 @@ test.describe("Static routes — load without crash", () => {
 
   test("/ — Dashboard", async ({ page }) => {
     const errors = await smokeCheck(page, "/");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    // DashboardShell renders a project tree + a content pane; it has no page
+    // heading, so the original "Dashboard" heading assertion could never pass.
+    // NOTE: AppShell and DashboardShell each render a <main>, so `getByRole
+    // ("main")` is ambiguous here — nested main landmarks are an a11y defect
+    // worth fixing separately.
+    await expect(page.getByPlaceholder("Search…")).toBeVisible();
     expect(errors, "unexpected JS errors").toHaveLength(0);
   });
 

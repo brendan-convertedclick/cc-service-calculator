@@ -1,4 +1,4 @@
-import type { ProcessStepInstance } from '@/types/db'
+import type { ProcessStepInstance } from '@/hooks/useWorkflowSteps'
 
 type StepWithJoins = ProcessStepInstance & {
   department: { id: string; name: string; color: string } | null
@@ -50,8 +50,10 @@ function varianceColor(estimated: number | null, actual: number): string {
   return 'text-red-400'
 }
 
+type StepStatus = keyof typeof statusConfig
+
 export function WorkflowStepBlock({ step }: Props) {
-  const cfg = statusConfig[step.status]
+  const cfg = statusConfig[step.status as StepStatus]
   const isPending = step.status === 'pending' || step.status === 'skipped'
   const isDone = step.status === 'done'
 

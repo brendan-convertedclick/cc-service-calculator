@@ -70,7 +70,6 @@ export function ComposeEmail() {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
-        // @ts-expect-error email_templates added by migration 0056
         .from("email_templates")
         .select("*")
         .order("name");
@@ -191,7 +190,6 @@ export function ComposeEmail() {
       status: "draft",
     };
     const { data, error } = await supabase
-      // @ts-expect-error outbound_emails added by migration 0056
       .from("outbound_emails")
       .insert(payload)
       .select("id")

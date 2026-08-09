@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 import { useProject } from "@/hooks/useProjects";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
@@ -42,6 +44,25 @@ export function ProjectScopeView() {
 
   const briefEvents = events.filter((e) => e.type === "brief");
   const linkedBriefCount = briefEvents.length;
+
+  // am_notes lives on brief_intelligence, not briefs — fetch it for the
+  // linked briefs so it actually reaches the prompts/UI below instead of
+  // silently reading undefined off the brief row.
+  const briefIds = briefEvents.flatMap((e) => (e.type === "brief" ? [e.brief.id] : []));
+  const { data: briefNotes } = useQuery({
+    queryKey: ["brief-intelligence-am-notes", briefIds],
+    queryFn: async (): Promise<Record<string, string | null>> => {
+      const { data, error } = await supabase
+        .from("brief_intelligence")
+        .select("brief_id, am_notes")
+        .in("brief_id", briefIds);
+      if (error) throw error;
+      const map: Record<string, string | null> = {};
+      for (const row of data ?? []) map[row.brief_id] = row.am_notes;
+      return map;
+    },
+    enabled: briefIds.length > 0,
+  });
   const quoteEvent = events.find((e) => e.type === "quote");
   const activeQuote = quoteEvent?.type === "quote" ? quoteEvent.quote : null;
   const engagementType = project?.engagement_type ?? projectMeta?.engagement_type ?? "fixed";
@@ -57,7 +78,7 @@ export function ProjectScopeView() {
 
   const latestBrief = briefEvents[briefEvents.length - 1];
   const latestBriefSummary = latestBrief?.type === "brief"
-    ? `Subject: ${latestBrief.brief.raw_subject ?? "(no subject)"}\nFrom: ${latestBrief.brief.sender_email ?? ""}\nNotes: ${latestBrief.brief.am_notes ?? "(none)"}`
+    ? `Subject: ${latestBrief.brief.raw_subject ?? "(no subject)"}\nFrom: ${latestBrief.brief.sender_email ?? ""}\nNotes: ${briefNotes?.[latestBrief.brief.id] ?? "(none)"}`
     : "(none)";
 
   const quoteServices = activeQuote
@@ -280,9 +301,9 @@ Output: An updated scope of work document with a "Change log" section appended.`
                         <div className="mt-0.5 text-label-small text-m-on-surface-variant">
                           {b.sender_email} · {new Date(e.timestamp).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
                         </div>
-                        {b.am_notes && (
+                        {briefNotes?.[b.id] && (
                           <p className="mt-1 text-label-small text-m-on-surface-variant line-clamp-2">
-                            {b.am_notes}
+                            {briefNotes[b.id]}
                           </p>
                         )}
                       </div>

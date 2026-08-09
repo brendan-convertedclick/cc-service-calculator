@@ -15,6 +15,9 @@ export type ClientMarginRow = {
 export type XeroConnectionStatus = {
   connected: boolean;
   lastSyncedAt: string | null;
+  /** Xero org name. Settings renders this; it was never selected, so the
+   *  connected-org line silently showed nothing. */
+  tenantName: string | null;
 };
 
 /** Returns Xero connection status (whether any xero_connection row exists). */
@@ -24,14 +27,15 @@ export function useXeroConnectionStatus() {
     queryFn: async () => {
       const { data } = await supabase
         .from("xero_connection")
-        .select("updated_at")
+        .select("updated_at, tenant_name")
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       return {
         connected: !!data,
-        lastSyncedAt: (data as { updated_at?: string } | null)?.updated_at ?? null,
+        lastSyncedAt: data?.updated_at ?? null,
+        tenantName: data?.tenant_name ?? null,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -138,6 +142,7 @@ export function useClientMargin() {
         );
 
         for (const actual of actuals ?? []) {
+          if (!actual.project_id) continue;
           const clientId = projectClientMap.get(actual.project_id);
           if (!clientId) continue;
           const rate = actual.dept_id ? (deptCostRate.get(actual.dept_id) ?? 0) : 0;

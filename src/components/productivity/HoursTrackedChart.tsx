@@ -56,7 +56,7 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
                 fontFamily: "var(--font-mono)",
               }}
               labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              formatter={(value: number) => [`${value.toFixed(1)} hrs`]}
+              formatter={(value) => [`${Number(value).toFixed(1)} hrs`]}
               itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
             />
             {displayMembers.map((member) => {
@@ -78,7 +78,7 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
                     dataKey={`${uid}_hours`}
                     position="top"
                     style={{ fontSize: 10, fill: color, fontWeight: 600, fontFamily: "var(--font-mono)" }}
-                    formatter={(v: number) => (v > 0 ? `${v}h` : "")}
+                    formatter={(v) => (Number(v) > 0 ? `${v}h` : "")}
                   />
                 </Bar>
               );

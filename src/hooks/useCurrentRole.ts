@@ -37,12 +37,10 @@ export function useCurrentRole(): { role: TeamMemberRole | null; isLoading: bool
     (async () => {
       const { data } = await supabase
         .from("team_members")
-        // @ts-expect-error: `role` column added by migration 0052; db.ts will regenerate
         .select("role")
         .eq("email", email)
         .maybeSingle();
       if (cancelled) return;
-      // @ts-expect-error: see above
       setRole((data?.role as TeamMemberRole) ?? null);
       setIsLoading(false);
     })();

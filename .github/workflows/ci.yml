@@ -29,7 +29,7 @@ jobs:
       # Warnings are the pre-existing backlog; the cap ratchets down as it is
       # paid off. Any *new* warning fails the build.
       - name: Lint
-        run: npx eslint . --max-warnings 57
+        run: npx eslint . --max-warnings 55
 
       - name: Unit tests
         run: npm run test

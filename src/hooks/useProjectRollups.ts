@@ -65,13 +65,11 @@ export function useStandardPointRate() {
     queryFn: async (): Promise<number | null> => {
       const { data, error } = await supabase
         .from("settings")
-        // @ts-expect-error standard_point_rate_cents added by migration 0054
         .select("standard_point_rate_cents")
         .eq("id", 1)
         .single();
       if (error) throw error;
-      // @ts-expect-error see above
-      return (data?.standard_point_rate_cents as number | null) ?? null;
+      return data?.standard_point_rate_cents ?? null;
     },
   });
 }

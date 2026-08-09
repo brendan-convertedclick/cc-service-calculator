@@ -182,12 +182,15 @@ export function useUpsertTimeCategory() {
           .eq("id", patch.id);
         if (error) throw error;
       } else {
-        if (!patch.label_key || !patch.label) {
-          throw new Error("label_key and label required when creating a category");
+        if (!patch.label_key || !patch.label || !patch.group_id) {
+          throw new Error("label_key, label, and group_id required when creating a category");
         }
-        const { error } = await supabase
-          .from("time_categories")
-          .insert({ label_key: patch.label_key, label: patch.label, ...patch });
+        const { error } = await supabase.from("time_categories").insert({
+          ...patch,
+          label_key: patch.label_key,
+          label: patch.label,
+          group_id: patch.group_id,
+        });
         if (error) throw error;
       }
     },

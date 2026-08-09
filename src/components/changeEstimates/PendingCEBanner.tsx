@@ -12,7 +12,6 @@ export function PendingCEBanner({ projectId }: { projectId: string }) {
     queryKey: ["change-estimates", projectId, "pending"],
     queryFn: async (): Promise<ChangeEstimateRow[]> => {
       const { data, error } = await supabase
-        // @ts-expect-error change_estimates added by migration 0057
         .from("change_estimates")
         .select("*")
         .eq("project_id", projectId)

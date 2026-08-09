@@ -8,7 +8,7 @@ import { WorkflowSummaryPanel } from './WorkflowSummaryPanel'
 import { WorkflowStepBlock } from './WorkflowStepBlock'
 import { WorkflowConnector } from './WorkflowConnector'
 import { Button } from '@/components/ui/button'
-import type { ProcessStepInstance } from '@/types/db'
+import type { ProcessStepInstance } from '@/hooks/useWorkflowSteps'
 
 interface Props {
   projectId: string

@@ -26,12 +26,17 @@ function formatZarTick(value: number): string {
 }
 
 export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
+  // Only members linked to ClickUp have a clickup_user_id — everyone else
+  // has no time-tracked data to chart here.
+  const membersWithClickUp = members.filter(
+    (m): m is TeamMember & { clickup_user_id: number } => m.clickup_user_id !== null,
+  );
   const visibleMembers = selectedUserId
-    ? members.filter((m) => m.clickup_user_id === selectedUserId)
-    : members;
+    ? membersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
+    : membersWithClickUp;
 
   const memberColorMap = Object.fromEntries(
-    members.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
+    membersWithClickUp.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
   );
 
   return (
@@ -51,11 +56,11 @@ export function DeliveryValueChart({ data, members, selectedUserId }: Props) {
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={(value: number, name: string) => {
-              const userId = name.replace("_value", "");
+            formatter={(value, name) => {
+              const userId = String(name).replace("_value", "");
               const member = members.find((m) => String(m.clickup_user_id) === userId);
               const label = member?.full_name?.split(" ")[0] ?? userId;
-              return [`R ${value.toLocaleString()}`, label];
+              return [`R ${Number(value).toLocaleString()}`, label];
             }}
           />
           {visibleMembers.length > 1 && (

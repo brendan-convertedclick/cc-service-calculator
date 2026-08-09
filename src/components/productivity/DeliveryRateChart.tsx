@@ -21,12 +21,17 @@ const TOOLTIP_STYLE = {
 };
 
 export function DeliveryRateChart({ data, members, selectedUserId }: Props) {
+  // Only members linked to ClickUp have a clickup_user_id — everyone else
+  // has no time-tracked data to chart here.
+  const membersWithClickUp = members.filter(
+    (m): m is TeamMember & { clickup_user_id: number } => m.clickup_user_id !== null,
+  );
   const visibleMembers = selectedUserId
-    ? members.filter((m) => m.clickup_user_id === selectedUserId)
-    : members;
+    ? membersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
+    : membersWithClickUp;
 
   const memberColorMap = Object.fromEntries(
-    members.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
+    membersWithClickUp.map((m, i) => [m.clickup_user_id, MEMBER_COLORS[i % MEMBER_COLORS.length]]),
   );
 
   return (

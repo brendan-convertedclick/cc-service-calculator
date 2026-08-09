@@ -312,7 +312,7 @@ function ByPersonView({
             <Tooltip
               contentStyle={{ background: "#1e2433", border: "1px solid #2d3748", borderRadius: 8, fontSize: 12, fontFamily: "var(--font-mono)" }}
               labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              formatter={(value: number, name: string) => [`${value.toFixed(2)}h`, name]}
+              formatter={(value, name) => [`${Number(value).toFixed(2)}h`, name]}
               itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
             />
             {orderedTasks.map((t, i) => (
@@ -394,7 +394,7 @@ function ByTaskView({
                 <Tooltip
                   contentStyle={{ background: "#1e2433", border: "1px solid #2d3748", borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-                  formatter={(value: number, name: string) => [`${value.toFixed(2)}h`, name]}
+                  formatter={(value, name) => [`${Number(value).toFixed(2)}h`, name]}
                   itemStyle={{ color: "#94a3b8" }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />

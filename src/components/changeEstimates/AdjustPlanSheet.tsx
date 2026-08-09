@@ -85,7 +85,6 @@ export function AdjustPlanSheet({
     setSaving(true);
     try {
       const { data: ce, error: ceErr } = await supabase
-        // @ts-expect-error change_estimates added by migration 0057
         .from("change_estimates")
         .insert({
           project_id: projectId,
@@ -118,7 +117,6 @@ export function AdjustPlanSheet({
           sort_order: l.sort_order,
         }));
         const { error: liErr } = await supabase
-          // @ts-expect-error change_estimate_line_items added by migration 0057
           .from("change_estimate_line_items")
           .insert(payload);
         if (liErr) {
@@ -128,7 +126,6 @@ export function AdjustPlanSheet({
       }
       // Phase 5 event log
       await supabase
-        // @ts-expect-error project_events added by migration 0055
         .from("project_events")
         .insert({
           project_id: projectId,
