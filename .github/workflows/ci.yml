@@ -54,8 +54,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: E2E
-        run: npm run e2e
+      # Explicitly NOT `npm run e2e` — that would include systems.spec.ts, which
+      # creates rows and auth users in the LIVE database. This is the read-only set.
+      - name: E2E (read-only specs)
+        run: npx playwright test smoke.spec.ts filter-rail.spec.ts sow-composer.spec.ts escalations.spec.ts
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

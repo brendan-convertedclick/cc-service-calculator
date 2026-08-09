@@ -17,7 +17,7 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 
 Shared dev/admin login, treated as `owner` role for ergonomics (see `useCurrentRole`). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
 
-Per-staff logins are real and live (not V1-out-of-scope): `team_members.role` (`staff`/`admin`/`owner`) + `team_members.auth_user_id` → Supabase Auth (migration 0052). `RequireRole` gates routes — `staff` role is bounced to `/staff` only. Staff self-service brief + extension-request forms live at `/staff` (`src/pages/StaffBriefForm.tsx`). There's no invite/provisioning UI yet — a staff Supabase Auth user + matching `team_members` row currently has to be created by hand.
+Per-staff logins are real and live (not V1-out-of-scope): `team_members.role` (`staff`/`admin`/`owner`) + `team_members.auth_user_id` → Supabase Auth (migration 0052). `App.tsx`'s local `RequireAdmin` gates routes — `staff` role is bounced to `/staff` only. (A shared `RequireRole` component once did this; it was deleted in the 2026-08-09 audit because `App.tsx` had reimplemented it inline and nothing imported it. Do not recreate it.) Staff self-service brief + extension-request forms live at `/staff` (`src/pages/StaffBriefForm.tsx`). There's no invite/provisioning UI yet — a staff Supabase Auth user + matching `team_members` row currently has to be created by hand.
 
 ## Telegram channel session guardrail
 
