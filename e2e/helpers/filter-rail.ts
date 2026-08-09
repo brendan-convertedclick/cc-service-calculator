@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { waitForShell } from "./shell";
 
 /**
@@ -7,36 +7,51 @@ import { waitForShell } from "./shell";
  * rendered in that page's rail; `rows` locates one element per result row so a
  * filter's effect can be measured without hard-coding data volumes.
  */
-export const RAIL_PAGES: {
-  name: string;
-  url: string;
-  groups: string[];
-  rows: (page: Page) => Locator;
-}[] = [
-  { name: "Briefs", url: "/briefs", groups: ["Client", "Billing"], rows: (p) => p.getByRole("row") },
-  { name: "Projects", url: "/projects", groups: ["Client", "Status"], rows: (p) => p.getByRole("row") },
-  { name: "Retainers", url: "/retainers", groups: ["Client", "Status"], rows: (p) => p.getByRole("row") },
-  {
-    name: "Services",
-    url: "/services",
-    groups: ["Group", "Rule", "Status"],
-    rows: (p) => p.getByRole("link", { name: /detail/i }),
-  },
+export const RAIL_PAGES: { name: string; url: string; groups: string[] }[] = [
+  { name: "Briefs", url: "/briefs", groups: ["Client", "Billing"] },
+  { name: "Projects", url: "/projects", groups: ["Client", "Status"] },
+  { name: "Retainers", url: "/retainers", groups: ["Client", "Status"] },
+  { name: "Services", url: "/services", groups: ["Group", "Rule", "Status"] },
 ];
 
-/** Navigates to a rail page and waits for the shell plus its search box. */
+/**
+ * One element per result row. A CSS selector rather than `getByRole("row")`:
+ * these tables carry Tailwind display utilities that drop native table
+ * semantics from the accessibility tree, so the ARIA row role matches nothing.
+ */
+const ROWS = "tbody tr";
+
+/**
+ * Navigates to a rail page and waits until its data has actually landed.
+ *
+ * `networkidle` alone is not enough: the filter groups are rendered only once
+ * their options are non-empty, so a spec that starts asserting too early sees
+ * a rail with no groups and zero rows. Waiting for the first declared group
+ * heading is the reliable signal that the page's query resolved.
+ */
 export async function railPage(page: Page, url: string): Promise<void> {
+  const spec = RAIL_PAGES.find((s) => s.url === url);
+  if (!spec) throw new Error(`railPage: ${url} is not a known rail page`);
+
   await page.goto(url);
   await waitForShell(page);
   await expect(page.getByPlaceholder("Search…").first()).toBeVisible();
-  // Rows stream in from Supabase; give the first paint a moment to settle so
-  // the "before" count is the loaded count, not zero.
-  await page.waitForLoadState("networkidle");
+  await expect(
+    page.getByRole("heading", { name: spec.groups[0], exact: true }),
+    `${spec.name}: filter group "${spec.groups[0]}" never appeared — data did not load`,
+  ).toBeVisible({ timeout: 20_000 });
+
+  // The rail renders before the result table paints. Wait for the first row so
+  // the "before" count is the loaded count. Tolerates a genuinely empty page —
+  // the specs skip themselves when there is nothing to filter.
+  await page
+    .locator(ROWS)
+    .first()
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => {});
 }
 
 /** Current number of result rows on whichever rail page is loaded. */
 export async function rowCount(page: Page): Promise<number> {
-  const spec = RAIL_PAGES.find((s) => page.url().includes(s.url));
-  if (!spec) throw new Error(`rowCount: ${page.url()} is not a known rail page`);
-  return spec.rows(page).count();
+  return page.locator(ROWS).count();
 }
