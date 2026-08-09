@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { StatusStrip } from "./StatusStrip";
+import { textAcross } from "@/test/text";
 import type { Database } from "@/types/db";
 
 type ActualRow = Database["public"]["Views"]["project_actuals_current"]["Row"];
@@ -60,7 +61,7 @@ const quote: Quote = {
 describe("StatusStrip", () => {
   it("renders total hours used and planned", () => {
     render(<StatusStrip actuals={actuals} briefCount={3} />);
-    expect(screen.getByText(/40h used \/ 100h planned/)).toBeInTheDocument();
+    expect(screen.getByText(textAcross(/40h used \/ 100h planned/))).toBeInTheDocument();
   });
 
   it("renders brief count", () => {

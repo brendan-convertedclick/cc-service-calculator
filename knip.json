@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main.tsx",
+    "src/**/*.test.{ts,tsx}",
+    "e2e/**/*.spec.ts",
+    "scripts/*.ts",
+    "supabase/functions/*/index.ts",
+    "mcp-server/src/index.ts",
+    "mcp-server/src/**/*.test.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "e2e/**/*.ts",
+    "scripts/*.ts",
+    "supabase/functions/**/*.ts",
+    "mcp-server/src/**/*.ts"
+  ],
+  "ignore": [
+    "src/types/db.ts",
+    "src/styles/tokens.ts",
+    "dist/**",
+    "**/node_modules/**"
+  ],
+  "ignoreDependencies": ["tailwindcss-animate", "autoprefixer", "postcss"]
+}
