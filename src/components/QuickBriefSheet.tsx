@@ -199,7 +199,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
         <div className="space-y-5 py-4">
           {!hasClient && (
-            <p className="rounded-md border border-m-outline-variant bg-m-surface-container px-3 py-2 text-body-small text-m-on-surface-variant">
+            <p className="rounded-lg border border-m-outline-variant bg-m-surface-container px-3 py-2 text-body-small text-m-on-surface-variant">
               Assign a client first.
             </p>
           )}

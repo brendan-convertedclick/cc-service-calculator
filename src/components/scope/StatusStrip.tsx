@@ -84,7 +84,7 @@ export function StatusStrip({ actuals, quote, briefCount, prompts = [] }: Props)
           </p>
           <span
             className={cn(
-              "mt-1 inline-block rounded px-2 py-0.5 text-label-small",
+              "mt-1 inline-block rounded-md px-2 py-0.5 text-label-small",
               quoteStatusColor[quote.status as string] ??
                 "bg-m-surface-container text-m-on-surface-variant"
             )}

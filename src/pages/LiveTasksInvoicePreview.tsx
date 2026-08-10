@@ -88,7 +88,7 @@ export function LiveTasksInvoicePreview() {
       {preview.error && <p className="text-body-small text-destructive">{(preview.error as Error).message}</p>}
 
       {preview.data && (
-        <div className="rounded-lg border border-m-outline-variant bg-m-surface-container">
+        <div className="rounded-xl border border-m-outline-variant bg-m-surface-container">
           <table className="w-full text-body-small">
             <thead className="text-label-small text-m-on-surface-variant">
               <tr>

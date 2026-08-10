@@ -108,7 +108,7 @@ function TitleField({
           e.currentTarget.blur();
         }
       }}
-      className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-title-large text-m-on-surface hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none"
+      className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-title-large text-m-on-surface hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none"
     />
   );
 }
@@ -318,7 +318,7 @@ export function Scope() {
                 }
               >
                 <SelectTrigger
-                  className="h-7 w-56 text-label-medium"
+                  className="h-10 w-56 text-label-medium"
                   aria-label="Assign a client"
                 >
                   <SelectValue placeholder="Assign a client…" />
@@ -551,7 +551,7 @@ export function Scope() {
 
             {/* Rejected state */}
             {isRejected && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-body-small text-destructive">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-body-small text-destructive">
                 Rejected. Intake will regenerate the intelligence on the next run.
                 {intelligence?.am_notes && (
                   <p className="mt-1 font-medium">Notes: {intelligence.am_notes}</p>

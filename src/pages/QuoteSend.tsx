@@ -138,7 +138,7 @@ export function QuoteSend() {
       </div>
 
       {!hasAttachments && (
-        <div className="rounded-md border border-m-outline-variant bg-m-surface-container-low/40 p-3 text-body-small text-m-on-surface-variant">
+        <div className="rounded-xl border border-m-outline-variant bg-m-surface-container-low/40 p-3 text-body-small text-m-on-surface-variant">
           No PDFs attached to this quote — you can still send the email, or{" "}
           <button
             type="button"

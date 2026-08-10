@@ -58,7 +58,7 @@ function NumField({
           e.currentTarget.blur();
         }
       }}
-      className="w-14 rounded border border-transparent bg-transparent px-1 py-1 text-right text-body-small font-mono tabular-nums hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none"
+      className="w-14 rounded-md border border-transparent bg-transparent px-1 py-1 text-right text-body-small font-mono tabular-nums hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none"
     />
   );
 }

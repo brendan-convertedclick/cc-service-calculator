@@ -41,7 +41,7 @@ export function WorkflowSummaryPanel({ steps, handoffs }: Props) {
   return (
     <div className="flex flex-col gap-3 w-60 flex-shrink-0">
       {/* Progress */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3.5">
+      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3.5">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
           Progress
         </p>
@@ -61,7 +61,7 @@ export function WorkflowSummaryPanel({ steps, handoffs }: Props) {
       </div>
 
       {/* Execution time */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3.5">
+      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3.5">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
           Execution time
         </p>
@@ -87,7 +87,7 @@ export function WorkflowSummaryPanel({ steps, handoffs }: Props) {
 
       {/* Handoff time */}
       {handoffs.length > 0 && (
-        <div className="rounded-lg border border-indigo-500/25 bg-indigo-500/[0.08] p-3.5">
+        <div className="rounded-xl border border-indigo-500/25 bg-indigo-500/[0.08] p-3.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-1.5">
             Handoff time
           </p>
@@ -116,7 +116,7 @@ export function WorkflowSummaryPanel({ steps, handoffs }: Props) {
 
       {/* Calendar time */}
       {totalCalendarH > 0 && (
-        <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3.5">
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
             Calendar time
           </p>

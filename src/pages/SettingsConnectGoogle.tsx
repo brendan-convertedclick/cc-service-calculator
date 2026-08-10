@@ -85,7 +85,7 @@ export function SettingsConnectGoogle() {
           ) : status?.connected ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
+                <span className="inline-flex items-center rounded-md bg-green-100 px-2.5 py-0.5 text-label-small font-medium text-green-800">
                   Connected
                 </span>
                 {status.google_email && (

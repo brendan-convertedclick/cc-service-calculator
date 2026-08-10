@@ -27,7 +27,7 @@ function NavRow({
       end={item.end}
       onClick={onClose}
       className={cn(
-        "flex items-center gap-3 rounded-full py-3 text-label-large transition-all",
+        "flex items-center gap-3 rounded-md py-3 text-label-large transition-all",
         indent ? "pl-7 pr-4" : "px-4",
         isActive
           ? "bg-gradient-brand text-white shadow-sm"
@@ -61,7 +61,7 @@ function SectionGroup({ section, onClose }: { section: NavSection; onClose: () =
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={section.label}
-        className="flex items-center w-full gap-3 rounded-full px-4 py-3 text-label-large transition-all text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+        className="flex items-center w-full gap-3 rounded-md px-4 py-3 text-label-large transition-all text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1 text-left">{section.label}</span>

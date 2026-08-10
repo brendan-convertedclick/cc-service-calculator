@@ -80,7 +80,7 @@ export function EscalationDetail({
     <article className="flex min-h-0 flex-1 flex-col gap-5 p-6 pb-0">
       {/* The call, before any evidence. Labelled so it's reachable by role —
           assistive tech and the e2e suite both find it the same way. */}
-      <section aria-label="Verdict" className="space-y-2.5 rounded-md bg-m-surface p-5 shadow-elev-1">
+      <section aria-label="Verdict" className="space-y-2.5 rounded-lg bg-m-surface p-5 shadow-elev-1">
         <div className="flex flex-wrap items-center gap-2">
           {verdict.flags.map((f) => (
             <Badge key={f.label} variant={TONE[f.tone]} className={f.tone === "danger" ? "font-mono tabular-nums" : undefined}>
@@ -94,13 +94,13 @@ export function EscalationDetail({
       </section>
 
       {ctxError && (
-        <p className="rounded-md bg-m-surface px-4 py-3 text-body-small text-m-error">
+        <p className="rounded-lg bg-m-surface px-4 py-3 text-body-small text-m-error">
           ClickUp didn't answer, so budget and spend are missing below:{" "}
           {errorMessage(ctxError)}
         </p>
       )}
 
-      <dl className="divide-y divide-m-outline-variant overflow-hidden rounded-md bg-m-surface shadow-elev-1">
+      <dl className="divide-y divide-m-outline-variant overflow-hidden rounded-lg bg-m-surface shadow-elev-1">
         <Block label="Approving">
           {pointsAsked ? (
             <p>

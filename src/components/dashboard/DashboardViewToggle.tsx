@@ -18,7 +18,7 @@ export function DashboardViewToggle({ view, onChange }: Props) {
     <div
       role="tablist"
       aria-label="Dashboard layout"
-      className="inline-flex shrink-0 items-center rounded-full border border-m-outline-variant bg-m-surface-container-low p-0.5"
+      className="inline-flex shrink-0 items-center rounded-md border border-m-outline-variant bg-m-surface-container-low p-0.5"
     >
       {OPTIONS.map(({ key, label, Icon, title }) => {
         const active = key === view;
@@ -31,7 +31,7 @@ export function DashboardViewToggle({ view, onChange }: Props) {
             title={title}
             onClick={() => onChange(key)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label-medium font-medium transition-all",
+              "flex h-7 items-center gap-1.5 rounded-md px-3 text-label-medium font-medium transition-all",
               active
                 ? "bg-m-surface text-m-on-surface shadow-elev-1"
                 : "text-m-on-surface-variant hover:text-m-on-surface",

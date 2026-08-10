@@ -90,7 +90,7 @@ function ChecklistSection({
           Unticked items are left out of the scope
         </span>
       </div>
-      <div className="rounded-md border border-input">
+      <div className="rounded-lg border border-input">
         {items.length === 0 && (
           <p className="px-3 py-2.5 text-body-small text-m-on-surface-variant">
             Nothing here yet — add an item below.
@@ -118,7 +118,7 @@ function ChecklistSection({
               disabled={disabled}
               aria-label={`Text for "${item.text}"`}
               className={cn(
-                "h-8 border-transparent px-1 shadow-none focus-visible:border-input",
+                "h-10 border-transparent px-1 shadow-none focus-visible:border-input",
                 !item.checked && "text-m-on-surface-variant line-through",
               )}
               onChange={(e) =>
@@ -138,7 +138,7 @@ function ChecklistSection({
             disabled={disabled}
             placeholder="Add an item…"
             aria-label={`Add ${label} item`}
-            className="h-8 border-transparent px-1 shadow-none focus-visible:border-input"
+            className="h-10 border-transparent px-1 shadow-none focus-visible:border-input"
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {

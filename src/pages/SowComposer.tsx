@@ -212,10 +212,10 @@ export function SowComposer() {
             dirtyRef.current = true;
             setTitle(e.target.value);
           }}
-          className="h-9 max-w-md text-title-medium"
+          className="h-10 max-w-md text-title-medium"
         />
         {mode === "template" && (
-          <span className="rounded bg-m-secondary-container px-2 py-0.5 text-label-small text-m-on-secondary-container">
+          <span className="rounded-md bg-m-secondary-container px-2 py-0.5 text-label-small text-m-on-secondary-container">
             Template
           </span>
         )}

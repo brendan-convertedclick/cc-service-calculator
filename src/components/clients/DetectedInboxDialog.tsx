@@ -52,7 +52,7 @@ export function DetectedInboxDialog({
                   No new domains. Inbound email from unrecognised domains will appear here.
                 </p>
               ) : (
-                <ul className="divide-y border rounded-md">
+                <ul className="divide-y border rounded-lg">
                   {pendingClients.map((p) => (
                     <li key={p.id} className="p-3">
                       <PendingClientRow
@@ -95,7 +95,7 @@ export function DetectedInboxDialog({
                   No pending senders. Senders on a known client domain without an allow/block rule appear here.
                 </p>
               ) : (
-                <ul className="divide-y border rounded-md">
+                <ul className="divide-y border rounded-lg">
                   {pendingSenders.map((s) => (
                     <li key={s.id} className="flex items-center gap-2 p-3 text-sm">
                       <div className="flex-1 min-w-0">
@@ -212,7 +212,7 @@ function PendingClientRow({
         </Button>
       </div>
       {expanded && (
-        <div className="flex items-end gap-2 rounded-md border bg-muted/30 p-2">
+        <div className="flex items-end gap-2 rounded-lg border bg-muted/30 p-2">
           <div className="flex-1">
             <Label className="text-xs">Client name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />

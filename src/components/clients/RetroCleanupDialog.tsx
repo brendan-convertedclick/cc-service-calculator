@@ -69,7 +69,7 @@ export function RetroCleanupDialog({
               {matches.length} brief{matches.length === 1 ? "" : "s"} from{" "}
               <code>{pattern}</code> exist in the system.
             </p>
-            <ul className="max-h-60 overflow-auto rounded border text-xs">
+            <ul className="max-h-60 overflow-auto rounded-lg border text-xs">
               {matches.map((b) => (
                 <li
                   key={b.id}

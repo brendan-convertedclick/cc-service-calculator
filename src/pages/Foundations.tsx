@@ -157,7 +157,7 @@ export function Foundations() {
             {activeClients.map((c) => (
               <label
                 key={c.id}
-                className="flex items-center gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded"
+                className="flex items-center gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded-md"
                 data-testid={`client-row-${c.id}`}
               >
                 <Checkbox
@@ -203,7 +203,7 @@ export function Foundations() {
             {baselines.map((bl) => (
               <label
                 key={bl.id}
-                className="flex items-center gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded"
+                className="flex items-center gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded-md"
                 data-testid={`baseline-row-${bl.id}`}
               >
                 <Checkbox
@@ -403,13 +403,13 @@ function CatalogEditor({
     <div className="space-y-3">
       <div className="space-y-2">
         {baselines.map((bl) => (
-          <div key={bl.id} className="rounded-md border p-2">
+          <div key={bl.id} className="rounded-lg border p-2">
             <div className="flex items-center gap-2">
               <button
                 onClick={() =>
                   setExpandedListId(expandedListId === bl.id ? null : bl.id)
                 }
-                className="p-1 hover:bg-m-surface-container rounded"
+                className="p-1 hover:bg-m-surface-container rounded-md"
                 aria-label="Expand"
               >
                 {expandedListId === bl.id ? (

@@ -190,7 +190,7 @@ export function NewProjectWizard() {
         </p>
       </div>
 
-      <div className="space-y-5 rounded-md border border-m-outline-variant bg-m-surface p-5">
+      <div className="space-y-5 rounded-xl border border-m-outline-variant bg-m-surface p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="np-client">Client</Label>
@@ -241,7 +241,7 @@ export function NewProjectWizard() {
               return (
                 <div
                   key={row.key}
-                  className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface-container-low p-4"
+                  className="space-y-3 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-4"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-label-medium text-m-on-surface-variant">

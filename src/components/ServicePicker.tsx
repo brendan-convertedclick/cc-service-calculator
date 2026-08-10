@@ -95,7 +95,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
       </div>
 
       {open && !adding && !isLoading && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-md">
           {results.map((s) => (
             <li key={s.id}>
               <Button
@@ -121,7 +121,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
       )}
 
       {open && !adding && !isLoading && results.length === 0 && query.trim() && (
-        <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-2 text-sm shadow-md">
+        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-popover p-2 text-sm shadow-md">
           <p className="px-1 py-1 text-muted-foreground">No matching service.</p>
           <Button
             variant="ghost"
@@ -137,7 +137,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
       )}
 
       {adding && (
-        <div className="absolute z-10 mt-1 w-full space-y-3 rounded-md border bg-popover p-3 shadow-md">
+        <div className="absolute z-10 mt-1 w-full space-y-3 rounded-lg border bg-popover p-3 shadow-md">
           <div className="text-title-small">New service</div>
           <div className="space-y-1.5">
             <Label className="text-label-small text-m-on-surface-variant">Name</Label>
@@ -160,7 +160,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
               <select
                 value={newRuleId}
                 onChange={(e) => setNewRuleId(e.target.value)}
-                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                className="h-10 w-full rounded-md border bg-background px-2 text-sm"
               >
                 <option value="">Select…</option>
                 {rules.map((r) => (

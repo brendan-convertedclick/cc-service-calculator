@@ -42,7 +42,10 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between font-normal", className)}
+          // Borrows Button for its outline styling, but this is a FIELD, not an
+          // action. Explicit rounded-md so it tracks the field radius even if
+          // Button's own radius changes again.
+          className={cn("w-full justify-between rounded-md font-normal", className)}
         >
           <span className={cn("truncate", !selectedLabel && "text-muted-foreground")}>
             {selectedLabel ?? placeholder}

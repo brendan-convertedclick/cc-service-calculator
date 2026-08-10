@@ -107,7 +107,7 @@ export function DeliveryScorecard({ clientId, cycleStartIso, cycleEndIso }: Deli
 
         {/* Two-clock split: our working time vs time waiting on the client. */}
         {data.avgTurnaroundDays != null && (
-          <div className="rounded-md bg-m-surface-container-low p-3">
+          <div className="rounded-lg bg-m-surface-container-low p-3">
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-body-small">
               <span className="text-label-small uppercase tracking-wide text-m-on-surface-variant">
                 Turnaround
@@ -139,7 +139,7 @@ export function DeliveryScorecard({ clientId, cycleStartIso, cycleEndIso }: Deli
 
         {/* Open backlog — point-in-time, not cycle-bound. */}
         {data.openCount > 0 ? (
-          <div className="rounded-md bg-m-surface-container-low p-3">
+          <div className="rounded-lg bg-m-surface-container-low p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="text-label-large text-m-on-surface">
                 {data.openCount} still open

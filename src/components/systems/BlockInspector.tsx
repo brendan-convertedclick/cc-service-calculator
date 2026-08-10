@@ -141,7 +141,7 @@ export function BlockInspector({
             }
             commit({ title: value });
           }}
-          className="h-8 text-label-medium"
+          className="text-label-medium"
         />
       </Field>
 
@@ -152,7 +152,7 @@ export function BlockInspector({
           <VerbSelect
             value={step.verb}
             label="Verb for this step"
-            className="h-8 min-w-0 flex-1"
+            className="min-w-0 flex-1"
             onChange={(verb) => commit({ verb })}
           />
         </div>
@@ -195,7 +195,7 @@ export function BlockInspector({
               commit({ department_id: value });
             }}
           >
-            <SelectTrigger className="h-8 min-w-0 flex-1 text-label-medium">
+            <SelectTrigger className="min-w-0 flex-1 text-label-medium">
               <SelectValue placeholder="— none" />
             </SelectTrigger>
             <SelectContent>
@@ -231,7 +231,7 @@ export function BlockInspector({
               commit({ owner_id: value });
             }}
           >
-            <SelectTrigger className="h-8 min-w-0 flex-1 text-label-medium">
+            <SelectTrigger className="min-w-0 flex-1 text-label-medium">
               <SelectValue placeholder="— unassigned" />
             </SelectTrigger>
             <SelectContent>
@@ -256,7 +256,7 @@ export function BlockInspector({
         // P3 materialise matrix ignores materialise_as for sub-steps (always
         // a checklist item on the parent) — hiding both rather than shipping
         // controls that would either 400 or silently do nothing.
-        <p className="rounded-md bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
+        <p className="rounded-lg bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
           Sub-steps carry no hours of their own and always materialise as a checklist item on
           their parent's task.
         </p>
@@ -283,7 +283,7 @@ export function BlockInspector({
                 }
                 commit({ estimated_hours: parsed });
               }}
-              className="h-8 font-mono text-label-medium font-semibold text-m-primary"
+              className="font-mono text-label-medium font-semibold text-m-primary"
             />
           </Field>
 
@@ -296,7 +296,7 @@ export function BlockInspector({
                 commit({ materialise_as: value });
               }}
             >
-              <SelectTrigger className="h-8 text-label-medium">
+              <SelectTrigger className="text-label-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -330,7 +330,7 @@ export function BlockInspector({
         <button
           type="button"
           onClick={onDelete}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-m-outline-variant py-1.5 text-label-medium text-m-on-surface-variant hover:border-m-error hover:bg-m-error-container hover:text-m-on-error-container"
+          className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-m-outline-variant px-4 text-label-medium text-m-on-surface-variant hover:border-m-error hover:bg-m-error-container hover:text-m-on-error-container"
         >
           <Trash2 className="h-3.5 w-3.5" />
           Delete {isSubStep ? "sub-step" : "step"}
@@ -363,7 +363,7 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
   return (
     <div className="space-y-1.5">
       {attached.map((a) => (
-        <div key={a.id} className="flex items-start gap-1">
+        <div key={a.id} className="flex items-center gap-1">
           <Link
             to={`/systems/${a.system_id}`}
             className="min-w-0 flex-1 text-label-medium text-m-primary underline-offset-2 hover:underline"
@@ -378,7 +378,7 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
                 onError: (e) => toast.error(`Could not detach: ${errorMessage(e)}`),
               })
             }
-            className="mt-0.5 flex-none rounded-sm p-0.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+            className="grid h-8 w-8 flex-none place-items-center rounded-md text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
           >
             <X className="h-3 w-3" />
           </button>
@@ -401,7 +401,7 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
           );
         }}
       >
-        <SelectTrigger className="h-8 text-label-medium text-m-on-surface-variant">
+        <SelectTrigger className="text-label-medium text-m-on-surface-variant">
           <span className="flex items-center gap-1">
             <Plus className="h-3 w-3" />
             Attach procedure

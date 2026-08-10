@@ -34,7 +34,7 @@ function NotConnected() {
       </div>
       <a
         href="/settings?connect=xero"
-        className="shrink-0 rounded-full bg-gradient-brand px-3 py-1.5 text-label-small font-semibold text-white transition-all hover:brightness-110"
+        className="shrink-0 rounded-md bg-gradient-brand px-3 py-1.5 text-label-small font-semibold text-white transition-all hover:brightness-110"
       >
         Connect
       </a>
@@ -124,7 +124,7 @@ export function ClientMarginContent({ variant }: Props) {
               style={{ width: `${row.marginPct !== null ? scale(row.marginPct) : 0}%` }}
             />
             <div
-              className="absolute inset-y-[-2px] w-0.5 rounded bg-m-on-surface/55"
+              className="absolute inset-y-[-2px] w-0.5 rounded-sm bg-m-on-surface/55"
               style={{ left: `${scale(row.targetPct)}%` }}
             />
           </div>

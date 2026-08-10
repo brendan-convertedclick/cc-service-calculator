@@ -46,7 +46,7 @@ export function ProductivityControls({ view, date, periodLabel, onViewChange, on
           <button
             type="button"
             onClick={() => onDateChange(navigate(view, date, -1))}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
             aria-label="Previous period"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -57,7 +57,7 @@ export function ProductivityControls({ view, date, periodLabel, onViewChange, on
           <button
             type="button"
             onClick={() => onDateChange(navigate(view, date, 1))}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
             aria-label="Next period"
           >
             <ChevronRight className="h-4 w-4" />
@@ -67,7 +67,7 @@ export function ProductivityControls({ view, date, periodLabel, onViewChange, on
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container transition-colors disabled:opacity-50"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container transition-colors disabled:opacity-50"
               aria-label="Refresh"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -76,13 +76,13 @@ export function ProductivityControls({ view, date, periodLabel, onViewChange, on
         </div>
 
         {/* View tabs */}
-        <div className="flex items-center rounded-full bg-m-surface-container p-1 gap-0.5">
+        <div className="flex items-center rounded-md bg-m-surface-container p-1 gap-0.5">
           {VIEWS.map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => onViewChange(v)}
-              className={`px-4 py-1.5 rounded-full text-label-large capitalize transition-colors ${
+              className={`px-4 py-1.5 rounded-md text-label-large capitalize transition-colors ${
                 view === v
                   ? "bg-m-primary text-m-on-primary font-semibold shadow-sm"
                   : "text-m-on-surface-variant hover:text-m-on-surface"

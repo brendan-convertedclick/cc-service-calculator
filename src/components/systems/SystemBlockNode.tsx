@@ -75,7 +75,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
           setNestedOpen(true);
         }}
         className={cn(
-          "min-w-[200px] max-w-[240px] rounded-md border-l-[5px] bg-m-surface px-3 py-2.5 shadow-elev-1 transition-all hover:shadow-elev-3",
+          "min-w-[200px] max-w-[240px] rounded-xl border-l-[5px] bg-m-surface px-3 py-2.5 shadow-elev-1 transition-all hover:shadow-elev-3",
           unassigned
             ? "border border-dashed border-m-error bg-m-error-container"
             : "border border-m-outline-variant",
@@ -150,12 +150,12 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
             </span>
           )}
           {step.estimated_hours != null && (
-            <span className="rounded-sm bg-m-surface-container-high px-1.5 py-0.5 font-mono text-label-small font-semibold text-m-primary">
+            <span className="rounded-md bg-m-surface-container-high px-2 py-0.5 font-mono text-label-small font-semibold text-m-primary">
               {step.estimated_hours}h
             </span>
           )}
           {hasSubSteps && (
-            <span className="rounded-sm bg-m-surface-container-high px-1.5 py-0.5 text-label-small font-semibold text-m-on-surface-variant">
+            <span className="rounded-md bg-m-surface-container-high px-2 py-0.5 text-label-small font-semibold text-m-on-surface-variant">
               {subSteps.length} sub
             </span>
           )}
@@ -181,7 +181,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
             {subSteps.map((s) => (
               <li
                 key={s.id}
-                className="flex items-center gap-2 rounded-md bg-m-surface-container px-2.5 py-1.5 text-body-small text-m-on-surface"
+                className="flex items-center gap-2 rounded-lg bg-m-surface-container px-2.5 py-1.5 text-body-small text-m-on-surface"
               >
                 <span className="w-5 flex-none text-center font-mono text-label-small text-m-on-surface-variant">
                   {s.ordinal}
@@ -216,7 +216,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       e.currentTarget.blur();
                     }
                   }}
-                  className="min-w-0 flex-1 truncate rounded-sm bg-transparent px-1 py-0.5 outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                  className="min-w-0 flex-1 truncate rounded-md bg-transparent px-1 py-0.5 outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                 />
                 <button
                   type="button"
@@ -226,7 +226,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                     onSelectSubStep?.(s);
                     setNestedOpen(false);
                   }}
-                  className="flex-none rounded-md px-1.5 py-0.5 text-label-small text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+                  className="inline-flex h-8 flex-none items-center rounded-md px-2.5 text-label-small text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
                 >
                   Inspect
                 </button>
@@ -245,7 +245,7 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       }
                     )
                   }
-                  className="flex-none rounded-md p-1 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                  className="grid h-8 w-8 flex-none place-items-center rounded-md text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

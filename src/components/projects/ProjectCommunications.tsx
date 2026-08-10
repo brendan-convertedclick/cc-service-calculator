@@ -106,7 +106,7 @@ export function ProjectCommunications({ projectId }: Props) {
             <TabsContent
               key={b.id}
               value={b.id}
-              className="m-0 rounded-lg border border-m-outline-variant bg-m-surface"
+              className="m-0 rounded-xl border border-m-outline-variant bg-m-surface"
             >
               <div className="h-[600px]">
                 <BriefThreadView brief={b} />
@@ -139,7 +139,7 @@ function MergedView({
 
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_1fr]">
-      <div className="space-y-1 rounded-lg border border-m-outline-variant bg-m-surface p-2">
+      <div className="space-y-1 rounded-xl border border-m-outline-variant bg-m-surface p-2">
         <div className="px-2 py-1 text-label-small text-m-on-surface-variant">
           Threads in merged view
         </div>
@@ -176,7 +176,7 @@ function MergedView({
         })}
       </div>
 
-      <div className="rounded-lg border border-m-outline-variant bg-m-surface">
+      <div className="rounded-xl border border-m-outline-variant bg-m-surface">
         <div className="border-b border-m-outline-variant px-4 py-2 text-label-small text-m-on-surface-variant">
           Merged timeline · {messages.length} messages across {selected.size} thread
           {selected.size === 1 ? "" : "s"}

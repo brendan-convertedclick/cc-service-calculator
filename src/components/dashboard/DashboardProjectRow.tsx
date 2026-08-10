@@ -34,7 +34,7 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
         aria-label={name}
         onClick={() => onSelect(id)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+          "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors",
           isSelected
             ? "bg-m-primary-container text-m-on-primary-container"
             : isCompleted
@@ -61,7 +61,7 @@ export function DashboardProjectRow({ id, name, engagementType, scopeStatus, isS
       <button
         aria-label="dismiss"
         onClick={(e) => { e.stopPropagation(); onHide(id); }}
-        className="absolute right-1.5 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-m-surface-container text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface group-hover:flex"
+        className="absolute right-1.5 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md bg-m-surface-container text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface group-hover:flex"
       >
         <Check className="h-3 w-3" />
       </button>

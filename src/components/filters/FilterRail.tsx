@@ -32,14 +32,14 @@ export function FilterOption({
       type="button"
       onClick={onToggle}
       aria-pressed={active}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
+      className={`flex h-7 w-full items-center gap-2 rounded-md px-2.5 text-left text-label-medium tracking-normal transition-colors ${
         active
           ? "bg-m-secondary-container text-m-on-secondary-container"
           : "text-m-on-surface hover:bg-m-surface-container"
       }`}
     >
       <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
           active ? "border-m-primary bg-m-primary text-m-on-primary" : "border-m-outline"
         }`}
       >

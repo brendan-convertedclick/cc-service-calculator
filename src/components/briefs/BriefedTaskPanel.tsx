@@ -142,7 +142,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   const d = details.data;
 
   return (
-    <div className="rounded-lg border border-m-outline-variant bg-m-surface p-6">
+    <div className="rounded-xl border border-m-outline-variant bg-m-surface p-6">
       {/* How-briefed tag + link out */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-m-outline-variant pb-4">
         <div className="flex items-center gap-2">
@@ -472,7 +472,7 @@ function CompletionSection({ d, briefId }: { d: BriefedTaskFields; briefId: stri
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Sprint points / hours: estimated vs actual */}
-        <div className="rounded-md bg-m-surface-container-low p-4">
+        <div className="rounded-lg bg-m-surface-container-low p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-label-small uppercase tracking-wide text-m-on-surface-variant">Sprint points → hours</span>
             <Badge variant={overBudget ? "destructive" : "success"} className="text-label-small">
@@ -485,7 +485,7 @@ function CompletionSection({ d, briefId }: { d: BriefedTaskFields; briefId: stri
           </div>
         </div>
         {/* Due date vs completion date */}
-        <div className="rounded-md bg-m-surface-container-low p-4">
+        <div className="rounded-lg bg-m-surface-container-low p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-label-small uppercase tracking-wide text-m-on-surface-variant">Timeline</span>
             <div className="flex items-center gap-1.5">
@@ -525,7 +525,7 @@ function CompletionSection({ d, briefId }: { d: BriefedTaskFields; briefId: stri
 
       {/* Manual client-delay override — for slips the status flow didn't capture. */}
       {isLate && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-m-surface-container-low p-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-m-surface-container-low p-3">
           <span className="text-body-small text-m-on-surface-variant">
             {manualFlag
               ? "Flagged as a client-caused delay."

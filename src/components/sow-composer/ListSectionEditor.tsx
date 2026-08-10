@@ -36,7 +36,7 @@ export function ListSectionEditor({ section, onChange }: ListSectionEditorProps)
           value={section.props.variant}
           onValueChange={(v) => onChange({ variant: v as ListSection["props"]["variant"] })}
         >
-          <SelectTrigger className="h-8 w-40">
+          <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -54,7 +54,7 @@ export function ListSectionEditor({ section, onChange }: ListSectionEditorProps)
               type="button"
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-8 w-8"
               aria-label={`Remove "${item}"`}
               onClick={() => onChange({ items: items.filter((_, j) => j !== i) })}
             >
@@ -76,7 +76,6 @@ export function ListSectionEditor({ section, onChange }: ListSectionEditorProps)
               add();
             }
           }}
-          className="h-8"
         />
         <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1" onClick={add}>
           <Plus className="h-3.5 w-3.5" />

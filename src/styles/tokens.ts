@@ -2,12 +2,19 @@
 // Source: tokens/base.json. Regenerate via `npm run tokens:build`.
 
 export const radius = {
-  "xs": "0.25rem",
-  "sm": "0.5rem",
-  "md": "0.75rem",
-  "lg": "1rem",
-  "xl": "1.5rem",
+  "xs": "0.125rem",
+  "sm": "0.2rem",
+  "md": "0.325rem",
+  "lg": "0.45rem",
+  "xl": "0.7rem",
   "full": "9999px"
+} as const;
+
+// Consumed by Tailwind theme.extend.backgroundImage.
+export const gradients = {
+  "gradient-brand": "var(--gradient-brand)",
+  "gradient-brand-r": "var(--gradient-brand-r)",
+  "gradient-gold": "var(--gradient-gold)"
 } as const;
 
 export const fontFamily = {

@@ -35,11 +35,11 @@ export function ScenariosBar({
   onFinalize,
 }: ScenariosBarProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-m-outline-variant bg-m-surface-container px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-m-outline-variant bg-m-surface-container px-3 py-2">
       <div className="flex items-center gap-2">
         <span className="text-label-medium text-m-on-surface-variant">Scenario</span>
         <Select value={activeName} onValueChange={onSelect}>
-          <SelectTrigger data-testid="scenarios-select" className="h-8 w-56">
+          <SelectTrigger data-testid="scenarios-select" className="w-56">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -45,13 +45,13 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
       {/* Controls row */}
       <div className="flex items-center justify-between">
         {/* View sub-tabs */}
-        <div className="flex gap-1 rounded-lg border border-m-outline-variant bg-m-surface-container p-1">
+        <div className="flex gap-1 rounded-md border border-m-outline-variant bg-m-surface-container p-1">
           {VIEWS.map((v) => (
             <button
               key={v.key}
               onClick={() => setView(v.key)}
               className={[
-                "rounded-md px-4 py-1.5 text-label-medium transition-colors",
+                "h-7 rounded-md px-4 text-label-medium transition-colors",
                 view === v.key
                   ? "bg-m-primary/15 text-m-primary"
                   : "text-m-on-surface-variant hover:text-m-on-surface",
@@ -64,13 +64,13 @@ export function OutputMultiplierShell({ loggedBy }: Props) {
 
         {/* Period selector + prev/next */}
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 rounded-lg border border-m-outline-variant bg-m-surface-container p-1">
+          <div className="flex gap-1 rounded-md border border-m-outline-variant bg-m-surface-container p-1">
             {PERIODS.map((p) => (
               <button
                 key={p}
                 onClick={() => { setPeriod(p); setPeriodOffset(0); }}
                 className={[
-                  "rounded-md px-3 py-1.5 text-label-small capitalize transition-colors",
+                  "h-7 rounded-md px-3 text-label-small capitalize transition-colors",
                   period === p
                     ? "bg-m-primary/15 text-m-primary"
                     : "text-m-on-surface-variant hover:text-m-on-surface",

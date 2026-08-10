@@ -4,7 +4,7 @@ export function BillableBadge({ billable, className }: { billable: boolean; clas
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
         billable
           ? "bg-m-primary-container text-m-on-primary-container"
           : "bg-m-surface-container-high text-m-on-surface-variant",

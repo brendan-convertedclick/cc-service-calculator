@@ -169,7 +169,7 @@ export function RetainersList() {
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8"
+            className="h-10 pl-8"
           />
         </div>
 
@@ -226,7 +226,7 @@ export function RetainersList() {
               aria-label="Select month"
               value={month}
               onChange={(e) => e.target.value && setMonth(e.target.value)}
-              className="rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small text-m-on-surface"
+              className="h-10 rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small text-m-on-surface"
             />
             <Button
               variant="outline"

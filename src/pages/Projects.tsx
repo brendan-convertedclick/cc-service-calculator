@@ -158,7 +158,7 @@ export function Projects() {
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8"
+            className="h-10 pl-8"
           />
         </div>
 
@@ -210,7 +210,7 @@ export function Projects() {
         <div className="mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <h1 className="text-headline-medium">Projects</h1>
-            <div className="inline-flex rounded-full border border-m-outline-variant p-0.5">
+            <div className="inline-flex rounded-md border border-m-outline-variant p-0.5">
               {(["active", "completed", "archived"] as const).map((v) => {
                 const active = view === v;
                 const label =
@@ -225,7 +225,7 @@ export function Projects() {
                     type="button"
                     onClick={() => setView(v)}
                     aria-pressed={active}
-                    className={`rounded-full px-3 py-1 text-label-large transition-colors ${
+                    className={`rounded-md px-3 py-1 text-label-large transition-colors ${
                       active
                         ? "bg-m-secondary-container text-m-on-secondary-container"
                         : "text-m-on-surface-variant hover:bg-m-surface-container"

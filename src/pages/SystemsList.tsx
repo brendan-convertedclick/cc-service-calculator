@@ -145,7 +145,7 @@ export function SystemsList() {
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8"
+            className="h-10 pl-8"
           />
         </div>
 
@@ -587,7 +587,7 @@ function FilterRow({
         type="button"
         onClick={onClick}
         className={cn(
-          "flex w-full items-center justify-between rounded px-2 py-1 text-left text-body-small",
+          "flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-body-small",
           active
             ? "bg-m-secondary-container text-m-on-secondary-container"
             : "text-m-on-surface hover:bg-m-surface-container",

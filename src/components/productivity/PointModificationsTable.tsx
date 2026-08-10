@@ -58,7 +58,7 @@ export function PointModificationsTable({ modifications, members }: Props) {
         <span className="flex items-center text-title-small font-semibold text-m-on-surface">
           Sprint Point Changes
           {modifications.length > 0 && (
-            <span className="ml-2 rounded bg-amber-400/10 px-1.5 py-0.5 text-xs text-amber-400">
+            <span className="ml-2 rounded-md bg-amber-400/10 px-1.5 py-0.5 text-xs text-amber-400">
               {modifications.length} change{modifications.length !== 1 ? "s" : ""}
             </span>
           )}

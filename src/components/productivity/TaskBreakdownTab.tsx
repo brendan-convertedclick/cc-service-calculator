@@ -156,7 +156,7 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
             <button
               type="button"
               onClick={() => setDate(navigate(view, date, -1))}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container"
               aria-label="Previous period"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
             <button
               type="button"
               onClick={() => setDate(navigate(view, date, 1))}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container"
               aria-label="Next period"
             >
               <ChevronRight className="h-4 w-4" />
@@ -176,20 +176,20 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
               type="button"
               onClick={() => refetch()}
               disabled={isFetching}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-m-on-surface-variant hover:bg-m-surface-container disabled:opacity-50"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container disabled:opacity-50"
               aria-label="Refresh"
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </button>
           </div>
 
-          <div className="flex items-center rounded-full bg-m-surface-container p-1 gap-0.5">
+          <div className="flex items-center rounded-md bg-m-surface-container p-1 gap-0.5">
             {VIEWS.map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`px-4 py-1.5 rounded-full text-label-large capitalize ${
+                className={`px-4 py-1.5 rounded-md text-label-large capitalize ${
                   view === v
                     ? "bg-m-primary text-m-on-primary font-semibold"
                     : "text-m-on-surface-variant hover:text-m-on-surface"
@@ -332,7 +332,7 @@ function ByPersonView({
         {orderedTasks.slice(0, 12).map((t, i) => (
           <span
             key={t.id}
-            className="flex items-center gap-1.5 rounded-full bg-m-surface px-2.5 py-1 text-m-on-surface-variant"
+            className="flex items-center gap-1.5 rounded-md bg-m-surface px-2.5 py-1 text-m-on-surface-variant"
           >
             <span
               className="h-2.5 w-2.5 rounded-sm"
@@ -441,7 +441,7 @@ function ByTaskView({
             return (
               <label
                 key={t.id}
-                className="flex items-start gap-2 cursor-pointer hover:bg-m-surface rounded px-1.5 py-1"
+                className="flex items-start gap-2 cursor-pointer hover:bg-m-surface rounded-sm px-1.5 py-1"
               >
                 <Checkbox
                   checked={checked}

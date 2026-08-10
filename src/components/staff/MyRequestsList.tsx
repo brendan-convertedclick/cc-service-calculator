@@ -135,7 +135,7 @@ export function MyRequestsList() {
               )}
 
               {row.status === "needs_info" && (
-                <div className="space-y-2 rounded-md bg-m-surface-container-low p-3">
+                <div className="space-y-2 rounded-lg bg-m-surface-container-low p-3">
                   <div className="text-label-small text-m-on-surface-variant">
                     An approver asked:
                   </div>

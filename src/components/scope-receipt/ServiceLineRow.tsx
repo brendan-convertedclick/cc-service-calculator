@@ -87,7 +87,7 @@ function InlineNumber({
         }
       }}
       className={cn(
-        "rounded border border-transparent bg-transparent px-1 py-0.5 font-mono tabular-nums",
+        "rounded-md border border-transparent bg-transparent px-1 py-0.5 font-mono tabular-nums",
         "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
         align === "right" ? "text-right" : "text-center",
         widthClass,
@@ -155,7 +155,7 @@ function InlineText({
         }
       }}
       className={cn(
-        "w-full resize-none overflow-hidden break-words rounded border border-transparent bg-transparent px-1 py-0.5",
+        "w-full resize-none overflow-hidden break-words rounded-md border border-transparent bg-transparent px-1 py-0.5",
         "hover:border-m-outline-variant focus:border-m-primary focus:bg-m-surface focus:outline-none",
         className,
       )}
@@ -259,7 +259,7 @@ export function ServiceLineRow({
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} team tasks for ${line.name}`}
-          className="mt-0.5 shrink-0 rounded p-0.5 text-m-on-surface-variant hover:bg-m-surface-container"
+          className="mt-0.5 shrink-0 rounded-md p-0.5 text-m-on-surface-variant hover:bg-m-surface-container"
         >
           <ChevronDown
             className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")}
@@ -285,7 +285,7 @@ export function ServiceLineRow({
             </span>
           )}
           {line.code && (
-            <span className="rounded bg-m-surface-container px-1.5 py-0.5 font-mono text-label-small text-m-on-surface-variant">
+            <span className="rounded-md bg-m-surface-container px-1.5 py-0.5 font-mono text-label-small text-m-on-surface-variant">
               {line.code}
             </span>
           )}

@@ -129,7 +129,7 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
       <div className="flex items-start justify-between border-b border-m-outline-variant bg-m-surface px-5 py-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-label-small px-2 py-0.5 rounded bg-m-surface-container border border-m-outline-variant">
+            <span className="font-mono text-label-small px-2 py-0.5 rounded-md bg-m-surface-container border border-m-outline-variant">
               {project.project_code}
             </span>
             <span className="text-title-medium text-m-on-surface">
@@ -137,7 +137,7 @@ export function DashboardProjectView({ projectId, clientName, onComplete }: Prop
             </span>
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-label-small",
+                "rounded-md px-2 py-0.5 text-label-small",
                 scopeStatusColor[scopeStatus] ?? "bg-m-surface-container text-m-on-surface-variant"
               )}
             >

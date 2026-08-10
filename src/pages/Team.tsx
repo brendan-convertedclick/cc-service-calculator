@@ -88,7 +88,7 @@ export function Team() {
                           const v = e.target.value || null;
                           update.mutate({ id: m.id, patch: { primary_department_id: v } });
                         }}
-                        className="h-9 w-full rounded-md border border-transparent bg-transparent px-2 text-sm text-m-on-surface transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-10 w-full rounded-md border border-transparent bg-transparent px-2 text-sm text-m-on-surface transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <option value="">—</option>
                         {depts.map((d) => (
@@ -205,7 +205,7 @@ function NewMemberDialog() {
           </div>
           <div className="space-y-2">
             <Label>Primary department</Label>
-            <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className="h-9 w-full rounded-md border border-m-outline bg-m-surface px-2 text-sm text-m-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-sm text-m-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <option value="">—</option>
               {depts.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
@@ -258,7 +258,7 @@ function AccessCell({
         <select
           defaultValue={member.role}
           onChange={(e) => onChangeRole(e.target.value)}
-          className="h-9 rounded-md border border-transparent bg-transparent px-2 text-sm text-m-on-surface transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 rounded-md border border-transparent bg-transparent px-2 text-sm text-m-on-surface transition-colors hover:bg-m-surface-container focus:bg-m-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="staff">Staff</option>
           <option value="admin">Admin</option>

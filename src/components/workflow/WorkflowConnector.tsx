@@ -30,7 +30,7 @@ export function WorkflowConnector({ handoffHours }: Props) {
   return (
     <div className="flex-shrink-0 w-11 flex flex-col items-center gap-1">
       <div className={`w-full h-0.5 ${lineColor}`} />
-      <div className={`border rounded-full px-1.5 py-px text-[9px] font-semibold ${labelBg} ${labelBorder} ${labelText} whitespace-nowrap`}>
+      <div className={`border rounded-md px-1.5 py-px text-[9px] font-semibold ${labelBg} ${labelBorder} ${labelText} whitespace-nowrap`}>
         {formatHandoff(handoffHours)}
       </div>
     </div>

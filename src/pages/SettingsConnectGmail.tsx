@@ -55,7 +55,7 @@ export function SettingsConnectGmail() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-md bg-m-surface-container p-3">
+          <div className="flex items-center justify-between rounded-lg bg-m-surface-container p-3">
             <div>
               <div className="text-label-large">{email ?? "Not signed in"}</div>
               <div className="text-label-small text-m-on-surface-variant">
@@ -86,12 +86,12 @@ export function SettingsConnectGmail() {
           </div>
 
           {justIssued && (
-            <div className="rounded-md border border-m-error bg-m-error-container p-3 space-y-2">
+            <div className="rounded-lg border border-m-error bg-m-error-container p-3 space-y-2">
               <div className="text-label-large text-m-on-error-container">
                 Copy now — won't be shown again
               </div>
               <div className="flex items-center gap-2">
-                <pre className="flex-1 truncate rounded bg-m-surface p-2 text-body-small">
+                <pre className="flex-1 truncate rounded-sm bg-m-surface p-2 text-body-small">
                   {justIssued}
                 </pre>
                 <Button size="sm" onClick={() => copy(justIssued)}>
@@ -116,7 +116,7 @@ export function SettingsConnectGmail() {
             <li>Paste the contents of <code>apps-script/inbox-relay.gs</code> into the editor.</li>
             <li>
               Project Settings → Script Properties — add three properties:
-              <pre className="mt-2 rounded bg-m-surface-container p-2 text-body-small">
+              <pre className="mt-2 rounded-sm bg-m-surface-container p-2 text-body-small">
 {`RELAY_URL    = ${RELAY_URL}
 RELAY_USER   = ${email ?? "<your email>"}
 RELAY_SECRET = <token from step 1>`}

@@ -83,7 +83,7 @@ export function ServiceTableSectionEditor({
 
   return (
     <div className="space-y-2">
-      <div className="divide-y divide-m-outline-variant rounded-md border border-m-outline-variant">
+      <div className="divide-y divide-m-outline-variant rounded-lg border border-m-outline-variant">
         {lines.length === 0 && (
           <p className="px-4 py-3 text-body-small text-m-on-surface-variant">
             No line items yet.

@@ -36,6 +36,11 @@ supabase/.temp/
 
 # Screenshots and generated images
 *.png
+# …except the brand assets in public/, which the app actually ships. Without
+# this, public/conductor-mark.png is untracked and a fresh clone 404s the logo
+# in index.html, IconRail and Login. Deliberately public/*.png and not /*.png —
+# the latter would also un-ignore Playwright's generated output.
+!public/*.png
 
 # Playwright MCP scratch
 .playwright-mcp/

@@ -505,7 +505,7 @@ export function SystemDetail() {
                     setForm({ ...form, band: e.target.value });
                     save("band", e.target.value);
                   }}
-                  className="h-9 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+                  className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
                 >
                   <option value="">— none</option>
                   {SYSTEM_BANDS.map((b) => (
@@ -521,7 +521,7 @@ export function SystemDetail() {
                     setForm({ ...form, owner_id: e.target.value });
                     save("owner_id", e.target.value);
                   }}
-                  className="h-9 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+                  className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
                 >
                   <option value="">— unassigned</option>
                   {team.map((t) => (
@@ -537,7 +537,7 @@ export function SystemDetail() {
                     setForm({ ...form, expert_id: e.target.value });
                     save("expert_id", e.target.value);
                   }}
-                  className="h-9 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+                  className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
                 >
                   <option value="">— unassigned</option>
                   {team.map((t) => (
@@ -552,7 +552,7 @@ export function SystemDetail() {
                   value={form.review_due_at}
                   onChange={(e) => setForm({ ...form, review_due_at: e.target.value })}
                   onBlur={(e) => save("review_due_at", e.target.value)}
-                  className="h-9"
+                  className="h-10"
                 />
               </FieldLabel>
             </div>
@@ -728,7 +728,7 @@ export function SystemDetail() {
                                   e.currentTarget.blur();
                                 }
                               }}
-                              className="w-full truncate rounded-sm bg-transparent px-1 py-0.5 -ml-1 text-body-medium text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 -ml-1 text-body-medium text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                             />
                             {/* Everything about a step is editable from here;
                                 the canvas inspector is the same fields on the
@@ -748,7 +748,7 @@ export function SystemDetail() {
                                 onChange={(e) =>
                                   patchStep(s, { department_id: e.target.value || null })
                                 }
-                                className="h-7 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
+                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
                               >
                                 <option value="">— no department</option>
                                 {depts.map((d) => (
@@ -768,7 +768,7 @@ export function SystemDetail() {
                                 value={s.owner_id ?? ""}
                                 aria-label={`Owner of "${s.title}"`}
                                 onChange={(e) => patchStep(s, { owner_id: e.target.value || null })}
-                                className="h-7 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
+                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
                               >
                                 <option value="">— unassigned</option>
                                 {team.map((t) => (
@@ -952,7 +952,7 @@ function PaneRow({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-label-large transition-colors",
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-label-large transition-colors",
         active
           ? "bg-m-primary-container font-semibold text-m-on-primary-container"
           : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
@@ -1232,7 +1232,7 @@ function RevisionRow({
       <p className="mt-1.5 text-body-small text-m-on-surface">{rev.reason_for_change}</p>
       {meta && <p className="mt-1 text-label-small text-m-on-surface-variant">{meta}</p>}
       {diff && (
-        <details open={rev.state === "proposed"} className="mt-2 rounded-md border border-m-outline-variant">
+        <details open={rev.state === "proposed"} className="mt-2 rounded-lg border border-m-outline-variant">
           <summary className="cursor-pointer select-none px-2.5 py-1.5 text-label-small font-medium text-m-on-surface-variant">
             View diff
           </summary>
@@ -1275,7 +1275,7 @@ function RevisionDiffView({
             diff.removed.map((s) => (
               <p
                 key={s.id}
-                className="rounded bg-m-error-container px-2 py-1 text-label-small text-m-on-error-container line-through"
+                className="rounded-md bg-m-error-container px-2 py-1 text-label-small text-m-on-error-container line-through"
               >
                 {s.title}
               </p>
@@ -1288,7 +1288,7 @@ function RevisionDiffView({
             <p className="text-label-small text-m-on-surface-variant">No steps added.</p>
           ) : (
             diff.added.map((s) => (
-              <p key={s.id} className="rounded bg-m-tertiary-container px-2 py-1 text-label-small text-m-on-tertiary-container">
+              <p key={s.id} className="rounded-md bg-m-tertiary-container px-2 py-1 text-label-small text-m-on-tertiary-container">
                 + {s.title}
               </p>
             ))
@@ -1299,7 +1299,7 @@ function RevisionDiffView({
         <div className="space-y-1.5">
           <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">Changed</p>
           {diff.changed.map((c) => (
-            <div key={c.id} className="rounded bg-m-secondary-container px-2.5 py-1.5 text-m-on-secondary-container">
+            <div key={c.id} className="rounded-lg bg-m-secondary-container px-2.5 py-1.5 text-m-on-secondary-container">
               <p className="text-body-small font-medium">{c.title}</p>
               <ul className="mt-0.5 space-y-0.5">
                 {c.fields.map((f) => (

@@ -247,7 +247,7 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
           <div className="space-y-3">
             <h3 className="text-title-small">Line items</h3>
             {lines.length === 0 ? (
-              <p className="rounded-md border border-dashed border-m-outline-variant px-3 py-6 text-center text-body-small text-m-on-surface-variant">
+              <p className="rounded-lg border border-dashed border-m-outline-variant px-3 py-6 text-center text-body-small text-m-on-surface-variant">
                 No items selected. Tick items on the map first.
               </p>
             ) : (
@@ -255,7 +255,7 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
                 {lines.map((l) => (
                   <li
                     key={l.tmpId}
-                    className="grid grid-cols-[200px,1fr,70px,90px,110px,40px] items-center gap-2 rounded-md border border-m-outline-variant bg-m-surface px-3 py-2"
+                    className="grid grid-cols-[200px,1fr,70px,90px,110px,40px] items-center gap-2 rounded-lg border border-m-outline-variant bg-m-surface px-3 py-2"
                   >
                     <Combobox
                       options={serviceOptions}
@@ -319,7 +319,7 @@ export function EstimateSheet({ open, onOpenChange, brief, items }: EstimateShee
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-m-outline bg-m-surface-container px-4 py-3 text-body-medium">
+          <div className="flex items-center justify-between rounded-lg border border-m-outline bg-m-surface-container px-4 py-3 text-body-medium">
             <span className="text-m-on-surface-variant">Estimate total</span>
             <div className="flex items-center gap-6">
               <span>

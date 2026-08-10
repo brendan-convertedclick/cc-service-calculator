@@ -82,7 +82,7 @@ export function Pill({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-label-medium tracking-normal transition-colors",
+        "flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-3 text-label-medium tracking-normal transition-colors",
         active
           ? activeCls
           : empty

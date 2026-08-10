@@ -161,7 +161,7 @@ export function SowList() {
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8"
+            className="h-10 pl-8"
           />
         </div>
 
@@ -407,7 +407,7 @@ function FilterRow({
         type="button"
         onClick={onClick}
         className={cn(
-          "flex w-full items-center justify-between rounded px-2 py-1 text-left text-body-small capitalize",
+          "flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-body-small capitalize",
           active
             ? "bg-m-secondary-container text-m-on-secondary-container"
             : "text-m-on-surface hover:bg-m-surface-container",
@@ -436,7 +436,7 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-body-small hover:bg-m-surface-container",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small hover:bg-m-surface-container",
         destructive ? "text-m-error" : "text-m-on-surface",
       )}
     >

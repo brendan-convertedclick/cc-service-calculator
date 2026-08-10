@@ -182,7 +182,7 @@ export function BriefFormBody() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-md border border-m-outline-variant bg-m-surface px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
         <div>
           <Label htmlFor="brief-is-internal" className="text-body-medium text-m-on-surface">
             Internal project

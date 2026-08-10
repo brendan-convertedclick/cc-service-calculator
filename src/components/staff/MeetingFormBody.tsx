@@ -265,13 +265,13 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       {!isEdit && currentUserId === null && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           You're signed in as the shared team account, which can't organise a meeting. Sign out
           and sign in with your own @convertedclick.co.za account first.
         </div>
       )}
       {!isEdit && googleConnected === false && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           Your Google Calendar isn't connected — sign out and sign in with Google to let
           Conductor put meetings on your calendar.
         </div>

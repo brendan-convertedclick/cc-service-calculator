@@ -23,7 +23,7 @@ export function ProjectNavRow({ project, clientId }: Props) {
     <Link
       to={to}
       className={cn(
-        "flex items-center gap-2 rounded-lg px-3 py-2 text-label-medium transition-colors",
+        "flex items-center gap-2 rounded-md px-3 py-2 text-label-medium transition-colors",
         match
           ? "bg-m-primary-container text-m-on-primary-container"
           : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
@@ -37,7 +37,7 @@ export function ProjectNavRow({ project, clientId }: Props) {
         )}
       />
       <span className="flex-1 truncate">{project.name}</span>
-      <span className="shrink-0 rounded px-1 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+      <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
         {project.engagement_type ?? "fixed"}
       </span>
     </Link>

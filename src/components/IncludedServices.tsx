@@ -51,13 +51,13 @@ export function IncludedServices({ serviceId }: Props) {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : children.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
           No included services yet. Add one below to make this a bundle.
         </p>
       ) : (
         <ol className="space-y-2">
           {children.map((c, i) => (
-            <li key={c.child_id} className="rounded-md border bg-background p-3">
+            <li key={c.child_id} className="rounded-lg border bg-background p-3">
               <div className="flex items-center gap-3">
                 <div className="text-xs font-mono text-muted-foreground w-6">{i + 1}</div>
                 <div className="flex-1">
@@ -77,7 +77,7 @@ export function IncludedServices({ serviceId }: Props) {
                     type="number"
                     min="1"
                     step="1"
-                    className="h-8 w-16 text-right"
+                    className="h-10 w-16 text-right"
                     defaultValue={String(c.quantity)}
                     onBlur={(e) => {
                       const n = Number(e.target.value);

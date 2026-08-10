@@ -29,7 +29,7 @@ export function SOWPreview({ html, onChange }: Props) {
       </div>
       {mode === "preview" ? (
         <div
-          className="prose max-w-none rounded-md border border-m-outline-variant bg-m-surface p-4 overflow-auto"
+          className="prose max-w-none rounded-xl border border-m-outline-variant bg-m-surface p-4 overflow-auto"
           dangerouslySetInnerHTML={{
             __html: html || "<em>No SOW drafted yet.</em>",
           }}

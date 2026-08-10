@@ -25,7 +25,7 @@ export function RecurrencePanel({
       <div className="text-label-small uppercase tracking-wider text-m-on-surface-variant">
         Recurrence
       </div>
-      <div className="rounded-md border border-m-outline-variant bg-m-surface p-3 space-y-3">
+      <div className="rounded-xl border border-m-outline-variant bg-m-surface p-3 space-y-3">
         <div className="flex items-center gap-2 text-body-small text-m-on-surface">
           <Repeat className="h-4 w-4 text-m-on-surface-variant" />
           <span>How should this engagement repeat?</span>
@@ -60,7 +60,7 @@ export function RecurrencePanel({
                     recurrence_interval: (e.target.value || null) as Interval | null,
                   })
                 }
-                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                className="h-10 w-full rounded-md border bg-background px-2 text-sm"
               >
                 <option value="">—</option>
                 <option value="weekly">Weekly</option>

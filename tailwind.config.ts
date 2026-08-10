@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
-import { mColorRoles, radius, fontFamily, elevation, typeScale } from "./src/styles/tokens";
+import { mColorRoles, radius, fontFamily, elevation, typeScale, gradients } from "./src/styles/tokens";
 
 type TypeStyle = typeof typeScale[keyof typeof typeScale];
 
@@ -100,11 +100,10 @@ const config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
-      backgroundImage: {
-        "gradient-brand": "linear-gradient(135deg, #7C3AED, #EC4899)",
-        "gradient-brand-r": "linear-gradient(to right, #7C3AED, #EC4899)",
-        "gradient-gold": "linear-gradient(135deg, #F59E0B, #FBBF24, #D97706)",
-      },
+      // Was three hardcoded hex gradients — the only colour left in the whole
+      // token pipeline, and therefore unreachable by tokens:sync. Now they come
+      // from tokens/base.json like everything else. Values are unchanged.
+      backgroundImage: gradients,
     },
   },
   plugins: [animate],

@@ -123,7 +123,7 @@ export function SectionList({
             <button
               key={a.type}
               type="button"
-              className="flex w-full items-center rounded px-2 py-1.5 text-left text-body-medium text-m-on-surface hover:bg-m-surface-container"
+              className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-body-medium text-m-on-surface hover:bg-m-surface-container"
               onClick={() => {
                 add(a.type);
                 setAddOpen(false);

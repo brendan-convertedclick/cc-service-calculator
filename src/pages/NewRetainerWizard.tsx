@@ -476,7 +476,7 @@ export function NewRetainerWizard() {
       </div>
 
       {draftRestored && (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface-container px-4 py-2.5">
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-m-outline-variant bg-m-surface-container px-4 py-2.5">
           <p className="text-sm text-m-on-surface-variant">
             Draft restored — picking up where you left off.
           </p>
@@ -492,7 +492,7 @@ export function NewRetainerWizard() {
       )}
 
       {step === "terms" && (
-        <div className="space-y-5 rounded-md border border-m-outline-variant bg-m-surface p-5">
+        <div className="space-y-5 rounded-xl border border-m-outline-variant bg-m-surface p-5">
           <div className="space-y-1.5">
             <Label className="text-label-small text-m-on-surface-variant">Client</Label>
             <select
@@ -507,7 +507,7 @@ export function NewRetainerWizard() {
                 setMonthlyFee("");
                 setHoursTarget("");
               }}
-              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              className="h-10 w-full rounded-md border bg-background px-2 text-sm"
             >
               <option value="">Select a client…</option>
               {clients.map((c) => (
@@ -519,7 +519,7 @@ export function NewRetainerWizard() {
           </div>
 
           {clientQuotes.length > 0 && (
-            <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
+            <div className="space-y-2 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-3">
               <Label className="text-label-small text-m-on-surface-variant">
                 Start from an accepted quote (optional)
               </Label>
@@ -527,7 +527,7 @@ export function NewRetainerWizard() {
                 <select
                   value={importQuoteId}
                   onChange={(e) => setImportQuoteId(e.target.value)}
-                  className="h-9 flex-1 rounded-md border bg-background px-2 text-sm"
+                  className="h-10 flex-1 rounded-md border bg-background px-2 text-sm"
                 >
                   <option value="">Select a quote…</option>
                   {clientQuotes.map((q) => (
@@ -555,7 +555,7 @@ export function NewRetainerWizard() {
           )}
 
           {INVOICE_IMPORT_ENABLED && (
-            <div className="space-y-2 rounded-md border border-m-outline-variant bg-m-surface-container-low p-3">
+            <div className="space-y-2 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-3">
               <Label className="text-label-small text-m-on-surface-variant">
                 Import from invoice (PDF)
               </Label>
@@ -584,7 +584,7 @@ export function NewRetainerWizard() {
               value={clickupListId}
               onChange={(e) => setClickupListId(e.target.value)}
               disabled={!clientId || hasNoLists}
-              className="h-9 w-full rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+              className="h-10 w-full rounded-md border bg-background px-2 text-sm disabled:opacity-50"
             >
               <option value="">{clientId ? "Select a list…" : "Pick a client first"}</option>
               {clientLists.map((l) => (
@@ -668,7 +668,7 @@ export function NewRetainerWizard() {
 
       {step === "services" && (
         <div className="space-y-4">
-          <div className="rounded-md border border-m-outline-variant bg-m-surface p-4">
+          <div className="rounded-xl border border-m-outline-variant bg-m-surface p-4">
             <ServicePicker
               excludeIds={pickedServiceIds}
               onPick={addServiceRow}
@@ -677,7 +677,7 @@ export function NewRetainerWizard() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="rounded-md border border-dashed border-m-outline-variant p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-m-outline-variant p-8 text-center text-sm text-muted-foreground">
               Add at least one recurring service to continue.
             </div>
           ) : (
@@ -687,7 +687,7 @@ export function NewRetainerWizard() {
                 return (
                   <div
                     key={r.rowId}
-                    className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface p-4"
+                    className="space-y-3 rounded-xl border border-m-outline-variant bg-m-surface p-4"
                   >
                     <div className="flex items-start justify-between">
                       <div className="text-title-small">{serviceName(r.service_id)}</div>
@@ -709,7 +709,7 @@ export function NewRetainerWizard() {
                           onChange={(e) =>
                             patchRow(r.rowId, { cadence: e.target.value as Cadence })
                           }
-                          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                          className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                         >
                           {CADENCES.map((c) => (
                             <option key={c} value={c}>
@@ -775,7 +775,7 @@ export function NewRetainerWizard() {
                               type="button"
                               onClick={() => toggleAssignee(r.rowId, m.id)}
                               className={
-                                "flex items-center gap-1 rounded-full border px-3 py-1 text-label-small transition-colors " +
+                                "flex items-center gap-1 rounded-md border px-3 py-1 text-label-small transition-colors " +
                                 (selected
                                   ? "border-m-primary bg-m-primary text-m-on-primary"
                                   : "border-m-outline-variant text-m-on-surface-variant hover:text-m-on-surface")
@@ -803,7 +803,7 @@ export function NewRetainerWizard() {
             </div>
           )}
 
-          <div className="space-y-1 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
+          <div className="space-y-1 rounded-lg border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="text-body-small text-m-on-surface-variant">Planned hours / month</span>
               <span className="text-title-small tabular-nums">
@@ -832,7 +832,7 @@ export function NewRetainerWizard() {
 
       {step === "review" && (
         <div className="space-y-4">
-          <div className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface p-5">
+          <div className="space-y-3 rounded-xl border border-m-outline-variant bg-m-surface p-5">
             <div className="text-title-small">Terms</div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-body-small">
               <dt className="text-m-on-surface-variant">Client</dt>
@@ -854,14 +854,14 @@ export function NewRetainerWizard() {
             </dl>
           </div>
 
-          <div className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface p-5">
+          <div className="space-y-3 rounded-xl border border-m-outline-variant bg-m-surface p-5">
             <div className="flex items-center justify-between">
               <div className="text-title-small">Recurring services</div>
               <span className="text-label-small text-m-on-surface-variant">
                 <span className="font-mono tabular-nums">{totalPointsPerMonth}</span> pts / month
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-m-surface-container-low px-3 py-2 text-body-small">
+            <div className="flex items-center justify-between rounded-lg bg-m-surface-container-low px-3 py-2 text-body-small">
               <span className="text-m-on-surface-variant">Planned hours vs target</span>
               <span className="tabular-nums">
                 <strong><span className="font-mono">{totalPlannedHours.toFixed(2)}</span> h</strong> planned

@@ -63,7 +63,7 @@ export function Clients() {
       </div>
 
       {!clientsSpaceConfigured && (
-        <div className="mb-4 rounded-lg border border-m-outline-variant bg-m-surface-container px-4 py-3 text-body-small text-m-on-surface">
+        <div className="mb-4 rounded-xl border border-m-outline-variant bg-m-surface-container px-4 py-3 text-body-small text-m-on-surface">
           Configure a <strong className="font-medium">Clients space</strong> on the{" "}
           <Link to="/settings" className="font-medium text-primary hover:underline">
             Settings page
@@ -84,7 +84,7 @@ export function Clients() {
           <button
             type="button"
             onClick={() => setQ("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
             aria-label="Clear search"
           >
             <X className="h-3.5 w-3.5" />

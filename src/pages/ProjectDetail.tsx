@@ -261,7 +261,7 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-label-small px-2 py-0.5 rounded bg-m-surface-container border border-m-outline-variant">
+                <span className="font-mono text-label-small px-2 py-0.5 rounded-sm bg-m-surface-container border border-m-outline-variant">
                   {project.project_code}
                 </span>
                 {nameEditing ? (
@@ -278,7 +278,7 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                       }}
                       autoFocus
                       aria-label="Retainer name"
-                      className="h-8 text-headline-small min-w-[20rem]"
+                      className="h-10 text-headline-small min-w-[20rem]"
                     />
                     <Button
                       variant="ghost"
@@ -476,7 +476,7 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
         </CardHeader>
         <CardContent className="space-y-4">
           {project.recurrence_mode === "per_service" && (
-            <p className="rounded-md bg-m-surface-container-low/60 p-3 text-sm text-m-on-surface-variant">
+            <p className="rounded-lg bg-m-surface-container-low/60 p-3 text-sm text-m-on-surface-variant">
               Per-service recurrence — configured on the original quote. Edit schedules directly
               to adjust.
             </p>
@@ -502,7 +502,7 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                       recurrence_interval: (e.target.value || null) as RecurrenceInterval | null,
                     })
                   }
-                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                 >
                   <option value="">—</option>
                   <option value="weekly">Weekly</option>
@@ -601,9 +601,9 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
               <div className="text-body-small text-m-on-surface-variant">
                 Token usage from Claude Code sessions in the linked repo will accumulate on the
                 ClickUp parent task. The SessionStart hook resolves the binding via either a
-                <code className="mx-1 px-1 rounded bg-m-surface-container">.cc-project</code>
+                <code className="mx-1 px-1 rounded-sm bg-m-surface-container">.cc-project</code>
                 file at repo root, or by matching{" "}
-                <code className="mx-1 px-1 rounded bg-m-surface-container">git remote get-url origin</code>{" "}
+                <code className="mx-1 px-1 rounded-sm bg-m-surface-container">git remote get-url origin</code>{" "}
                 against the URL below.
               </div>
               <div className="space-y-2">

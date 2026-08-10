@@ -32,7 +32,7 @@ export function ChecklistSummary({ steps, departments, priceCents, pricingModel 
 
   if (totals.size === 0) {
     return (
-      <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+      <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
         Add at least one step with a department and hours to see the summary.
       </div>
     );
@@ -51,7 +51,7 @@ export function ChecklistSummary({ steps, departments, priceCents, pricingModel 
 
   return (
     <div className="space-y-2">
-      <div className="flex h-3 w-full overflow-hidden rounded bg-muted">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
         {entries.map((e) => {
           const widthPct = totalHours > 0 ? (e.hours / totalHours) * 100 : 0;
           return (

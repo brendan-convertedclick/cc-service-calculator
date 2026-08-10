@@ -35,7 +35,7 @@ export function SowDocPreview({
   const grandTotalLabel = totalVar ? "Total (incl VAT)" : "Billable total";
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-m-outline-variant bg-m-surface">
+    <div className="flex h-full flex-col rounded-xl border border-m-outline-variant bg-m-surface">
       <div className="flex items-center justify-between border-b border-m-outline-variant px-4 py-2.5">
         <span className="text-title-small text-m-on-surface">Preview</span>
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export function SowDocPreview({
             )}
 
             {section.kind === "service_table" && (
-              <div className="overflow-hidden rounded-md border border-m-outline-variant">
+              <div className="overflow-hidden rounded-lg border border-m-outline-variant">
                 {section.receipt.buckets
                   .filter((b) => !(clientView && b.disposition === "out_of_scope"))
                   .filter((b) => b.lines.length > 0)
@@ -125,7 +125,7 @@ export function SowDocPreview({
             )}
 
             {section.kind === "clause" && (
-              <p className="rounded bg-m-surface-container px-3 py-2 text-body-small italic text-m-on-surface-variant">
+              <p className="rounded-lg bg-m-surface-container px-3 py-2 text-body-small italic text-m-on-surface-variant">
                 Clause <span className="font-mono">{section.clauseKey}</span> — resolved on render.
               </p>
             )}

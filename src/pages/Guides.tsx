@@ -38,7 +38,7 @@ function StepCard({
 
   return (
     <div
-      className={`rounded-lg border bg-card transition-colors ${
+      className={`rounded-xl border bg-card transition-colors ${
         expanded ? 'border-primary' : 'border-border'
       }`}
     >
@@ -77,7 +77,7 @@ function StepCard({
       {expanded && (
         <div className="border-t border-border px-4 pb-4 pt-0">
           <div
-            className="mt-3 rounded-md border-l-4 p-3"
+            className="mt-3 rounded-lg border-l-4 p-3"
             style={{
               background: `linear-gradient(135deg, ${step.gradient[0]}18, ${step.gradient[1]}18)`,
               borderLeftColor: step.gradient[0],
@@ -169,7 +169,7 @@ export function Guides() {
                 type="button"
                 key={deck.key}
                 onClick={() => handleDeckChange(deck.key)}
-                className={`flex w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-left text-label-large transition-colors ${
+                className={`flex w-full items-center gap-2.5 rounded-md px-4 py-2.5 text-left text-label-large transition-colors ${
                   deck.key === activeDeckKey
                     ? 'bg-m-primary-container font-semibold text-m-on-primary-container'
                     : 'text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface'

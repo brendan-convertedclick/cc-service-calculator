@@ -73,7 +73,7 @@ export function WorkflowTimeline({ projectId, projectName }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">{projectName}</span>
             {activeStep && (
-              <span className="bg-indigo-500/20 text-indigo-300 rounded-full px-2.5 py-0.5 text-[11px]">
+              <span className="bg-indigo-500/20 text-indigo-300 rounded-md px-2.5 py-0.5 text-[11px]">
                 Step {activeStep.ordinal} in progress
               </span>
             )}

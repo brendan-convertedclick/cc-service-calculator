@@ -247,19 +247,19 @@ export function ExtensionFormBody() {
       </div>
 
       {selectedTask && pointsRequested && selectedTask.sprint_points === null && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           This task has no Sprint Points custom field set in ClickUp. Extension requests
           need a starting budget to compute the % delta. Set it on the ClickUp task first.
         </div>
       )}
       {selectedTask && dueDateRequested && selectedTask.due_date === null && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           This task has no due date set in ClickUp. Set one there first so the days-requested
           delta can be computed.
         </div>
       )}
       {selectedTask && dueDateRequested && daysRequested !== null && daysRequested <= 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
           The new due date must be after the current one ({toDateInputValue(selectedTask.due_date!)}).
         </div>
       )}

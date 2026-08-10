@@ -308,7 +308,7 @@ export function Briefs() {
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-8"
+            className="h-10 pl-8"
           />
         </div>
 

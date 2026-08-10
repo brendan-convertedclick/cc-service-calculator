@@ -60,7 +60,7 @@ export function InboxAssignModal({ brief, open, onClose }: Props) {
           <SheetDescription>
             From {brief.sender_email}
             {brief.intent_type && (
-              <span className="ml-2 rounded px-2 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+              <span className="ml-2 rounded-md px-2 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
                 {intentLabels[brief.intent_type] ?? brief.intent_type}
               </span>
             )}
@@ -79,7 +79,7 @@ export function InboxAssignModal({ brief, open, onClose }: Props) {
                     setSelectedProjectId(null);
                   }}
                   className={cn(
-                    "rounded-md px-3 py-2 text-left text-body-medium transition-colors",
+                    "h-10 rounded-md px-4 text-left text-body-medium transition-colors",
                     selectedClientId === c.id
                       ? "bg-m-primary-container text-m-on-primary-container"
                       : "text-m-on-surface hover:bg-m-surface-container"

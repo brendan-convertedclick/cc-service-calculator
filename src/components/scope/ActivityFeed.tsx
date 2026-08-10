@@ -37,7 +37,7 @@ export function ActivityFeed({ events, isLoading, onAddBrief }: Props) {
       {onAddBrief && (
         <button
           onClick={onAddBrief}
-          className="mt-2 w-full rounded-lg border border-dashed border-m-outline-variant py-3 text-label-medium text-m-on-surface-variant transition-colors hover:bg-m-surface-container"
+          className="mt-2 h-10 w-full rounded-md border border-dashed border-m-outline-variant text-label-medium text-m-on-surface-variant transition-colors hover:bg-m-surface-container"
         >
           + Add brief to project
         </button>

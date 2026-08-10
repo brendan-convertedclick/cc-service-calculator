@@ -106,7 +106,7 @@ function ProjectChip({
           navigate(`/projects/${project.id}`);
         }}
         title={`Open project · ${project.clientName} — ${label}`}
-        className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-m-primary/30 bg-m-primary-container px-2 py-0.5 text-label-small font-medium text-m-on-primary-container hover:bg-m-primary/20"
+        className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-md border border-m-primary/30 bg-m-primary-container px-2 py-0.5 text-label-small font-medium text-m-on-primary-container hover:bg-m-primary/20"
       >
         <FolderOpen className="h-3 w-3 shrink-0" />
         <span className="truncate">{label}</span>
@@ -123,7 +123,7 @@ function ProjectChip({
         onAssignClick();
       }}
       title="Link to project"
-      className="inline-flex items-center gap-1 rounded-full border border-dashed border-m-outline-variant px-2 py-0.5 text-label-small text-m-on-surface-variant opacity-0 transition-opacity hover:border-m-primary hover:bg-m-surface-container hover:text-m-on-surface focus-visible:opacity-100 group-hover:opacity-100"
+      className="inline-flex items-center gap-1 rounded-md border border-dashed border-m-outline-variant px-2 py-0.5 text-label-small text-m-on-surface-variant opacity-0 transition-opacity hover:border-m-primary hover:bg-m-surface-container hover:text-m-on-surface focus-visible:opacity-100 group-hover:opacity-100"
     >
       <Link2 className="h-3 w-3" />
       Link
@@ -160,7 +160,7 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
 
   if (isLoading) {
     return (
-      <div className="divide-y divide-m-outline-variant overflow-hidden rounded-lg border border-m-outline-variant bg-card">
+      <div className="divide-y divide-m-outline-variant overflow-hidden rounded-xl border border-m-outline-variant bg-card">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 px-4 py-3">
             <Skeleton className="h-3 w-20 shrink-0" />
@@ -176,7 +176,7 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
   }
   if (briefs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-m-outline-variant bg-card px-6 py-14 text-center">
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-m-outline-variant bg-card px-6 py-14 text-center">
         <Inbox className="h-6 w-6 text-m-on-surface-variant" aria-hidden />
         <p className="text-body-medium text-m-on-surface-variant">{EMPTY[scope]}</p>
       </div>
@@ -184,7 +184,7 @@ export function BriefList({ scope, currentUserId, selectedBriefId, filterOptions
   }
 
   return (
-    <div className="divide-y divide-m-outline-variant overflow-hidden rounded-lg border border-m-outline-variant bg-card">
+    <div className="divide-y divide-m-outline-variant overflow-hidden rounded-xl border border-m-outline-variant bg-card">
       {briefs.map((b: Brief) => (
         <BriefRow
           key={b.id}

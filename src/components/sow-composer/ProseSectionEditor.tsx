@@ -41,7 +41,6 @@ export function ProseSectionEditor({ section, onChange, variableKeys }: ProseSec
           placeholder="Heading (optional)"
           value={section.props.heading ?? ""}
           onChange={(e) => onChange({ heading: e.target.value })}
-          className="h-8"
         />
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger asChild>

@@ -24,7 +24,7 @@ export function ClaudePromptPanel({ prompts }: Props) {
             title={p.label}
             onClick={() => copy(p.id, p.build())}
             className={cn(
-              "flex items-center gap-2 rounded px-1 py-1.5 text-left text-[12px] text-m-on-surface transition-colors",
+              "flex items-center gap-2 rounded-md px-1 py-1.5 text-left text-[12px] text-m-on-surface transition-colors",
               "hover:bg-m-primary-container hover:text-m-on-primary-container"
             )}
           >

@@ -65,10 +65,10 @@ function ProjectItem({ p, onSelect }: { p: OpsProject; onSelect: (id: string) =>
       </div>
       {showReason && <p className="mt-1 text-[11px] italic text-m-on-surface-variant">{p.reasonText}</p>}
       <div className="mt-1.5 flex items-center gap-1.5">
-        <span className={cn("rounded-full px-2 py-0.5 text-[9.5px] font-bold", scopeBadge[p.scopeStatus])}>
+        <span className={cn("rounded-md px-2 py-0.5 text-[9.5px] font-bold", scopeBadge[p.scopeStatus])}>
           {scopeLabel[p.scopeStatus] ?? p.scopeStatus}
         </span>
-        <span className="rounded border border-m-outline-variant px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-m-on-surface-variant">
+        <span className="rounded-md border border-m-outline-variant px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-m-on-surface-variant">
           {p.engagementType}
         </span>
       </div>
@@ -164,7 +164,7 @@ export function BentoOverview({ opsData, monthlyHours, deliveryRate, dftCycleTim
             title="Needs attention"
             aside={
               opsData.attentionProjects.length > 0 ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold font-mono tabular-nums text-amber-800">
+                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold font-mono tabular-nums text-amber-800">
                   {opsData.attentionProjects.length}
                 </span>
               ) : undefined

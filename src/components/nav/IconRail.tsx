@@ -40,14 +40,14 @@ const NavRow = forwardRef<
         "flex items-center shrink-0 transition-all duration-200 ease-out",
         navOpen
           ? cn(
-              "w-full gap-3 rounded-full py-1.5 text-label-medium tracking-normal",
+              "w-full gap-3 rounded-md py-1.5 text-label-medium tracking-normal",
               indent ? "pl-6 pr-3" : "px-3",
               isActive
                 ? "bg-gradient-brand text-white"
                 : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
             )
           : cn(
-              "h-9 w-9 justify-center rounded-md",
+              "h-10 w-10 justify-center rounded-md",
               isActive
                 ? "bg-gradient-brand text-white shadow-sm"
                 : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
@@ -87,7 +87,7 @@ function SectionGroup({ section }: { section: NavSection }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={section.label}
-        className="flex items-center w-full gap-3 rounded-full px-3 py-1.5 text-label-medium tracking-normal transition-all duration-200 ease-out shrink-0 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+        className="flex items-center w-full gap-3 rounded-md px-3 py-1.5 text-label-medium tracking-normal transition-all duration-200 ease-out shrink-0 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1 text-left whitespace-nowrap">{section.label}</span>
@@ -145,7 +145,7 @@ function CollapsedSection({ section }: { section: NavSection }) {
           }}
           onMouseLeave={scheduleClose}
           className={cn(
-            "grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors",
+            "grid h-10 w-10 shrink-0 place-items-center rounded-md transition-colors",
             hasActiveChild
               ? "bg-gradient-brand text-white shadow-sm"
               : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface",
@@ -244,8 +244,8 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           onClick={onToggle}
           aria-label={navOpen ? "Close navigation" : "Open navigation"}
           className={cn(
-            "grid h-8 shrink-0 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface transition-colors mb-2",
-            navOpen ? "w-8 self-end" : "w-9",
+            "grid h-8 w-8 shrink-0 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface transition-colors mb-2",
+            navOpen && "self-end",
           )}
         >
           {navOpen ? (
@@ -309,7 +309,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                 await signOut()
                 navigate("/login", { replace: true })
               }}
-              className="flex w-full items-center gap-3 rounded-full px-3 py-1.5 text-label-medium tracking-normal text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
+              className="flex w-full items-center gap-3 rounded-md px-3 py-1.5 text-label-medium tracking-normal text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
             >
               <LogOut className="h-[18px] w-[18px] shrink-0" />
               <span
@@ -330,7 +330,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                     await signOut()
                     navigate("/login", { replace: true })
                   }}
-                  className="grid h-9 w-9 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface transition-colors"
+                  className="grid h-10 w-10 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface transition-colors"
                 >
                   <LogOut className="h-[18px] w-[18px]" />
                 </button>

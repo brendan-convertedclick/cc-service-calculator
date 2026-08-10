@@ -78,7 +78,7 @@ export function BriefThreadView({
               <span className="text-label-small font-medium text-green-800">Draft reply</span>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded px-2 py-0.5 text-label-small text-green-700 hover:bg-green-100"
+                className="flex items-center gap-1 rounded-md px-2 py-0.5 text-label-small text-green-700 hover:bg-green-100"
                 onClick={() => {
                   navigator.clipboard.writeText(brief.draft_reply!);
                   toast.success("Copied to clipboard");

@@ -90,7 +90,7 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-md bg-card p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-lg">
         <h2 className="text-lg font-semibold">Save checklist as rule</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Converts the checklist's dept totals into a reusable rule. This service keeps its
@@ -115,7 +115,7 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
             />
           </div>
 
-          <div className="space-y-1 rounded border p-3 text-xs">
+          <div className="space-y-1 rounded-lg border p-3 text-xs">
             <div className="font-medium">Preview</div>
             {Object.entries(pcts).map(([dept_id, pct]) => (
               <div key={dept_id} className="flex justify-between">
@@ -127,7 +127,7 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
         </div>
 
         {collision && (
-          <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
             A rule named <span className="font-medium">{collision}</span> already exists.
             Overwrite its allocations, or choose a different name.
           </div>

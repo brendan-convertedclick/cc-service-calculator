@@ -41,7 +41,7 @@ export function FeedEvent({ event }: Props) {
               {brief.raw_subject ?? "(no subject)"}
             </span>
             {brief.intent_type && (
-              <span className="rounded px-1.5 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
+              <span className="rounded-md px-1.5 py-0.5 text-[10px] bg-m-surface-container text-m-on-surface-variant">
                 {intentLabels[brief.intent_type] ?? brief.intent_type}
               </span>
             )}

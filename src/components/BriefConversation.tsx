@@ -195,7 +195,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             type="button"
             disabled={rollback.isPending}
             onClick={handleRollback}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-small text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small text-destructive hover:bg-destructive/10 disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
             {rollbackStage === "quote" ? "Delete quote" : "Delete scope"}
@@ -240,7 +240,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
             >
               <SelectTrigger
                 aria-label="Billing"
-                className="h-7 w-[110px] text-label-small"
+                className="h-8 w-[110px] text-label-small"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -255,7 +255,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
                 href={brief.clickup_task_url ?? undefined}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-full border border-m-outline-variant bg-m-surface-container px-3 py-1 text-label-small text-m-on-surface-variant hover:text-m-on-surface"
+                className="flex items-center h-7 gap-1.5 rounded-md border border-m-outline-variant bg-m-surface-container px-3 py-1 text-label-small text-m-on-surface-variant hover:text-m-on-surface"
               >
                 <CheckCircle2 className="h-3.5 w-3.5 text-m-primary" />
                 Briefed

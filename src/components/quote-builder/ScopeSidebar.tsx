@@ -32,7 +32,7 @@ export function ScopeSidebar({
             <details
               key={s.title}
               open
-              className="group rounded-md border border-m-outline-variant bg-m-surface"
+              className="group rounded-xl border border-m-outline-variant bg-m-surface"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2">
                 <span className="text-title-small">{s.title}</span>

@@ -96,7 +96,7 @@ export function SavedReportsBar({
               <Bookmark className="h-4 w-4" />
               Saved
               {reports.length > 0 && (
-                <span className="rounded-full bg-m-surface-container-high px-1.5 text-label-small tabular-nums">
+                <span className="rounded-md bg-m-surface-container-high px-1.5 text-label-small tabular-nums">
                   {reports.length}
                 </span>
               )}

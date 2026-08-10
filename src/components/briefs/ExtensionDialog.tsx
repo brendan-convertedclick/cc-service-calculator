@@ -129,7 +129,7 @@ export function ExtensionDialog({ brief, currentDueDate, currentPoints, open, on
           </div>
 
           {pointsIncreased && (
-            <label className="flex items-start gap-2.5 rounded-md bg-m-surface-container-low p-3">
+            <label className="flex items-start gap-2.5 rounded-lg bg-m-surface-container-low p-3">
               <Checkbox
                 checked={billable}
                 onCheckedChange={(v) => setBillable(v === true)}

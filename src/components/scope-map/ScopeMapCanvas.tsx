@@ -116,7 +116,7 @@ export function ScopeMapCanvas({
           {sowTitles.map((title) => (
             <span
               key={title}
-              className="rounded-full bg-m-surface-container px-2.5 py-0.5 text-label-small text-m-on-surface-variant shadow-elev-1"
+              className="rounded-md bg-m-surface-container px-2.5 py-0.5 text-label-small text-m-on-surface-variant shadow-elev-1"
             >
               {title}
             </span>

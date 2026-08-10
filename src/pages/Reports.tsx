@@ -384,7 +384,7 @@ export function Reports() {
               key={rt.id}
               type="button"
               onClick={() => setType(rt.id)}
-              className={`rounded-full px-3 py-1 text-label-large transition-colors ${
+              className={`rounded-md px-3 py-1 text-label-large transition-colors ${
                 rt.id === activeType
                   ? "bg-m-primary text-m-on-primary"
                   : "bg-m-surface-container-high text-m-on-surface-variant hover:bg-m-surface-container-highest"
@@ -491,7 +491,7 @@ export function Reports() {
       {activeType === "invoice" && justMarked.map((m) => (
         <div
           key={m.kind + m.ids.join()}
-          className="flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-2"
+          className="flex items-center justify-between gap-3 rounded-xl border border-m-outline-variant bg-m-surface-container-low px-4 py-2"
         >
           <span className="text-body-small text-m-on-surface-variant">
             Marked invoiced: {m.label}

@@ -359,7 +359,7 @@ export function BriefIntelligenceView({
             value={draft.confidence_level}
             onValueChange={(v) => update({ confidence_level: v })}
           >
-            <SelectTrigger className="h-8 w-40 shrink-0 text-label-small" aria-label="Confidence level">
+            <SelectTrigger className="h-10 w-40 shrink-0 text-label-small" aria-label="Confidence level">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -405,7 +405,7 @@ export function BriefIntelligenceView({
           </Button>
         </div>
         {draft.requirements.map((req, i) => (
-          <div key={i} className="space-y-1 rounded border p-2">
+          <div key={i} className="space-y-1 rounded-lg border p-2">
             <div className="flex gap-2">
               <Input
                 value={req.text}

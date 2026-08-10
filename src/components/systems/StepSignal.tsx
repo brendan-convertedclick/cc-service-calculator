@@ -86,7 +86,7 @@ export function VerdictPill({ value, className }: { value: Verdict; className?: 
   return (
     <span
       className={cn(
-        "inline-flex flex-none items-center rounded-full px-2 py-0.5 text-label-small font-medium",
+        "inline-flex flex-none items-center rounded-md px-2 py-0.5 text-label-small font-medium",
         value === "keep" && "bg-m-primary-container text-m-on-primary-container",
         value === "cut" && "bg-m-error-container text-m-on-error-container",
         value === "review" && "bg-m-tertiary-container text-m-on-tertiary-container",
@@ -123,7 +123,7 @@ export function VerbSelect({
       aria-label={label}
       onChange={(e) => onChange(e.target.value || null)}
       className={cn(
-        "h-7 rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface",
+        "h-10 rounded-md border border-m-outline-variant bg-m-surface px-2 text-label-small text-m-on-surface",
         className
       )}
     >
@@ -160,7 +160,7 @@ function YesNo({
           // is a different verdict input from "No".
           onClick={() => onChange(value === choice ? null : choice)}
           className={cn(
-            "h-6 w-11 rounded-full border text-label-small transition-colors",
+            "h-6 w-11 rounded-md border text-label-small transition-colors",
             value === choice
               ? "border-m-primary bg-m-primary text-m-on-primary"
               : "border-m-outline-variant bg-m-surface text-m-on-surface-variant hover:bg-m-surface-container-high"
@@ -186,7 +186,7 @@ export function SignalNoise({
   const questions = QUESTIONS.filter((q) => !("checkOnly" in q && q.checkOnly) || isCheck);
 
   return (
-    <div className="space-y-2 rounded-md bg-m-surface-container p-3">
+    <div className="space-y-2 rounded-lg bg-m-surface-container p-3">
       {questions.map((q) => (
         <div key={q.field} className="flex items-center justify-between gap-3">
           <span className="text-label-medium text-m-on-surface">{q.text}</span>
@@ -211,7 +211,7 @@ export function SignalNoise({
               onPatch({ keep_decision: step.keep_decision === choice ? "auto" : choice })
             }
             className={cn(
-              "h-6 rounded-full border px-2.5 text-label-small transition-colors",
+              "h-6 rounded-md border px-2.5 text-label-small transition-colors",
               step.keep_decision === choice
                 ? "border-m-primary bg-m-primary text-m-on-primary"
                 : "border-m-outline-variant bg-m-surface text-m-on-surface-variant hover:bg-m-surface-container-high"

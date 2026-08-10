@@ -21,7 +21,7 @@ export function SOWPanel({
         <div className="text-label-small uppercase tracking-wider text-m-on-surface-variant">
           Statement of work
         </div>
-        <div className="flex items-center gap-3 rounded-md border border-m-outline-variant bg-m-surface p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-m-outline-variant bg-m-surface p-3">
           <FileText className="h-5 w-5 shrink-0 text-m-on-surface-variant" />
           <div className="min-w-0 flex-1">
             <div className="text-body-small text-m-on-surface">No SOW drafted yet</div>

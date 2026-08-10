@@ -77,7 +77,7 @@ export function MyMeetingsList() {
 
   if (meetings.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-m-outline-variant px-4 py-8 text-center text-body-small text-m-on-surface-variant">
+      <div className="rounded-lg border border-dashed border-m-outline-variant px-4 py-8 text-center text-body-small text-m-on-surface-variant">
         No meetings scheduled yet — use the form above to set one up.
       </div>
     );
@@ -154,7 +154,7 @@ function MeetingGroup({
       ) : (
         <div className="space-y-2">
           {meetings.map((m) => (
-            <div key={m.id} className="rounded-md border border-m-outline-variant bg-m-surface px-4 py-3">
+            <div key={m.id} className="rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">

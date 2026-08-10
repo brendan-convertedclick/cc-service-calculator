@@ -51,7 +51,7 @@ export function SowSelectionCard({
         <ul className="space-y-1">
           {available.map((sow) => (
             <li key={sow.slug}>
-              <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-m-surface-container">
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-m-surface-container">
                 <Checkbox
                   checked={checked.has(sow.slug)}
                   onCheckedChange={() => toggle(sow.slug)}
@@ -76,7 +76,7 @@ export function SowSelectionCard({
           ))}
         </ul>
         {available.length === 0 && (
-          <p className="rounded-md border border-dashed border-m-outline-variant px-3 py-6 text-center text-body-small text-m-on-surface-variant">
+          <p className="rounded-lg border border-dashed border-m-outline-variant px-3 py-6 text-center text-body-small text-m-on-surface-variant">
             No master SOWs exist yet. Author one first, then re-run the analysis.
           </p>
         )}

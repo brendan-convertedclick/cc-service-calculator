@@ -125,7 +125,7 @@ export function ProcedureWizard() {
               </div>
             ))}
           </div>
-          <p className={cn("rounded-md px-3 py-2 text-body-medium", BAND_CLASS[band])}>
+          <p className={cn("rounded-lg px-3 py-2 text-body-medium", BAND_CLASS[band])}>
             <b>{total} / 20</b> — {msg}
           </p>
         </CardContent>
@@ -154,7 +154,7 @@ export function ProcedureWizard() {
                       setTacit(tacit.map((v, j) => (j === i ? (v === choice ? null : choice) : v)))
                     }
                     className={cn(
-                      "h-7 w-12 rounded-full border text-label-small transition-colors",
+                      "h-7 w-12 rounded-md border text-label-small transition-colors",
                       tacit[i] === choice
                         ? "border-m-primary bg-m-primary text-m-on-primary"
                         : "border-m-outline-variant bg-m-surface text-m-on-surface-variant hover:bg-m-surface-container-high"
@@ -168,7 +168,7 @@ export function ProcedureWizard() {
           ))}
           <p
             className={cn(
-              "rounded-md px-3 py-2 text-body-medium",
+              "rounded-lg px-3 py-2 text-body-medium",
               mostlyJudgment ? BAND_CLASS.light : BAND_CLASS.build
             )}
           >

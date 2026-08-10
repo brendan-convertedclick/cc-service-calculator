@@ -100,7 +100,7 @@ function ClientSection({
     <div className="mb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-label-medium font-medium text-m-on-surface transition-colors hover:text-m-on-surface"
+        className="flex h-7 w-full items-center gap-1 rounded-md px-2 text-label-medium font-medium text-m-on-surface transition-colors hover:text-m-on-surface"
       >
         <ChevronRight className={cn("h-3 w-3 shrink-0 opacity-60 transition-transform", open && "rotate-90")} />
         <span className="min-w-0 flex-1 truncate text-left">{client.name}</span>
@@ -156,7 +156,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
     <button
       onClick={() => setScopeFilter(scopeFilter === filter ? "all" : filter)}
       className={cn(
-        "flex items-center gap-1.5 rounded-full px-2 py-1 text-label-small transition-colors",
+        "flex h-7 items-center gap-1.5 rounded-md px-2 text-label-small transition-colors",
         scopeFilter === filter
           ? activeClasses
           : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
@@ -183,7 +183,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
             placeholder="Search…"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="h-8 pl-8"
+            className="pl-8"
           />
         </div>
 
@@ -216,7 +216,7 @@ export function ProjectTree({ clientsData, opsData, selectedProjectId, hiddenIds
             aria-pressed={showCompleted}
             title={showCompleted ? "Hide completed" : "Show completed"}
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-2 py-1 text-label-small transition-colors",
+              "flex h-7 items-center gap-1.5 rounded-md px-2 text-label-small transition-colors",
               showCompleted
                 ? "bg-m-primary-container text-m-on-primary-container"
                 : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"

@@ -63,7 +63,7 @@ export function PulseView() {
             aria-label="Select month"
             value={burnMonth}
             onChange={e => e.target.value && setBurnMonth(e.target.value)}
-            className="rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small font-normal text-m-on-surface"
+            className="h-10 rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small font-normal text-m-on-surface"
           />
         </label>
       </div>

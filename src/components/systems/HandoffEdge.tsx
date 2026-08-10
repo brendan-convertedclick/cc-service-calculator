@@ -80,7 +80,7 @@ export function HandoffEdge({
             title="Delete this connection"
             aria-label="Delete this connection"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="nodrag nopan pointer-events-auto absolute grid h-5 w-5 place-items-center rounded-full border border-m-outline bg-m-surface text-m-error shadow-elev-2 hover:bg-m-error-container hover:text-m-on-error-container"
+            className="nodrag nopan pointer-events-auto absolute grid h-5 w-5 place-items-center rounded-md border border-m-outline bg-m-surface text-m-error shadow-elev-2 hover:bg-m-error-container hover:text-m-on-error-container"
           >
             <X className="h-3 w-3" />
           </button>
@@ -90,7 +90,7 @@ export function HandoffEdge({
           <EdgeLabelRenderer>
             <div
               style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-              className="pointer-events-none absolute rounded-full bg-m-secondary-container px-2 py-0.5 text-label-small font-bold uppercase tracking-wide text-m-on-secondary-container"
+              className="pointer-events-none absolute rounded-md bg-m-secondary-container px-2 py-0.5 text-label-small font-bold uppercase tracking-wide text-m-on-secondary-container"
             >
               ⇄ Handoff
             </div>

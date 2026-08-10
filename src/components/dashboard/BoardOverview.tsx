@@ -77,12 +77,12 @@ function BoardCard({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-2xl border border-m-outline-variant bg-m-surface p-2.5 text-left shadow-elev-1 transition-all hover:-translate-y-0.5 hover:border-m-outline hover:shadow-elev-2"
+      className="rounded-lg border border-m-outline-variant bg-m-surface p-2.5 text-left shadow-elev-1 transition-all hover:-translate-y-0.5 hover:border-m-outline hover:shadow-elev-2"
     >
       <div className="mb-1 flex items-center gap-2">
         <Icon className={cn("h-3.5 w-3.5 shrink-0", iconColor)} />
         <span className="text-[10.5px] font-semibold text-m-on-surface-variant">{client}</span>
-        <span className="ml-auto rounded-full bg-m-surface-container-high px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-m-on-primary-container">
+        <span className="ml-auto rounded-md bg-m-surface-container-high px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-m-on-primary-container">
           {engagement}
         </span>
       </div>
@@ -119,19 +119,19 @@ function Lane({
 
   if (collapsed) {
     return (
-      <section className="flex h-full w-12 shrink-0 flex-col overflow-hidden rounded-2xl border border-m-outline-variant bg-m-surface-container">
+      <section className="flex h-full w-12 shrink-0 flex-col overflow-hidden rounded-xl border border-m-outline-variant bg-m-surface-container">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={false}
           aria-label={`Expand ${name} lane`}
-          className={cn("relative flex h-full flex-col items-center gap-2 rounded-2xl py-3", s.head)}
+          className={cn("relative flex h-full flex-col items-center gap-2 rounded-xl py-3", s.head)}
         >
           <span className={cn("absolute inset-y-3 left-0 w-0.5 rounded-r", s.tick)} />
           <ChevronDown className="h-4 w-4 -rotate-90 text-m-on-surface-variant" />
           <LaneIcon className={cn("h-4 w-4", s.iconColor)} />
           {count !== undefined && (
-            <span className="rounded-full border border-m-outline-variant bg-m-surface px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-m-on-surface">
+            <span className="rounded-md border border-m-outline-variant bg-m-surface px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-m-on-surface">
               {count}
             </span>
           )}
@@ -144,7 +144,7 @@ function Lane({
   }
 
   return (
-    <section className="flex h-full w-[272px] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-m-outline-variant bg-m-surface-container">
+    <section className="flex h-full w-[272px] min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-m-outline-variant bg-m-surface-container">
       <button
         type="button"
         onClick={onToggle}
@@ -156,7 +156,7 @@ function Lane({
         <LaneIcon className={cn("h-4 w-4 shrink-0", s.iconColor)} />
         <span className="text-label-medium font-bold text-m-on-surface">{name}</span>
         {count !== undefined && (
-          <span className="rounded-full border border-m-outline-variant bg-m-surface px-2 py-0.5 text-[11px] font-bold tabular-nums text-m-on-surface">
+          <span className="rounded-md border border-m-outline-variant bg-m-surface px-2 py-0.5 text-[11px] font-bold tabular-nums text-m-on-surface">
             {count}
           </span>
         )}

@@ -773,7 +773,7 @@ function RecentList({
         {items.map((item) => (
           <li
             key={item.id}
-            className="flex items-center justify-between gap-3 rounded-md border border-m-outline-variant bg-m-surface px-4 py-2"
+            className="flex items-center justify-between gap-3 rounded-xl border border-m-outline-variant bg-m-surface px-4 py-2"
           >
             <div className="min-w-0 space-y-0.5">
               <div className="truncate text-body-medium">{item.title}</div>

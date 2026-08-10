@@ -57,7 +57,7 @@ function Fig({ children, className }: { children: React.ReactNode; className?: s
  * tonally rather than with its own border — the design system bans nesting a
  * bordered surface inside a bordered surface.
  */
-const PANEL = "rounded-md bg-m-surface-container-low px-4 py-3";
+const PANEL = "rounded-lg bg-m-surface-container-low px-4 py-3";
 
 // ClickUp descriptions are markdown. We don't render markdown here — only the
 // links matter, because that's where the task's Conductor origin lives.
@@ -164,7 +164,7 @@ export function RequestContext({
   }
   // Height matches the collapsed panel so the card doesn't jump when the
   // ClickUp round-trip lands.
-  if (!ctx) return <Skeleton className="h-[4.5rem] w-full rounded-md" />;
+  if (!ctx) return <Skeleton className="h-[4.5rem] w-full rounded-lg" />;
 
   const budgetPoints = ctx.original_points;
   const overBudget = budgetPoints !== null && budgetPoints > 0

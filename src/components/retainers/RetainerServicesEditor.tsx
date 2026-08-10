@@ -257,13 +257,13 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed border-m-outline-variant p-6 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-m-outline-variant p-6 text-center text-sm text-muted-foreground">
           No recurring services. Add at least one above.
         </div>
       ) : (
         <div className="space-y-3">
           {rows.map((r) => (
-            <div key={r.rowId} className="space-y-3 rounded-md border border-m-outline-variant bg-m-surface p-3">
+            <div key={r.rowId} className="space-y-3 rounded-lg border border-m-outline-variant bg-m-surface p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 space-y-1">
                   <Input
@@ -286,7 +286,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                   <select
                     value={r.cadence}
                     onChange={(e) => patchRow(r.rowId, { cadence: e.target.value as Cadence })}
-                    className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                   >
                     {CADENCES.map((c) => (
                       <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
@@ -333,7 +333,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
                         type="button"
                         onClick={() => toggleAssignee(r.rowId, m.id)}
                         className={
-                          "flex items-center gap-1 rounded-full border px-3 py-1 text-label-small transition-colors " +
+                          "flex h-7 items-center gap-1 rounded-md border px-3 text-label-small transition-colors " +
                           (selected
                             ? "border-m-primary bg-m-primary text-m-on-primary"
                             : "border-m-outline-variant text-m-on-surface-variant hover:text-m-on-surface")

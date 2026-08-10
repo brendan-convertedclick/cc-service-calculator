@@ -41,21 +41,21 @@ interface FlagChipProps {
 function FlagChip({ flag }: FlagChipProps) {
   if (flag === "work_not_invoiced") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+      <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
         ⚠ Work not invoiced
       </span>
     );
   }
   if (flag === "invoice_overdue") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
+      <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
         🔴 Invoice overdue
       </span>
     );
   }
   if (flag === "no_actuals") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-m-surface-container px-2 py-0.5 text-[11px] font-medium text-m-on-surface-variant">
+      <span className="inline-flex items-center gap-1 rounded-md bg-m-surface-container px-2 py-0.5 text-[11px] font-medium text-m-on-surface-variant">
         ○ No actuals
       </span>
     );
@@ -135,7 +135,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                       </span>
                       <span
                         className={cn(
-                          "rounded px-2 py-0.5 text-label-small",
+                          "rounded-md px-2 py-0.5 text-label-small",
                           statusColor[inv.status] ??
                             "bg-m-surface-container text-m-on-surface-variant",
                         )}
@@ -366,7 +366,7 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                 <button
                   onClick={prevMonth}
                   aria-label="Previous month"
-                  className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
+                  className="grid h-7 w-7 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -376,7 +376,7 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                 <button
                   onClick={nextMonth}
                   aria-label="Next month"
-                  className="grid h-7 w-7 place-items-center rounded text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
+                  className="grid h-7 w-7 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface hover:text-m-on-surface transition-colors"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -466,7 +466,7 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                         {row.invoiceStatus ? (
                           <span
                             className={cn(
-                              "rounded px-2 py-0.5 text-label-small",
+                              "rounded-md px-2 py-0.5 text-label-small",
                               statusColor[row.invoiceStatus] ??
                                 "bg-m-surface-container text-m-on-surface-variant",
                             )}
@@ -507,7 +507,7 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                     <td className="px-4 py-3">
                       <span
                         className={cn(
-                          "rounded px-2 py-0.5 text-label-small font-medium",
+                          "rounded-md px-2 py-0.5 text-label-small font-medium",
                           totalInvoiced >= totalCost && totalCost > 0
                             ? "bg-green-100 text-green-800"
                             : totalCost > 0

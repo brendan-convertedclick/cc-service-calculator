@@ -38,7 +38,7 @@ export function StaffBriefForm() {
       />
       <header className="flex items-center justify-between border-b border-m-outline-variant/40 bg-m-surface/60 px-6 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-md bg-m-primary-container text-m-on-primary-container">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-m-primary-container text-m-on-primary-container">
             <Calculator className="h-4 w-4" />
           </div>
           <div className="leading-tight">

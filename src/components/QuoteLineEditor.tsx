@@ -108,7 +108,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
         </div>
         {perServiceRecurrence && line.is_recurring && (
           <span
-            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-m-primary/10 px-2 py-0.5 text-label-small text-m-primary"
+            className="shrink-0 inline-flex items-center gap-1 rounded-md bg-m-primary/10 px-2 py-0.5 text-label-small text-m-primary"
             title={line.recurrence_interval ?? "Recurring"}
           >
             <Repeat className="h-3 w-3" />
@@ -117,7 +117,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
         )}
         <span
           className={
-            "shrink-0 rounded-full px-2 py-0.5 text-label-small font-mono tabular-nums " +
+            "shrink-0 rounded-md px-2 py-0.5 text-label-small font-mono tabular-nums " +
             (sumOutOfTolerance
               ? "bg-destructive/10 text-destructive"
               : "bg-m-surface-container text-m-on-surface-variant")
@@ -148,7 +148,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
 
       {open && (
         <CardContent className="space-y-4 border-t border-m-outline-variant/60 p-5">
-          <div className="grid grid-cols-4 gap-4 rounded-md bg-m-surface-container-low/40 p-3">
+          <div className="grid grid-cols-4 gap-4 rounded-lg bg-m-surface-container-low/40 p-3">
             <div className="flex flex-col gap-1">
               <Label
                 htmlFor={`qty-${line.service_id}`}
@@ -161,32 +161,32 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                 type="number"
                 step="0.25"
                 min="0.25"
-                className="h-9 text-right font-mono tabular-nums"
+                className="h-10 text-right font-mono tabular-nums"
                 value={line.qty}
                 onChange={(e) => onChange(index, { qty: Number(e.target.value) })}
               />
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Unit price</span>
-              <span className="flex h-9 items-center text-title-small font-mono tabular-nums text-m-on-surface">
+              <span className="flex h-10 items-center text-title-small font-mono tabular-nums text-m-on-surface">
                 {formatZar(unitCents)}
               </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Hours</span>
-              <span className="flex h-9 items-center font-mono tabular-nums text-m-on-surface">
+              <span className="flex h-10 items-center font-mono tabular-nums text-m-on-surface">
                 {totalHours.toFixed(2)}h
               </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-small text-m-on-surface-variant">Line total</span>
-              <span className="flex h-9 items-center text-title-medium font-mono tabular-nums text-m-primary">
+              <span className="flex h-10 items-center text-title-medium font-mono tabular-nums text-m-primary">
                 {formatZar(totalCents)}
               </span>
             </div>
           </div>
 
-          <div className="rounded-md border border-m-outline-variant/60 bg-m-surface-container-low/40">
+          <div className="rounded-lg border border-m-outline-variant/60 bg-m-surface-container-low/40">
             <div className="grid grid-cols-[minmax(0,1fr)_96px_80px] items-center gap-x-4 px-3 py-2 text-label-small uppercase tracking-wide text-m-on-surface-variant">
               <span>Department</span>
               <span className="text-right">Allocation</span>
@@ -215,7 +215,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                         step="0.5"
                         min="0"
                         max="100"
-                        className="h-8 w-full pr-7 text-right font-mono tabular-nums"
+                        className="h-10 w-full pr-7 text-right font-mono tabular-nums"
                         value={pct}
                         onChange={(e) =>
                           onChange(index, {
@@ -259,7 +259,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
           </div>
 
           {perServiceRecurrence && (
-            <div className="rounded-md border border-m-outline-variant/60 bg-m-surface-container-low/40 p-3 space-y-3">
+            <div className="rounded-lg border border-m-outline-variant/60 bg-m-surface-container-low/40 p-3 space-y-3">
               <Label className="flex items-center gap-2 text-body-small">
                 <input
                   type="checkbox"
@@ -281,7 +281,7 @@ export const QuoteLineEditor = memo(function QuoteLineEditor({
                           recurrence_interval: (e.target.value || null) as Interval | null,
                         })
                       }
-                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">—</option>
                       <option value="weekly">Weekly</option>

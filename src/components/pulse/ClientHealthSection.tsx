@@ -40,7 +40,7 @@ export function ClientHealthSection({ rows, onLogTouchpoint }: Props) {
               {r.daysSinceContact < 999 ? `${r.daysSinceContact} days ago` : ''}
             </span>
             <span className={trendLabel[r.revenueTrend].cls}>{trendLabel[r.revenueTrend].text}</span>
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-label-small" onClick={() => onLogTouchpoint(r.clientId)}>
+            <Button variant="ghost" size="sm" className="px-2 text-label-small" onClick={() => onLogTouchpoint(r.clientId)}>
               Log
             </Button>
           </div>

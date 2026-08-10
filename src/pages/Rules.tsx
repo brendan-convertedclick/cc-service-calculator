@@ -75,7 +75,7 @@ function RuleCard({ rule, depts, onDelete }: { rule: RuleWithAllocations; depts:
               setName(e.target.value);
               setDirty(true);
             }}
-            className="h-8 text-base font-semibold"
+            className="h-10 text-base font-semibold"
           />
         </CardTitle>
         <Button variant="ghost" size="icon" onClick={onDelete}>

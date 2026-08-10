@@ -26,7 +26,7 @@ export function AISuggestModal({ open, suggestions, onClose, onAccept }: Props) 
         <DialogHeader><DialogTitle>Suggested services</DialogTitle></DialogHeader>
         <div className="space-y-3 max-h-[60vh] overflow-auto">
           {suggestions.map((s) => (
-            <div key={s.service_id} className="rounded-md border border-m-outline-variant p-3">
+            <div key={s.service_id} className="rounded-lg border border-m-outline-variant p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-title-small">{s.service_name}</div>

@@ -235,7 +235,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                         onChange={(e) =>
                           setForm({ ...form, status: e.target.value })
                         }
-                        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                       >
                         <option value="active">Active</option>
                         <option value="draft">Draft</option>
@@ -251,7 +251,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                         onChange={(e) =>
                           setForm({ ...form, pricing_model: e.target.value })
                         }
-                        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                       >
                         <option value="fixed">Fixed</option>
                         <option value="hourly">Hourly</option>
@@ -317,7 +317,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                       onChange={(e) =>
                         setForm({ ...form, rule_id: e.target.value || null })
                       }
-                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">— custom allocation only</option>
                       {rules.map((r) => (
@@ -334,7 +334,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                       onChange={(e) =>
                         setForm({ ...form, clickup_work_stream: e.target.value || null })
                       }
-                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">— derive from department —</option>
                       {[
@@ -360,7 +360,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                           primary_team_member_id: e.target.value || null,
                         })
                       }
-                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">—</option>
                       {team.map((m) => (

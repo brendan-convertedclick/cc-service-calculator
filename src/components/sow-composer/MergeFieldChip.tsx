@@ -26,7 +26,7 @@ export function MergeFieldChip({ token }: { token: ResolvedToken }) {
     return (
       <span
         data-testid={`unknown-var-${token.key}`}
-        className="inline-flex items-center gap-1 rounded bg-m-error-container px-1.5 py-0.5 text-label-small font-medium text-m-on-error-container"
+        className="inline-flex items-center gap-1 rounded-md bg-m-error-container px-1.5 py-0.5 text-label-small font-medium text-m-on-error-container"
         title={`Unknown variable: ${token.key}`}
       >
         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
@@ -42,7 +42,7 @@ export function MergeFieldChip({ token }: { token: ResolvedToken }) {
           <span
             data-testid={`chip-${token.key}`}
             className={cn(
-              "inline-flex items-center rounded bg-m-primary-container px-1.5 py-0.5 text-label-small font-medium text-m-on-primary-container",
+              "inline-flex items-center rounded-md bg-m-primary-container px-1.5 py-0.5 text-label-small font-medium text-m-on-primary-container",
             )}
           >
             {token.formatted || "—"}

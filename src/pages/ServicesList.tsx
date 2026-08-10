@@ -170,13 +170,13 @@ export function ServicesList() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search…"
-            className="h-8 pl-8 pr-8"
+            className="h-10 pl-8 pr-8"
           />
           {q && (
             <button
               type="button"
               onClick={() => setQ("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -246,7 +246,7 @@ export function ServicesList() {
                     }`}
                   >
                     <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${
                         active
                           ? "border-m-primary bg-m-primary text-m-on-primary"
                           : "border-m-outline"
@@ -494,14 +494,14 @@ const ServiceRow = memo(function ServiceRow({
       <td className="px-4 py-2 border-b">
         {groupName ? (
           <span
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-m-outline-variant bg-m-surface-container px-2.5 py-0.5 text-[11px] text-m-on-surface-variant"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-m-outline-variant bg-m-surface-container px-2.5 py-0.5 text-[11px] text-m-on-surface-variant"
             title={groupName}
           >
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: groupColor ?? "var(--mcolor-outline)" }} />
             <span className="truncate">{groupName}</span>
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-m-outline px-2.5 py-0.5 text-[11px] text-muted-foreground" title="Uncategorized">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-m-outline px-2.5 py-0.5 text-[11px] text-muted-foreground" title="Uncategorized">
             <span className="h-2 w-2 flex-none rounded-full border border-m-outline" />
             <span className="truncate">Uncategorized</span>
           </span>
@@ -589,7 +589,7 @@ const ServiceRow = memo(function ServiceRow({
             </div>
 
             {isCompound && (
-              <div className="mb-2 rounded-md bg-m-tertiary-container px-2.5 py-1.5 text-[11px] leading-snug text-m-on-tertiary-container">
+              <div className="mb-2 rounded-lg bg-m-tertiary-container px-2.5 py-1.5 text-[11px] leading-snug text-m-on-tertiary-container">
                 Derived from {childCount} included service{childCount === 1 ? "" : "s"} — edit hours in the service detail.
               </div>
             )}

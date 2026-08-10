@@ -56,14 +56,16 @@ export function MultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("justify-between font-normal", className)}
+          // Same as Combobox: a field wearing Button's outline styling, so it
+          // takes the field radius rather than the action pill.
+          className={cn("justify-between rounded-md font-normal", className)}
         >
           <span className={cn("truncate", values.length === 0 && "text-muted-foreground")}>
             {triggerLabel}
           </span>
           <span className="ml-2 flex shrink-0 items-center gap-1.5">
             {values.length > 1 && (
-              <span className="rounded-full bg-m-surface-container px-1.5 text-[10px] tabular-nums text-m-on-surface-variant">
+              <span className="rounded-md bg-m-surface-container px-1.5 text-[10px] tabular-nums text-m-on-surface-variant">
                 {values.length}
               </span>
             )}

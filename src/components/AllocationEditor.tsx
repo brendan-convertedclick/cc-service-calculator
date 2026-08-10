@@ -96,7 +96,7 @@ export function AllocationEditor({ allocations, departments, priceCents, readOnl
             onChange={(e) => {
               if (e.target.value) add(e.target.value);
             }}
-            className="inline-flex h-8 items-center rounded-md border bg-background px-3 text-sm"
+            className="inline-flex h-10 items-center rounded-md border bg-background px-3 text-sm"
           >
             <option value="">+ add department</option>
             {available.map((d) => (

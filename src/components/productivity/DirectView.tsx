@@ -71,11 +71,11 @@ export function DirectView({ data, period, isTeam = false }: Props) {
             </p>
           </div>
           {hasBreakdown && (
-            <div className="flex gap-0.5 rounded-lg border border-m-outline-variant bg-m-surface p-0.5 shrink-0 ml-4 mt-0.5">
+            <div className="flex gap-0.5 rounded-md border border-m-outline-variant bg-m-surface p-0.5 shrink-0 ml-4 mt-0.5">
               <button
                 onClick={() => setShowBreakdown(false)}
                 className={[
-                  "rounded-md px-3 py-1 text-label-small transition-colors",
+                  "h-7 rounded-md px-3 text-label-small transition-colors",
                   !showBreakdown
                     ? "bg-m-primary/15 text-m-primary"
                     : "text-m-on-surface-variant hover:text-m-on-surface",
@@ -86,7 +86,7 @@ export function DirectView({ data, period, isTeam = false }: Props) {
               <button
                 onClick={() => setShowBreakdown(true)}
                 className={[
-                  "rounded-md px-3 py-1 text-label-small transition-colors",
+                  "h-7 rounded-md px-3 text-label-small transition-colors",
                   showBreakdown
                     ? "bg-m-primary/15 text-m-primary"
                     : "text-m-on-surface-variant hover:text-m-on-surface",

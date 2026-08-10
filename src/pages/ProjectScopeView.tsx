@@ -205,7 +205,7 @@ Output: An updated scope of work document with a "Change log" section appended.`
           <Badge variant="muted" className="ml-2">{engagementType}</Badge>
           <span
             className={cn(
-              "ml-auto rounded-full px-2 py-0.5 text-label-small",
+              "ml-auto rounded-md px-2 py-0.5 text-label-small",
               scopeStatusColor[scopeStatus] ?? "bg-m-surface-container text-m-on-surface-variant"
             )}
           >

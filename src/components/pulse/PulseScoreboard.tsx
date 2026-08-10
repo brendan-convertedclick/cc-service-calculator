@@ -104,7 +104,7 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
                       <span className="truncate font-medium text-m-on-surface">{i.clientName}</span>
                       {i.invoiceNumber && <span className="shrink-0 text-m-on-surface-variant">{i.invoiceNumber}</span>}
                       <span className="ml-auto shrink-0 font-semibold tabular-nums text-m-on-surface">{fmt(i.amountCents)}</span>
-                      <span className="shrink-0 rounded-full bg-m-error-container px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-m-on-error-container">
+                      <span className="shrink-0 rounded-md bg-m-error-container px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-m-on-error-container">
                         {i.daysOverdue}d
                       </span>
                     </li>
@@ -156,12 +156,12 @@ export function PulseScoreboard({ arBands, retainers, clientHealth, wip }: Pulse
         {dueClients.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {dueClients.slice(0, CHIP_LIMIT).map(c => (
-              <span key={c.clientId} className="max-w-full truncate rounded-full bg-m-surface-container px-2 py-0.5 text-label-small text-m-on-surface-variant">
+              <span key={c.clientId} className="max-w-full truncate rounded-md bg-m-surface-container px-2 py-0.5 text-label-small text-m-on-surface-variant">
                 {c.clientName}
               </span>
             ))}
             {dueClients.length > CHIP_LIMIT && (
-              <span className="rounded-full bg-m-tertiary-container px-2 py-0.5 text-label-small font-semibold text-m-on-tertiary-container">
+              <span className="rounded-md bg-m-tertiary-container px-2 py-0.5 text-label-small font-semibold text-m-on-tertiary-container">
                 +{dueClients.length - CHIP_LIMIT} more
               </span>
             )}

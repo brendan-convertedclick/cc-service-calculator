@@ -42,7 +42,7 @@ export function SectionCard({
   return (
     <div
       data-testid={`section-${section.id}`}
-      className="rounded-lg border border-m-outline-variant bg-m-surface"
+      className="rounded-xl border border-m-outline-variant bg-m-surface"
     >
       <div className="flex items-center justify-between px-3 pt-2">
         <span className="text-label-medium font-medium text-m-on-surface-variant">
@@ -53,7 +53,7 @@ export function SectionCard({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             aria-label="Move section up"
             disabled={isFirst}
             onClick={() => onMove(-1)}
@@ -64,7 +64,7 @@ export function SectionCard({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             aria-label="Move section down"
             disabled={isLast}
             onClick={() => onMove(1)}
@@ -75,7 +75,7 @@ export function SectionCard({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8"
             aria-label="Save section to library"
             onClick={onSaveToLibrary}
           >
@@ -85,7 +85,7 @@ export function SectionCard({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-m-error"
+            className="h-8 w-8 text-m-error"
             aria-label="Remove section"
             onClick={onRemove}
           >

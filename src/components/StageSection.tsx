@@ -72,7 +72,7 @@ export function StageSection({
         </span>
 
         {done && (
-          <span className="shrink-0 rounded-full bg-m-primary/10 px-2 py-0.5 text-label-small text-m-primary">
+          <span className="shrink-0 rounded-md bg-m-primary/10 px-2 py-0.5 text-label-small text-m-primary">
             Done
           </span>
         )}

@@ -36,7 +36,7 @@ export function TeamSidebar({ members, selectedUserId, onSelect, pointsByMember 
       <button
         type="button"
         onClick={() => onSelect(null)}
-        className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-label-large transition-colors ${
+        className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-left text-label-large transition-colors ${
           isTeam
             ? "bg-m-primary-container font-semibold text-m-on-primary-container"
             : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
@@ -60,7 +60,7 @@ export function TeamSidebar({ members, selectedUserId, onSelect, pointsByMember 
             type="button"
             onClick={() => member.clickup_user_id && onSelect(member.clickup_user_id)}
             disabled={!member.clickup_user_id}
-            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-label-large transition-colors ${
+            className={`flex h-8 w-full items-center gap-2 rounded-md px-3 text-left text-label-large transition-colors ${
               isActive
                 ? "bg-m-primary-container font-semibold text-m-on-primary-container"
                 : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"

@@ -274,7 +274,7 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : derived ? null : steps.length === 0 ? (
-        <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
           {hasChildren
             ? "This bundle is deriving hours from its included services. Use Seed from children to customize."
             : "No process steps yet. Add one manually, seed from the rule, or let AI draft them."}
@@ -282,7 +282,7 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
       ) : (
         <ol className="space-y-2">
           {steps.map((s, i) => (
-            <li key={s.id} className="rounded-md border bg-background p-3">
+            <li key={s.id} className="rounded-lg border bg-background p-3">
               <div className="flex items-start gap-3">
                 <div className="text-xs font-mono text-muted-foreground pt-2">{i + 1}</div>
                 <div className="flex-1 space-y-2">
@@ -309,7 +309,7 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
                       onChange={(e) =>
                         update.mutate({ id: s.id, patch: { department_id: e.target.value || null } })
                       }
-                      className="h-8 rounded-md border bg-background px-2 text-sm"
+                      className="h-10 rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">— department</option>
                       {depts.map((d) => (
@@ -320,7 +320,7 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
                       type="number"
                       step="0.25"
                       min="0.25"
-                      className="h-8 w-24"
+                      className="h-10 w-24"
                       placeholder="hours"
                       defaultValue={s.estimated_hours != null ? String(s.estimated_hours) : ""}
                       onBlur={(e) => {

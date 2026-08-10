@@ -252,7 +252,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
               {i > 0 && <span className="h-px w-6 bg-m-outline-variant" aria-hidden />}
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-label-medium",
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-label-medium",
                   reached
                     ? "bg-m-primary-container text-m-on-primary-container"
                     : "bg-m-surface-container text-m-on-surface-variant",

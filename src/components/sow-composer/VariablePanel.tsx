@@ -68,7 +68,6 @@ export function VariablePanel({
           const v = e.target.value;
           onSetDocOverride(def.key, numeric ? (v === "" ? null : Number(v)) : v);
         }}
-        className="h-8"
       />
     );
   };
@@ -100,7 +99,7 @@ export function VariablePanel({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8"
                             aria-label={`Apply ${def.label ?? def.key} to this client`}
                             onClick={() =>
                               onSetClientOverride(

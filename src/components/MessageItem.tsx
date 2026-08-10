@@ -35,7 +35,7 @@ export function MessageItem({ message }: { message: BriefMessage }) {
 
   if (direction === "note") {
     return (
-      <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3" data-variant="note">
+      <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3" data-variant="note">
         <div className="mb-1 text-label-small text-yellow-800">
           {relayed_by ?? "team"} · {time}
         </div>

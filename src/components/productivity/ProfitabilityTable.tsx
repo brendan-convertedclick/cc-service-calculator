@@ -78,7 +78,7 @@ export function ProfitabilityTable({ rows }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className="inline-block rounded-full px-2.5 py-0.5 text-label-medium font-medium"
+                      className="inline-block rounded-md px-2.5 py-0.5 text-label-medium font-medium"
                       style={{ backgroundColor: rag.bg, color: rag.text }}
                     >
                       {rag.label}

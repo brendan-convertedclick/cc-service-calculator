@@ -174,7 +174,7 @@ Output: A structured list of suggested services with hours and allocation, ready
                 id="margin-input"
                 type="number"
                 step="0.5"
-                className="h-9 w-20 font-mono tabular-nums"
+                className="h-10 w-20 font-mono tabular-nums"
                 value={qb.marginPct}
                 onChange={(e) => qb.setMarginPct(Number(e.target.value))}
               />
@@ -190,7 +190,7 @@ Output: A structured list of suggested services with hours and allocation, ready
                 id="discount-input"
                 type="number"
                 step="0.5"
-                className="h-9 w-20 font-mono tabular-nums"
+                className="h-10 w-20 font-mono tabular-nums"
                 value={qb.discountPct}
                 onChange={(e) => qb.setDiscountPct(Number(e.target.value))}
               />

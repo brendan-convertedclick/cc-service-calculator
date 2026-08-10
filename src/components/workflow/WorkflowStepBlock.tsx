@@ -60,7 +60,7 @@ export function WorkflowStepBlock({ step }: Props) {
   return (
     <div
       className={`
-        flex-shrink-0 w-24 rounded-lg border p-2.5 text-center
+        flex-shrink-0 w-24 rounded-xl border p-2.5 text-center
         ${cfg.border} ${cfg.bg}
         ${isPending ? 'opacity-40' : ''}
       `}
