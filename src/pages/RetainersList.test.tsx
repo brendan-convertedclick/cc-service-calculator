@@ -35,6 +35,7 @@ const burnRow: RetainerBurnRow = {
 };
 vi.mock("@/hooks/usePulseRetainerBurn", () => ({
   usePulseRetainerBurn: () => [burnRow],
+  currentMonthKey: () => "2026-08",
 }));
 vi.mock("@/hooks/useSyncActuals", () => ({
   useSyncActuals: () => ({ mutate: mockSyncMutate, isPending: false, variables: undefined }),

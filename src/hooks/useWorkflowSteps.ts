@@ -1,6 +1,17 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { ProcessStepInstance, ProcessStepHandoff } from '@/types/db'
+import type { Tables } from '@/types/db'
+
+export type ProcessStepInstance = Tables<'process_step_instances'>
+
+// process_step_handoffs is a DB view (supabase/migrations/0032) built from an
+// inner join of process_step_instances on itself, filtered to rows where both
+// `completed_at` and `started_at` are non-null — so every column it produces
+// is always populated, even though the generated view type marks all of them
+// nullable. Narrow that back to the columns' real guarantees here.
+export type ProcessStepHandoff = {
+  [K in keyof Tables<'process_step_handoffs'>]: NonNullable<Tables<'process_step_handoffs'>[K]>
+}
 
 export function useWorkflowSteps(projectId: string) {
   return useQuery({
@@ -41,30 +52,3 @@ export function useWorkflowHandoffs(projectId: string) {
   })
 }
 
-export function useUpdateStepInstance() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string
-      updates: Partial<Pick<ProcessStepInstance,
-        'status' | 'started_at' | 'completed_at' | 'actual_hours' | 'blocked_reason' | 'assignee_id' | 'manual_override'
-      >>
-    }) => {
-      const { data, error } = await supabase
-        .from('process_step_instances')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['workflow-steps', data.project_id] })
-      qc.invalidateQueries({ queryKey: ['workflow-handoffs', data.project_id] })
-    },
-  })
-}

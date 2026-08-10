@@ -9,10 +9,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { MEMBER_COLORS } from "@/hooks/useProductivity";
-import type { Database } from "@/types/db";
-
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+import type { TeamMember } from "@/hooks/useTeam";
+import {
+  visibleMembers,
+  memberColorMap,
+  TOOLTIP_STYLE_BORDERED,
+  TOOLTIP_LABEL_STYLE,
+  TOOLTIP_ITEM_STYLE,
+} from "./chartShared";
 
 interface Props {
   data: Record<string, number | string>[];
@@ -21,12 +25,8 @@ interface Props {
 }
 
 export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
-  const activeMembersWithClickUp = members.filter((m) => m.clickup_user_id !== null);
-
-  const displayMembers =
-    selectedUserId !== null
-      ? activeMembersWithClickUp.filter((m) => m.clickup_user_id === selectedUserId)
-      : activeMembersWithClickUp;
+  const displayMembers = visibleMembers(members, selectedUserId);
+  const memberColor = memberColorMap(members);
 
   return (
     <div className="rounded-xl border border-m-outline-variant bg-m-surface-container p-5">
@@ -48,22 +48,13 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
               tickLine={false}
             />
             <Tooltip
-              contentStyle={{
-                background: "#1e2433",
-                border: "1px solid #2d3748",
-                borderRadius: 8,
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
-              }}
-              labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              formatter={(value: number) => [`${value.toFixed(1)} hrs`]}
-              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
+              contentStyle={TOOLTIP_STYLE_BORDERED}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              formatter={(value) => [`${Number(value).toFixed(1)} hrs`]}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             {displayMembers.map((member) => {
-              const originalIdx = activeMembersWithClickUp.findIndex(
-                (m) => m.id === member.id,
-              );
-              const color = MEMBER_COLORS[originalIdx % MEMBER_COLORS.length];
+              const color = memberColor[member.clickup_user_id] ?? "#7C3AED";
               const uid = String(member.clickup_user_id);
               return (
                 <Bar
@@ -78,7 +69,7 @@ export function HoursTrackedChart({ data, members, selectedUserId }: Props) {
                     dataKey={`${uid}_hours`}
                     position="top"
                     style={{ fontSize: 10, fill: color, fontWeight: 600, fontFamily: "var(--font-mono)" }}
-                    formatter={(v: number) => (v > 0 ? `${v}h` : "")}
+                    formatter={(v) => (Number(v) > 0 ? `${v}h` : "")}
                   />
                 </Bar>
               );

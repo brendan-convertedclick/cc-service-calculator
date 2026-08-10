@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { todayISO } from "@/lib/dates";
 
 export interface ReconciliationRow {
   clientId: string;
@@ -45,9 +46,10 @@ const STATUS_PRIORITY: Record<string, number> = {
   VOIDED: 5,
 };
 
-function worstStatus(statuses: string[], today: string): string | null {
+// Callers pre-inject "OVERDUE" into `statuses` for past-due unpaid invoices
+// (see resolvedStatuses below) before ranking by STATUS_PRIORITY.
+function worstStatus(statuses: string[]): string | null {
   if (statuses.length === 0) return null;
-  // Inject "OVERDUE" as a virtual status for past-due AUTHORISED/SUBMITTED invoices
   const resolved = statuses.map((s) => s); // copy
   return resolved.sort((a, b) => (STATUS_PRIORITY[a] ?? 99) - (STATUS_PRIORITY[b] ?? 99))[0];
 }
@@ -57,7 +59,7 @@ export function useReconciliation(year: number, month: number) {
     queryKey: ["reconciliation", year, month],
     queryFn: async () => {
       const { start, end } = monthRange(year, month);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayISO();
 
       // 1. Actuals for the month — group by client via project
       const { data: actuals, error: actualsError } = await supabase
@@ -178,7 +180,7 @@ export function useReconciliation(year: number, month: number) {
           return i.status;
         });
 
-        const worst = worstStatus(resolvedStatuses, today);
+        const worst = worstStatus(resolvedStatuses);
 
         const uninvoicedWork = agg.costCents > 0 && invList.length === 0;
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useUpdateClient } from "@/hooks/useClients";
+import { errorMessage } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -28,7 +29,7 @@ export function XeroContactPanel({
       { id: clientId, patch: { xero_contact_name: value.trim() || null } },
       {
         onSuccess: () => toast.success("Saved"),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
+        onError: (e) => toast.error(`Update failed: ${errorMessage(e)}`),
       },
     );
   }

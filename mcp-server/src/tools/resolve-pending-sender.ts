@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   pending_id: z.string().describe('pending_senders row UUID'),
@@ -8,7 +9,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { data: pending, error: pErr } = await supabase
       .from('pending_senders')
       .select('client_id, email')
@@ -31,16 +32,6 @@ export async function handler(input: Input) {
       .eq('id', input.pending_id)
     if (delErr) throw new Error(delErr.message)
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({ resolved: true, client_id: pending.client_id, email: pending.email, mode: input.action }),
-        },
-      ],
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { resolved: true, client_id: pending.client_id, email: pending.email, mode: input.action }
+  })
 }

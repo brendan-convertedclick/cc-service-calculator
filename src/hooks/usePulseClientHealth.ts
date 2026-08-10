@@ -6,6 +6,13 @@ interface BriefRow { client_id: string | null; created_at: string }
 interface TouchpointRow { client_id: string; type: 'meeting' | 'call' | 'email'; occurred_at: string }
 interface InvoiceRow { client_id: string | null; paid_at: string | null }
 
+// DB enforces `type in ('meeting','call','email')` via CHECK constraint, but the
+// generated Supabase types don't encode CHECK constraints (only `text`). Narrow here
+// instead of casting, so an unexpected value is dropped rather than silently mistyped.
+function isTouchpointType(type: string): type is TouchpointRow['type'] {
+  return type === 'meeting' || type === 'call' || type === 'email'
+}
+
 export function computeClientHealth(
   clients: ClientRow[],
   briefs: BriefRow[],
@@ -67,7 +74,10 @@ export function usePulseClientHealth(): ClientHealthRow[] {
           supabase.from('client_touchpoints').select('client_id, type, occurred_at').gte('occurred_at', ninetyDaysAgo),
           supabase.from('xero_invoices').select('client_id, paid_at').not('paid_at', 'is', null).gte('paid_at', ninetyDaysAgo),
         ])
-      return computeClientHealth(clients ?? [], briefs ?? [], touchpoints ?? [], invoices ?? [], new Date())
+      const touchpointRows: TouchpointRow[] = (touchpoints ?? []).filter(
+        (t): t is TouchpointRow => isTouchpointType(t.type),
+      )
+      return computeClientHealth(clients ?? [], briefs ?? [], touchpointRows, invoices ?? [], new Date())
     },
     staleTime: 5 * 60 * 1000,
   })

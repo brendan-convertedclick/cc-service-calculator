@@ -13,12 +13,14 @@ import { SOWPanel } from "@/components/quote-builder/SOWPanel";
 import { RecurrencePanel } from "@/components/quote-builder/RecurrencePanel";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import { useQuoteBuilder } from "@/hooks/useQuoteBuilder";
+import { useBriefIntelligence } from "@/hooks/useBriefIntelligence";
 import { formatZar } from "@/lib/utils";
 import type { ClaudePrompt } from "@/types/claude";
 
 export function ProjectBuilder() {
   const { id: briefId } = useParams<{ id: string }>();
   const qb = useQuoteBuilder(briefId);
+  const { data: briefIntel } = useBriefIntelligence(briefId);
 
   if (!qb.ready || !qb.brief || !qb.scope) return <div className="p-6">Loading…</div>;
 
@@ -67,7 +69,7 @@ Output: A numbered markdown list of process steps.`,
 Context:
 Client: ${qb.clientName ?? "(unknown)"}
 Brief subject: ${qb.brief?.raw_subject ?? "(untitled)"}
-Brief notes: ${qb.brief?.am_notes ?? "(none)"}
+Brief notes: ${briefIntel?.am_notes ?? "(none)"}
 ${scopeText}
 Current lines: ${qb.lines.length} services added
 

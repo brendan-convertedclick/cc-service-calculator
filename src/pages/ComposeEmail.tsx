@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { useBriefCE } from "@/hooks/useBriefCE";
 import { useBrief } from "@/hooks/useBriefs";
-import { formatZar } from "@/lib/utils";
+import { callEdgeFn } from "@/lib/edge";
+import { formatZar, errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,8 +24,6 @@ import {
   interpolate,
   type EmailTemplateRow,
 } from "@/types/outbound-emails";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 /**
  * Phase 6 — Compose email page. Supports template-assisted and free-form
@@ -70,7 +69,6 @@ export function ComposeEmail() {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
-        // @ts-expect-error email_templates added by migration 0056
         .from("email_templates")
         .select("*")
         .order("name");
@@ -191,7 +189,6 @@ export function ComposeEmail() {
       status: "draft",
     };
     const { data, error } = await supabase
-      // @ts-expect-error outbound_emails added by migration 0056
       .from("outbound_emails")
       .insert(payload)
       .select("id")
@@ -210,18 +207,10 @@ export function ComposeEmail() {
     try {
       const id = await saveDraft();
       if (!id) return;
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/send-outbound-email`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ outbound_email_id: id }),
-      });
-      const result = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(result.error ?? "Send failed");
+      try {
+        await callEdgeFn("send-outbound-email", { outbound_email_id: id });
+      } catch (e) {
+        toast.error(errorMessage(e));
         return;
       }
       // CE hand-off: the send IS the "estimate sent to client" event — flip the

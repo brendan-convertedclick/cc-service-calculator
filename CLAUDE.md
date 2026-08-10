@@ -17,7 +17,7 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 
 Shared dev/admin login, treated as `owner` role for ergonomics (see `useCurrentRole`). There is no `team_members` row for this email, so `currentUserId` resolves to `null` when signed in as `team@…`. For attributable writes in testing, sign in as `brendan@convertedclick.co.za` instead.
 
-Per-staff logins are real and live (not V1-out-of-scope): `team_members.role` (`staff`/`admin`/`owner`) + `team_members.auth_user_id` → Supabase Auth (migration 0052). `RequireRole` gates routes — `staff` role is bounced to `/staff` only. Staff self-service brief + extension-request forms live at `/staff` (`src/pages/StaffBriefForm.tsx`). There's no invite/provisioning UI yet — a staff Supabase Auth user + matching `team_members` row currently has to be created by hand.
+Per-staff logins are real and live (not V1-out-of-scope): `team_members.role` (`staff`/`admin`/`owner`) + `team_members.auth_user_id` → Supabase Auth (migration 0052). `App.tsx`'s local `RequireAdmin` gates routes — `staff` role is bounced to `/staff` only. (A shared `RequireRole` component once did this; it was deleted in the 2026-08-09 audit because `App.tsx` had reimplemented it inline and nothing imported it. Do not recreate it.) Staff self-service brief + extension-request forms live at `/staff` (`src/pages/StaffBriefForm.tsx`). There's no invite/provisioning UI yet — a staff Supabase Auth user + matching `team_members` row currently has to be created by hand.
 
 ## Telegram channel session guardrail
 
@@ -116,6 +116,45 @@ The app's visual language (colors, typography, radius, elevation) is driven by *
 
 - New color role needed → add to `tokens/base.json` (and define it in Figma), then `npm run tokens:build`.
 - Per-component magic values → prefer a new token over a hardcoded hex.
+
+## Reuse before you write — the shared helpers
+
+A 2026-08-09 audit found the dominant defect in this codebase was not bad logic,
+it was **the same logic re-implemented instead of reused**: 105 inline error
+extractions, 28 hand-rolled edge-function fetches across 18 private
+`FUNCTIONS_BASE` consts, 23 copies of one Set-toggle block, 16 ZAR formatters,
+4 pages inlining the same filter rail. Before writing any of the following,
+import the existing helper.
+
+| Need | Use | Never |
+| --- | --- | --- |
+| Read a message off a thrown value | `errorMessage(e)` — `@/lib/supabase`'s `PostgrestError` is a plain object, so `e instanceof Error` is **false** and the real DB message is lost | `e instanceof Error ? e.message : "..."` |
+| Call an edge function | `callEdgeFn(name, body?)` from `@/lib/edge` | a private `FUNCTIONS_BASE` + `getSession` + `fetch` |
+| Format money | `formatZar(cents)` from `@/lib/utils` — money is **int cents**. `formatCurrency(zar)` in `@/lib/format` takes **rands**; check the unit | inline `new Intl.NumberFormat("en-ZA", …)` |
+| Today's date | `todayISO()` from `@/lib/dates` | `new Date().toISOString().slice(0,10)` — that is **UTC**, and returns yesterday between 00:00 and 02:00 SAST |
+| Toggle a value in a Set | `toggleInSet(prev, id)` from `@/lib/utils` | a 5-line `new Set(prev)` block |
+| A filter rail | `FilterGroup` / `FilterOption` from `@/components/filters/FilterRail` | a fresh `<h4>` + mapped-button block |
+| A Supabase client | the singleton in `@/lib/supabase` | another `createClient(...)` |
+| Edge-function CORS/JSON/clients | `supabase/functions/_shared/helpers.ts` | inlining them (already 100% adopted — keep it that way) |
+
+ESLint enforces the last two mechanically via `no-restricted-syntax`.
+
+## Quality gates — run these, they are not decorative
+
+`npm run verify` = typecheck + lint + unit tests. CI runs that plus dead-code
+detection, build, and Playwright.
+
+- **`npm run typecheck` is `tsc -b`, not `tsc --noEmit`.** The root tsconfig is
+  references-only, so `--noEmit` type-checks *nothing* and exits 0. That false
+  pass is how 63 type errors and a broken `npm run build` reached main unnoticed.
+- **ESLint runs on a ratchet.** Clean rules are `error`; the pre-existing backlog
+  is `warn` with a cap in CI that only ever goes down. Do not raise the cap.
+- **`npm run lint:dead` (knip)** fails on files nothing imports. Dead files went
+  11 → 0 in the audit; this keeps them there.
+- Optional local hook: `git config core.hooksPath .githooks` lints staged files.
+- Playwright specs live in `e2e/`. `systems.spec.ts` **writes to the live
+  database** (prefixed rows, cleaned up in `afterAll`) — the others are
+  read-only, so a routine gate should run those.
 
 ## Out of scope for V1 (do not implement)
 

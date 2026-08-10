@@ -49,6 +49,11 @@ export type RequestLinkage = {
  * Billing is deliberately `null` rather than a default when the task has no
  * brief — on an approval screen, guessing the common value is worse than
  * saying we don't know.
+ *
+ * For the same reason, every query below swallows its own `error` rather
+ * than throwing: this is advisory context on an approval screen, and a
+ * degraded/absent answer is preferable to blocking the approval on a
+ * failed side query.
  */
 export function useRequestLinkage(taskId: string, clientId: string | null) {
   return useQuery({

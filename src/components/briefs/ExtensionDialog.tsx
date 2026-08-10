@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useRequestExtension } from "@/hooks/useBriefExtensions";
+import { errorMessage } from "@/lib/utils";
 
 interface ExtensionDialogProps {
   brief: { id: string } | null;
@@ -82,7 +83,7 @@ export function ExtensionDialog({ brief, currentDueDate, currentPoints, open, on
       );
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to record extension");
+      toast.error(`Failed to record extension: ${errorMessage(e)}`);
     }
   };
 

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/db";
 
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+export type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
 
 // The per-person palette. Lives here rather than in useProductivity (which
 // re-exports it for its existing consumers) because useTeam is in the main

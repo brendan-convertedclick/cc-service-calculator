@@ -3,6 +3,8 @@ import { ExternalLink, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { notifyExtension } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +12,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { askedForPoints, type ExtensionRequestRow, type ExtensionStatus } from "@/types/extension-requests";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type Row = ExtensionRequestRow & { client: { name: string } | null };
 
@@ -69,26 +69,18 @@ export function MyRequestsList() {
     if (!response) return toast.error("Write an answer first.");
     setBusyId(id);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/respond-to-info-request`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ extension_request_id: id, response }),
+      const body = await callEdgeFn<{ status?: string }>("respond-to-info-request", {
+        extension_request_id: id,
+        response,
       });
-      const body = (await res.json()) as { error?: string; status?: string };
-      if (!res.ok) {
-        toast.error(body.error ?? "Could not send your answer");
-        return;
-      }
       toast.success(
         body.status === "pending_owner" ? "Sent — back with the owner." : "Sent — back with the admin.",
       );
       setAnswers((a) => ({ ...a, [id]: "" }));
       notifyExtension(id);
       await load();
+    } catch (e) {
+      toast.error(`Could not send your answer: ${errorMessage(e)}`);
     } finally {
       setBusyId(null);
     }

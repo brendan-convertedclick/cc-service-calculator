@@ -31,6 +31,7 @@ import { useCreateBrief } from "@/hooks/useBriefs";
 import { useClients } from "@/hooks/useClients";
 import { useTeam } from "@/hooks/useTeam";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
+import { errorMessage } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Brief = Database["public"]["Tables"]["briefs"]["Row"];
@@ -89,7 +90,7 @@ export function DuplicateBriefDialog({ brief, open, onOpenChange }: DuplicateBri
       // Land the user on the fresh copy rather than leaving them on the source.
       if (created?.id) navigate(`/briefs/${created.id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to duplicate brief");
+      toast.error(`Failed to duplicate brief: ${errorMessage(e)}`);
     }
   };
 

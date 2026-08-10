@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   client_id: z.string().describe('Client UUID'),
@@ -11,7 +12,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const pattern = input.pattern.trim().toLowerCase()
     if (!pattern.includes('@')) throw new Error('Pattern must be an email or *@domain')
 
@@ -22,7 +23,7 @@ export async function handler(input: Input) {
         .eq('client_id', input.client_id)
         .eq('pattern', pattern)
       if (error) throw new Error(error.message)
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true }) }] }
+      return { deleted: true }
     }
 
     if (!input.mode) throw new Error('mode is required when not deleting')
@@ -36,9 +37,6 @@ export async function handler(input: Input) {
       .select('id, client_id, pattern, mode, note')
       .single()
     if (error) throw new Error(error.message)
-    return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return data
+  })
 }

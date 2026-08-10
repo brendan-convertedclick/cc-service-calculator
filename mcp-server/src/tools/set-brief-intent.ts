@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 const scopeSchema = z.object({
   enhanced_prose: z.string().describe('AI-generated prose summary of what is in scope'),
@@ -19,7 +20,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { error: briefError } = await supabase
       .from('briefs')
       .update({
@@ -48,11 +49,6 @@ export async function handler(input: Input) {
       if (scopeError) throw new Error(scopeError.message)
     }
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ updated: true }) }],
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { updated: true }
+  })
 }

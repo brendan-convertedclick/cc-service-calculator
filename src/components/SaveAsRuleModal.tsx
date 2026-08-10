@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { hoursToPct } from "@/lib/allocation";
+import { errorMessage } from "@/lib/utils";
 import { useRules, useCreateRule, useUpdateRule } from "@/hooks/useRules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +80,7 @@ export function SaveAsRuleModal({ open, onClose, steps, departments, priceCents,
       setDescription("");
       setCollision(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save rule");
+      toast.error(`Failed to save rule: ${errorMessage(e)}`);
     } finally {
       setBusy(false);
     }

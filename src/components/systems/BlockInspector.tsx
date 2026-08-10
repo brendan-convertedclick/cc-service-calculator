@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
 import { memberColors } from "@/hooks/useTeam";
 import { MATERIALISE_LABEL, systemLayer, useSystemDefinitions } from "@/hooks/useSystemDefinitions";
@@ -114,7 +114,7 @@ export function BlockInspector({
       { id: step!.id, patch },
       {
         onError: (e) => {
-          toast.error(e instanceof Error ? e.message : "Could not save");
+          toast.error(`Could not save: ${errorMessage(e)}`);
           // Don't leave the field showing a value the DB just rejected.
           setForm(toForm(step!));
         },
@@ -375,7 +375,7 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
             aria-label={`Detach ${a.name}`}
             onClick={() =>
               detach.mutate(a.id, {
-                onError: (e) => toast.error(e instanceof Error ? e.message : "Could not detach"),
+                onError: (e) => toast.error(`Could not detach: ${errorMessage(e)}`),
               })
             }
             className="mt-0.5 flex-none rounded-sm p-0.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
@@ -397,7 +397,7 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
           setResetKey((k) => k + 1);
           attach.mutate(
             { stepId, systemId },
-            { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not attach") }
+            { onError: (e) => toast.error(`Could not attach: ${errorMessage(e)}`) }
           );
         }}
       >

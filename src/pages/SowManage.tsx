@@ -40,6 +40,7 @@ import {
   useUpsertSowVariable,
 } from "@/hooks/useSowComposer";
 import { variableTypeSchema, type VariableDef, type VariableType } from "@/types/sow-composer";
+import { errorMessage } from "@/lib/utils";
 
 const TYPES = variableTypeSchema.options;
 
@@ -68,7 +69,7 @@ export function SowManage() {
     if (!window.confirm(`Delete variable "${v.key}"?`)) return;
     del.mutate(v.id, {
       onSuccess: () => toast.success("Variable deleted"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not delete"),
+      onError: (e) => toast.error(`Could not delete: ${errorMessage(e)}`),
     });
   };
 
@@ -161,7 +162,7 @@ export function SowManage() {
               toast.success("Saved");
               setEditing(null);
             },
-            onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
+            onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
           })
         }
       />

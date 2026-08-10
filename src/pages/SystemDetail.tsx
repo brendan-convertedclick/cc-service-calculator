@@ -60,7 +60,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 // The house sprint-point convention (1 point = 15 min). Reused rather than
 // re-derived so a step's points read the same as a placement task's.
@@ -261,7 +261,7 @@ export function SystemDetail() {
       { id: step.id, patch },
       {
         onError: (e) => {
-          toast.error(e instanceof Error ? e.message : "Could not save that");
+          toast.error(`Could not save that: ${errorMessage(e)}`);
           revert?.();
         },
       }
@@ -310,7 +310,7 @@ export function SystemDetail() {
         b: { id: b.id, ordinal: b.ordinal },
         parkOrdinal: steps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
       },
-      { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not reorder") }
+      { onError: (e) => toast.error(`Could not reorder: ${errorMessage(e)}`) }
     );
   }
 
@@ -387,7 +387,7 @@ export function SystemDetail() {
       if (system.goal_statement !== PLACEHOLDER_GOAL) {
         update.mutate(
           { id, patch: { goal_statement: PLACEHOLDER_GOAL } },
-          { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save") }
+          { onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`) }
         );
       }
       return;
@@ -405,7 +405,7 @@ export function SystemDetail() {
     const patchValue = value || (nullable.has(field) ? null : value);
     update.mutate(
       { id, patch: { [field]: patchValue } },
-      { onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save") },
+      { onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`) },
     );
   }
 
@@ -1080,7 +1080,7 @@ function ProposeDialog({
                     setOpen(false);
                     setReason("");
                   },
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not propose revision"),
+                  onError: (e) => toast.error(`Could not propose revision: ${errorMessage(e)}`),
                 }
               );
             }}
@@ -1147,7 +1147,7 @@ function RevisionsCard({
                 { revisionId, systemId },
                 {
                   onSuccess: () => toast.success("Revision published"),
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not publish revision"),
+                  onError: (e) => toast.error(`Could not publish revision: ${errorMessage(e)}`),
                 }
               )
             }
@@ -1156,7 +1156,7 @@ function RevisionsCard({
                 { revisionId, systemId },
                 {
                   onSuccess: () => toast.success("Sent back to draft"),
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update revision"),
+                  onError: (e) => toast.error(`Could not update revision: ${errorMessage(e)}`),
                 }
               )
             }

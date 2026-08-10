@@ -3,6 +3,8 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,18 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ClientSelectField } from "./ClientSelectField";
+import { useStaffClients } from "./useStaffClients";
 
-type ClientOption = { id: string; name: string };
 type ListOption = { id: string; name: string };
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 /**
  * Phase 1 staff brief form body. Used inside StaffPortal's "New brief" tab.
  */
 export function BriefFormBody() {
   const { currentUserId } = useAuth();
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  const clients = useStaffClients();
   const [lists, setLists] = useState<ListOption[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [listsError, setListsError] = useState<string | null>(null);
@@ -42,26 +43,6 @@ export function BriefFormBody() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .is("archived_at", null)
-        .order("name");
-      if (cancelled) return;
-      if (error) {
-        toast.error(`Could not load clients: ${error.message}`);
-        return;
-      }
-      setClients((data ?? []) as ClientOption[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!clientId) {
       setLists([]);
       setListId("");
@@ -72,28 +53,15 @@ export function BriefFormBody() {
     setListsError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: clientId }),
+        const body = await callEdgeFn<{ lists?: ListOption[] }>("list-client-clickup-lists", {
+          client_id: clientId,
         });
-        const body = (await res.json()) as { lists?: ListOption[]; error?: string };
         if (cancelled) return;
-        if (!res.ok) {
-          setListsError(body.error ?? "Failed to load lists");
-          setLists([]);
-          setListId("");
-          return;
-        }
         setLists(body.lists ?? []);
         setListId("");
       } catch (e) {
         if (cancelled) return;
-        setListsError(e instanceof Error ? e.message : String(e));
+        setListsError(errorMessage(e));
       } finally {
         if (!cancelled) setLoadingLists(false);
       }
@@ -148,15 +116,7 @@ export function BriefFormBody() {
       toast.success("Brief submitted for approval.");
       // Fire-and-forget: ping admins in ClickUp chat + email. Never blocks
       // the submit — the request is already saved either way.
-      const session = (await supabase.auth.getSession()).data.session;
-      fetch(`${FUNCTIONS_BASE}/notify-staff-brief`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ staff_brief_id: (inserted as { id: string }).id }),
-      }).catch(() => {});
+      callEdgeFn("notify-staff-brief", { staff_brief_id: (inserted as { id: string }).id }).catch(() => {});
       setTaskName("");
       setSprintPoints("1");
       setIsInternal(false);
@@ -171,19 +131,7 @@ export function BriefFormBody() {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="brief-client">Client</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger id="brief-client">
-              <SelectValue placeholder="Pick a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ClientSelectField id="brief-client" clients={clients} value={clientId} onValueChange={setClientId} />
         <div className="space-y-2">
           <Label htmlFor="brief-list">List / department</Label>
           <Select value={listId} onValueChange={setListId} disabled={!clientId}>

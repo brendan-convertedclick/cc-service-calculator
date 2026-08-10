@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 const mockSignIn = vi.fn();
-const mockSignInWithGoogle = vi.fn();
+const mockSignInWithGoogle = vi.fn().mockResolvedValue({ data: null, error: null });
 let mockDomainError = false;
 
 vi.mock("@/context/AuthContext", () => ({

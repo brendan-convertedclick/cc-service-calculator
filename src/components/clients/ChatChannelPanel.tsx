@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useClickUpChatChannels, useUpdateClient } from "@/hooks/useClients";
+import { errorMessage } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -42,7 +43,7 @@ export function ChatChannelPanel({
         {error ? (
           <div className="text-body-small text-m-error">
             Couldn't load ClickUp chat channels:{" "}
-            {error instanceof Error ? error.message : String(error)}
+            {errorMessage(error)}
           </div>
         ) : null}
         <Select
@@ -57,7 +58,7 @@ export function ChatChannelPanel({
               {
                 onSuccess: () => toast.success("Saved"),
                 onError: (e) =>
-                  toast.error(e instanceof Error ? e.message : "Update failed"),
+                  toast.error(`Update failed: ${errorMessage(e)}`),
                 onSettled: () => setSaving(false),
               },
             );

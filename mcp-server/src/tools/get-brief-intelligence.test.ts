@@ -9,7 +9,7 @@ vi.mock('../supabase.js', () => ({
   },
 }))
 
-import { handler, schema } from './get-brief-intelligence.js'
+import { handler } from './get-brief-intelligence.js'
 import { supabase } from '../supabase.js'
 
 const mockFrom = supabase.from as ReturnType<typeof vi.fn>

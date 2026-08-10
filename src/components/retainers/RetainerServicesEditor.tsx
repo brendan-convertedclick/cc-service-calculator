@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ServicePicker } from "@/components/ServicePicker";
 import { retainerRowPreview } from "@/lib/retainerMath";
+import { errorMessage } from "@/lib/utils";
 import { useServices, useUpdateService } from "@/hooks/useServices";
 import { useTeam } from "@/hooks/useTeam";
 import {
@@ -175,7 +176,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
       try {
         await updateService.mutateAsync({ id: r.service_id, patch: { name: r.nameEdit!.trim() } });
       } catch (e) {
-        toast.error(e instanceof Error ? `Rename failed: ${e.message}` : "Rename failed");
+        toast.error(`Rename failed: ${errorMessage(e)}`);
         return;
       }
     }
@@ -210,7 +211,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           ].filter(Boolean);
           toast.success(`Services saved${parts.length ? ` — ${parts.join(", ")}` : ""}`);
         },
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to save services"),
+        onError: (e) => toast.error(`Failed to save services: ${errorMessage(e)}`),
       },
     );
   }
@@ -221,7 +222,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
         toast.success(
           `Provisioned this period${res.created ? ` — ${res.created} new` : " — nothing new"}`,
         ),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to provision"),
+      onError: (e) => toast.error(`Failed to provision: ${errorMessage(e)}`),
     });
   }
 
@@ -243,7 +244,7 @@ export function RetainerServicesEditor({ projectId }: { projectId: string }) {
           `Re-provisioned this month${parts.length ? ` — ${parts.join(", ")}` : " — nothing to change"}`,
         );
       },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to re-provision"),
+      onError: (e) => toast.error(`Failed to re-provision: ${errorMessage(e)}`),
     });
   }
 

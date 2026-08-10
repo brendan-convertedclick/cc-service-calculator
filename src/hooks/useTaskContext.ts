@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+import { callEdgeFn } from "@/lib/edge";
 
 export type TaskContext = {
   id: string;
@@ -35,17 +33,11 @@ export function useTaskContext(taskId: string | null | undefined) {
     staleTime: 5 * 60 * 1000,
     retry: 1,
     queryFn: async (): Promise<TaskContext> => {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/get-clickup-task-context`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ task_id: taskId }),
-      });
-      const body = (await res.json()) as { context?: TaskContext; error?: string };
-      if (!res.ok || !body.context) {
+      const body = await callEdgeFn<{ context?: TaskContext; error?: string }>(
+        "get-clickup-task-context",
+        { task_id: taskId },
+      );
+      if (!body.context) {
         throw new Error(body.error ?? "Could not load task context");
       }
       return body.context;

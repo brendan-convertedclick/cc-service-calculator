@@ -13,6 +13,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, FileText, Gauge, Hourglass, Undo2 } from "lucide-react";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
+import { toggleInSet } from "@/lib/utils";
+import { toISODate } from "@/lib/dates";
 import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,18 +278,8 @@ export function Reports() {
   const projectAllSelected = (p: ProjectReport) =>
     p.tasks.length > 0 && p.tasks.every((_t, idx) => selectedTasks.has(taskKey(p.project_id, idx)));
 
-  const toggleAdhoc = (id: string) =>
-    setSelectedAdhoc((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  const toggleTask = (key: string) =>
-    setSelectedTasks((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+  const toggleAdhoc = (id: string) => setSelectedAdhoc((prev) => toggleInSet(prev, id));
+  const toggleTask = (key: string) => setSelectedTasks((prev) => toggleInSet(prev, key));
   const setAllAdhoc = (on: boolean) =>
     setSelectedAdhoc(on ? new Set(adhocItems.map((i) => i.brief_id)) : new Set());
   const setAllProject = (p: ProjectReport, on: boolean) =>
@@ -330,7 +322,7 @@ export function Reports() {
         ...blank,
         Section: "Scorecard",
         Item: `Delivered ${scorecard.delivered} · On time ${scorecard.onTime} · Late ${scorecard.late} · Over budget ${scorecard.overBudget} · ${rate} on time · Avg turnaround ${turn} · Open ${scorecard.openCount} (${scorecard.overdueOpenCount} overdue)`,
-        Date: `${cycle.start.toISOString().slice(0, 10)} → ${cycle.end.toISOString().slice(0, 10)}`,
+        Date: `${toISODate(cycle.start)} → ${toISODate(cycle.end)}`,
       });
       for (const t of scorecard.openTasks) {
         rows.push({
@@ -368,9 +360,7 @@ export function Reports() {
     }
 
     if (rows.length === 0) return;
-    const cycleLabel = `${cycle.start.toISOString().slice(0, 10)}_${cycle.end
-      .toISOString()
-      .slice(0, 10)}`;
+    const cycleLabel = `${toISODate(cycle.start)}_${toISODate(cycle.end)}`;
     const safeClient = clientLabel.replace(/[^\w.-]+/g, "-");
     const kind = useSelection ? "invoice" : "report";
     downloadCsv(rows, `${safeClient}_${kind}_${cycleLabel}.csv`);

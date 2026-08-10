@@ -2,6 +2,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
   Tooltip, CartesianGrid,
 } from "recharts";
+import { TOOLTIP_STYLE } from "./chartShared";
 
 interface SpeedRow {
   bucket: string;
@@ -12,15 +13,6 @@ interface SpeedRow {
 interface Props {
   data: SpeedRow[];
 }
-
-const TOOLTIP_STYLE = {
-  backgroundColor: "#1e293b",
-  border: "none",
-  borderRadius: 8,
-  color: "#e2e8f0",
-  fontSize: 12,
-  fontFamily: "var(--font-mono)",
-};
 
 export function DeliverySpeedChart({ data }: Props) {
   return (
@@ -51,7 +43,7 @@ export function DeliverySpeedChart({ data }: Props) {
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={(value: number, name: string) =>
+            formatter={(value, name) =>
               name === "totalCompleted" ? [`${value} tasks`, "Completed"] : [`${value}d`, "Avg Cycle"]
             }
           />

@@ -220,20 +220,6 @@ export function useUpdateClientVariableOverrides() {
 
 // ── Content library (section/snippet reuse) ───────────────────────────────────
 
-export function useSowLibrary() {
-  return useQuery({
-    queryKey: SOW_LIBRARY_KEY,
-    queryFn: async (): Promise<SowLibraryItem[]> => {
-      const { data, error } = await sb
-        .from("sow_library_items")
-        .select("*")
-        .order("name");
-      if (error) throw error;
-      return (data as SowLibraryItem[] | null) ?? [];
-    },
-  });
-}
-
 export function useSaveSectionToLibrary() {
   const qc = useQueryClient();
   return useMutation({

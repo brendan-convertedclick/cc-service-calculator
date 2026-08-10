@@ -1,4 +1,4 @@
-import type { ProcessStepInstance, ProcessStepHandoff } from '@/types/db'
+import type { ProcessStepInstance, ProcessStepHandoff } from '@/hooks/useWorkflowSteps'
 
 interface Props {
   steps: ProcessStepInstance[]

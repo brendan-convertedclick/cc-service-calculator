@@ -5,16 +5,11 @@
 
 import { CheckCircle, TriangleAlert, CircleAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-
-const zarFormat = new Intl.NumberFormat("en-ZA", {
-  style: "currency",
-  currency: "ZAR",
-  maximumFractionDigits: 0,
-});
+import { formatZar } from "@/lib/utils";
 
 /** Format integer cents as `R 1 980` (en-ZA, no decimals). */
 export function fmtZAR(cents: number): string {
-  return zarFormat.format(cents / 100);
+  return formatZar(cents);
 }
 
 /** scope_status → status-dot colour class. */

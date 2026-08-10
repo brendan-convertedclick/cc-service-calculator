@@ -30,6 +30,7 @@ import { useClients } from "@/hooks/useClients";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useTeam } from "@/hooks/useTeam";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
+import { errorMessage } from "@/lib/utils";
 import type { ExtensionRequestRow } from "@/types/extension-requests";
 import type { Database } from "@/types/db";
 
@@ -134,7 +135,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
       toast.success("ClickUp task updated");
       onExitEdit();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update task");
+      toast.error(`Failed to update task: ${errorMessage(e)}`);
     }
   };
 
@@ -185,7 +186,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
         </div>
       ) : details.isError ? (
         <div className="py-6 text-center text-body-small text-destructive">
-          {details.error instanceof Error ? details.error.message : "Couldn't load the ClickUp task."}
+          {`Couldn't load the ClickUp task: ${errorMessage(details.error)}`}
         </div>
       ) : editing ? (
         // ── Edit mode: synced fields become inputs ────────────────────────────
@@ -371,7 +372,7 @@ function TaskHistory({
                         resolve
                           .mutateAsync({ extension_id: item.row.id, action: "approve" })
                           .then(() => toast.success("Extra points applied"))
-                          .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
+                          .catch((err) => toast.error(errorMessage(err)))
                       }
                     >
                       Client approved
@@ -384,7 +385,7 @@ function TaskHistory({
                         resolve
                           .mutateAsync({ extension_id: item.row.id, action: "decline" })
                           .then(() => toast.success("Extension declined"))
-                          .catch((err) => toast.error(err instanceof Error ? err.message : "Failed"))
+                          .catch((err) => toast.error(errorMessage(err)))
                       }
                     >
                       Declined
@@ -542,7 +543,7 @@ function CompletionSection({ d, briefId }: { d: BriefedTaskFields; briefId: stri
                 {
                   onSuccess: () =>
                     toast.success(manualFlag ? "Client-delay flag removed" : "Flagged as client delay"),
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn’t update flag"),
+                  onError: (e) => toast.error(`Couldn’t update flag: ${errorMessage(e)}`),
                 },
               );
             }}

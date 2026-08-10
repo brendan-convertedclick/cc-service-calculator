@@ -3,7 +3,8 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateClient } from "@/hooks/useClients";
 import { useApplyFoundations } from "@/hooks/useFoundations";
-import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -137,28 +138,14 @@ export function NewClientDialog({
               let applyFoundationsAllowed = folderSelected;
               if (!resolvedFolderId) {
                 try {
-                  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-                  const { data: sessionData } = await supabase.auth.getSession();
-                  const accessToken = sessionData.session?.access_token ?? "";
-                  const res = await fetch(`${supabaseUrl}/functions/v1/create-clickup-folder`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${accessToken}`,
-                    },
-                    body: JSON.stringify({ name: trimmed }),
+                  const body = await callEdgeFn<{ id: string }>("create-clickup-folder", {
+                    name: trimmed,
                   });
-                  const body = await res.json();
-                  if (!res.ok || !body?.id) {
-                    return toast.error(
-                      `ClickUp folder create failed: ${body?.error ?? res.statusText}`,
-                    );
-                  }
                   resolvedFolderId = String(body.id);
                   applyFoundationsAllowed = true;
                 } catch (e) {
                   return toast.error(
-                    `ClickUp folder create failed: ${e instanceof Error ? e.message : String(e)}`,
+                    `ClickUp folder create failed: ${errorMessage(e)}`,
                   );
                 }
               }
@@ -197,7 +184,7 @@ export function NewClientDialog({
                         })
                         .catch((e) =>
                           toast.warning(
-                            `Foundations apply failed: ${e instanceof Error ? e.message : String(e)}`,
+                            `Foundations apply failed: ${errorMessage(e)}`,
                           ),
                         );
                     }

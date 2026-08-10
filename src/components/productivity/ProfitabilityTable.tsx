@@ -1,15 +1,10 @@
 import { useState } from "react";
 import type { ProjectProfitabilityRow } from "@/hooks/useProjectProfitability";
+import { formatZar } from "@/lib/utils";
 
 interface Props {
   rows: ProjectProfitabilityRow[];
 }
-
-const zar = new Intl.NumberFormat("en-ZA", {
-  style: "currency",
-  currency: "ZAR",
-  maximumFractionDigits: 0,
-}).format;
 
 const ragConfig = {
   green: { bg: "#14532d", text: "#4ade80", label: "On Track" },
@@ -71,10 +66,10 @@ export function ProfitabilityTable({ rows }: Props) {
                     {row.clientName}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {zar(row.quotedCents / 100)}
+                    {formatZar(row.quotedCents)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {zar(row.costCents / 100)}
+                    {formatZar(row.costCents)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-medium">
                     {row.marginPct != null

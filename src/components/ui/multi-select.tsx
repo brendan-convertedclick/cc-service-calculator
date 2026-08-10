@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, toggleInSet } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -46,10 +46,7 @@ export function MultiSelect({
         : `${values.length} selected`;
 
   function toggle(value: string) {
-    const next = new Set(selected);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    onChange([...next]);
+    onChange([...toggleInSet(selected, value)]);
   }
 
   return (

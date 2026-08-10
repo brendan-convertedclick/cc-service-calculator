@@ -3,6 +3,7 @@ import { CalendarClock, ExternalLink, Pencil, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCancelMeeting, useInternalMeetings } from "@/hooks/useInternalMeetings";
 import type { InternalMeetingWithDetails } from "@/types/internal-meetings";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +59,7 @@ export function MyMeetingsList() {
       if (res.clickup_sync_error) toast.warning(`ClickUp: ${res.clickup_sync_error}`);
       toast.success("Meeting cancelled.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel meeting.");
+      toast.error(`Failed to cancel meeting: ${errorMessage(err)}`);
     } finally {
       setCancelling(false);
       setConfirmingId(null);

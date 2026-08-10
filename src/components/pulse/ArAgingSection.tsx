@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
+import { formatZar as fmt } from '@/lib/utils'
 import type { ArAgingBand } from '@/types/pulse'
-
-const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
-const fmt = (cents: number) => ZAR.format(cents / 100)
 
 const bandMeta: Record<ArAgingBand['band'], { label: string; bg: string; border: string; text: string; valueText: string }> = {
   '0-30':  { label: '0 – 30 days', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', valueText: 'text-green-800' },

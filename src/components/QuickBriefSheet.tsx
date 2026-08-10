@@ -16,13 +16,11 @@ import { useTeam } from "@/hooks/useTeam";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
-import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
 
 const UNASSIGNED = "__unassigned__";
 const STATUS_DEFAULT = "__default__";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type QuickBriefListStatus = { status: string; color: string | null; type: string; orderindex: number };
 type QuickBriefListOption = { id: string; name: string; statuses: QuickBriefListStatus[] };
@@ -113,28 +111,11 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setListsError(null);
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: brief.client_id }),
-        });
-        const body = (await res.json()) as {
+        const body = await callEdgeFn<{
           lists?: QuickBriefListOption[];
           work_stream_options?: QuickBriefWorkStreamOption[];
-          error?: string;
-        };
+        }>("list-client-clickup-lists", { client_id: brief.client_id });
         if (cancelled) return;
-        if (!res.ok) {
-          setListsError(body.error ?? "Failed to load lists");
-          setLists([]);
-          setWorkStreamOptions([]);
-          setListId("");
-          return;
-        }
         const fetchedLists = body.lists ?? [];
         setLists(fetchedLists);
         setWorkStreamOptions(body.work_stream_options ?? []);

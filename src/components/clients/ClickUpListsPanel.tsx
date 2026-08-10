@@ -9,6 +9,7 @@ import {
   useCreateClientList,
 } from "@/hooks/useClientLists";
 import { useTaskGroups } from "@/hooks/useOngoingTasks";
+import { errorMessage } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -53,7 +54,7 @@ export function ClickUpListsPanel({
         );
       },
       onError: (e) =>
-        toast.error(e instanceof Error ? e.message : "Sync failed"),
+        toast.error(`Sync failed: ${errorMessage(e)}`),
     });
   };
 
@@ -129,7 +130,7 @@ export function ClickUpListsPanel({
                     onSettled: () => setBusyId(null),
                     onError: (e) =>
                       toast.error(
-                        e instanceof Error ? e.message : "Update failed",
+                        `Update failed: ${errorMessage(e)}`,
                       ),
                   },
                 );
@@ -211,7 +212,7 @@ export function ClickUpListsPanel({
                     setNewGroupId("__custom__");
                   },
                   onError: (e) =>
-                    toast.error(e instanceof Error ? e.message : "Create failed"),
+                    toast.error(`Create failed: ${errorMessage(e)}`),
                 },
               );
             }}

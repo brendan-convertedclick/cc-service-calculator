@@ -6,7 +6,7 @@ import { MessageItem } from "@/components/MessageItem";
 import { BriefThreadView } from "@/components/BriefThreadView";
 import { useProjectBriefs, type Brief } from "@/hooks/useProjectBriefs";
 import { useMultiBriefMessages } from "@/hooks/useMultiBriefMessages";
-import { cn } from "@/lib/utils";
+import { cn, toggleInSet } from "@/lib/utils";
 
 interface Props {
   projectId: string;
@@ -84,14 +84,7 @@ export function ProjectCommunications({ projectId }: Props) {
         <MergedView
           briefs={briefs}
           selected={selected}
-          onToggle={(id) => {
-            setSelected((prev) => {
-              const next = new Set(prev);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              return next;
-            });
-          }}
+          onToggle={(id) => setSelected((prev) => toggleInSet(prev, id))}
         />
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-3">

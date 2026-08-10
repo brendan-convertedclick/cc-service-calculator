@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 import { askForInfo, notifyExtension } from "@/lib/extension-actions";
 import { RequestContext } from "@/components/approvals/RequestContext";
 import { Button } from "@/components/ui/button";
@@ -28,8 +30,6 @@ type RevJoined = RevisionRequestRow & {
   client: { id: string; name: string } | null;
   requester: { id: string; full_name: string; email: string | null } | null;
 };
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 export function Approvals() {
   const { currentUserId } = useAuth();
@@ -95,22 +95,11 @@ export function Approvals() {
   const approveBrief = async (id: string) => {
     setBusyId(id);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/approve-staff-brief`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ staff_brief_id: id }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(body.error ?? "Approve failed");
-        return;
-      }
+      await callEdgeFn("approve-staff-brief", { staff_brief_id: id });
       toast.success("Approved — ClickUp task created.");
       await loadBriefs();
+    } catch (e) {
+      toast.error(errorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -119,20 +108,9 @@ export function Approvals() {
   const approveExt = async (id: string) => {
     setBusyId(id);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/approve-extension-request`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ extension_request_id: id }),
+      const body = await callEdgeFn<{ promoted?: boolean }>("approve-extension-request", {
+        extension_request_id: id,
       });
-      const body = (await res.json()) as { error?: string; promoted?: boolean };
-      if (!res.ok) {
-        toast.error(body.error ?? "Approve failed");
-        return;
-      }
       if (body.promoted) {
         // Owner-tier: nothing pushed to ClickUp yet, the owner signs off next.
         toast.success("Approved — escalated to the owner for final sign-off.");
@@ -141,6 +119,8 @@ export function Approvals() {
         toast.success("Approved — subtask created.");
       }
       await loadExts();
+    } catch (e) {
+      toast.error(errorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -164,22 +144,11 @@ export function Approvals() {
   const approveRev = async (id: string) => {
     setBusyId(id);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${FUNCTIONS_BASE}/approve-revision-request`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ revision_request_id: id }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(body.error ?? "Approve failed");
-        return;
-      }
+      await callEdgeFn("approve-revision-request", { revision_request_id: id });
       toast.success("Approved — new task created.");
       await loadRevs();
+    } catch (e) {
+      toast.error(errorMessage(e));
     } finally {
       setBusyId(null);
     }

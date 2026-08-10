@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn, formatZar } from "@/lib/utils";
+import { cn, formatZar, toggleInSet } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Department = Database["public"]["Tables"]["departments"]["Row"];
@@ -156,12 +156,7 @@ export function ServicesList() {
   }
 
   function toggleGroup(value: string) {
-    setGroupFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
+    setGroupFilter((prev) => toggleInSet(prev, value));
   }
 
   return (

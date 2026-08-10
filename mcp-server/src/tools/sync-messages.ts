@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { decide, type Rule } from '../sender-rules.js'
+import { guarded } from '../tool-result.js'
 
 const messageSchema = z.object({
   gmail_message_id: z.string().describe('Unique Gmail message ID — dedup key'),
@@ -22,7 +23,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const { data: brief, error: bErr } = await supabase
       .from('briefs')
       .select('client_id')
@@ -52,7 +53,7 @@ export async function handler(input: Input) {
     })
 
     if (accepted.length === 0) {
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ inserted: 0, skipped: 0, dropped }) }] }
+      return { inserted: 0, skipped: 0, dropped }
     }
 
     const rows = accepted.map((m) => ({
@@ -78,11 +79,6 @@ export async function handler(input: Input) {
     const inserted = data?.length ?? 0
     const skipped = accepted.length - inserted
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ inserted, skipped, dropped }) }],
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { inserted, skipped, dropped }
+  })
 }

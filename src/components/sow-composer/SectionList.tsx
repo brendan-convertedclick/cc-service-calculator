@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import type { ReceiptCatalogService } from "@/lib/scope-receipt";
 import type { Section, SectionType, SowBody } from "@/types/sow-composer";
+import { errorMessage } from "@/lib/utils";
 import { useSaveSectionToLibrary } from "@/hooks/useSowComposer";
 import { SectionCard } from "./SectionCard";
 
@@ -87,7 +88,7 @@ export function SectionList({
       { name: section.props.heading || `${section.type} section`, type: section.type, node: section },
       {
         onSuccess: () => toast.success("Saved to library"),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
+        onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
       },
     );
   };

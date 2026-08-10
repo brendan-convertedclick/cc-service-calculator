@@ -13,7 +13,7 @@ const SHARED_DEV_EMAIL = "team@convertedclick.co.za";
  * - Shared dev login (team@convertedclick.co.za): treated as 'owner' for dev
  *   ergonomics — the shared account has no team_members row by design.
  * - No matching team_members row: returns null (treated as no access by
- *   RequireRole; admin/owner gates close, staff gate also closes).
+ *   route gates; admin/owner gates close, staff gate also closes).
  */
 export function useCurrentRole(): { role: TeamMemberRole | null; isLoading: boolean } {
   const { session, loading } = useAuth();
@@ -35,14 +35,15 @@ export function useCurrentRole(): { role: TeamMemberRole | null; isLoading: bool
     }
     let cancelled = false;
     (async () => {
+      // error intentionally ignored: this is a route gate, and failing closed
+      // (role=null) on a transient query error is the safe default — throwing
+      // here would just crash the gate instead of degrading to "no access".
       const { data } = await supabase
         .from("team_members")
-        // @ts-expect-error: `role` column added by migration 0052; db.ts will regenerate
         .select("role")
         .eq("email", email)
         .maybeSingle();
       if (cancelled) return;
-      // @ts-expect-error: see above
       setRole((data?.role as TeamMemberRole) ?? null);
       setIsLoading(false);
     })();

@@ -1,5 +1,6 @@
 // src/components/productivity/ParallelView.tsx
 import { HeatmapCell, MultiplierPeriod, ParallelData } from "@/hooks/useOutputMultiplier";
+import { toISODate } from "@/lib/dates";
 
 const MIN_HOUR = 5;
 const MAX_HOUR = 23;
@@ -17,7 +18,7 @@ function periodDates(period: MultiplierPeriod, anchor: string): string[] {
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      dates.push(d.toISOString().slice(0, 10));
+      dates.push(toISODate(d));
     }
   } else if (period === "month") {
     const daysInMonth = new Date(y, mo, 0).getDate();

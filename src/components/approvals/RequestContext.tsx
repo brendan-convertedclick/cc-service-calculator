@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
+import { callEdgeFn } from "@/lib/edge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pointsToHours } from "@/lib/sprint-points";
 import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
-
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type TaskContext = {
   id: string;
@@ -119,24 +118,17 @@ export function RequestContext({
     let cancelled = false;
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/get-clickup-task-context`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ task_id: taskId }),
+        const body = await callEdgeFn<{ context?: TaskContext }>("get-clickup-task-context", {
+          task_id: taskId,
         });
-        const body = (await res.json()) as { context?: TaskContext; error?: string };
         if (cancelled) return;
-        if (!res.ok || !body.context) {
-          setError(body.error ?? "Could not load task context");
+        if (!body.context) {
+          setError("Could not load task context");
           return;
         }
         setCtx(body.context);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(errorMessage(e));
       }
     })();
     return () => {

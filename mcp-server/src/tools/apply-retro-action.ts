@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   brief_ids: z.array(z.string()).min(1).describe('Brief UUIDs to act on'),
@@ -8,7 +9,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     if (input.action === 'archive') {
       const { error } = await supabase
         .from('briefs')
@@ -22,9 +23,6 @@ export async function handler(input: Input) {
         .in('id', input.brief_ids)
       if (error) throw new Error(error.message)
     }
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ affected: input.brief_ids.length, action: input.action }) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { affected: input.brief_ids.length, action: input.action }
+  })
 }

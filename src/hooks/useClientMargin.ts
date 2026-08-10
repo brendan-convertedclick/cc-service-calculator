@@ -15,6 +15,9 @@ export type ClientMarginRow = {
 export type XeroConnectionStatus = {
   connected: boolean;
   lastSyncedAt: string | null;
+  /** Xero org name. Settings renders this; it was never selected, so the
+   *  connected-org line silently showed nothing. */
+  tenantName: string | null;
 };
 
 /** Returns Xero connection status (whether any xero_connection row exists). */
@@ -22,16 +25,18 @@ export function useXeroConnectionStatus() {
   return useQuery<XeroConnectionStatus>({
     queryKey: ["xeroConnectionStatus"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("xero_connection")
-        .select("updated_at")
+        .select("updated_at, tenant_name")
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) throw error;
 
       return {
         connected: !!data,
-        lastSyncedAt: (data as { updated_at?: string } | null)?.updated_at ?? null,
+        lastSyncedAt: data?.updated_at ?? null,
+        tenantName: data?.tenant_name ?? null,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -43,9 +48,10 @@ function useHasInvoices() {
   return useQuery<boolean>({
     queryKey: ["xeroHasInvoices"],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("xero_invoices")
         .select("id", { count: "exact", head: true });
+      if (error) throw error;
       return (count ?? 0) > 0;
     },
     staleTime: 5 * 60 * 1000,
@@ -116,7 +122,7 @@ export function useClientMargin() {
       );
 
       // Fetch actuals for those projects in the last 30 days
-      let costByClient = new Map<string, number>();
+      const costByClient = new Map<string, number>();
       if (projectIds.length > 0) {
         const { data: actuals, error: aErr } = await supabase
           .from("project_actuals_current")
@@ -126,9 +132,10 @@ export function useClientMargin() {
         if (aErr) throw aErr;
 
         // Fetch department cost rates
-        const { data: depts } = await supabase
+        const { data: depts, error: dErr } = await supabase
           .from("departments")
           .select("id, cost_rate_cents, hourly_rate_cents");
+        if (dErr) throw dErr;
 
         const deptCostRate = new Map(
           (depts ?? []).map((d) => [
@@ -138,6 +145,7 @@ export function useClientMargin() {
         );
 
         for (const actual of actuals ?? []) {
+          if (!actual.project_id) continue;
           const clientId = projectClientMap.get(actual.project_id);
           if (!clientId) continue;
           const rate = actual.dept_id ? (deptCostRate.get(actual.dept_id) ?? 0) : 0;

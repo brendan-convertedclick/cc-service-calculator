@@ -9,8 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { cn, formatZar } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
 import {
   BAND_TITLE,
@@ -421,7 +420,7 @@ export function ServiceLineRow({
         <div className="flex items-center gap-1 text-label-small text-m-on-surface-variant">
           {editablePrice ? (
             <InlineNumber
-              display={formatCurrency(line.unitCents / 100)}
+              display={formatZar(line.unitCents)}
               seed={String(line.unitCents / 100)}
               onCommit={commitPrice}
               ariaLabel={`Unit price for ${line.name}`}

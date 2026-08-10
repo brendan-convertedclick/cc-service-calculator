@@ -5,8 +5,6 @@ import type { Database } from "@/types/db";
 type Client = Database["public"]["Tables"]["clients"]["Row"];
 type ClientInsert = Database["public"]["Tables"]["clients"]["Insert"];
 type ClientUpdate = Database["public"]["Tables"]["clients"]["Update"];
-type Contact = Database["public"]["Tables"]["contacts"]["Row"];
-type ContactInsert = Database["public"]["Tables"]["contacts"]["Insert"];
 
 export type { Client };
 
@@ -120,32 +118,5 @@ export function useClickUpChatChannels() {
       if (error) throw error;
       return (data as { channels: Array<{ id: string; name: string }> }).channels;
     },
-  });
-}
-
-export function useContacts(clientId: string | undefined) {
-  return useQuery({
-    enabled: !!clientId,
-    queryKey: ["contacts", clientId],
-    queryFn: async (): Promise<Contact[]> => {
-      if (!clientId) return [];
-      const { data, error } = await supabase
-        .from("contacts").select("*").eq("client_id", clientId).order("is_primary", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
-
-export function useCreateContact() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: ContactInsert) => {
-      const { data, error } = await supabase.from("contacts").insert(input).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (_d, vars) =>
-      qc.invalidateQueries({ queryKey: ["contacts", vars.client_id] }),
   });
 }

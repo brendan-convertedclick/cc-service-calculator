@@ -1,0 +1,13 @@
+#!/bin/sh
+# Enable once per clone:  git config core.hooksPath .githooks
+#
+# Deliberately fast — only what can fail in a couple of seconds on the files you
+# actually touched. The full gate (typecheck, tests, build, e2e) lives in CI.
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+[ -z "$staged" ] && exit 0
+
+echo "pre-commit: eslint on $(echo "$staged" | wc -l | tr -d ' ') staged file(s)"
+# shellcheck disable=SC2086
+npx eslint $staged --max-warnings 0 --no-warn-ignored

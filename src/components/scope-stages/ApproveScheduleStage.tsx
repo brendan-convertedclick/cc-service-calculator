@@ -5,7 +5,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, ChevronDown, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage, toggleInSet } from "@/lib/utils";
+import { callEdgeFn } from "@/lib/edge";
 import {
   useBriefCE,
   useScheduleBriefTasks,
@@ -59,7 +59,6 @@ type TaskEdit = {
 
 const UNASSIGNED = "unassigned";
 const STATUS_DEFAULT = "__default__";
-const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 type ListOption = {
   id: string;
@@ -104,28 +103,17 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const session = (await supabase.auth.getSession()).data.session;
-        const res = await fetch(`${FUNCTIONS_BASE}/list-client-clickup-lists`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({ client_id: brief.client_id }),
+        const body = await callEdgeFn<{ lists?: ListOption[] }>("list-client-clickup-lists", {
+          client_id: brief.client_id,
         });
-        const body = (await res.json()) as { lists?: ListOption[]; error?: string };
         if (cancelled) return;
-        if (!res.ok) {
-          setListsError(body.error ?? "Failed to load ClickUp lists");
-          return;
-        }
         const fetched = body.lists ?? [];
         setListOptions(fetched);
         // Same default the server falls back to: the "projects" list, else first.
         const projectList = fetched.find((l) => /project/i.test(l.name));
         setListId((cur) => cur || (projectList?.id ?? fetched[0]?.id ?? ""));
       } catch (e) {
-        if (!cancelled) setListsError(e instanceof Error ? e.message : "Failed to load ClickUp lists");
+        if (!cancelled) setListsError(`Failed to load ClickUp lists: ${errorMessage(e)}`);
       }
     })();
     return () => {
@@ -201,13 +189,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
   const editFor = (t: TeamTask): TaskEdit => edits[t.id] ?? defaultEdit(t);
   const patchEdit = (t: TeamTask, patch: Partial<TaskEdit>) =>
     setEdits((prev) => ({ ...prev, [t.id]: { ...(prev[t.id] ?? defaultEdit(t)), ...patch } }));
-  const toggleExpanded = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleExpanded = (id: string) => setExpanded((prev) => toggleInSet(prev, id));
 
   if (!ce) {
     return (
@@ -223,7 +205,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
     setStatus
       .mutateAsync({ ceId: ce.id, status, note })
       .then(() => toast.success(`Estimate marked ${status}.`))
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Update failed"));
+      .catch((e) => toast.error(`Update failed: ${errorMessage(e)}`));
 
   const runSchedule = () =>
     schedule
@@ -257,7 +239,7 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
           );
         }
       })
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Scheduling failed"));
+      .catch((e) => toast.error(`Scheduling failed: ${errorMessage(e)}`));
 
   return (
     <div className="space-y-4">

@@ -8,8 +8,13 @@ import { BriefList } from "@/components/BriefList";
 import { BriefConversation } from "@/components/BriefConversation";
 import { InboxFilterPanel } from "@/components/InboxFilterPanel";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
-import { StatusPipeline, type PipelineSelection } from "@/components/briefs/StatusPipeline";
+import {
+  PIPELINE_STATUSES,
+  StatusPipeline,
+  type PipelineSelection,
+} from "@/components/briefs/StatusPipeline";
 import { useBrief, useBriefs, useCreateBrief } from "@/hooks/useBriefs";
+import { useBriefIntelligence } from "@/hooks/useBriefIntelligence";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
 import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks/useBriefs";
@@ -20,6 +25,13 @@ const ROLE = `You are the Converted Click operations assistant working in Claude
 const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
 const SCOPES: BriefScope[] = ["all", "new", "mine", "unassigned", "waiting", "archived"];
+
+// Inbox only ever renders the primary pipeline pills (no delivery/execution-bucket
+// filter here — that's Briefs.tsx's DeliveryFilter), so narrow the widely-typed
+// PipelineSelection down before it reaches the brief-status DB filter.
+function isPipelineBriefStatus(s: PipelineSelection): s is BriefStatus {
+  return (PIPELINE_STATUSES as string[]).includes(s);
+}
 
 const TAB_LABEL: Record<BriefScope, string> = {
   new: "New",
@@ -35,6 +47,7 @@ export function Inbox() {
   const currentUserId = useCurrentUserId();
   const navigate = useNavigate();
   const { data: selectedBrief } = useBrief(briefId);
+  const { data: selectedBriefIntel } = useBriefIntelligence(briefId);
   const createBrief = useCreateBrief();
   const { data: filterTree } = useInboxFilterTree();
 
@@ -66,14 +79,16 @@ export function Inbox() {
     setActiveContactEmail(undefined);
   }
 
+  const pipelineBriefStatus = isPipelineBriefStatus(pipelineStatus) ? pipelineStatus : undefined;
+
   const filterOptions: BriefFilterOptions | undefined =
     activeClientId !== undefined ||
     activeContactEmail !== undefined ||
-    pipelineStatus !== "all"
+    pipelineBriefStatus !== undefined
       ? {
           clientId: activeClientId,
           contactEmail: activeContactEmail,
-          status: pipelineStatus === "all" ? undefined : pipelineStatus,
+          status: pipelineBriefStatus,
         }
       : undefined;
 
@@ -111,7 +126,7 @@ export function Inbox() {
 Context:
 Subject: ${selectedBrief.raw_subject ?? "(no subject)"}
 From: ${selectedBrief.sender_email ?? "(unknown)"}
-Notes: ${selectedBrief.am_notes ?? "(none)"}
+Notes: ${selectedBriefIntel?.am_notes ?? "(none)"}
 Brief ID: ${selectedBrief.id}
 
 ${MCP_NOTE}

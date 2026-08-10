@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { supabase } from '../supabase.js'
 import { decide, type Rule } from '../sender-rules.js'
 import { normalizeHost, hostMatches } from '../domain.js'
+import { guarded } from '../tool-result.js'
 
 export const schema = z.object({
   email: z.string().describe('Sender email — full address'),
@@ -9,7 +10,7 @@ export const schema = z.object({
 type Input = z.infer<typeof schema>
 
 export async function handler(input: Input) {
-  try {
+  return guarded(async () => {
     const email = input.email.toLowerCase()
     const domain = normalizeHost(email.split('@')[1] ?? '')
 
@@ -34,9 +35,7 @@ export async function handler(input: Input) {
       )?.id as string | undefined
     }
 
-    if (!clientId) {
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ decision: 'unknown' }) }] }
-    }
+    if (!clientId) return { decision: 'unknown' }
 
     const { data: rules, error: rErr } = await supabase
       .from('client_sender_rules')
@@ -45,11 +44,6 @@ export async function handler(input: Input) {
     if (rErr) throw new Error(rErr.message)
 
     const result = decide(email, (rules ?? []) as Rule[])
-    const payload = { ...result, client_id: clientId }
-
-    return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }], isError: true }
-  }
+    return { ...result, client_id: clientId }
+  })
 }

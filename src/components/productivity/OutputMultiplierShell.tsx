@@ -10,6 +10,7 @@ import {
   MultiplierView,
   MultiplierPeriod,
 } from "@/hooks/useOutputMultiplier";
+import { toISODate } from "@/lib/dates";
 
 interface Props {
   loggedBy?: string; // undefined = whole team
@@ -28,7 +29,7 @@ function anchorDate(period: MultiplierPeriod, offset: number): string {
   if (period === "week") d.setDate(d.getDate() + offset * 7);
   if (period === "month") d.setMonth(d.getMonth() + offset);
   if (period === "year") d.setFullYear(d.getFullYear() + offset);
-  return d.toISOString().slice(0, 10);
+  return toISODate(d);
 }
 
 export function OutputMultiplierShell({ loggedBy }: Props) {

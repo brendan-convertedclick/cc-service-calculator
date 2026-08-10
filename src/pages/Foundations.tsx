@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { useClients, useClickUpFolders } from "@/hooks/useClients";
@@ -111,7 +112,7 @@ export function Foundations() {
       if (errs > 0) toast.warning(msg);
       else toast.success(msg);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Apply failed");
+      toast.error(`Apply failed: ${errorMessage(e)}`);
     }
   };
 
@@ -384,7 +385,7 @@ function CatalogEditor({
       setNewLabel("");
       setNewGroupId("");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add baseline");
+      toast.error(`Failed to add baseline: ${errorMessage(e)}`);
     }
   };
 
@@ -394,7 +395,7 @@ function CatalogEditor({
       await archiveBL.mutateAsync(id);
       toast.success("Baseline archived");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to archive");
+      toast.error(`Failed to archive: ${errorMessage(e)}`);
     }
   };
 
@@ -487,7 +488,7 @@ function SeedTasksEditor({ baselineListId }: { baselineListId: string }) {
       setNewName("");
       toast.success("Task added");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add task");
+      toast.error(`Failed to add task: ${errorMessage(e)}`);
     }
   };
 

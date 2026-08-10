@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { errorMessage } from "@/lib/utils";
 import {
   useIssueRelayToken,
   useRelayTokenStatus,
@@ -27,7 +28,7 @@ export function SettingsConnectGmail() {
       setJustIssued(result.token);
       toast.success("Token generated. Copy it now — it won't be shown again.");
     } catch (e) {
-      toast.error(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Failed: ${errorMessage(e)}`);
     }
   };
 

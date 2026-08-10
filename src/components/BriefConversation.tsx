@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import { Link2, Unlink, Pencil, Settings, Trash2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -90,7 +91,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
       await updateBrief.mutateAsync({ id: brief.id, patch: { billing_type: next } });
       toast.success(`Billing set to ${BILLING_LABEL[next]}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update billing");
+      toast.error(`Failed to update billing: ${errorMessage(e)}`);
     }
   }
 
@@ -125,7 +126,7 @@ export function BriefConversation({ brief, open, onClose }: BriefConversationPro
         rollbackStage === "quote" ? "Quote deleted" : "Scope deleted",
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to roll back");
+      toast.error(`Failed to roll back: ${errorMessage(e)}`);
     }
   };
 

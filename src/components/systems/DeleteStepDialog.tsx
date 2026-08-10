@@ -10,6 +10,7 @@
 // materialised into ClickUp keeps its instance rows, they just stop pointing
 // at a template. Nothing here touches ClickUp.
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,7 +79,7 @@ export function DeleteStepDialog({
                     onDeleted?.(step.id);
                     onClose();
                   },
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Could not delete step"),
+                  onError: (e) => toast.error(`Could not delete step: ${errorMessage(e)}`),
                 }
               );
             }}

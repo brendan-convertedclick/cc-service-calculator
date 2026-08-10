@@ -3,7 +3,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 
+// Still needed for handleConnect's window.location.href redirect below — that
+// leg isn't a fetch, so callEdgeFn doesn't apply to it.
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 /**
@@ -21,12 +25,9 @@ export function ClickUpConnectCard() {
     let cancelled = false;
     (async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token ?? "";
-        const res = await fetch(`${FUNCTIONS_BASE}/clickup-oauth?action=status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const body = (await res.json()) as { connected: boolean; clickup_username: string | null };
+        const body = await callEdgeFn<{ connected: boolean; clickup_username: string | null }>(
+          "clickup-oauth?action=status",
+        );
         if (!cancelled) setConn(body);
       } catch {
         if (!cancelled) setConn({ connected: false, clickup_username: null });
@@ -55,20 +56,11 @@ export function ClickUpConnectCard() {
   const handleDisconnect = async () => {
     setDisconnecting(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token ?? "";
-      const res = await fetch(`${FUNCTIONS_BASE}/clickup-oauth?action=disconnect`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body?.error ?? "Disconnect failed");
-      }
+      await callEdgeFn("clickup-oauth?action=disconnect", undefined, { method: "POST" });
       setConn({ connected: false, clickup_username: null });
       toast.success("ClickUp disconnected");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+      toast.error(`Disconnect failed: ${errorMessage(e)}`);
     } finally {
       setDisconnecting(false);
     }

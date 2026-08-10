@@ -19,9 +19,9 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Database } from "@/types/db";
-
-type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+import type { TeamMember } from "@/hooks/useTeam";
+import { TOOLTIP_STYLE_BORDERED, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE } from "./chartShared";
+import { errorMessage } from "@/lib/utils";
 
 interface Props {
   members: TeamMember[];
@@ -222,7 +222,7 @@ export function TaskBreakdownTab({ members, selectedUserId }: Props) {
 
       {isError && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-body-medium text-destructive">
-          Failed to load task breakdown: {error instanceof Error ? error.message : "unknown error"}
+          Failed to load task breakdown: {errorMessage(error)}
         </p>
       )}
 
@@ -310,10 +310,10 @@ function ByPersonView({
             <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "#94a3b8", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
             <Tooltip
-              contentStyle={{ background: "#1e2433", border: "1px solid #2d3748", borderRadius: 8, fontSize: 12, fontFamily: "var(--font-mono)" }}
-              labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-              formatter={(value: number, name: string) => [`${value.toFixed(2)}h`, name]}
-              itemStyle={{ color: "#94a3b8", fontFamily: "var(--font-mono)" }}
+              contentStyle={TOOLTIP_STYLE_BORDERED}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              formatter={(value, name) => [`${Number(value).toFixed(2)}h`, name]}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             {orderedTasks.map((t, i) => (
               <Bar
@@ -394,7 +394,7 @@ function ByTaskView({
                 <Tooltip
                   contentStyle={{ background: "#1e2433", border: "1px solid #2d3748", borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "#e2e8f0", marginBottom: 4 }}
-                  formatter={(value: number, name: string) => [`${value.toFixed(2)}h`, name]}
+                  formatter={(value, name) => [`${Number(value).toFixed(2)}h`, name]}
                   itemStyle={{ color: "#94a3b8" }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />

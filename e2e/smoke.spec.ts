@@ -8,7 +8,12 @@ test.describe("Static routes — load without crash", () => {
 
   test("/ — Dashboard", async ({ page }) => {
     const errors = await smokeCheck(page, "/");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    // DashboardShell renders a project tree + a content pane; it has no page
+    // heading, so the original "Dashboard" heading assertion could never pass.
+    // NOTE: AppShell and DashboardShell each render a <main>, so `getByRole
+    // ("main")` is ambiguous here — nested main landmarks are an a11y defect
+    // worth fixing separately.
+    await expect(page.getByPlaceholder("Search…")).toBeVisible();
     expect(errors, "unexpected JS errors").toHaveLength(0);
   });
 
@@ -162,7 +167,7 @@ test.describe("Dynamic routes — click-through from list", () => {
   test("/clients/:clientId/projects/:projectId — ProjectScopeView via sidebar", async ({ page }) => {
     const errors = await smokeCheck(page, "/");
 
-    // The AppShell sidebar has ClientNavSection links to /clients/:id/projects/:id
+    // The AppShell sidebar has client nav links to /clients/:id/projects/:id
     const linkCount = await page
       .locator("aside nav a[href*='/projects/']")
       .count();

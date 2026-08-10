@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { todayISO } from '@/lib/dates'
 
 interface Props {
   clientId: string
@@ -18,7 +19,7 @@ interface Props {
 export function LogTouchpointModal({ clientId, clientName, open, onClose, onSubmit, isPending }: Props) {
   const [type, setType] = useState<'meeting' | 'call' | 'email'>('meeting')
   const [notes, setNotes] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(todayISO())
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>

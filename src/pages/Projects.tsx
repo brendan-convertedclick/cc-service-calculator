@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
+import { toggleInSet } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -138,21 +140,11 @@ export function Projects() {
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
 
   const toggleClient = (id: string) => {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, id));
   };
 
   const toggleStatus = (s: DerivedStatus) => {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
+    setSelectedStatuses((prev) => toggleInSet(prev, s));
   };
 
   return (
@@ -187,79 +179,29 @@ export function Projects() {
         </div>
 
         {clientOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
-            <div className="space-y-0.5">
-              {clientOptions.map((c) => {
-                const active = selectedClients.has(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleClient(c.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{c.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Client">
+            {clientOptions.map((c) => (
+              <FilterOption
+                key={c.id}
+                label={c.name}
+                active={selectedClients.has(c.id)}
+                onToggle={() => toggleClient(c.id)}
+              />
+            ))}
+          </FilterGroup>
         )}
 
         {statusOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
-            <div className="space-y-0.5">
-              {statusOptions.map((s) => {
-                const active = selectedStatuses.has(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleStatus(s)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{STATUS_LABEL[s]}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Status">
+            {statusOptions.map((s) => (
+              <FilterOption
+                key={s}
+                label={STATUS_LABEL[s]}
+                active={selectedStatuses.has(s)}
+                onToggle={() => toggleStatus(s)}
+              />
+            ))}
+          </FilterGroup>
         )}
       </aside>
 

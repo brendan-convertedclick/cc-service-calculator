@@ -143,6 +143,9 @@ export function usePulseRetainerBurn(
       const { supabase } = await import('@/lib/supabase')
       const { start, end } = monthRange(month)
 
+      // error intentionally ignored: Pulse dashboard tile, degrades to an
+      // empty/zeroed widget rather than red-screening the whole Pulse page —
+      // same convention across usePulseWipFunnel / usePulseRevenueTrend / usePulsePricingHealth.
       const { data: projects } = await supabase
         .from('projects')
         .select('id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')

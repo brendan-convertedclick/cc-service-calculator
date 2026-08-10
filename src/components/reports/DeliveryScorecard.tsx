@@ -9,6 +9,7 @@ import { ExternalLink, Flag } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useClientDeliveryScorecard } from "@/hooks/useClientDeliveryScorecard";
+import { errorMessage } from "@/lib/utils";
 
 interface DeliveryScorecardProps {
   clientId: string;
@@ -65,7 +66,7 @@ export function DeliveryScorecard({ clientId, cycleStartIso, cycleEndIso }: Deli
     return (
       <Card>
         <CardContent className="p-4 text-body-small text-m-error">
-          Couldn’t load delivery scorecard: {(error as Error).message}
+          Couldn’t load delivery scorecard: {errorMessage(error)}
         </CardContent>
       </Card>
     );

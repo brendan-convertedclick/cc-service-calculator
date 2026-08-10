@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toggleInSet } from "@/lib/utils";
 import type { SowOption } from "@/hooks/useScopeMap";
 
 export interface SowSelectionCardProps {
@@ -31,12 +32,7 @@ export function SowSelectionCard({
   const suggested = new Set(suggestedSlugs);
 
   const toggle = (slug: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
-    });
+    setChecked((prev) => toggleInSet(prev, slug));
   };
 
   return (

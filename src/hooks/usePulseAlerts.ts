@@ -1,7 +1,5 @@
 import type { ArAgingBand, ClientHealthRow, PulseAlert, RetainerBurnRow } from '@/types/pulse'
-
-const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
-const fmt = (cents: number) => ZAR.format(cents / 100)
+import { formatZar } from '@/lib/utils'
 
 export function computeAlerts(
   retainerRows: RetainerBurnRow[],
@@ -25,7 +23,7 @@ export function computeAlerts(
     .forEach(i => alerts.push({
       id: `ar-${i.id}`,
       level: 'overdue',
-      message: `${i.clientName} — Invoice ${i.invoiceNumber ?? fmt(i.amountCents)} overdue ${i.daysOverdue} days`,
+      message: `${i.clientName} — Invoice ${i.invoiceNumber ?? formatZar(i.amountCents)} overdue ${i.daysOverdue} days`,
       linkTo: `/reconciliation`,
     }))
 

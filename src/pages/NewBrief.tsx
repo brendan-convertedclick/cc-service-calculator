@@ -39,7 +39,10 @@ export function NewBrief() {
   const onSubmit = async (values: FormValues) => {
     let clientId = values.client_id;
     if (!clientId && values.new_client_name) {
-      const c = await createClient.mutateAsync({ name: values.new_client_name });
+      const c = await createClient.mutateAsync({
+        name: values.new_client_name,
+        short_name: values.new_client_name,
+      });
       clientId = c.id;
     }
 

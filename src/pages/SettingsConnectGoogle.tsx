@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { callEdgeFn } from "@/lib/edge";
+import { errorMessage } from "@/lib/utils";
 
 type GoogleStatus = {
   connected: boolean;
@@ -47,21 +49,11 @@ export function SettingsConnectGoogle() {
   const handleDisconnect = async () => {
     setDisconnecting(true);
     try {
-      const { supabase } = await import("@/lib/supabase");
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token ?? "";
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-token?action=disconnect`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body?.error ?? "Disconnect failed");
-      }
+      await callEdgeFn("google-token?action=disconnect", undefined, { method: "POST" });
       toast.success("Google Calendar disconnected");
       await loadStatus();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Disconnect failed");
+      toast.error(`Disconnect failed: ${errorMessage(e)}`);
     } finally {
       setDisconnecting(false);
     }

@@ -43,6 +43,9 @@ export function usePulsePricingHealth(): PricingHealthData | null {
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase')
       const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+      // error intentionally ignored: Pulse dashboard tile, degrades to an
+      // empty/zeroed widget rather than red-screening the whole Pulse page —
+      // same convention across usePulseWipFunnel / usePulseRevenueTrend / usePulseRetainerBurn.
       const { data: projects } = await supabase
         .from('projects')
         .select('id, client_id, clients(name), project_actuals_current(actual_hours, planned_hours)')

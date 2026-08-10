@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ import { usePulseRetainerBurn, currentMonthKey } from "@/hooks/usePulseRetainerB
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { HoursUsedCell } from "@/components/retainers/HoursUsedCell";
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
-import { formatZar, cn } from "@/lib/utils";
+import { formatZar, cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
@@ -143,27 +144,17 @@ export function RetainersList() {
   }
 
   function toggleClient(name: string) {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, name));
   }
 
   function toggleStatus(status: string) {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
+    setSelectedStatuses((prev) => toggleInSet(prev, status));
   }
 
   function handleSync(projectId?: string, label?: string) {
     sync.mutate(projectId, {
       onSuccess: () => toast.success(label ? `Synced ${label}` : "Synced all retainers"),
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Sync failed"),
+      onError: (err) => toast.error(`Sync failed: ${errorMessage(err)}`),
     });
   }
 
@@ -199,79 +190,29 @@ export function RetainersList() {
         </div>
 
         {clientOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
-            <div className="space-y-0.5">
-              {clientOptions.map((name) => {
-                const active = selectedClients.has(name);
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleClient(name)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Client">
+            {clientOptions.map((name) => (
+              <FilterOption
+                key={name}
+                label={name}
+                active={selectedClients.has(name)}
+                onToggle={() => toggleClient(name)}
+              />
+            ))}
+          </FilterGroup>
         )}
 
         {statusOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Status</h4>
-            <div className="space-y-0.5">
-              {statusOptions.map((status) => {
-                const active = selectedStatuses.has(status);
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => toggleStatus(status)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{statusLabel(status)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Status">
+            {statusOptions.map((status) => (
+              <FilterOption
+                key={status}
+                label={statusLabel(status)}
+                active={selectedStatuses.has(status)}
+                onToggle={() => toggleStatus(status)}
+              />
+            ))}
+          </FilterGroup>
         )}
       </aside>
 
@@ -419,9 +360,7 @@ export function RetainersList() {
                                       deleteRetainer.mutate(r.id, {
                                         onSuccess: () => toast.success("Retainer deleted"),
                                         onError: (err) =>
-                                          toast.error(
-                                            err instanceof Error ? err.message : "Failed to delete retainer",
-                                          ),
+                                          toast.error(`Failed to delete retainer: ${errorMessage(err)}`),
                                       });
                                     }
                                   }}

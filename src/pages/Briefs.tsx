@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
+import { toggleInSet } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -268,21 +270,11 @@ export function Briefs() {
   const hasFilters = selectedClients.size > 0 || selectedBilling.size > 0;
 
   const toggleClient = (id: string) => {
-    setSelectedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedClients((prev) => toggleInSet(prev, id));
   };
 
   const toggleBilling = (t: BillingType) => {
-    setSelectedBilling((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
+    setSelectedBilling((prev) => toggleInSet(prev, t));
   };
 
   return (
@@ -348,79 +340,29 @@ export function Briefs() {
         </div>
 
         {clientOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Client</h4>
-            <div className="space-y-0.5">
-              {clientOptions.map((c) => {
-                const active = selectedClients.has(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleClient(c.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{c.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Client">
+            {clientOptions.map((c) => (
+              <FilterOption
+                key={c.id}
+                label={c.name}
+                active={selectedClients.has(c.id)}
+                onToggle={() => toggleClient(c.id)}
+              />
+            ))}
+          </FilterGroup>
         )}
 
         {billingOptions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-label-medium text-m-on-surface-variant">Billing</h4>
-            <div className="space-y-0.5">
-              {billingOptions.map((t) => {
-                const active = selectedBilling.has(t);
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => toggleBilling(t)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-label-medium tracking-normal transition-colors ${
-                      active
-                        ? "bg-m-secondary-container text-m-on-secondary-container"
-                        : "text-m-on-surface hover:bg-m-surface-container"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-m-primary bg-m-primary text-m-on-primary"
-                          : "border-m-outline"
-                      }`}
-                    >
-                      {active && (
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className="truncate">{BILLING_LABEL[t]}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <FilterGroup label="Billing">
+            {billingOptions.map((t) => (
+              <FilterOption
+                key={t}
+                label={BILLING_LABEL[t]}
+                active={selectedBilling.has(t)}
+                onToggle={() => toggleBilling(t)}
+              />
+            ))}
+          </FilterGroup>
         )}
       </aside>
       )}

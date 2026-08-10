@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { RetainerBurnSection } from './RetainerBurnSection'
+import { textAcross } from '@/test/text'
 import type { RetainerBurnRow } from '@/types/pulse'
 
 const row: RetainerBurnRow = {
@@ -20,7 +21,7 @@ describe('RetainerBurnSection', () => {
 
   it('renders burn percentage', () => {
     render(<RetainerBurnSection rows={[row]} />)
-    expect(screen.getByText(/69%/)).toBeInTheDocument()
+    expect(screen.getByText(textAcross(/69%/))).toBeInTheDocument()
   })
 
   it('shows empty state when no retainers', () => {

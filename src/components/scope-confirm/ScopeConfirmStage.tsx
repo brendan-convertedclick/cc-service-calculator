@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScopeReceipt } from "@/components/scope-receipt/ScopeReceipt";
 import { AddBillableLine } from "@/components/scope-receipt/AddBillableLine";
 import { SowSelectionCard } from "@/components/scope-map/SowSelectionCard";
+import { errorMessage } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 import {
   useAddPlacement,
@@ -130,7 +131,7 @@ export function ScopeConfirmStage({
             { placement_id: placementId, title: "", sort_order: tasks.length },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to add task"),
+                toast.error(`Failed to add task: ${errorMessage(e)}`),
             },
           )
         }
@@ -174,7 +175,7 @@ export function ScopeConfirmStage({
           `Mapped ${res.placements.length} item(s) against ${res.sow_slugs.length} SOW(s).`,
         );
       },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Analysis failed"),
+      onError: (e) => toast.error(`Analysis failed: ${errorMessage(e)}`),
     });
   };
 
@@ -202,7 +203,7 @@ export function ScopeConfirmStage({
       },
       {
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Failed to update placement"),
+          toast.error(`Failed to update placement: ${errorMessage(e)}`),
       },
     );
   };
@@ -224,7 +225,7 @@ export function ScopeConfirmStage({
       },
       {
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Failed to add billable line"),
+          toast.error(`Failed to add billable line: ${errorMessage(e)}`),
       },
     );
   };
@@ -323,7 +324,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, quantity: qty },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update quantity"),
+                toast.error(`Failed to update quantity: ${errorMessage(e)}`),
             },
           )
         }
@@ -332,7 +333,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, estimated_cents: unitCents },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update price"),
+                toast.error(`Failed to update price: ${errorMessage(e)}`),
             },
           )
         }
@@ -341,7 +342,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, item_name: name },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update title"),
+                toast.error(`Failed to update title: ${errorMessage(e)}`),
             },
           )
         }
@@ -350,7 +351,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, item_description: description || null },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update description"),
+                toast.error(`Failed to update description: ${errorMessage(e)}`),
             },
           )
         }
@@ -359,7 +360,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, client_reason: reason || null },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update reason"),
+                toast.error(`Failed to update reason: ${errorMessage(e)}`),
             },
           )
         }
@@ -368,7 +369,7 @@ export function ScopeConfirmStage({
             { task_ref: ref, excluded },
             {
               onError: (e) =>
-                toast.error(e instanceof Error ? e.message : "Failed to update line"),
+                toast.error(`Failed to update line: ${errorMessage(e)}`),
             },
           )
         }
