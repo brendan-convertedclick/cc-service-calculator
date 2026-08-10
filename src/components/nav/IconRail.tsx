@@ -1,9 +1,9 @@
-import { forwardRef, useEffect, useRef, useState } from "react"
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
-import { useTeam } from "@/hooks/useTeam"
+import { memberColors, useTeam } from "@/hooks/useTeam"
 import { useCurrentRole } from "@/hooks/useCurrentRole"
 import {
   navEntriesFor,
@@ -203,6 +203,11 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
       : (user?.email?.[0] ?? "?")
   ).toUpperCase()
 
+  // A face keeps the same colour everywhere it appears. Undefined for the
+  // shared team@ login, which has no roster row — that falls back to the
+  // neutral container tint rather than borrowing someone else's colour.
+  const myColor = useMemo(() => (me ? memberColors(team).get(me.id) : undefined), [team, me])
+
   return (
     <TooltipProvider delayDuration={300}>
       <aside
@@ -225,7 +230,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
         {/* Logo + app name */}
         <div className={cn("flex items-center gap-2.5 mb-1 shrink-0", navOpen ? "px-0" : "justify-center")}>
           <img
-            src="/conductor-mark.png"
+            src="/conductor-mark-v2.png"
             alt="Conductor"
             className="h-9 w-9 shrink-0 object-contain"
           />
@@ -287,7 +292,13 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
         <div className="mt-auto space-y-1">
           {navOpen ? (
             <div className="flex items-center gap-3 px-3 py-2" title={displayName}>
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-m-primary-container text-label-medium font-medium text-m-on-primary-container">
+              <div
+                className={cn(
+                  "grid h-9 w-9 shrink-0 place-items-center rounded-full text-label-medium font-medium",
+                  myColor ? "text-white" : "bg-m-primary-container text-m-on-primary-container",
+                )}
+                style={myColor ? { background: myColor } : undefined}
+              >
                 {initials}
               </div>
               <span className="truncate text-label-medium tracking-normal text-m-on-surface">{displayName}</span>
@@ -295,7 +306,13 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-m-primary-container text-label-medium font-medium text-m-on-primary-container">
+                <div
+                  className={cn(
+                    "mx-auto grid h-9 w-9 place-items-center rounded-full text-label-medium font-medium",
+                    myColor ? "text-white" : "bg-m-primary-container text-m-on-primary-container",
+                  )}
+                  style={myColor ? { background: myColor } : undefined}
+                >
                   {initials}
                 </div>
               </TooltipTrigger>

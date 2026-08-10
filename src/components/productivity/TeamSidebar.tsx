@@ -42,7 +42,7 @@ export function TeamSidebar({ members, selectedUserId, onSelect, pointsByMember 
             : "text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface"
         }`}
       >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-m-surface-container-high text-m-on-surface-variant">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-m-surface-container-high text-m-on-surface-variant">
           <Users className="h-3.5 w-3.5" />
         </span>
         <span className="flex-1 truncate">Whole team</span>
@@ -67,7 +67,7 @@ export function TeamSidebar({ members, selectedUserId, onSelect, pointsByMember 
             } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
             <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
               style={{ background: color }}
             >
               {initials(member.full_name)}

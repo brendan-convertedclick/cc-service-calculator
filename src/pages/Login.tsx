@@ -46,7 +46,7 @@ export function Login() {
       <Card className="w-full max-w-sm shadow-elev-2">
         <CardHeader className="space-y-3">
           <div className="flex items-center gap-3">
-            <img src="/conductor-mark.png" alt="Conductor" className="h-10 w-10 shrink-0 object-contain" />
+            <img src="/conductor-mark-v2.png" alt="Conductor" className="h-10 w-10 shrink-0 object-contain" />
             <div>
               <div className="text-title-small text-m-on-surface">Conductor</div>
               <div className="text-label-small text-m-on-surface-variant">Service pricing</div>
