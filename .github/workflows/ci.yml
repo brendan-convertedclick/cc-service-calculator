@@ -13,8 +13,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -44,25 +44,43 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # Needs live Supabase credentials; skipped on forks where secrets are absent.
+    # These specs drive a real browser against the LIVE Supabase project — there
+    # is no seeded test database. So the job is opt-in: it stays skipped (green)
+    # until someone deliberately adds the four secrets below, which is also the
+    # decision to let a GitHub runner read production data. Without them the app
+    # cannot boot and every spec times out, so a red job here would say nothing
+    # about the code. `verify` is the gate that must always run.
+    #
+    # The guard is a step-level `if` on `env` because the `secrets` context is
+    # not available in a job-level `if`.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Report configuration
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            echo "::notice::E2E skipped — VITE_SUPABASE_URL is not set. Add the repo secrets to enable it."
+          fi
+      - uses: actions/checkout@v5
+        if: env.VITE_SUPABASE_URL != ''
+      - uses: actions/setup-node@v5
+        if: env.VITE_SUPABASE_URL != ''
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: env.VITE_SUPABASE_URL != ''
       - run: npx playwright install --with-deps chromium
+        if: env.VITE_SUPABASE_URL != ''
       # Explicitly NOT `npm run e2e` — that would include systems.spec.ts, which
       # creates rows and auth users in the LIVE database. This is the read-only set.
       - name: E2E (read-only specs)
+        if: env.VITE_SUPABASE_URL != ''
         run: npx playwright test smoke.spec.ts filter-rail.spec.ts sow-composer.spec.ts escalations.spec.ts
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
