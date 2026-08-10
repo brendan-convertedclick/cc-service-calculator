@@ -58,6 +58,14 @@ used bare `rounded`; role (chip → pill) should have won and now does.
   a segmented control.
 - Circles by nature — avatars, progress rings, dots, spinners — keep
   `rounded-full` regardless of role.
+- **Team avatars are always round and always carry their member colour.** Not a
+  judgement call and not subject to the radius scale: a face is a circle, and it
+  is the same colour everywhere it appears so a person stays recognisable across
+  surfaces. Colour comes from `memberColors()` in `@/hooks/useTeam`, keyed on
+  position in the name-ordered team list — never re-derive it per surface. The
+  only fallback is the shared `team@` login, which has no `team_members` row and
+  therefore no colour; that renders `bg-m-primary-container` rather than
+  borrowing someone else's.
 - Dropdown **menu items** stay `rounded-sm`, following shadcn's own convention.
   They are actions, but pilling a menu row looks wrong.
 - Directional radii (`rounded-t`, `rounded-r`, `rounded-b`) survive on six
