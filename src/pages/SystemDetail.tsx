@@ -498,7 +498,7 @@ export function SystemDetail() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <FieldLabel label="Band">
+              <FieldLabel label="Area">
                 <select
                   value={form.band}
                   onChange={(e) => {
@@ -883,6 +883,11 @@ export function SystemDetail() {
                   systemId={system.id}
                   systemName={system.name}
                   isProcess={isProcess}
+                  triggerText={system.trigger_text}
+                  // The 0105 backfill parks a sentence-long sentinel in this
+                  // not-null column — blank it here or the Goal pill reads
+                  // "TODO: set a goal for this system".
+                  goalStatement={system.goal_statement === PLACEHOLDER_GOAL ? null : system.goal_statement}
                   onPropose={() => setProposeOpen(true)}
                   onCreateStep={createStep}
                   focusStepId={focusStep}

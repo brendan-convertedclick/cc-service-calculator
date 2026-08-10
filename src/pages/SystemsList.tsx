@@ -2,13 +2,13 @@
 //
 // /systems — named, owned, goal-bearing ways of doing something, in three
 // layers: policies (the rule), processes (the flow), procedures (the steps).
-// Layer is the top-level grouping; band demotes to a rail filter. Rail matches
-// the SowList/ServicesList standard.
+// Layer is a tab; band demotes to a rail filter. Rail matches the
+// SowList/ServicesList standard.
 
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, Search } from "lucide-react";
+import { AlertTriangle, Plus, Search, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +81,8 @@ export function SystemsList() {
   const [params, setParams] = useSearchParams();
   const wizardName = params.get("new");
   const [creating, setCreating] = useState<SystemLayer | null>(wizardName != null ? "procedure" : null);
+  // Procedures is where the volume is, and where the wizard hands over.
+  const [tab, setTab] = useState<SystemLayer>("procedure");
 
   const q = search.trim().toLowerCase();
 
@@ -95,9 +98,9 @@ export function SystemsList() {
     [systems, band, kind, unmappedOnly, q],
   );
 
-  // All three sections always render, empty or not — the taxonomy is the point
-  // of this page, and a missing "Policies" heading reads as "we don't do those"
-  // rather than "none written yet".
+  // All three tabs always render, empty or not — the taxonomy is the point of
+  // this page, and a missing "Policies" tab reads as "we don't do those" rather
+  // than "none written yet".
   const grouped = useMemo(() => {
     const byLayer = new Map<SystemLayer, SystemDefinitionWithJoins[]>();
     for (const s of filtered) {
@@ -147,14 +150,14 @@ export function SystemsList() {
         </div>
 
         <div>
-          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Band</p>
+          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Area</p>
           <ul className="space-y-0.5">
-            <FilterRow label="All bands" active={band === null} onClick={() => setBand(null)} count={systems.length} />
+            <FilterRow label="All areas" active={band === null} onClick={() => setBand(null)} count={systems.length} />
             {[...SYSTEM_BANDS, UNBANDED].map((b) =>
               bandCounts[b] ? (
                 <FilterRow
                   key={b}
-                  label={b === UNBANDED ? "Unbanded" : SYSTEM_BAND_LABEL[b as SystemBand]}
+                  label={b === UNBANDED ? "No area" : SYSTEM_BAND_LABEL[b as SystemBand]}
                   active={band === b}
                   onClick={() => setBand(b)}
                   count={bandCounts[b]}
@@ -199,23 +202,40 @@ export function SystemsList() {
         {isLoading ? (
           <p className="text-body-medium text-m-on-surface-variant">Loading…</p>
         ) : (
-          <div className="space-y-8">
-            {grouped.map((g) => (
-              <section key={g.layer}>
-                <div className="mb-2 flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-title-medium text-m-on-surface">{SYSTEM_LAYER_LABEL[g.layer]}</h2>
-                      <span className="text-label-medium text-m-on-surface-variant">{g.items.length}</span>
-                    </div>
-                    <p className="mt-0.5 text-label-medium text-m-on-surface-variant">
-                      {SYSTEM_LAYER_BLURB[g.layer]}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => setCreating(g.layer)} className="flex-none gap-1">
-                    <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[g.layer]}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as SystemLayer)}>
+            <div className="flex items-center justify-between gap-3">
+              <TabsList>
+                {grouped.map((g) => (
+                  <TabsTrigger key={g.layer} value={g.layer}>
+                    {SYSTEM_LAYER_LABEL[g.layer]} · {g.items.length}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <div className="flex flex-none items-center gap-2">
+                {/* The triage that runs before a procedure exists — the answer
+                    is often "don't build one". Lives here rather than in the
+                    nav: it's only ever reached on the way to a procedure. */}
+                {tab === "procedure" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/procedure-wizard")}
+                    className="gap-1"
+                  >
+                    <Wand2 className="h-4 w-4" /> Wizard
                   </Button>
-                </div>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setCreating(tab)} className="gap-1">
+                  <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[tab]}
+                </Button>
+              </div>
+            </div>
+
+            {grouped.map((g) => (
+              <TabsContent key={g.layer} value={g.layer} className="mt-4">
+                <p className="mb-2 text-label-medium text-m-on-surface-variant">
+                  {SYSTEM_LAYER_BLURB[g.layer]}
+                </p>
                 <Card className="overflow-hidden border-m-outline-variant">
                   <CardContent className="p-0">
                     {g.items.length === 0 ? (
@@ -233,9 +253,9 @@ export function SystemsList() {
                     )}
                   </CardContent>
                 </Card>
-              </section>
+              </TabsContent>
             ))}
-          </div>
+          </Tabs>
         )}
       </div>
 
@@ -512,7 +532,7 @@ function NewSystemDialog({
           )}
 
           <div className="space-y-1">
-            <Label htmlFor="sys-band">Band</Label>
+            <Label htmlFor="sys-band">Area</Label>
             <select
               id="sys-band"
               value={band}

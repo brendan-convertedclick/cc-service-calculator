@@ -21,7 +21,6 @@ import {
   SlidersHorizontal,
   TrendingUp,
   Users,
-  Wand2,
   Waypoints,
   Wrench,
   Workflow,
@@ -56,9 +55,6 @@ const productivity: NavItem = { to: "/productivity",  label: "Productivity",  ic
 
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false }
 const systems: NavItem        = { to: "/systems",       label: "Systems",       icon: Waypoints,         end: false }
-// The triage that runs before a procedure exists — deliberately its own nav
-// entry, not a button inside Systems: the answer is often "don't build one".
-const procedureWizard: NavItem = { to: "/procedure-wizard", label: "Procedure wizard", icon: Wand2,     end: false }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false }
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false }
 const retainers: NavItem      = { to: "/retainers",     label: "Retainers",     icon: Repeat,            end: false }
@@ -83,7 +79,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, procedureWizard, briefs, projects, sow, retainers, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

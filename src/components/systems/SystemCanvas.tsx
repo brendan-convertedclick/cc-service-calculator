@@ -44,21 +44,28 @@ import {
 } from "@/hooks/useSystemCanvas";
 import { SystemBlockNode, type BlockNodeType } from "./SystemBlockNode";
 import { SystemDecisionNode, type DecisionNodeType } from "./SystemDecisionNode";
+import { SystemTerminalNode, type TerminalNodeType } from "./SystemTerminalNode";
 import { HandoffEdge, type HandoffEdgeType } from "./HandoffEdge";
 import { BlockInspector } from "./BlockInspector";
 import { DeleteStepDialog } from "./DeleteStepDialog";
 import { DeptRollup } from "./DeptRollup";
-import { sizeOf, useAutoLayout } from "./useAutoLayout";
+import { sizeOf, terminalAnchors, useAutoLayout } from "./useAutoLayout";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
 type DeptRow = Database["public"]["Tables"]["departments"]["Row"];
 
-type CanvasNode = BlockNodeType | DecisionNodeType;
+// Terminals are in the union because React Flow renders them, but never in
+// `nodes` state — see the terminals memo below.
+type CanvasNode = BlockNodeType | DecisionNodeType | TerminalNodeType;
 
 // Module-level constants — nodeTypes/edgeTypes must not be recreated every
 // render, or React Flow remounts every node/edge.
-const nodeTypes: NodeTypes = { block: SystemBlockNode, decision: SystemDecisionNode };
+const nodeTypes: NodeTypes = {
+  block: SystemBlockNode,
+  decision: SystemDecisionNode,
+  terminal: SystemTerminalNode,
+};
 const edgeTypes: EdgeTypes = { handoff: HandoffEdge };
 
 const POSITION_SAVE_DEBOUNCE_MS = 800;
@@ -91,6 +98,12 @@ const NEW_NODE_GAP_Y = 140;
 // top-left corner.
 const NODE_CENTRE_X = 90;
 const NODE_CENTRE_Y = 45;
+
+// Synthetic node/edge ids for the Start and Goal terminals. The "__" prefix is
+// what tells the edge-remove handler these aren't process_step_edges rows.
+const SYNTHETIC_PREFIX = "__";
+const TERMINAL_START_ID = "__start__";
+const TERMINAL_GOAL_ID = "__goal__";
 
 function buildNode(step: Step): CanvasNode {
   const position = { x: step.pos_x ?? 0, y: step.pos_y ?? 0 };
@@ -127,6 +140,10 @@ type CanvasProps = {
   systemName: string;
   /** kind='process': blocks describe a stage and carry 0..N procedures. */
   isProcess?: boolean;
+  /** system.trigger_text — labels the Start terminal. */
+  triggerText?: string | null;
+  /** system.goal_statement, PLACEHOLDER_GOAL already blanked by the caller. */
+  goalStatement?: string | null;
   onPropose: () => void;
   onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
@@ -141,7 +158,16 @@ export function SystemCanvas(props: CanvasProps) {
   );
 }
 
-function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose, onCreateStep, focusStepId }: CanvasProps) {
+function SystemCanvasInner({
+  systemId,
+  systemName,
+  isProcess = false,
+  triggerText,
+  goalStatement,
+  onPropose,
+  onCreateStep,
+  focusStepId,
+}: CanvasProps) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
@@ -375,6 +401,60 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, topStepById, deptById, teamById, colorByOwner, subStepsByParent, highlightedOwnerId]);
 
+  // Start and Goal. Derived every render from live node positions (so they
+  // follow drags and Tidy up) and from edgeRows: Start feeds every block with
+  // no incoming edge, every block with no outgoing edge feeds Goal. A pure
+  // cycle has neither, in which case the pills just sit either side unwired.
+  //
+  // Deliberately NOT part of `nodes` state — the seed/reconcile/position
+  // effects all assume a node id is a process_steps id, and savePos would 404
+  // on these. They're appended at render time instead.
+  const terminals = useMemo(() => {
+    if (nodes.length === 0) return { nodes: [] as CanvasNode[], edges: [] as HandoffEdgeType[] };
+    const { roots, leaves, start, goal } = terminalAnchors(
+      nodes,
+      edgeRows.map((e) => ({ source: e.source_step_id, target: e.target_step_id }))
+    );
+
+    const terminalNodes: CanvasNode[] = [
+      {
+        id: TERMINAL_START_ID,
+        type: "terminal",
+        position: start,
+        data: { kind: "start", label: triggerText?.trim() || "Whatever kicks this off" },
+        draggable: false,
+        selectable: false,
+        deletable: false,
+      },
+      {
+        id: TERMINAL_GOAL_ID,
+        type: "terminal",
+        position: goal,
+        data: { kind: "goal", label: goalStatement?.trim() || "No goal set" },
+        draggable: false,
+        selectable: false,
+        deletable: false,
+      },
+    ];
+
+    const terminalEdges: HandoffEdgeType[] = [
+      ...roots.map((n) => ({ id: `${TERMINAL_START_ID}${n.id}`, source: TERMINAL_START_ID, target: n.id })),
+      ...leaves.map((n) => ({ id: `${TERMINAL_GOAL_ID}${n.id}`, source: n.id, target: TERMINAL_GOAL_ID })),
+    ].map((e) => ({
+      ...e,
+      type: "handoff" as const,
+      markerEnd: { type: MarkerType.ArrowClosed },
+      selectable: false,
+      deletable: false,
+      data: { isHandoff: false },
+    }));
+
+    return { nodes: terminalNodes, edges: terminalEdges };
+  }, [nodes, edgeRows, triggerText, goalStatement]);
+
+  const allNodes = useMemo(() => [...renderNodes, ...terminals.nodes], [renderNodes, terminals]);
+  const allEdges = useMemo(() => [...edges, ...terminals.edges], [edges, terminals]);
+
   const allStepsById = useMemo(() => {
     const m = new Map<string, Step>();
     for (const s of topSteps) m.set(s.id, s);
@@ -523,6 +603,10 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
     (changes) => {
       for (const c of changes) {
         if (c.type !== "remove") continue;
+        // Start/Goal edges have no row behind them — deleting one would send a
+        // synthetic id to process_step_edges. They're deletable:false already;
+        // this is the belt to that pair of braces.
+        if (c.id.startsWith(SYNTHETIC_PREFIX)) continue;
         // No confirm — a connection is one drag to redraw, unlike a step. But
         // it does get announced: Backspace over a selected edge otherwise
         // removes it with no feedback at all, and you don't notice until the
@@ -564,6 +648,9 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
   );
 
   const onNodeClick = useCallback((_event: unknown, node: CanvasNode) => {
+    // A terminal has no step row to inspect — clicking one shouldn't blank the
+    // inspector or point it at an id that doesn't exist.
+    if (node.id.startsWith(SYNTHETIC_PREFIX)) return;
     setSelectedStepId(node.id);
   }, []);
 
@@ -675,8 +762,8 @@ function SystemCanvasInner({ systemId, systemName, isProcess = false, onPropose,
           <div className="flex min-h-0 flex-1">
             <div ref={flowWrapperRef} className="min-w-0 flex-1 bg-m-surface-container-low">
               <ReactFlow
-                nodes={renderNodes}
-                edges={edges}
+                nodes={allNodes}
+                edges={allEdges}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
