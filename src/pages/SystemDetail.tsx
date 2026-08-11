@@ -18,6 +18,7 @@ import {
   Plus,
   Settings2,
   Trash2,
+  User,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -753,7 +754,7 @@ export function SystemDetail() {
                                   e.currentTarget.blur();
                                 }
                               }}
-                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 -ml-1 text-body-medium text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 -ml-1 text-title-medium font-semibold text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                             />
                             {/* Everything about a step is editable from here;
                                 the canvas inspector is the same fields on the
@@ -766,6 +767,10 @@ export function SystemDetail() {
                                 value={s.verb}
                                 label={`Verb for "${s.title}"`}
                                 onChange={(verb) => patchStep(s, { verb })}
+                                // Matches the department select beside it —
+                                // the component's own h-10 is for the canvas
+                                // inspector, where it's the only control.
+                                className="h-8"
                               />
                               <select
                                 value={s.department_id ?? ""}
@@ -780,26 +785,37 @@ export function SystemDetail() {
                                   <option key={d.id} value={d.id}>{d.name}</option>
                                 ))}
                               </select>
-                              {owner && (
-                                <span
-                                  className="grid h-5 w-5 flex-none place-items-center rounded-full text-[9px] font-bold leading-none text-white"
-                                  style={{ background: colorById.get(owner.id) }}
-                                  title={owner.full_name}
+                              {/* The avatar IS the picker — a transparent
+                                  native <select> sits on top of it, so the
+                                  name stops eating 11rem of the row while
+                                  keyboard, screen readers and the option list
+                                  all still come free. */}
+                              <span className="relative inline-flex flex-none">
+                                {owner ? (
+                                  <span
+                                    className="grid h-8 w-8 place-items-center rounded-full text-label-small font-bold leading-none text-white"
+                                    style={{ background: colorById.get(owner.id) }}
+                                  >
+                                    {stepOwnerInitials(owner.full_name)}
+                                  </span>
+                                ) : (
+                                  <span className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-m-outline text-m-on-surface-variant">
+                                    <User className="h-4 w-4" />
+                                  </span>
+                                )}
+                                <select
+                                  value={s.owner_id ?? ""}
+                                  aria-label={`Owner of "${s.title}"`}
+                                  title={owner ? `${owner.full_name} — click to change` : "Unassigned — click to set an owner"}
+                                  onChange={(e) => patchStep(s, { owner_id: e.target.value || null })}
+                                  className="absolute inset-0 cursor-pointer appearance-none rounded-full bg-transparent text-transparent opacity-0"
                                 >
-                                  {stepOwnerInitials(owner.full_name)}
-                                </span>
-                              )}
-                              <select
-                                value={s.owner_id ?? ""}
-                                aria-label={`Owner of "${s.title}"`}
-                                onChange={(e) => patchStep(s, { owner_id: e.target.value || null })}
-                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
-                              >
-                                <option value="">— unassigned</option>
-                                {team.map((t) => (
-                                  <option key={t.id} value={t.id}>{t.full_name}</option>
-                                ))}
-                              </select>
+                                  <option value="">— unassigned</option>
+                                  {team.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                                  ))}
+                                </select>
+                              </span>
                               <input
                                 key={String(s.estimated_hours)}
                                 defaultValue={s.estimated_hours ?? ""}
