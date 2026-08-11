@@ -45,7 +45,6 @@ import {
   type SystemKind,
   type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
-import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
@@ -93,10 +92,6 @@ export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
   const { data: depts = [] } = useDepartments();
-  // Everyone can read the library; only admin/owner can add to it (RLS says the
-  // same, so this hides a button that would 42501 rather than inventing a rule).
-  const { role } = useCurrentRole();
-  const canEdit = role === "admin" || role === "owner";
   const [search, setSearch] = useState("");
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
@@ -275,7 +270,7 @@ export function SystemsList() {
                 {/* The triage that runs before a procedure exists — the answer
                     is often "don't build one". Lives here rather than in the
                     nav: it's only ever reached on the way to a procedure. */}
-                {canEdit && tab === "procedure" && (
+                {tab === "procedure" && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -285,11 +280,9 @@ export function SystemsList() {
                     <Wand2 className="h-4 w-4" /> Wizard
                   </Button>
                 )}
-                {canEdit && (
-                  <Button variant="outline" size="sm" onClick={() => setCreating(tab)} className="gap-1">
-                    <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[tab]}
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" onClick={() => setCreating(tab)} className="gap-1">
+                  <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[tab]}
+                </Button>
               </div>
             </div>
 

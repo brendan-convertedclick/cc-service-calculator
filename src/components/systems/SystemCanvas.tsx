@@ -148,10 +148,6 @@ type CanvasProps = {
   onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
   focusStepId?: { id: string; nonce: number } | null;
-  /** Viewer without write permission (system_* RLS is admin/owner for writes,
-   *  read for everyone). Keeps pan/zoom/selection — the diagram is the point —
-   *  and drops every gesture and button that would write. */
-  readOnly?: boolean;
 };
 
 export function SystemCanvas(props: CanvasProps) {
@@ -171,7 +167,6 @@ function SystemCanvasInner({
   onPropose,
   onCreateStep,
   focusStepId,
-  readOnly = false,
 }: CanvasProps) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
@@ -733,28 +728,24 @@ function SystemCanvasInner({
         </span>
         <div className="ml-auto flex flex-none items-center gap-2">
           {isUnsaved && <Badge variant="warning">Unsaved</Badge>}
-          {!readOnly && (
-            <>
-              {/* The diamond is title-driven — a step ending in "?" renders as
-                  one (isDecisionTitle). That's cheap but invisible, so this
-                  button is the discoverable way in: it seeds the "?" for you. */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void onCreateStep({ title: "Decision?" })}
-                className="gap-1.5"
-                title="A block that splits the flow — rename it to the question being asked. Its branches can loop back."
-              >
-                <Diamond className="h-3.5 w-3.5" /> Add decision
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleTidyUp} className="gap-1.5">
-                <LayoutGrid className="h-3.5 w-3.5" /> Tidy up
-              </Button>
-              <Button size="sm" onClick={onPropose}>
-                Propose
-              </Button>
-            </>
-          )}
+          {/* The diamond is title-driven — a step ending in "?" renders as one
+              (isDecisionTitle). That's cheap but invisible, so this button is
+              the discoverable way in: it seeds the "?" for you. */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void onCreateStep({ title: "Decision?" })}
+            className="gap-1.5"
+            title="A block that splits the flow — rename it to the question being asked. Its branches can loop back."
+          >
+            <Diamond className="h-3.5 w-3.5" /> Add decision
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleTidyUp} className="gap-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" /> Tidy up
+          </Button>
+          <Button size="sm" onClick={onPropose}>
+            Propose
+          </Button>
         </div>
       </div>
 
@@ -783,9 +774,6 @@ function SystemCanvasInner({
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                nodesDraggable={!readOnly}
-                nodesConnectable={!readOnly}
-                edgesReconnectable={!readOnly}
                 fitView
                 proOptions={{ hideAttribution: true }}
                 // Default @xyflow behaviour maps trackpad two-finger scroll to
@@ -816,8 +804,7 @@ function SystemCanvasInner({
               team={team}
               incomingLabel={incomingLabel}
               revisionLabel={revisionInspectorLabel}
-              onDelete={readOnly ? undefined : () => selectedStep && setDeleteTarget(selectedStep)}
-              readOnly={readOnly}
+              onDelete={() => selectedStep && setDeleteTarget(selectedStep)}
             />
           </div>
           <DeptRollup items={rollup.items} unassignedCount={rollup.unassignedCount} totalHours={rollup.totalHours} />

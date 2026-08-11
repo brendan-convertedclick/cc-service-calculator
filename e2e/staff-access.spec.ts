@@ -1,8 +1,8 @@
 // e2e/staff-access.spec.ts
 //
 // Company-wide access: a staff-role user gets the app shell (so they can
-// navigate), the Systems library read-only, and a profile they can edit —
-// and nothing else. Everything asserted here has two halves that must agree:
+// navigate), the Systems library to read *and* write, and a profile they can
+// edit — and nothing else. Publishing a revision stays an admin act. Everything asserted here has two halves that must agree:
 // the UI (what the nav shows, which buttons render) and RLS (what the API
 // actually permits). A test that only clicked the UI would pass against a
 // database that lets staff rewrite anyone's role.
@@ -89,7 +89,7 @@ test.describe("Staff access", () => {
     await expect(page.getByRole("tab", { name: "New brief" })).toBeVisible();
   });
 
-  test("Systems is readable but not editable", async ({ page }) => {
+  test("Systems is fully editable — the library is everyone's to keep accurate", async ({ page }) => {
     test.skip(!env || !fixture, "no SUPABASE_SERVICE_ROLE_KEY available — see loadSystemsTestEnv");
     await signInBrowserAs(page, E2E_STAFF_EMAIL, fixture!.password);
 
@@ -97,13 +97,30 @@ test.describe("Staff access", () => {
     await waitForShell(page);
     await expect(page.getByRole("heading", { name: "Systems", level: 1 })).toBeVisible();
     await expect(page.getByText(`${E2E_STAFF_PREFIX}Staff-readable procedure`)).toBeVisible();
-    await expect(page.getByRole("button", { name: /^New / })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "New procedure" })).toBeVisible();
 
     await page.goto(`/systems/${systemId}`);
     await waitForShell(page);
-    await expect(page.getByRole("button", { name: "Add step" })).toHaveCount(0);
-    // The system's own fields render, disabled — reading them is the point.
-    await expect(page.getByRole("textbox", { name: "Procedure name" })).toBeDisabled();
+    await expect(page.getByRole("textbox", { name: "Procedure name" })).toBeEnabled();
+
+    // Editing lands in the database, not just in the field.
+    const renamed = `${E2E_STAFF_PREFIX}Renamed by staff`;
+    const nameField = page.getByRole("textbox", { name: "Procedure name" });
+    await nameField.fill(renamed);
+    await nameField.blur();
+    await expect
+      .poll(async () => {
+        const { data } = await fixture!.admin
+          .from("system_definitions")
+          .select("name")
+          .eq("id", systemId!)
+          .single();
+        return data?.name;
+      })
+      .toBe(renamed);
+
+    await page.getByRole("button", { name: /^Steps/ }).click();
+    await expect(page.getByRole("button", { name: "Add step" })).toBeVisible();
   });
 
   test("profile: staff can edit their own details, and sign out", async ({ page }) => {
@@ -141,26 +158,55 @@ test.describe("Staff access", () => {
     await expect(page.getByRole("button", { name: /sign in/i }).first()).toBeVisible();
   });
 
-  test("RLS: a staff session cannot write what the UI doesn't offer", async () => {
+  test("RLS: what a staff session may and may not write", async () => {
     test.skip(!env || !fixture, "no SUPABASE_SERVICE_ROLE_KEY available — see loadSystemsTestEnv");
     const { owner: staff, admin, memberId } = fixture!;
 
-    await test.step("cannot create a system", async () => {
-      const { error } = await staff.from("system_definitions").insert({
-        name: `${E2E_STAFF_PREFIX}staff should never create this`,
+    await test.step("can write the systems library", async () => {
+      const { error: sysErr } = await staff.from("system_definitions").insert({
+        name: `${E2E_STAFF_PREFIX}written by staff`,
         kind: "reference",
-        goal_statement: "nope",
+        goal_statement: "documented by the person who runs it",
       });
-      expect(error?.code, "expected an RLS violation").toBe("42501");
-    });
+      expect(sysErr).toBeNull();
 
-    await test.step("cannot edit a procedure's steps", async () => {
-      const { error } = await staff.from("process_steps").insert({
+      const { error: stepErr } = await staff.from("process_steps").insert({
         system_id: systemId,
-        title: `${E2E_STAFF_PREFIX}staff should never add this step`,
+        title: `${E2E_STAFF_PREFIX}step written by staff`,
         ordinal: 1,
       });
-      expect(error?.code, "expected an RLS violation").toBe("42501");
+      expect(stepErr).toBeNull();
+    });
+
+    await test.step("can propose a revision, but not publish one", async () => {
+      const { data: proposed, error: proposeErr } = await staff
+        .from("system_revisions")
+        .insert({
+          system_id: systemId,
+          revision: 1,
+          body: [],
+          state: "proposed",
+          reason_for_change: `${E2E_STAFF_PREFIX}proposed by staff`,
+        })
+        .select("id")
+        .single();
+      expect(proposeErr, "proposing is open to everyone").toBeNull();
+
+      // Publishing is the approval step. Both doors are shut: the RPC's own
+      // guard, and the policy that stops a direct insert routing around it.
+      const { error: rpcErr } = await staff.rpc("publish_system_revision", {
+        p_revision_id: proposed!.id,
+      });
+      expect(rpcErr?.message).toContain("admin or owner role required");
+
+      const { error: directErr } = await staff.from("system_revisions").insert({
+        system_id: systemId,
+        revision: 2,
+        body: [],
+        state: "published",
+        reason_for_change: `${E2E_STAFF_PREFIX}staff should never publish this`,
+      });
+      expect(directErr?.code, "expected an RLS violation").toBe("42501");
     });
 
     await test.step("cannot promote themselves", async () => {
