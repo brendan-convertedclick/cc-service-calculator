@@ -186,11 +186,16 @@ export default function App() {
                 a staff session gets navigation instead of a dead-end page. */}
             <Route element={<AppShell />}>
               {/* Open to every signed-in person: their own portal, the systems
-                  library (authenticated read at the RLS layer) and profile. */}
+                  library (read and write — see CLAUDE.md) and profile. */}
               <Route path="staff" element={<StaffBriefForm />} />
               <Route path="profile" element={<Profile />} />
               <Route path="systems" element={<SystemsList />} />
               <Route path="systems/:id" element={<SystemDetail />} />
+              {/* Top-level, not /systems/wizard: it keeps the Systems nav
+                  item's active state honest on the detail route. Open to
+                  everyone — it's pure client-side triage, and it's the on-ramp
+                  to creating a procedure, which everyone can do. */}
+              <Route path="procedure-wizard" element={<ProcedureWizard />} />
               {/* /procedures was the old name for this surface — kept as an
                   alias so bookmarks and pasted links don't 404. */}
               <Route path="procedures" element={<Navigate to="/systems" replace />} />
@@ -242,9 +247,6 @@ export default function App() {
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
-              {/* Top-level, not /systems/wizard: it keeps the Systems nav
-                  item's active state honest on the detail route. */}
-              <Route path="procedure-wizard" element={<ProcedureWizard />} />
               <Route path="rules" element={<Rules />} />
               <Route path="departments" element={<Departments />} />
               <Route path="team" element={<Team />} />

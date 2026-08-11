@@ -123,6 +123,33 @@ test.describe("Staff access", () => {
     await expect(page.getByRole("button", { name: "Add step" })).toBeVisible();
   });
 
+  test("staff can create a procedure from scratch, wizard included", async ({ page }) => {
+    test.skip(!env || !fixture, "no SUPABASE_SERVICE_ROLE_KEY available — see loadSystemsTestEnv");
+    await signInBrowserAs(page, E2E_STAFF_EMAIL, fixture!.password);
+
+    await page.goto("/systems");
+    await waitForShell(page);
+
+    // The wizard is the on-ramp; it used to sit behind the admin route gate
+    // while its button was visible to everyone, which bounced staff to /staff.
+    await page.getByRole("button", { name: "Wizard" }).click();
+    await expect(page).toHaveURL(/\/procedure-wizard$/);
+    await page.goBack();
+    await waitForShell(page);
+
+    const created = `${E2E_STAFF_PREFIX}Created by staff`;
+    await page.getByRole("button", { name: "New procedure" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Name").fill(created);
+    await dialog.getByLabel("Attached to").selectOption("reference");
+    await dialog.getByLabel("Goal statement").fill("Written by the person who runs it.");
+    await dialog.getByRole("button", { name: "Create" }).click();
+
+    // Lands on the new procedure's own page — proof the insert went through.
+    await page.waitForURL(/\/systems\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("textbox", { name: "Procedure name" })).toHaveValue(created);
+  });
+
   test("profile: staff can edit their own details, and sign out", async ({ page }) => {
     test.skip(!env || !fixture, "no SUPABASE_SERVICE_ROLE_KEY available — see loadSystemsTestEnv");
     await signInBrowserAs(page, E2E_STAFF_EMAIL, fixture!.password);
