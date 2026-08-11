@@ -47,6 +47,7 @@ import {
   type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
 import { useDepartments } from "@/hooks/useDepartments";
+import { memberColors, useTeam } from "@/hooks/useTeam";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
 
@@ -92,6 +93,10 @@ export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
   const { data: depts = [] } = useDepartments();
+  const { data: team = [] } = useTeam();
+  // One palette everywhere a person appears — the canvas, the step rows and
+  // this list all read the same colour for the same owner.
+  const colorById = useMemo(() => memberColors(team), [team]);
   const duplicate = useDuplicateSystem();
   const [search, setSearch] = useState("");
   const [band, setBand] = useState<string | null>(null);
@@ -308,6 +313,7 @@ export function SystemsList() {
                             system={s}
                             onClick={() => navigate(`/systems/${s.id}`)}
                             duplicating={duplicate.isPending}
+                            ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
                             onDuplicate={() =>
                               duplicate.mutate(s.id, {
                                 onSuccess: (newId) => {
@@ -355,11 +361,13 @@ function SystemRow({
   onClick,
   onDuplicate,
   duplicating,
+  ownerColor,
 }: {
   system: SystemDefinitionWithJoins;
   onClick: () => void;
   onDuplicate: () => void;
   duplicating: boolean;
+  ownerColor: string | undefined;
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
@@ -408,7 +416,8 @@ function SystemRow({
         )}
         {system.owner_name ? (
           <span
-            className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-m-secondary-container text-label-small font-semibold text-m-on-secondary-container"
+            className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-label-small font-semibold text-white"
+            style={{ background: ownerColor }}
             title={system.owner_name}
           >
             {initials(system.owner_name)}
