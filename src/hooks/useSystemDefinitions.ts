@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import type { Database } from "@/types/db";
 
 type SystemDefinition = Database["public"]["Tables"]["system_definitions"]["Row"];
@@ -87,7 +88,6 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
   recurring_service_name: string | null;
   time_category_label: string | null;
   owner_name: string | null;
-  expert_name: string | null;
   step_count: number;
   /** Distinct departments across this system's top-level steps — a system has
    *  no department column of its own, its departments are whatever its steps
@@ -95,16 +95,18 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
   department_ids: string[];
 };
 
+// expert_id is still a column (0106) but nothing reads it any more — one
+// accountable person per system, set to whoever created it and changed by
+// hand. The column stays so no data is thrown away.
 type JoinedRow = SystemDefinition & {
   owner: { full_name: string } | null;
-  expert: { full_name: string } | null;
   service: { name: string } | null;
   recurring_service: { service: { name: string } | null } | null;
   time_category: { label: string } | null;
 };
 
 const JOIN_SELECT =
-  "*, owner:team_members!system_definitions_owner_id_fkey(full_name), expert:team_members!system_definitions_expert_id_fkey(full_name), service:services(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
+  "*, owner:team_members!system_definitions_owner_id_fkey(full_name), service:services(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
 
 function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
   return {
@@ -113,7 +115,6 @@ function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
     recurring_service_name: s.recurring_service?.service?.name ?? null,
     time_category_label: s.time_category?.label ?? null,
     owner_name: s.owner?.full_name ?? null,
-    expert_name: s.expert?.full_name ?? null,
     // Both filled in by useSystemDefinitions (the list); useSystemDefinition
     // doesn't need them — the detail page reads steps directly.
     step_count: 0,
@@ -180,11 +181,38 @@ export function useSystemDefinition(id: string | undefined) {
 
 export function useCreateSystem() {
   const qc = useQueryClient();
+  // Whoever writes it owns it until someone says otherwise — the Owner select
+  // on the detail page is the "otherwise". Defaulted here rather than in the
+  // dialog so the wizard handover gets it too. Null for the shared team@ login
+  // (no team_members row), which just leaves it unassigned as before.
+  const { currentUserId } = useAuth();
   return useMutation({
     mutationFn: async (input: SystemDefinitionInsert) => {
-      const { data, error } = await supabase.from("system_definitions").insert(input).select().single();
+      const { data, error } = await supabase
+        .from("system_definitions")
+        .insert({ owner_id: currentUserId ?? null, ...input })
+        .select()
+        .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SYSTEMS_KEY }),
+  });
+}
+
+// Copy a whole system — definition, steps, canvas edges, block attachments —
+// via the 0122 RPC. One statement per table with the ids remapped server-side;
+// doing it from here would be four round trips and a half-built copy if one
+// failed. Not in the generated Database types (same as
+// useRecurringServiceOptions), hence the cast.
+export function useDuplicateSystem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (systemId: string): Promise<string> => {
+      const sb = supabase as unknown as SupabaseClient;
+      const { data, error } = await sb.rpc("duplicate_system", { p_system_id: systemId });
+      if (error) throw error;
+      return data as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: SYSTEMS_KEY }),
   });

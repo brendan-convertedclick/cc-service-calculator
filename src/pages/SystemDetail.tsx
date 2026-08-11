@@ -63,6 +63,9 @@ import {
 } from "@/components/ui/dialog";
 import { cn, errorMessage } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+// open_step_slot (0122) isn't in the generated Database types — same untyped
+// escape hatch useRecurringServiceOptions uses.
+import type { SupabaseClient } from "@supabase/supabase-js";
 // The house sprint-point convention (1 point = 15 min). Reused rather than
 // re-derived so a step's points read the same as a placement task's.
 import { pointsFromHours } from "@/types/placement-tasks";
@@ -135,7 +138,6 @@ type FormState = {
   name: string;
   band: string;
   owner_id: string;
-  expert_id: string;
   review_due_at: string;
   goal_statement: string;
   goal_metric: string;
@@ -149,7 +151,6 @@ function toForm(s: SystemDefinitionWithJoins): FormState {
     name: s.name,
     band: s.band ?? "",
     owner_id: s.owner_id ?? "",
-    expert_id: s.expert_id ?? "",
     review_due_at: s.review_due_at ?? "",
     // The 0105 backfill stores a placeholder *string* in a not-null column, so
     // an unmapped system arrives with "TODO: set a goal for this system" as its
@@ -198,9 +199,11 @@ export function SystemDetail() {
       // Duplicate passes the source row's editable columns through; spread
       // after the defaults so a copy keeps its own materialise_as.
       fields?: StepUpdate;
+      /** Land directly after this step instead of at the end of the list. */
+      after?: StepRow;
     } = {}) => {
       if (!id) return null;
-      const prev = steps.length > 0 ? steps[steps.length - 1] : null;
+      const prev = opts.after ?? (steps.length > 0 ? steps[steps.length - 1] : null);
       const from = opts.connectFrom ?? prev?.id ?? null;
       const prevPos = prev && prev.pos_x != null && prev.pos_y != null ? { x: prev.pos_x, y: prev.pos_y } : null;
       const pos_x = opts.pos_x ?? (prevPos ? prevPos.x + NEXT_STEP_GAP_X : null);
@@ -213,35 +216,48 @@ export function SystemDetail() {
           department_id: null,
           estimated_hours: null,
           // A process block is a stage, not work: its hours and its ClickUp
-          // artefact live on the procedures attached to it. materialise_as
-          // defaults to 'task', which would push a phantom task per stage and
-          // double-count against the procedures underneath.
+          // artefact live on the procedures attached to it. The column default
+          // ('checklist_item', 0121) would push a phantom artefact per stage
+          // and double-count against the procedures underneath.
           ...(isProcess ? { materialise_as: "none" as const } : {}),
           pos_x: pos_x != null ? Math.round(pos_x) : null,
           pos_y: pos_y != null ? Math.round(pos_y) : null,
           ...opts.fields,
         };
         let step: StepRow;
-        try {
-          step = await addStep.mutateAsync({
-            ...row,
-            ordinal: steps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
-          });
-        } catch (e) {
-          // process_steps_ordinal_idx is UNIQUE per scope, and `steps` is the
-          // last render's data — two quick adds both compute the same next
-          // ordinal and the second one 23505s. Re-read the real max and retry
-          // once rather than making the user click again.
-          if ((e as { code?: string })?.code !== "23505") throw e;
-          const { data: last } = await supabase
-            .from("process_steps")
-            .select("ordinal")
-            .eq("system_id", id)
-            .is("parent_id", null)
-            .order("ordinal", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          step = await addStep.mutateAsync({ ...row, ordinal: (last?.ordinal ?? 0) + 1 });
+        if (opts.after) {
+          // Inserting mid-list means every later sibling shifts up one, and
+          // process_steps_ordinal_idx is checked per row — so the shift runs
+          // server-side (open_step_slot, 0122) and hands back the freed
+          // ordinal. No retry branch: that ordinal is free by construction.
+          const { data: ordinal, error } = await (supabase as unknown as SupabaseClient).rpc(
+            "open_step_slot",
+            { p_step_id: opts.after.id },
+          );
+          if (error) throw error;
+          step = await addStep.mutateAsync({ ...row, ordinal: ordinal as number });
+        } else {
+          try {
+            step = await addStep.mutateAsync({
+              ...row,
+              ordinal: steps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
+            });
+          } catch (e) {
+            // process_steps_ordinal_idx is UNIQUE per scope, and `steps` is the
+            // last render's data — two quick adds both compute the same next
+            // ordinal and the second one 23505s. Re-read the real max and retry
+            // once rather than making the user click again.
+            if ((e as { code?: string })?.code !== "23505") throw e;
+            const { data: last } = await supabase
+              .from("process_steps")
+              .select("ordinal")
+              .eq("system_id", id)
+              .is("parent_id", null)
+              .order("ordinal", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            step = await addStep.mutateAsync({ ...row, ordinal: (last?.ordinal ?? 0) + 1 });
+          }
         }
         // A step nobody can reach isn't a step in a process — link it to
         // whatever it follows. Awaited so a failure here still surfaces.
@@ -263,8 +279,9 @@ export function SystemDetail() {
 
   // Copy every editable column of the row — the config (verb, dept, owner,
   // hours, ClickUp mode, signal answers) is the point of duplicating. Identity,
-  // ordinal and position are dropped so createStep places it like a new step:
-  // appended, chained off the last one. Sub-steps aren't copied.
+  // ordinal and position are dropped; the copy lands directly after its
+  // source, which is where you're looking when you click Duplicate.
+  // Sub-steps aren't copied.
   function duplicateStep(step: StepRow) {
     const {
       id: _id,
@@ -275,7 +292,7 @@ export function SystemDetail() {
       pos_y: _y,
       ...fields
     } = step;
-    void createStep({ fields: { ...fields, title: `${step.title} (copy)` } });
+    void createStep({ after: step, fields: { ...fields, title: `${step.title} (copy)` } });
   }
 
   function patchStep(step: StepRow, patch: StepUpdate, revert?: () => void) {
@@ -420,7 +437,6 @@ export function SystemDetail() {
     const nullable = new Set<keyof FormState>([
       "band",
       "owner_id",
-      "expert_id",
       "review_due_at",
       "goal_metric",
       "trigger_text",
@@ -522,7 +538,7 @@ export function SystemDetail() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <FieldLabel label="Area">
                 <select
                   value={form.band}
@@ -545,22 +561,6 @@ export function SystemDetail() {
                   onChange={(e) => {
                     setForm({ ...form, owner_id: e.target.value });
                     save("owner_id", e.target.value);
-                  }}
-                  className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
-                >
-                  <option value="">— unassigned</option>
-                  {team.map((t) => (
-                    <option key={t.id} value={t.id}>{t.full_name}</option>
-                  ))}
-                </select>
-              </FieldLabel>
-
-              <FieldLabel label="Expert">
-                <select
-                  value={form.expert_id}
-                  onChange={(e) => {
-                    setForm({ ...form, expert_id: e.target.value });
-                    save("expert_id", e.target.value);
                   }}
                   className="h-10 w-full rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
                 >
@@ -840,9 +840,12 @@ export function SystemDetail() {
                             </details>
                           </div>
                           <div className="flex flex-none items-center gap-2 pt-1">
-                            {/* On by default (materialise_as defaults to 'task');
-                                off writes 'none', which planMaterialisation skips
-                                on push while still keeping the step in the flow. */}
+                            {/* On by default (materialise_as defaults to
+                                'checklist_item', 0121); off writes 'none', which
+                                planMaterialisation skips on push while still
+                                keeping the step in the flow. Toggling back on
+                                restores the default, not 'task' — a step that
+                                should be its own task is set in the inspector. */}
                             <Switch
                               checked={inClickUp}
                               aria-label={`Push "${s.title}" to ClickUp`}
@@ -852,7 +855,7 @@ export function SystemDetail() {
                                   : "Skipped on push — stays part of the process here"
                               }
                               onCheckedChange={(on) =>
-                                patchStep(s, { materialise_as: on ? "task" : "none" })
+                                patchStep(s, { materialise_as: on ? "checklist_item" : "none" })
                               }
                             />
                             <Badge
@@ -861,6 +864,16 @@ export function SystemDetail() {
                             >
                               {inClickUp ? MATERIALISE_LABEL[s.materialise_as] : "Not in ClickUp"}
                             </Badge>
+                            <button
+                              type="button"
+                              aria-label={`Add a step after "${s.title}"`}
+                              title="Insert a new step after this one"
+                              disabled={addStep.isPending}
+                              onClick={() => void createStep({ after: s })}
+                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
                             <button
                               type="button"
                               aria-label={`Duplicate "${s.title}"`}
@@ -950,6 +963,7 @@ export function SystemDetail() {
           button opens it while the Revisions pane is unmounted/hidden. */}
       <ProposeDialog
         systemId={system.id}
+        steps={steps}
         open={proposeOpen}
         setOpen={setProposeOpen}
         reason={proposeReason}
@@ -1068,18 +1082,25 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
 // dialog that unmounts with its trigger simply wouldn't open from the other.
 function ProposeDialog({
   systemId,
+  steps,
   open,
   setOpen,
   reason,
   setReason,
 }: {
   systemId: string;
+  steps: StepRow[];
   open: boolean;
   setOpen: (open: boolean) => void;
   reason: string;
   setReason: (reason: string) => void;
 }) {
   const propose = useProposeRevision();
+  // Signal/noise is required, not optional: a revision is the moment the
+  // procedure becomes what everyone follows, so no step reaches it unexamined.
+  // 'pending' only — a Force keep/cut is an answer, and "Needs a look" (some
+  // answered, none decisive) is a judgement someone already made.
+  const unevaluated = steps.filter((s) => verdict(s).effective === "pending");
 
   return (
     <Dialog
@@ -1107,10 +1128,16 @@ function ProposeDialog({
             placeholder="Why is this procedure changing?"
           />
         </div>
+        {unevaluated.length > 0 && (
+          <p className="rounded-lg bg-m-error-container px-3 py-2 text-label-medium text-m-on-error-container">
+            Answer signal or noise on {unevaluated.length} step
+            {unevaluated.length === 1 ? "" : "s"} first: {unevaluated.map((s) => s.title).join(", ")}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={!reason.trim() || propose.isPending}
+            disabled={!reason.trim() || unevaluated.length > 0 || propose.isPending}
             onClick={() => {
               propose.mutate(
                 { systemId, reasonForChange: reason.trim() },

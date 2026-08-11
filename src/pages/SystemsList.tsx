@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, Search, Wand2 } from "lucide-react";
+import { AlertTriangle, Copy, Plus, Search, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import {
   ATTACHMENT_KINDS,
   PLACEHOLDER_GOAL,
@@ -38,6 +38,7 @@ import {
   SYSTEM_LAYER_NOUN,
   systemLayer,
   useCreateSystem,
+  useDuplicateSystem,
   useRecurringServiceOptions,
   useSystemDefinitions,
   type SystemBand,
@@ -64,7 +65,6 @@ function haystack(s: SystemDefinitionWithJoins): string {
     s.name,
     s.goal_statement === PLACEHOLDER_GOAL ? null : s.goal_statement,
     s.owner_name,
-    s.expert_name,
     s.service_name,
     s.recurring_service_name,
     s.time_category_label,
@@ -92,6 +92,7 @@ export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
   const { data: depts = [] } = useDepartments();
+  const duplicate = useDuplicateSystem();
   const [search, setSearch] = useState("");
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
@@ -302,7 +303,29 @@ export function SystemsList() {
                     ) : (
                       <ul className="divide-y divide-m-outline-variant">
                         {g.items.map((s) => (
-                          <SystemRow key={s.id} system={s} onClick={() => navigate(`/systems/${s.id}`)} />
+                          <SystemRow
+                            key={s.id}
+                            system={s}
+                            onClick={() => navigate(`/systems/${s.id}`)}
+                            duplicating={duplicate.isPending}
+                            onDuplicate={() =>
+                              duplicate.mutate(s.id, {
+                                onSuccess: (newId) => {
+                                  // A service-kind copy can't hang off the same
+                                  // service (0107), so the RPC lands it as a
+                                  // reference — say so rather than let the
+                                  // badge silently disagree with the original.
+                                  toast.success(
+                                    s.kind === "service"
+                                      ? "Copied as a Reference procedure — a service can only back one."
+                                      : `${SYSTEM_LAYER_LABEL[systemLayer(s.kind)].slice(0, -1)} duplicated`,
+                                  );
+                                  navigate(`/systems/${newId}`);
+                                },
+                                onError: (e) => toast.error(`Could not duplicate: ${errorMessage(e)}`),
+                              })
+                            }
+                          />
                         ))}
                       </ul>
                     )}
@@ -327,7 +350,17 @@ export function SystemsList() {
   );
 }
 
-function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onClick: () => void }) {
+function SystemRow({
+  system,
+  onClick,
+  onDuplicate,
+  duplicating,
+}: {
+  system: SystemDefinitionWithJoins;
+  onClick: () => void;
+  onDuplicate: () => void;
+  duplicating: boolean;
+}) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
   const linkLabel =
@@ -343,11 +376,13 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
   const subLine = linkLabel ?? (isUnmapped ? null : system.goal_statement);
 
   return (
-    <li>
+    // The row's body is a button, so Duplicate has to be its sibling, not a
+    // nested button — hover and padding move up to the <li>.
+    <li className="flex items-center gap-1 pr-2 hover:bg-m-surface-container">
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-m-surface-container"
+        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -385,6 +420,16 @@ function SystemRow({ system, onClick }: { system: SystemDefinitionWithJoins; onC
           />
         )}
       </button>
+      <button
+        type="button"
+        aria-label={`Duplicate "${system.name}"`}
+        title="Duplicate — copies the steps, canvas and attachments"
+        disabled={duplicating}
+        onClick={onDuplicate}
+        className="flex-none rounded-md p-2 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
+      >
+        <Copy className="h-4 w-4" />
+      </button>
     </li>
   );
 }
@@ -406,21 +451,17 @@ function NewSystemDialog({
   const { data: timeCategories = [] } = useTimeCategories();
   const { data: recurringOptions = [] } = useRecurringServiceOptions();
 
-  // A service (or recurring service, or time category) can back exactly one
-  // live system — enforced by the partial unique indexes in 0107. Taken
-  // options stay visible but disabled: silently omitting them just raises
-  // "where did my service go?", and picking one is a 23505 on submit.
+  // A service backs exactly one live system — system_definitions_one_per_service_idx
+  // (0107), kept because push-to-clickup resolves service -> system when it
+  // materialises a quote line. Time categories and recurring services take as
+  // many as you like (0119): "Client Meetings" is a pre-, in- and post-meeting
+  // procedure. Taken services stay visible but disabled: silently omitting them
+  // just raises "where did my service go?", and picking one is a 23505 on submit.
   const { data: existing = [] } = useSystemDefinitions();
-  const taken = useMemo(() => {
-    const t = { service: new Set<string>(), recurring: new Set<string>(), internal: new Set<string>() };
-    for (const s of existing) {
-      if (s.archived_at) continue;
-      if (s.service_id) t.service.add(s.service_id);
-      if (s.recurring_service_id) t.recurring.add(s.recurring_service_id);
-      if (s.time_category_id) t.internal.add(s.time_category_id);
-    }
-    return t;
-  }, [existing]);
+  const takenServices = useMemo(
+    () => new Set(existing.filter((s) => !s.archived_at && s.service_id).map((s) => s.service_id!)),
+    [existing],
+  );
 
 
   const [name, setName] = useState(initialName);
@@ -540,8 +581,8 @@ function NewSystemDialog({
               >
                 <option value="">— select a service</option>
                 {services.map((s) => (
-                  <option key={s.id} value={s.id} disabled={taken.service.has(s.id)}>
-                    {s.name}{taken.service.has(s.id) ? " — already has a procedure" : ""}
+                  <option key={s.id} value={s.id} disabled={takenServices.has(s.id)}>
+                    {s.name}{takenServices.has(s.id) ? " — already has a procedure" : ""}
                   </option>
                 ))}
               </select>
@@ -559,8 +600,8 @@ function NewSystemDialog({
               >
                 <option value="">— select a recurring service</option>
                 {recurringOptions.map((r) => (
-                  <option key={r.id} value={r.id} disabled={taken.recurring.has(r.id)}>
-                    {r.label}{taken.recurring.has(r.id) ? " — already has a procedure" : ""}
+                  <option key={r.id} value={r.id}>
+                    {r.label}
                   </option>
                 ))}
               </select>
@@ -578,8 +619,8 @@ function NewSystemDialog({
               >
                 <option value="">— select a time category</option>
                 {timeCategories.map((c) => (
-                  <option key={c.id} value={c.id} disabled={taken.internal.has(c.id)}>
-                    {c.label}{taken.internal.has(c.id) ? " — already has a procedure" : ""}
+                  <option key={c.id} value={c.id}>
+                    {c.label}
                   </option>
                 ))}
               </select>
