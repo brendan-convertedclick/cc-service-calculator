@@ -67,6 +67,7 @@ export function BlockInspector({
   incomingLabel,
   revisionLabel,
   onDelete,
+  readOnly = false,
 }: {
   step: Step | null;
   systemId: string;
@@ -78,6 +79,10 @@ export function BlockInspector({
   revisionLabel: string;
   /** Opens the canvas's confirm dialog — this panel never deletes directly. */
   onDelete?: () => void;
+  /** Viewer without write permission (RLS: admin/owner only). Renders the same
+   *  fields, none of them editable — a <fieldset disabled> so a field added
+   *  later can't quietly become writable again. */
+  readOnly?: boolean;
 }) {
   const update = useUpdateStep();
   const colorById = useMemo(() => memberColors(team), [team]);
@@ -123,7 +128,10 @@ export function BlockInspector({
   }
 
   return (
-    <div className="w-[186px] flex-none space-y-3 overflow-y-auto border-l border-m-outline-variant bg-m-surface-container p-3">
+    <fieldset
+      disabled={readOnly}
+      className="w-[186px] min-w-0 flex-none space-y-3 overflow-y-auto border-0 border-l border-m-outline-variant bg-m-surface-container p-3"
+    >
       <p className="text-label-small font-bold uppercase tracking-wide text-m-on-surface-variant">
         Block inspector
       </p>
@@ -336,7 +344,7 @@ export function BlockInspector({
           Delete {isSubStep ? "sub-step" : "step"}
         </button>
       )}
-    </div>
+    </fieldset>
   );
 }
 

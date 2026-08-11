@@ -26,6 +26,11 @@ import { waitForShell } from "./shell";
 export const E2E_PREFIX = "E2E TEST — ";
 
 export const E2E_OWNER_EMAIL = "e2e-systems-owner@convertedclick.co.za";
+export const E2E_STAFF_EMAIL = "e2e-systems-staff@convertedclick.co.za";
+/** staff-access.spec's own prefix. Deliberately NOT a suffix of E2E_PREFIX:
+ * both suites clean up with `like '<prefix>%'`, and under fullyParallel the
+ * first to finish would otherwise delete the other's fixtures mid-run. */
+export const E2E_STAFF_PREFIX = "E2E STAFF — ";
 
 function readEnvFile(p: string): Record<string, string> {
   return fs.existsSync(p) ? dotenv.parse(fs.readFileSync(p)) : {};
@@ -77,50 +82,70 @@ export type SystemsFixture = {
   owner: SupabaseClient;
   authUserId: string;
   password: string;
+  /** The throwaway member's team_members.id — staff-access.spec needs it to
+   * assert profile writes landed (and that privileged ones didn't). */
+  memberId: string;
+  email: string;
+  role: MemberRole;
 };
 
-/** Creates a throwaway admin/owner team member + auth user for this run.
- * Self-healing: deletes any same-named leftovers from a previous crashed run
+export type MemberRole = "staff" | "admin" | "owner";
+
+/** Creates a throwaway team member + auth user at `role` for this run.
+ * Self-healing: deletes any same-email leftovers from a previous crashed run
  * first, so repeated runs never accumulate stray users. */
-export async function setupOwner(env: SystemsTestEnv): Promise<SystemsFixture> {
+export async function setupMember(
+  env: SystemsTestEnv,
+  role: MemberRole = "owner",
+  email: string = E2E_OWNER_EMAIL,
+): Promise<SystemsFixture> {
   const admin = createClient(env.url, env.serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
   const { data: existing } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  const stale = existing?.users.find((u) => u.email === E2E_OWNER_EMAIL);
+  const stale = existing?.users.find((u) => u.email === email);
   if (stale) await admin.auth.admin.deleteUser(stale.id);
-  await admin.from("team_members").delete().eq("email", E2E_OWNER_EMAIL);
+  await admin.from("team_members").delete().eq("email", email);
 
   const password = `E2E-${randomUUID()}`;
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email: E2E_OWNER_EMAIL,
+    email,
     password,
     email_confirm: true,
   });
   if (createErr || !created.user) {
-    throw new Error(`systems.spec setup: could not create E2E owner auth user: ${createErr?.message}`);
+    throw new Error(`e2e setup: could not create ${role} auth user: ${createErr?.message}`);
   }
 
-  const { error: memberErr } = await admin.from("team_members").insert({
-    full_name: `${E2E_PREFIX}Owner`,
-    email: E2E_OWNER_EMAIL,
-    role: "owner",
-    auth_user_id: created.user.id,
-  });
-  if (memberErr) {
-    throw new Error(`systems.spec setup: could not create E2E team_members row: ${memberErr.message}`);
+  const { data: member, error: memberErr } = await admin
+    .from("team_members")
+    .insert({
+      full_name: `${E2E_PREFIX}${role[0].toUpperCase()}${role.slice(1)}`,
+      email,
+      role,
+      auth_user_id: created.user.id,
+    })
+    .select("id")
+    .single();
+  if (memberErr || !member) {
+    throw new Error(`e2e setup: could not create ${role} team_members row: ${memberErr?.message}`);
   }
 
-  const owner = createClient(env.url, env.anonKey, {
+  const user = createClient(env.url, env.anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { error: signInErr } = await owner.auth.signInWithPassword({ email: E2E_OWNER_EMAIL, password });
+  const { error: signInErr } = await user.auth.signInWithPassword({ email, password });
   if (signInErr) {
-    throw new Error(`systems.spec setup: could not sign in as E2E owner: ${signInErr.message}`);
+    throw new Error(`e2e setup: could not sign in as ${role}: ${signInErr.message}`);
   }
 
-  return { admin, owner, authUserId: created.user.id, password };
+  return { admin, owner: user, authUserId: created.user.id, password, memberId: member.id, email, role };
+}
+
+/** systems.spec's original entry point — an owner fixture. */
+export function setupOwner(env: SystemsTestEnv): Promise<SystemsFixture> {
+  return setupMember(env, "owner", E2E_OWNER_EMAIL);
 }
 
 /** Deletes everything this run created, by prefix rather than by tracked id
@@ -129,16 +154,21 @@ export async function setupOwner(env: SystemsTestEnv): Promise<SystemsFixture> {
  * system_definitions cascades to process_steps.system_id, system_revisions
  * and system_edges (all `on delete cascade`); current_revision_id is
  * `on delete set null`. */
-export async function teardownOwner(fixture: SystemsFixture): Promise<void> {
-  await fixture.admin.from("system_definitions").delete().like("name", `${E2E_PREFIX}%`);
-  await fixture.admin.from("team_members").delete().like("full_name", `${E2E_PREFIX}%`);
+export async function teardownOwner(
+  fixture: SystemsFixture,
+  namePrefix: string = E2E_PREFIX,
+): Promise<void> {
+  await fixture.admin.from("system_definitions").delete().like("name", `${namePrefix}%`);
+  // By email, not by name prefix: two suites can hold fixtures at once, and
+  // wiping every prefixed row would delete the other one's member mid-run.
+  await fixture.admin.from("team_members").delete().eq("email", fixture.email);
   await fixture.admin.auth.admin.deleteUser(fixture.authUserId);
 }
 
 /**
  * Replaces the browser's local-dev auto-login session (team@, owner-in-the-UI
  * only, no team_members row) with a real signed-in session for the throwaway
- * owner created by setupOwner — so RLS-gated writes clicked through the UI
+ * member created by setupMember — so RLS-gated writes clicked through the UI
  * (New system, Propose, Approve) actually succeed instead of 42501-ing.
  *
  * Ordering matters: AuthContext kicks off its own auto sign-in as team@ on
@@ -151,7 +181,7 @@ export async function teardownOwner(fixture: SystemsFixture): Promise<void> {
  * every navigation after this point just uses the owner session, no race
  * window left to reopen.
  */
-export async function signInBrowserAsOwner(page: Page, email: string, password: string): Promise<void> {
+export async function signInBrowserAs(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/");
   await waitForShell(page);
 
@@ -169,7 +199,7 @@ export async function signInBrowserAsOwner(page: Page, email: string, password: 
     },
     { email, password }
   );
-  if (signInError) throw new Error(`browser sign-in as E2E owner failed: ${signInError}`);
+  if (signInError) throw new Error(`browser sign-in as ${email} failed: ${signInError}`);
 
   await page.reload();
   await waitForShell(page);

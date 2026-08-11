@@ -136,18 +136,16 @@ const ProcedureWizard = lazy(() =>
 const SystemDetail = lazy(() =>
   import("@/pages/SystemDetail").then((m) => ({ default: m.SystemDetail })),
 );
+const Profile = lazy(() =>
+  import("@/pages/Profile").then((m) => ({ default: m.Profile })),
+);
 
 /**
- * Phase 1 role gates.
- * - <RoleAwareIndex> at `/` redirects staff to `/staff`, others see Dashboard.
- * - <RequireAdmin> blocks staff from the full app and bounces them to `/staff`.
+ * Role gates. Everything an admin/owner-only route needs sits behind
+ * <RequireAdmin>, which bounces staff (and anyone with no team_members row)
+ * to `/staff`. The shared surfaces — /staff, /profile, /systems — sit outside
+ * it, and the nav rail filters itself to match (see navEntriesFor).
  */
-function RoleAwareIndex() {
-  const { role, isLoading } = useCurrentRole();
-  if (isLoading) return <RouteFallback />;
-  if (role === "staff") return <Navigate to="/staff" replace />;
-  return <DashboardPage />;
-}
 function RequireAdmin() {
   const { role, isLoading } = useCurrentRole();
   if (isLoading) return <RouteFallback />;
@@ -176,24 +174,42 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
-            {/* Phase 1: staff-only single-page surface */}
-            <Route path="/staff" element={<StaffBriefForm />} />
-
-            {/* Everything below requires admin or owner. Staff bounce to /staff. */}
+            {/* Full-screen surfaces that deliberately sit outside the shell. */}
             <Route element={<RequireAdmin />}>
               <Route path="approvals" element={<Approvals />} />
               {/* Phase 6: outbound communications compose */}
               <Route path="comms/new" element={<ComposeEmail />} />
-              {/* All other routes — AppShell without sidebar */}
-              <Route element={<AppShell />}>
+            </Route>
+
+            {/* The shell (nav rail + breadcrumbs) wraps everyone, staff
+                included — the rail filters itself by role (navEntriesFor), so
+                a staff session gets navigation instead of a dead-end page. */}
+            <Route element={<AppShell />}>
+              {/* Open to every signed-in person: their own portal, the systems
+                  library (authenticated read at the RLS layer) and profile. */}
+              <Route path="staff" element={<StaffBriefForm />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="systems" element={<SystemsList />} />
+              <Route path="systems/:id" element={<SystemDetail />} />
+              {/* /procedures was the old name for this surface — kept as an
+                  alias so bookmarks and pasted links don't 404. */}
+              <Route path="procedures" element={<Navigate to="/systems" replace />} />
+              <Route path="procedures/:id" element={<SystemDetail />} />
+              {/* Per-user Google connection status — staff need it to schedule
+                  internal meetings, so it lives outside the admin gate that
+                  covers the rest of /settings. */}
+              <Route path="settings/google" element={<SettingsConnectGoogle />} />
+
+              {/* Everything below requires admin or owner. Staff bounce to /staff. */}
+              <Route element={<RequireAdmin />}>
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
                     the nav rail and breadcrumbs like every other queue. */}
                 <Route element={<RequireOwner />}>
                   <Route path="escalations" element={<Escalations />} />
                 </Route>
-                {/* Index decides based on role: staff → /staff, admin/owner → Dashboard */}
-                <Route index element={<RoleAwareIndex />} />
+                {/* Staff never get here — RequireAdmin sends them to /staff. */}
+                <Route index element={<DashboardPage />} />
                 <Route path="inbox" element={<Inbox />} />
               <Route path="inbox/:briefId" element={<Inbox />} />
               <Route path="briefs" element={<Briefs />} />
@@ -218,7 +234,6 @@ export default function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
-              <Route path="settings/google" element={<SettingsConnectGoogle />} />
               {/* Scope Composer — visual SOW builder (reclaims the old /sow redirect). */}
               <Route path="sow" element={<SowList />} />
               <Route path="sow/manage" element={<SowManage />} />
@@ -227,12 +242,6 @@ export default function App() {
               <Route path="services" element={<ServicesList />} />
               <Route path="services/new" element={<ServiceDetail mode="new" />} />
               <Route path="services/:id" element={<ServiceDetail mode="edit" />} />
-              <Route path="systems" element={<SystemsList />} />
-              <Route path="systems/:id" element={<SystemDetail />} />
-              {/* /procedures was the old name for this surface — kept as an
-                  alias so bookmarks and pasted links don't 404. */}
-              <Route path="procedures" element={<Navigate to="/systems" replace />} />
-              <Route path="procedures/:id" element={<SystemDetail />} />
               {/* Top-level, not /systems/wizard: it keeps the Systems nav
                   item's active state honest on the detail route. */}
               <Route path="procedure-wizard" element={<ProcedureWizard />} />

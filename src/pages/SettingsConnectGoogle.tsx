@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,6 +20,9 @@ type GoogleStatus = {
 // never starts or completes an OAuth flow of its own.
 export function SettingsConnectGoogle() {
   const { signInWithGoogle } = useAuth();
+  // Back goes wherever you came from, not to /settings: staff reach this page
+  // from their Profile and would be bounced straight back out of /settings.
+  const navigate = useNavigate();
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -62,8 +65,8 @@ export function SettingsConnectGoogle() {
   return (
     <div className="container mx-auto max-w-3xl p-6 space-y-6">
       <div className="flex items-center gap-2">
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/settings"><ChevronLeft className="h-4 w-4" /> Settings</Link>
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ChevronLeft className="h-4 w-4" /> Back
         </Button>
         <h1 className="text-headline-medium">Connect Google Calendar</h1>
       </div>

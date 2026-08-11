@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { SkillsEditor } from "@/components/SkillsEditor";
 import { cn, cellField, formatZar } from "@/lib/utils";
 
 export function Team() {
@@ -145,32 +146,6 @@ export function Team() {
           )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function SkillsEditor({ skills, onChange }: { skills: string[]; onChange: (s: string[]) => void }) {
-  const [input, setInput] = useState("");
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {skills.map((s) => (
-        <Badge key={s} variant="secondary" className="gap-1">
-          {s}
-          <button onClick={() => onChange(skills.filter((x) => x !== s))} className="opacity-60 hover:opacity-100">×</button>
-        </Badge>
-      ))}
-      <input
-        placeholder="+ skill"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && input.trim()) {
-            onChange([...skills, input.trim()]);
-            setInput("");
-          }
-        }}
-        className="h-7 w-24 rounded-md border-0 bg-transparent px-1 text-xs focus:outline-none focus:ring-0"
-      />
     </div>
   );
 }

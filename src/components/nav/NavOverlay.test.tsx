@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { NavOverlay } from "./NavOverlay"
+import { navEntriesFor } from "./navItems"
 import { vi } from "vitest"
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -21,10 +22,21 @@ describe("NavOverlay", () => {
   })
 
   it("renders all nav item labels when open", () => {
-    render(<NavOverlay open={true} onClose={vi.fn()} />, { wrapper: Wrapper })
+    render(
+      <NavOverlay open={true} onClose={vi.fn()} entries={navEntriesFor("owner")} />,
+      { wrapper: Wrapper },
+    )
     expect(screen.getByText("Dashboard")).toBeInTheDocument()
     expect(screen.getByText("Inbox")).toBeInTheDocument()
     expect(screen.getByText("Settings")).toBeInTheDocument()
+  })
+
+  // Defaulting to the least-privileged nav is the safe failure mode: a caller
+  // that forgets `entries` under-shows rather than leaking admin surfaces.
+  it("defaults to the staff-visible nav when no entries are passed", () => {
+    render(<NavOverlay open={true} onClose={vi.fn()} />, { wrapper: Wrapper })
+    expect(screen.getByText("Systems")).toBeInTheDocument()
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument()
   })
 
   it("calls onClose when Escape is pressed", () => {

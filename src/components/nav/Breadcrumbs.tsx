@@ -23,6 +23,10 @@ const SEGMENT_LABELS: Record<string, string> = {
   reconciliation: "Reconciliation",
   productivity: "Productivity",
   guides: "Guides",
+  systems: "Systems",
+  staff: "My work",
+  profile: "Profile",
+  google: "Connect Google Calendar",
 };
 
 // For dynamic id segments, label by the preceding noun.
@@ -34,6 +38,7 @@ const ID_LABELS: Record<string, string> = {
   services: "Service",
   inbox: "Brief",
   sow: "Family",
+  systems: "System",
 };
 
 function labelFor(segment: string, prev: string | undefined): string {
@@ -66,7 +71,10 @@ export function Breadcrumbs() {
       <Link
         to="/"
         className="flex items-center gap-1 hover:text-m-on-surface transition-colors"
-        aria-label="Dashboard"
+        // "Home", not "Dashboard": / resolves to whatever the signed-in role's
+        // home is (staff land on /staff), and this is the only link on the page
+        // whose target is role-dependent.
+        aria-label="Home"
       >
         <Home className="h-3.5 w-3.5" />
       </Link>

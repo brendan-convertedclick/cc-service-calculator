@@ -288,10 +288,16 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           </>
         )}
 
-        {/* Profile + Sign out — pinned to bottom */}
+        {/* Profile + Sign out — pinned to bottom. The avatar is the profile
+            link: it's where people already look for their own account. */}
         <div className="mt-auto space-y-1">
           {navOpen ? (
-            <div className="flex items-center gap-3 px-3 py-2" title={displayName}>
+            <NavLink
+              to="/profile"
+              aria-label={`Profile — ${displayName}`}
+              title={displayName}
+              className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-m-surface-container transition-colors"
+            >
               <div
                 className={cn(
                   "grid h-9 w-9 shrink-0 place-items-center rounded-full text-label-medium font-medium",
@@ -302,11 +308,13 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                 {initials}
               </div>
               <span className="truncate text-label-medium tracking-normal text-m-on-surface">{displayName}</span>
-            </div>
+            </NavLink>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div
+                <NavLink
+                  to="/profile"
+                  aria-label={`Profile — ${displayName}`}
                   className={cn(
                     "mx-auto grid h-9 w-9 place-items-center rounded-full text-label-medium font-medium",
                     myColor ? "text-white" : "bg-m-primary-container text-m-on-primary-container",
@@ -314,7 +322,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
                   style={myColor ? { background: myColor } : undefined}
                 >
                   {initials}
-                </div>
+                </NavLink>
               </TooltipTrigger>
               <TooltipContent side="right">{displayName}</TooltipContent>
             </Tooltip>

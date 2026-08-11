@@ -18,6 +18,14 @@ vi.mock("@/context/AuthContext", () => ({
 
 vi.mock("@/hooks/useTeam", () => ({
   useTeam: () => ({ data: [] }),
+  memberColors: () => new Map(),
+}))
+
+// The rail is role-filtered (navEntriesFor), so every assertion about which
+// links render depends on this. Default to owner — the full nav.
+const mockRole = { role: "owner" as string | null }
+vi.mock("@/hooks/useCurrentRole", () => ({
+  useCurrentRole: () => ({ role: mockRole.role, isLoading: false }),
 }))
 
 vi.mock("react-router-dom", async () => {
@@ -38,6 +46,7 @@ describe("IconRail", () => {
   beforeEach(() => {
     mockNavigate.mockClear()
     mockSignOut.mockClear()
+    mockRole.role = "owner"
   })
 
   it("renders all nav item icons with aria-labels", () => {
@@ -62,6 +71,28 @@ describe("IconRail", () => {
     render(<IconRail navOpen={false} onToggle={onToggle} />, { wrapper: Wrapper })
     fireEvent.click(screen.getByRole("button", { name: /open navigation/i }))
     expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  it("links the avatar to the profile page", () => {
+    render(<IconRail navOpen={true} onToggle={vi.fn()} />, { wrapper: Wrapper })
+    expect(screen.getByRole("link", { name: /^profile —/i })).toHaveAttribute("href", "/profile")
+  })
+
+  it("shows staff only the surfaces they can open", () => {
+    mockRole.role = "staff"
+    render(<IconRail navOpen={true} onToggle={vi.fn()} />, { wrapper: Wrapper })
+    expect(screen.getByRole("link", { name: "My work" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Systems" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Profile" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Clients" })).not.toBeInTheDocument()
+  })
+
+  it("hides owner-only surfaces from an admin", () => {
+    mockRole.role = "admin"
+    render(<IconRail navOpen={true} onToggle={vi.fn()} />, { wrapper: Wrapper })
+    expect(screen.queryByRole("link", { name: "Escalations" })).not.toBeInTheDocument()
   })
 
   it("renders sign-out button", () => {

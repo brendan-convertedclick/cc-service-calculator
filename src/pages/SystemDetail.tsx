@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  Copy,
   History,
   Plus,
   Settings2,
@@ -194,6 +195,9 @@ export function SystemDetail() {
       connectFrom?: string | null;
       sourceHandle?: string | null;
       title?: string;
+      // Duplicate passes the source row's editable columns through; spread
+      // after the defaults so a copy keeps its own materialise_as.
+      fields?: StepUpdate;
     } = {}) => {
       if (!id) return null;
       const prev = steps.length > 0 ? steps[steps.length - 1] : null;
@@ -215,6 +219,7 @@ export function SystemDetail() {
           ...(isProcess ? { materialise_as: "none" as const } : {}),
           pos_x: pos_x != null ? Math.round(pos_x) : null,
           pos_y: pos_y != null ? Math.round(pos_y) : null,
+          ...opts.fields,
         };
         let step: StepRow;
         try {
@@ -255,6 +260,23 @@ export function SystemDetail() {
     },
     [id, steps, system?.service_id, isProcess, addStep, connect]
   );
+
+  // Copy every editable column of the row — the config (verb, dept, owner,
+  // hours, ClickUp mode, signal answers) is the point of duplicating. Identity,
+  // ordinal and position are dropped so createStep places it like a new step:
+  // appended, chained off the last one. Sub-steps aren't copied.
+  function duplicateStep(step: StepRow) {
+    const {
+      id: _id,
+      created_at: _created,
+      updated_at: _updated,
+      ordinal: _ordinal,
+      pos_x: _x,
+      pos_y: _y,
+      ...fields
+    } = step;
+    void createStep({ fields: { ...fields, title: `${step.title} (copy)` } });
+  }
 
   function patchStep(step: StepRow, patch: StepUpdate, revert?: () => void) {
     updateStep.mutate(
@@ -319,7 +341,11 @@ export function SystemDetail() {
   const update = useUpdateSystem();
   const { data: revisions = [], isLoading: revisionsLoading } = useSystemRevisions(id);
   const { role } = useCurrentRole();
+  // Same two roles the RLS policies on system_definitions/steps/edges use.
+  // Read is open to every authenticated user, so a staff session lands here
+  // legitimately — it just gets the library without the write affordances.
   const canApprove = role === "admin" || role === "owner";
+  const canEdit = canApprove;
 
   const deptById = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
   const teamById = useMemo(() => new Map(team.map((t) => [t.id, t])), [team]);
@@ -472,6 +498,11 @@ export function SystemDetail() {
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         <div className={cn("mx-auto max-w-4xl space-y-6", pane !== "setup" && "hidden")}>
 
+        {/* One <fieldset disabled> rather than a `canEdit &&` on every control:
+            the browser already knows how to make a subtree non-interactive, and
+            a field added later inherits the rule instead of forgetting it. */}
+        <fieldset disabled={!canEdit} className="min-w-0 space-y-6 border-0 p-0">
+
         {/* Header */}
         <Card>
           <CardContent className="space-y-4 p-5">
@@ -622,6 +653,7 @@ export function SystemDetail() {
         {system.kind === "internal" && (
           <OverheadPanel system={system} totalStepHours={totalStepHours} />
         )}
+        </fieldset>
 
         <div className="flex justify-end">
           <Button size="sm" className="gap-1.5" onClick={() => setPane("steps")}>
@@ -635,6 +667,7 @@ export function SystemDetail() {
             so switching panes never remounts the canvas. */}
         {seenSteps && (
           <div className={cn("mx-auto max-w-5xl space-y-6", pane !== "steps" && "hidden")}>
+            <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0">
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-title-medium">
@@ -647,15 +680,17 @@ export function SystemDetail() {
                       <span className="text-m-on-surface-variant/70"> · {pointsFromHours(totalStepHours)} pts</span>
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    disabled={addStep.isPending}
-                    onClick={() => void createStep()}
-                  >
-                    <Plus className="h-4 w-4" /> Add step
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={addStep.isPending}
+                      onClick={() => void createStep()}
+                    >
+                      <Plus className="h-4 w-4" /> Add step
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -838,6 +873,16 @@ export function SystemDetail() {
                             </Badge>
                             <button
                               type="button"
+                              aria-label={`Duplicate "${s.title}"`}
+                              title="Duplicate this step"
+                              disabled={addStep.isPending}
+                              onClick={() => void duplicateStep(s)}
+                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
                               aria-label={`Delete "${s.title}"`}
                               title="Delete this step"
                               onClick={() => setDeleteTarget(s)}
@@ -865,6 +910,7 @@ export function SystemDetail() {
                 </div>
               )}
             </Card>
+            </fieldset>
 
             {/* Canvas — drag-and-drop visual mapping of this system's steps,
                 handoffs and department ownership. The window bar (breadcrumb,
@@ -891,6 +937,7 @@ export function SystemDetail() {
                   onPropose={() => setProposeOpen(true)}
                   onCreateStep={createStep}
                   focusStepId={focusStep}
+                  readOnly={!canEdit}
                 />
               </Suspense>
             </Card>

@@ -89,6 +89,10 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
   owner_name: string | null;
   expert_name: string | null;
   step_count: number;
+  /** Distinct departments across this system's top-level steps — a system has
+   *  no department column of its own, its departments are whatever its steps
+   *  are assigned to. Empty for a system whose steps are all unassigned. */
+  department_ids: string[];
 };
 
 type JoinedRow = SystemDefinition & {
@@ -110,7 +114,10 @@ function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
     time_category_label: s.time_category?.label ?? null,
     owner_name: s.owner?.full_name ?? null,
     expert_name: s.expert?.full_name ?? null,
-    step_count: 0, // filled in by useSystemDefinitions; useSystemDefinition doesn't need it
+    // Both filled in by useSystemDefinitions (the list); useSystemDefinition
+    // doesn't need them — the detail page reads steps directly.
+    step_count: 0,
+    department_ids: [],
   };
 }
 
@@ -124,19 +131,30 @@ export function useSystemDefinitions() {
     queryFn: async (): Promise<SystemDefinitionWithJoins[]> => {
       const [{ data: systems, error }, { data: stepRows, error: sErr }] = await Promise.all([
         supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
-        supabase.from("process_steps").select("system_id").is("parent_id", null).not("system_id", "is", null),
+        supabase
+          .from("process_steps")
+          .select("system_id, department_id")
+          .is("parent_id", null)
+          .not("system_id", "is", null),
       ]);
       if (error) throw error;
       if (sErr) throw sErr;
 
       const counts = new Map<string, number>();
-      for (const r of (stepRows ?? []) as { system_id: string }[]) {
+      const deptsBySystem = new Map<string, Set<string>>();
+      for (const r of (stepRows ?? []) as { system_id: string; department_id: string | null }[]) {
         counts.set(r.system_id, (counts.get(r.system_id) ?? 0) + 1);
+        if (r.department_id) {
+          const set = deptsBySystem.get(r.system_id) ?? new Set<string>();
+          set.add(r.department_id);
+          deptsBySystem.set(r.system_id, set);
+        }
       }
 
       return ((systems ?? []) as unknown as JoinedRow[]).map((s) => ({
         ...withJoins(s),
         step_count: counts.get(s.id) ?? 0,
+        department_ids: [...(deptsBySystem.get(s.id) ?? [])],
       }));
     },
   });

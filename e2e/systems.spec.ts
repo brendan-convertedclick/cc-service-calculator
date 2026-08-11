@@ -23,7 +23,7 @@ import {
   E2E_PREFIX,
   loadSystemsTestEnv,
   setupOwner,
-  signInBrowserAsOwner,
+  signInBrowserAs,
   teardownOwner,
   type SystemsFixture,
 } from "./helpers/systems";
@@ -71,19 +71,20 @@ test.describe("Systems", () => {
       expect(error?.code).toBe("23502"); // not-null violation
     });
 
-    await signInBrowserAsOwner(page, E2E_OWNER_EMAIL, fixture!.password);
+    await signInBrowserAs(page, E2E_OWNER_EMAIL, fixture!.password);
 
-    await test.step("New system dialog blocks a missing goal client-side, then creates one with a goal", async () => {
+    await test.step("New procedure dialog blocks a missing goal client-side, then creates one with a goal", async () => {
       await page.goto("/systems");
       await waitForShell(page);
-      await page.getByRole("button", { name: "New system" }).click();
+      await page.getByRole("button", { name: "New procedure" }).click();
 
       const dialog = page.getByRole("dialog");
       await expect(dialog).toBeVisible();
       await dialog.getByLabel("Name").fill(systemName);
       // 'reference' has no linked-record requirement — dodges
       // system_definitions_one_per_{service,recurring,internal}_idx entirely.
-      await dialog.getByLabel("Kind").selectOption("reference");
+      // (The field is "Attached to" since the policy/process/procedure split.)
+      await dialog.getByLabel("Attached to").selectOption("reference");
 
       await dialog.getByRole("button", { name: "Create" }).click();
       await expect(page.getByText(/Goal is required/i)).toBeVisible();
@@ -94,7 +95,7 @@ test.describe("Systems", () => {
       await page.waitForURL(/\/systems\/[0-9a-f-]{36}$/);
       systemId = page.url().split("/").pop();
 
-      await expect(page.getByLabel("System name")).toHaveValue(systemName);
+      await expect(page.getByLabel("Procedure name")).toHaveValue(systemName);
     });
 
     expect(systemId, "system was created").toBeTruthy();
@@ -117,8 +118,15 @@ test.describe("Systems", () => {
 
       await page.reload();
       await waitForShell(page);
-      await expect(page.getByText(`${E2E_PREFIX}Step one`)).toBeVisible();
-      await expect(page.getByText(`${E2E_PREFIX}Step two`)).toBeVisible();
+      // The detail page opens on Setup, and each step's title is an editable
+      // input — so this reads the Steps pane's fields, not page text.
+      await page.getByRole("button", { name: /^Steps/ }).click();
+      await expect(page.getByRole("textbox", { name: "Step 1 title" })).toHaveValue(
+        `${E2E_PREFIX}Step one`,
+      );
+      await expect(page.getByRole("textbox", { name: "Step 2 title" })).toHaveValue(
+        `${E2E_PREFIX}Step two`,
+      );
     });
 
     await test.step("proposing a change requires a reason — disabled in the dialog, rejected by the DB", async () => {
@@ -132,6 +140,9 @@ test.describe("Systems", () => {
       expect(error).not.toBeNull();
       expect(error?.code).toBe("23502");
 
+      // "Propose changes" lives on the Revisions pane; the canvas window bar's
+      // "Propose" opens the same dialog from the Steps pane.
+      await page.getByRole("button", { name: /^Revisions/ }).click();
       await page.getByRole("button", { name: "Propose changes" }).click();
       const proposeDialog = page.getByRole("dialog");
       await expect(proposeDialog).toBeVisible();
@@ -253,6 +264,9 @@ test.describe("Systems", () => {
     // Default (team@) session — reading is authenticated-open on every
     // systems table, no owner elevation needed here.
     const errors = await smokeCheck(page, `/systems/${systemId}`);
+    // The canvas lives on the Steps pane, which mounts on first visit — the
+    // detail page opens on Setup.
+    await page.getByRole("button", { name: /^Steps/ }).click();
     await expect(page.getByRole("button", { name: "Tidy up" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Propose", exact: true })).toBeVisible();
     expect(errors, "unexpected JS errors").toHaveLength(0);

@@ -45,10 +45,13 @@ import {
   type SystemKind,
   type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
+import { useCurrentRole } from "@/hooks/useCurrentRole";
+import { useDepartments } from "@/hooks/useDepartments";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
 
 const UNBANDED = "unbanded";
+const NO_DEPT = "none";
 
 function isBand(b: string | null): b is SystemBand {
   return !!b && (SYSTEM_BANDS as readonly string[]).includes(b);
@@ -89,9 +92,15 @@ function createSystemError(e: unknown, layer: SystemLayer): string {
 export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
+  const { data: depts = [] } = useDepartments();
+  // Everyone can read the library; only admin/owner can add to it (RLS says the
+  // same, so this hides a button that would 42501 rather than inventing a rule).
+  const { role } = useCurrentRole();
+  const canEdit = role === "admin" || role === "owner";
   const [search, setSearch] = useState("");
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
+  const [dept, setDept] = useState<string | null>(null);
   const [unmappedOnly, setUnmappedOnly] = useState(false);
   // ?new=<name> is how the wizard hands over: open the create dialog with the
   // candidate's name already in it, then drop the param so a refresh doesn't
@@ -109,11 +118,15 @@ export function SystemsList() {
       systems.filter((s) => {
         if (band && (isBand(s.band) ? s.band : UNBANDED) !== band) return false;
         if (kind && s.kind !== kind) return false;
+        // A system sits in every department its steps do, so a cross-team
+        // procedure shows under each of them rather than one arbitrary owner.
+        if (dept && !(dept === NO_DEPT ? s.department_ids.length === 0 : s.department_ids.includes(dept)))
+          return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
         if (q && !haystack(s).includes(q)) return false;
         return true;
       }),
-    [systems, band, kind, unmappedOnly, q],
+    [systems, band, kind, dept, unmappedOnly, q],
   );
 
   // All three tabs always render, empty or not — the taxonomy is the point of
@@ -145,7 +158,16 @@ export function SystemsList() {
     return counts;
   }, [systems]);
 
-  const anyFilterActive = !!q || band !== null || kind !== null || unmappedOnly;
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of systems) {
+      if (s.department_ids.length === 0) counts[NO_DEPT] = (counts[NO_DEPT] ?? 0) + 1;
+      for (const d of s.department_ids) counts[d] = (counts[d] ?? 0) + 1;
+    }
+    return counts;
+  }, [systems]);
+
+  const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly;
 
   const unmappedCount = useMemo(
     () => systems.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
@@ -198,6 +220,26 @@ export function SystemsList() {
         </div>
 
         <div>
+          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Department</p>
+          <ul className="space-y-0.5">
+            <FilterRow label="All departments" active={dept === null} onClick={() => setDept(null)} count={systems.length} />
+            {depts.map((d) =>
+              deptCounts[d.id] ? (
+                <FilterRow key={d.id} label={d.name} active={dept === d.id} onClick={() => setDept(d.id)} count={deptCounts[d.id]} />
+              ) : null,
+            )}
+            {deptCounts[NO_DEPT] ? (
+              <FilterRow
+                label="No department"
+                active={dept === NO_DEPT}
+                onClick={() => setDept(NO_DEPT)}
+                count={deptCounts[NO_DEPT]}
+              />
+            ) : null}
+          </ul>
+        </div>
+
+        <div>
           <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Health</p>
           <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-label-medium text-m-on-surface hover:bg-m-surface-container">
             <Checkbox checked={unmappedOnly} onCheckedChange={(v) => setUnmappedOnly(!!v)} />
@@ -233,7 +275,7 @@ export function SystemsList() {
                 {/* The triage that runs before a procedure exists — the answer
                     is often "don't build one". Lives here rather than in the
                     nav: it's only ever reached on the way to a procedure. */}
-                {tab === "procedure" && (
+                {canEdit && tab === "procedure" && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -243,9 +285,11 @@ export function SystemsList() {
                     <Wand2 className="h-4 w-4" /> Wizard
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={() => setCreating(tab)} className="gap-1">
-                  <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[tab]}
-                </Button>
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={() => setCreating(tab)} className="gap-1">
+                    <Plus className="h-4 w-4" /> New {SYSTEM_LAYER_NOUN[tab]}
+                  </Button>
+                )}
               </div>
             </div>
 
