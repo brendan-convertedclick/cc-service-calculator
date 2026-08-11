@@ -690,7 +690,7 @@ export function SystemDetail() {
                     No steps yet — add the first one to start the canvas.
                   </p>
                 ) : (
-                  <ol className="divide-y divide-m-outline-variant">
+                  <ol className="divide-y divide-m-outline-variant border-t border-m-outline-variant">
                     {steps.map((s, i) => {
                       const owner = s.owner_id ? teamById.get(s.owner_id) : null;
                       const inClickUp = s.materialise_as !== "none";
