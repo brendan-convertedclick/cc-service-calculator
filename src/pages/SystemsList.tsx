@@ -54,6 +54,24 @@ function isBand(b: string | null): b is SystemBand {
   return !!b && (SYSTEM_BANDS as readonly string[]).includes(b);
 }
 
+/** Everything the rail search matches. The placeholder goal is excluded — it's
+ *  on every unmapped system, so including it makes "todo"/"goal" match half the
+ *  page. Use the Health filter for those. */
+function haystack(s: SystemDefinitionWithJoins): string {
+  return [
+    s.name,
+    s.goal_statement === PLACEHOLDER_GOAL ? null : s.goal_statement,
+    s.owner_name,
+    s.expert_name,
+    s.service_name,
+    s.recurring_service_name,
+    s.time_category_label,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -92,7 +110,7 @@ export function SystemsList() {
         if (band && (isBand(s.band) ? s.band : UNBANDED) !== band) return false;
         if (kind && s.kind !== kind) return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
-        if (q && !s.name.toLowerCase().includes(q)) return false;
+        if (q && !haystack(s).includes(q)) return false;
         return true;
       }),
     [systems, band, kind, unmappedOnly, q],
