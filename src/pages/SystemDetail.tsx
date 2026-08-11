@@ -699,10 +699,10 @@ export function SystemDetail() {
                           key={s.id}
                           className="flex w-full items-start gap-3 px-5 py-3 hover:bg-m-surface-container"
                         >
-                          {/* Centred on the title line, not the top of the
-                              row: with Signal or noise open the row is three
-                              times as tall and a top-aligned number floats. */}
-                          <div className="flex h-9 flex-none items-center gap-1.5">
+                          {/* self-center against the whole row, not the title
+                              line — the row grows when Signal or noise opens
+                              and the index should stay with its middle. */}
+                          <div className="flex flex-none items-center gap-1.5 self-center">
                             <div className="flex flex-col">
                               <button
                                 type="button"
@@ -738,6 +738,30 @@ export function SystemDetail() {
                                 it doesn't drag the viewport around as a side
                                 effect. `key` re-seeds the uncontrolled input when
                                 the title changes elsewhere (canvas inspector). */}
+                            <div className="flex items-center gap-2">
+                            {/* The verb reads as part of the sentence —
+                                "Present · Share headlines" — so it sits on the
+                                title line as a chip you click, with the real
+                                <select> transparent on top of it. `title`
+                                still stores the outcome only. */}
+                            <span className="relative inline-flex flex-none">
+                              <span
+                                className={cn(
+                                  "rounded-md px-2 py-0.5 text-title-medium font-semibold",
+                                  s.verb
+                                    ? "bg-m-secondary-container text-m-on-secondary-container"
+                                    : "border border-dashed border-m-outline text-m-on-surface-variant",
+                                )}
+                              >
+                                {s.verb ?? "Verb"}
+                              </span>
+                              <VerbSelect
+                                value={s.verb}
+                                label={`Verb for "${s.title}"`}
+                                onChange={(verb) => patchStep(s, { verb })}
+                                className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0"
+                              />
+                            </span>
                             <input
                               key={s.title}
                               defaultValue={s.title}
@@ -757,24 +781,13 @@ export function SystemDetail() {
                                   e.currentTarget.blur();
                                 }
                               }}
-                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 -ml-1 text-title-medium font-semibold text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 text-title-medium font-semibold text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                             />
+                            </div>
                             {/* Everything about a step is editable from here;
                                 the canvas inspector is the same fields on the
                                 selected block, not the only way in. */}
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {/* One verb, one outcome: the verb lives in its
-                                  own column so `title` stays the outcome text
-                                  the canvas, revisions and ClickUp all read. */}
-                              <VerbSelect
-                                value={s.verb}
-                                label={`Verb for "${s.title}"`}
-                                onChange={(verb) => patchStep(s, { verb })}
-                                // Matches the department select beside it —
-                                // the component's own h-10 is for the canvas
-                                // inspector, where it's the only control.
-                                className="h-8"
-                              />
                               <select
                                 value={s.department_id ?? ""}
                                 aria-label={`Department for "${s.title}"`}
