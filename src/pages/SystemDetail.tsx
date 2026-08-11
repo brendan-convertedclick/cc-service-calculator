@@ -13,9 +13,12 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  CircleSlash,
   Copy,
   History,
+  ListChecks,
   Plus,
+  SquareKanban,
   Settings2,
   Trash2,
   User,
@@ -37,7 +40,7 @@ import {
 import { useCreateStep, useReorderStep, useSystemSteps, useUpdateStep } from "@/hooks/useProcessSteps";
 import { useConnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
 import { DeleteStepDialog } from "@/components/systems/DeleteStepDialog";
-import { SignalNoise, VerbSelect, VerdictPill, verdict } from "@/components/systems/StepSignal";
+import { SignalNoise, VerbSelect, verdict } from "@/components/systems/StepSignal";
 import {
   useProposeRevision,
   usePublishRevision,
@@ -54,6 +57,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -62,7 +66,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, errorMessage } from "@/lib/utils";
+import { cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 // open_step_slot (0122) isn't in the generated Database types — same untyped
 // escape hatch useRecurringServiceOptions uses.
@@ -89,6 +93,14 @@ type TeamRow = Database["public"]["Tables"]["team_members"]["Row"];
 type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
 type StepUpdate = Database["public"]["Tables"]["process_steps"]["Update"];
 type SystemRevisionRow = Database["public"]["Tables"]["system_revisions"]["Row"];
+type MaterialiseMode = Database["public"]["Enums"]["materialise_mode"];
+
+// The label's icon twin — MATERIALISE_LABEL spells the same three modes out.
+const MATERIALISE_ICON: Record<MaterialiseMode, LucideIcon> = {
+  task: SquareKanban,
+  checklist_item: ListChecks,
+  none: CircleSlash,
+};
 
 // Where a step added from the "Add step" button lands relative to the one it
 // continues from — roughly a block width plus a gap, so the auto-drawn link
@@ -183,6 +195,11 @@ export function SystemDetail() {
   const { data: subSteps = [] } = useSystemSubSteps(steps.map((s) => s.id));
   const { data: edgeRows = [] } = useSystemEdges(id);
   const [deleteTarget, setDeleteTarget] = useState<StepRow | null>(null);
+  // Which rows have their signal/noise questions open. State rather than a
+  // native <details>: the toggle lives at the bottom of the row's right-hand
+  // cluster and the panel opens under the row's left column, which no
+  // <summary> can straddle.
+  const [signalOpen, setSignalOpen] = useState<Set<string>>(new Set());
 
   // One creation path for both callers: the "Add step" button (no position, no
   // explicit source — chains off the last step) and the canvas dropping a
@@ -215,6 +232,9 @@ export function SystemDetail() {
           service_id: system?.service_id ?? null,
           title: opts.title ?? "New step",
           department_id: null,
+          // Most steps in a procedure belong to whoever owns the procedure —
+          // start there and let the avatar picker say otherwise.
+          owner_id: system?.owner_id ?? null,
           estimated_hours: null,
           // A process block is a stage, not work: its hours and its ClickUp
           // artefact live on the procedures attached to it. The column default
@@ -275,7 +295,7 @@ export function SystemDetail() {
         return null;
       }
     },
-    [id, steps, system?.service_id, isProcess, addStep, connect]
+    [id, steps, system?.service_id, system?.owner_id, isProcess, addStep, connect]
   );
 
   // Copy every editable column of the row — the config (verb, dept, owner,
@@ -738,7 +758,7 @@ export function SystemDetail() {
                                 it doesn't drag the viewport around as a side
                                 effect. `key` re-seeds the uncontrolled input when
                                 the title changes elsewhere (canvas inspector). */}
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-0.5">
                             {/* The verb reads as part of the sentence —
                                 "Present · Share headlines" — so it sits on the
                                 title line as a chip you click, with the real
@@ -786,19 +806,6 @@ export function SystemDetail() {
                                 the canvas inspector is the same fields on the
                                 selected block, not the only way in. */}
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <select
-                                value={s.department_id ?? ""}
-                                aria-label={`Department for "${s.title}"`}
-                                onChange={(e) =>
-                                  patchStep(s, { department_id: e.target.value || null })
-                                }
-                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
-                              >
-                                <option value="">— no department</option>
-                                {depts.map((d) => (
-                                  <option key={d.id} value={d.id}>{d.name}</option>
-                                ))}
-                              </select>
                               {/* The avatar IS the picker — a transparent
                                   native <select> sits on top of it, so the
                                   name stops eating 11rem of the row while
@@ -830,6 +837,19 @@ export function SystemDetail() {
                                   ))}
                                 </select>
                               </span>
+                              <select
+                                value={s.department_id ?? ""}
+                                aria-label={`Department for "${s.title}"`}
+                                onChange={(e) =>
+                                  patchStep(s, { department_id: e.target.value || null })
+                                }
+                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
+                              >
+                                <option value="">— no department</option>
+                                {depts.map((d) => (
+                                  <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                              </select>
                               <input
                                 key={String(s.estimated_hours)}
                                 defaultValue={s.estimated_hours ?? ""}
@@ -854,22 +874,17 @@ export function SystemDetail() {
                                 {s.estimated_hours != null && ` · ${pointsFromHours(s.estimated_hours)}pt`}
                               </span>
                             </div>
-                            {/* Collapsed by default with the verdict in the
-                                summary: five always-open questions per row
-                                would bury the list at eight steps. Native
-                                <details>, so no open/closed state to hold. */}
-                            <details className="group">
-                              <summary className="flex cursor-pointer list-none items-center gap-2 py-0.5 text-label-small text-m-on-surface-variant marker:content-none hover:text-m-on-surface">
-                                <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
-                                Signal or noise
-                                <VerdictPill value={verdict(s).effective} />
-                              </summary>
+                            {/* The questions themselves, with no heading and
+                                no summary line — the chevron at the bottom of
+                                the row's icon cluster is the whole affordance. */}
+                            {signalOpen.has(s.id) && (
                               <div className="pt-1.5">
                                 <SignalNoise step={s} onPatch={(patch) => patchStep(s, patch)} />
                               </div>
-                            </details>
+                            )}
                           </div>
-                          <div className="flex flex-none items-center gap-2 pt-1">
+                          <div className="flex flex-none flex-col items-end gap-1 pt-1">
+                            <div className="flex items-center gap-2">
                             {/* On by default (materialise_as defaults to
                                 'checklist_item', 0121); off writes 'none', which
                                 planMaterialisation skips on push while still
@@ -888,12 +903,46 @@ export function SystemDetail() {
                                 patchStep(s, { materialise_as: on ? "checklist_item" : "none" })
                               }
                             />
-                            <Badge
-                              variant={inClickUp ? "muted" : "outline"}
-                              className="w-28 flex-none justify-center text-label-small"
+                            {/* What the step becomes in ClickUp, as the icon
+                                it will be — the word took 7rem on every row to
+                                say what a glyph says. The menu spells it out
+                                with the same icons. */}
+                            <Select
+                              value={s.materialise_as}
+                              onValueChange={(v) => patchStep(s, { materialise_as: v as MaterialiseMode })}
                             >
-                              {inClickUp ? MATERIALISE_LABEL[s.materialise_as] : "Not in ClickUp"}
-                            </Badge>
+                              <SelectTrigger
+                                aria-label={`What "${s.title}" becomes in ClickUp`}
+                                title={MATERIALISE_LABEL[s.materialise_as]}
+                                // [&>svg]:hidden drops the trigger's own chevron,
+                                // which is a direct child svg — so the mode icon
+                                // below is wrapped to survive it.
+                                className={cn(
+                                  "h-8 w-8 flex-none justify-center rounded-md border-0 bg-transparent p-0 hover:bg-m-surface-container-high [&>svg]:hidden",
+                                  inClickUp ? "text-m-on-surface" : "text-m-outline",
+                                )}
+                              >
+                                <span>
+                                  {(() => {
+                                    const Icon = MATERIALISE_ICON[s.materialise_as];
+                                    return <Icon className="h-4 w-4" />;
+                                  })()}
+                                </span>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Object.keys(MATERIALISE_ICON) as MaterialiseMode[]).map((mode) => {
+                                  const Icon = MATERIALISE_ICON[mode];
+                                  return (
+                                    <SelectItem key={mode} value={mode}>
+                                      <span className="flex items-center gap-2">
+                                        <Icon className="h-4 w-4" />
+                                        {MATERIALISE_LABEL[mode]}
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
                             <button
                               type="button"
                               aria-label={`Add a step after "${s.title}"`}
@@ -922,6 +971,22 @@ export function SystemDetail() {
                               className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
                             >
                               <Trash2 className="h-4 w-4" />
+                            </button>
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={`Signal or noise for "${s.title}"`}
+                              title="Signal or noise — is this step worth keeping?"
+                              aria-expanded={signalOpen.has(s.id)}
+                              onClick={() => setSignalOpen((prev) => toggleInSet(prev, s.id))}
+                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform",
+                                  signalOpen.has(s.id) && "rotate-180",
+                                )}
+                              />
                             </button>
                           </div>
                         </li>
