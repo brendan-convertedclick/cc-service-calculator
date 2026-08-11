@@ -747,13 +747,11 @@ export function SystemDetail() {
                             <span className="relative inline-flex flex-none">
                               <span
                                 className={cn(
-                                  "rounded-md px-2 py-0.5 text-title-medium font-semibold",
-                                  s.verb
-                                    ? "bg-m-secondary-container text-m-on-secondary-container"
-                                    : "border border-dashed border-m-outline text-m-on-surface-variant",
+                                  "rounded-md px-1 py-0.5 text-title-medium font-normal hover:bg-m-surface-container-high",
+                                  s.verb ? "text-m-on-surface-variant" : "text-m-outline",
                                 )}
                               >
-                                {s.verb ?? "Verb"}
+                                [{s.verb ?? "verb"}]
                               </span>
                               <VerbSelect
                                 value={s.verb}
