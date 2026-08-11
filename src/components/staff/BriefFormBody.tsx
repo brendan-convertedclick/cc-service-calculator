@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
 import { ClientSelectField } from "./ClientSelectField";
 import { useStaffClients } from "./useStaffClients";
 
@@ -37,6 +38,7 @@ export function BriefFormBody() {
   const [taskName, setTaskName] = useState("");
   const [sprintPoints, setSprintPoints] = useState<string>("1");
   const [isInternal, setIsInternal] = useState(false);
+  const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
   const [goal, setGoal] = useState("");
   const [successCriteria, setSuccessCriteria] = useState("");
   const [measurableOutcome, setMeasurableOutcome] = useState("");
@@ -100,6 +102,9 @@ export function BriefFormBody() {
         task_name: taskName.trim(),
         sprint_points: Number(sprintPoints),
         is_internal: isInternal,
+        // Resolved to a ClickUp checklist at approval time, not now — steps
+        // edited in /systems before approval still land on the task.
+        system_id: systemId === NO_WORKFLOW ? null : systemId,
         goal: goal.trim(),
         success_criteria: successCriteria.trim(),
         measurable_outcome: measurableOutcome.trim(),
@@ -120,6 +125,7 @@ export function BriefFormBody() {
       setTaskName("");
       setSprintPoints("1");
       setIsInternal(false);
+      setSystemId(NO_WORKFLOW);
       setGoal("");
       setSuccessCriteria("");
       setMeasurableOutcome("");
@@ -181,6 +187,13 @@ export function BriefFormBody() {
           <p className="text-label-small text-m-on-surface-variant">1 pt = 15 minutes</p>
         </div>
       </div>
+
+      <WorkflowSelect
+        id="brief-workflow"
+        value={systemId}
+        onValueChange={setSystemId}
+        hint="Optional — its process steps become the ClickUp task's checklist when this brief is approved."
+      />
 
       <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
         <div>

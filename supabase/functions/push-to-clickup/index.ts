@@ -30,9 +30,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
+import { addClickupChecklist, addClickupDependency, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
 import { isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
 import { planMaterialisation, type MaterialiseStep } from "../_shared/system-materialise.ts";
+import { orderChildrenBySteps, type DeptChild } from "../_shared/dept-sequence.ts";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -346,6 +347,9 @@ Deno.serve(async (req: Request) => {
     // ponytail: single checklist target per service, not per department/line;
     // widen if a service with a multi-dept checklist step turns out to need it.
     const firstChildTaskIdByService = new Map<string, string>();
+    // Every department child of a service, in creation order — chained into
+    // "blocked by" links once the procedure's step order is known (below).
+    const childrenByService = new Map<string, DeptChild[]>();
 
     // Flatten (item × allocation) so we can batch across the entire push
     // rather than just within a single line item.
@@ -363,7 +367,7 @@ Deno.serve(async (req: Request) => {
     for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
       const batch = tasks.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null; workStream: string }; serviceId: string; taskId: string }> => {
+        batch.map(async ({ item, alloc }): Promise<{ row: ActualRow; chat: { name: string; url: string; mention: string | null; workStream: string }; serviceId: string; taskId: string; deptId: string; deptName: string }> => {
           const ownerId = deptOwnerMap.get(alloc.dept_id);
           const owner = ownerId ? teamById.get(ownerId) : null;
 
@@ -457,6 +461,8 @@ Deno.serve(async (req: Request) => {
             },
             serviceId: item.service_id,
             taskId: child.id,
+            deptId: alloc.dept_id,
+            deptName: alloc.dept_name,
           };
         }),
       );
@@ -466,6 +472,9 @@ Deno.serve(async (req: Request) => {
         if (!firstChildTaskIdByService.has(r.serviceId)) {
           firstChildTaskIdByService.set(r.serviceId, r.taskId);
         }
+        const siblings = childrenByService.get(r.serviceId) ?? [];
+        siblings.push({ deptId: r.deptId, deptName: r.deptName, taskId: r.taskId });
+        childrenByService.set(r.serviceId, siblings);
       }
       childCount += results.length;
     }
@@ -722,6 +731,27 @@ Deno.serve(async (req: Request) => {
       ];
 
       const templateStepsById = new Map(templateSteps.map((s) => [s.id, s]));
+
+      // Handover order: chain each service's department children so Creative
+      // is blocked by Content and Development by Creative, instead of all
+      // three landing as three unordered tasks. The sequence comes from the
+      // service's own procedure (orderChildrenBySteps) — departments.display_order
+      // is a catalogue order, not a delivery order — so a service whose steps
+      // carry no department gets no links rather than a guessed chain.
+      // Best-effort: the tasks and the projects row already exist.
+      for (const [serviceId, children] of childrenByService) {
+        const ordered = orderChildrenBySteps(
+          children,
+          templateSteps.filter((s) => s.service_id === serviceId),
+        );
+        if (ordered.length < 2) continue;
+        for (let i = 1; i < ordered.length; i++) {
+          await addClickupDependency(clickupPat, ordered[i].taskId, ordered[i - 1].taskId);
+        }
+        console.log(
+          `[push-to-clickup] chained ${ordered.length} department tasks for service ${serviceId}: ${ordered.map((c) => c.deptName).join(" → ")}`,
+        );
+      }
 
       // Internal-system guard (spec "Error handling"): kind='internal' systems
       // attribute time via the perpetual [Internal] {member} — {category} task

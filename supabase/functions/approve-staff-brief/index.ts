@@ -13,7 +13,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
 import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type StaffBrief = {
@@ -29,6 +29,7 @@ type StaffBrief = {
   success_criteria: string;
   measurable_outcome: string;
   status: string;
+  system_id: string | null;
   clickup_task_id: string | null;
   clickup_task_url: string | null;
 };
@@ -164,6 +165,34 @@ Deno.serve(async (req: Request) => {
       return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
     }
     const created = (await createRes.json()) as { id: string; url: string };
+
+    // Workflow checklist: the chosen system's top-level process steps, in
+    // order. Resolved now rather than at submit time so steps edited in
+    // /systems while the brief waited still land on the task. Best-effort —
+    // the task already exists, so a checklist failure must not fail approval.
+    // ponytail: top-level steps only, flat; nest sub-steps if any get authored.
+    if (brief.system_id) {
+      try {
+        const { data: steps, error: stepsErr } = await supabase
+          .from("process_steps")
+          .select("title")
+          .eq("system_id", brief.system_id)
+          .is("parent_id", null)
+          .neq("materialise_as", "none") // decision nodes etc. never materialise
+          .order("ordinal");
+        if (stepsErr) throw new Error(stepsErr.message);
+        await addClickupChecklist(
+          clickupPat,
+          created.id,
+          ((steps ?? []) as { title: string }[]).map((s) => s.title),
+          member.clickup_user_id,
+        );
+      } catch (checklistEx) {
+        console.error(
+          `[approve-staff-brief] checklist failed for task ${created.id} (system ${brief.system_id}): ${checklistEx instanceof Error ? checklistEx.message : String(checklistEx)}`,
+        );
+      }
+    }
 
     // Audit comment so /brief skill conventions stay consistent.
     const comment = buildBriefComment({

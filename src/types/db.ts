@@ -4188,6 +4188,7 @@ export type Database = {
           sprint_points: number
           status: string
           submitter_id: string
+          system_id: string | null
           success_criteria: string
           task_name: string
           updated_at: string
@@ -4210,6 +4211,7 @@ export type Database = {
           sprint_points: number
           status?: string
           submitter_id: string
+          system_id?: string | null
           success_criteria: string
           task_name: string
           updated_at?: string
@@ -4232,6 +4234,7 @@ export type Database = {
           sprint_points?: number
           status?: string
           submitter_id?: string
+          system_id?: string | null
           success_criteria?: string
           task_name?: string
           updated_at?: string
@@ -4263,6 +4266,13 @@ export type Database = {
             columns: ["submitter_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_briefs_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
             referencedColumns: ["id"]
           },
         ]

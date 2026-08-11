@@ -24,7 +24,11 @@ import { ClickUpConnectCard } from "@/components/ClickUpConnectCard";
  */
 export function StaffBriefForm() {
   return (
-    <div className="relative min-h-full overflow-hidden bg-m-surface-container-low">
+    /* shrink-0 is load-bearing: AppShell's <main> is a flex column, so this
+       page (a flex item) would otherwise shrink to the viewport height and
+       `overflow-hidden` — there for the gradient — would clip everything below
+       the fold, leaving nothing to scroll to. */
+    <div className="relative min-h-full shrink-0 overflow-hidden bg-m-surface-container-low">
       <div
         aria-hidden
         className="absolute inset-0 -z-10 opacity-40"

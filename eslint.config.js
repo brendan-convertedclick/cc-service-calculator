@@ -21,6 +21,13 @@ export default tseslint.config(
       // generated — see CLAUDE.md "Design tokens" and Supabase type generation
       "src/types/db.ts",
       "src/styles/tokens.ts",
+      // design-sync's generated output — untracked (same names as the
+      // .gitignore block) but `eslint .` was still linting it: 927 errors
+      // that failed `npm run verify` on any machine that had run design-sync.
+      "types/**",
+      ".ds-sync/**",
+      "ds-bundle/**",
+      ".design-sync/**",
       "apps-script/**",
     ],
   },

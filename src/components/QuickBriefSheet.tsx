@@ -12,8 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { checklistFromSteps, NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
 import { useTeam } from "@/hooks/useTeam";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
 import { callEdgeFn } from "@/lib/edge";
@@ -64,6 +66,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
   const [billingType, setBillingType] = useState<"retainer" | "adhoc">("retainer");
   const [checklistItems, setChecklistItems] = useState("");
+  const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
   const [attachments, setAttachments] = useState<File[]>([]);
   // <input type="file"> is uncontrolled — bump this to force a remount (and
   // clear the displayed filenames) whenever the selection is reset.
@@ -92,6 +95,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setStatus(STATUS_DEFAULT);
     setBillingType(brief.billing_type === "adhoc" ? "adhoc" : "retainer");
     setChecklistItems("");
+    setSystemId(NO_WORKFLOW);
     setAttachments([]);
     setAttachmentInputKey((k) => k + 1);
   }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type, brief.assignee_id]);
@@ -134,6 +138,16 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
       cancelled = true;
     };
   }, [open, brief.client_id]);
+
+  // Picking a workflow drops its process steps into the checklist box, where
+  // they stay editable — the operator can trim or add before creating.
+  const { data: systemSteps = [] } = useSystemSteps(
+    systemId === NO_WORKFLOW ? undefined : systemId,
+  );
+  useEffect(() => {
+    if (systemId === NO_WORKFLOW) return;
+    setChecklistItems(checklistFromSteps(systemSteps));
+  }, [systemId, systemSteps]);
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
 
@@ -275,6 +289,8 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               placeholder="e.g. 40 creatives, 1 Excel export, 3 landing pages — a count someone can check this against later."
             />
           </div>
+
+          <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} />
 
           <div className="space-y-2">
             <Label htmlFor="qb-checklist">Checklist items</Label>

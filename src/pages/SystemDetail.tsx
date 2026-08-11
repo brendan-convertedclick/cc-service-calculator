@@ -699,7 +699,10 @@ export function SystemDetail() {
                           key={s.id}
                           className="flex w-full items-start gap-3 px-5 py-3 hover:bg-m-surface-container"
                         >
-                          <div className="flex flex-none items-center gap-1 pt-1.5">
+                          {/* Centred on the title line, not the top of the
+                              row: with Signal or noise open the row is three
+                              times as tall and a top-aligned number floats. */}
+                          <div className="flex h-9 flex-none items-center gap-1.5">
                             <div className="flex flex-col">
                               <button
                                 type="button"
@@ -724,7 +727,7 @@ export function SystemDetail() {
                                 an ordering key under a UNIQUE index and go
                                 sparse after a delete — showing them literally
                                 made a four-step list read 1, 2, 3, 5. */}
-                            <span className="w-4 text-center font-mono text-label-small text-m-on-surface-variant">
+                            <span className="w-5 text-center font-mono text-title-medium tabular-nums text-m-on-surface-variant">
                               {i + 1}
                             </span>
                           </div>

@@ -238,6 +238,29 @@ export function resolveDropdownOption(
 }
 
 /**
+ * Block `taskId` on `dependsOnTaskId` (ClickUp Dependencies API): the path task
+ * waits for the other one. Used to chain a service's department tasks in
+ * delivery order — Creative waits for Content, Development waits for Creative.
+ *
+ * Best-effort like addClickupChecklist: by the time this runs the tasks exist
+ * and the project row is written, so a failed link is logged, not thrown.
+ */
+export async function addClickupDependency(
+  pat: string,
+  taskId: string,
+  dependsOnTaskId: string,
+): Promise<void> {
+  const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}/dependency`, {
+    method: "POST",
+    headers: { Authorization: pat, "Content-Type": "application/json" },
+    body: JSON.stringify({ depends_on: dependsOnTaskId }),
+  });
+  if (!res.ok) {
+    console.error(`dependency ${taskId} <- ${dependsOnTaskId} failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+/**
  * Add a checklist with the given items to a task (ClickUp Checklists API).
  * Shared by provision-retainer-period, push-to-clickup, and
  * create-quick-brief-task so a service/retainer-service's default checklist
