@@ -1547,6 +1547,7 @@ export type Database = {
           id: string
           kind: string
           page_path: string | null
+          reporter_member_id: string | null
           resolution_note: string | null
           resolved_at: string | null
           resolved_by: string | null
@@ -1563,6 +1564,7 @@ export type Database = {
           id?: string
           kind?: string
           page_path?: string | null
+          reporter_member_id?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -1579,6 +1581,7 @@ export type Database = {
           id?: string
           kind?: string
           page_path?: string | null
+          reporter_member_id?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null

@@ -8,6 +8,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { Bug, ImageIcon, MessageSquarePlus, Plus, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useTeam } from "@/hooks/useTeam";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
 import {
@@ -27,6 +28,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Kind = "bug" | "feedback";
 
@@ -36,9 +44,18 @@ const KINDS: { kind: Kind; label: string; icon: typeof Bug }[] = [
 ];
 
 export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { user } = useAuth();
+  const { user, currentUserId } = useAuth();
+  const { data: team = [] } = useTeam();
   const { pathname } = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Who is reporting. `currentUserId` is the roster row behind the signed-in
+  // email; it is null on the shared team@ login (and for anyone with no roster
+  // row), and that session is everyone's, so the report has to say which
+  // person it came from or triage cannot follow anything up.
+  const [reporter, setReporter] = useState<string | null>(null);
+  const reporterId = currentUserId ?? reporter;
+  const me = team.find((m) => m.id === currentUserId);
 
   const [kind, setKind] = useState<Kind>("bug");
   const [summary, setSummary] = useState("");
@@ -50,6 +67,7 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [sent, setSent] = useState(false);
 
   function reset() {
+    setReporter(null);
     setKind("bug");
     setSummary("");
     setDetails("");
@@ -83,7 +101,7 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   async function send() {
-    if (!user?.id || !summary.trim() || sending) return;
+    if (!user?.id || !summary.trim() || !reporterId || sending) return;
     setSending(true);
     setSendError(null);
     try {
@@ -96,6 +114,7 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         page_path: pathname,
         user_agent: navigator.userAgent,
         screenshot_paths: paths,
+        reporter_member_id: reporterId,
         created_by_email: user.email ?? null,
       });
       if (error) throw error;
@@ -139,6 +158,28 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 </Button>
               ))}
             </fieldset>
+
+            {currentUserId ? (
+              <p className="text-label-small text-m-on-surface-variant">
+                Reporting as {me?.full_name ?? user?.email}
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="fb-reporter">Who's reporting?</Label>
+                <Select value={reporter ?? ""} onValueChange={setReporter}>
+                  <SelectTrigger id="fb-reporter">
+                    <SelectValue placeholder="Pick your name" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {team.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="fb-summary">Summary</Label>
@@ -218,7 +259,7 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <Button variant="ghost" onClick={close}>
                 Cancel
               </Button>
-              <Button onClick={send} disabled={!summary.trim() || sending}>
+              <Button onClick={send} disabled={!summary.trim() || !reporterId || sending}>
                 {sending ? "Sending…" : "Send"}
               </Button>
             </>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_BYTES, screenshotPath, validateScreenshots } from "@/lib/feedback";
+import { MAX_BYTES, reporterName, screenshotPath, validateScreenshots } from "@/lib/feedback";
 
 function file(name: string, type: string, size: number): File {
   const f = new File(["x"], name, { type });
@@ -20,6 +20,20 @@ describe("validateScreenshots", () => {
   it("rejects a non-image and an oversized image", () => {
     expect(validateScreenshots([file("notes.pdf", "application/pdf", 10)])).toMatch(/PNG/);
     expect(validateScreenshots([file("big.png", "image/png", MAX_BYTES + 1)])).toMatch(/5 MB/);
+  });
+});
+
+describe("reporterName", () => {
+  const team = [{ id: "m1", full_name: "Brendan Gunn" }];
+
+  it("names the roster member, not the account that was signed in", () => {
+    const r = { reporter_member_id: "m1", created_by_email: "team@convertedclick.co.za" };
+    expect(reporterName(r, team)).toBe("Brendan Gunn");
+  });
+
+  it("falls back to the account email, then to Unknown", () => {
+    expect(reporterName({ reporter_member_id: null, created_by_email: "a@b.c" }, team)).toBe("a@b.c");
+    expect(reporterName({ reporter_member_id: "gone", created_by_email: null }, team)).toBe("Unknown");
   });
 });
 

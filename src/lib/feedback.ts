@@ -21,6 +21,21 @@ export function validateScreenshots(files: File[]): string | null {
   return null;
 }
 
+/**
+ * Who raised a report, for display.
+ *
+ * The roster row wins over the auth email because the email is the *account*:
+ * a local session is auto-signed-in as the shared team@ login, so every
+ * report from one would otherwise read as the same anonymous person.
+ */
+export function reporterName(
+  report: { reporter_member_id: string | null; created_by_email: string | null },
+  team: { id: string; full_name: string }[],
+): string {
+  const member = team.find((m) => m.id === report.reporter_member_id);
+  return member?.full_name ?? report.created_by_email ?? "Unknown";
+}
+
 /** `{auth uid}/{uuid}-{name}` — the first segment is load-bearing: the storage
  *  policy only lets you write into your own folder, so anything else 403s. */
 export function screenshotPath(userId: string, filename: string): string {

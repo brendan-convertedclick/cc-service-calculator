@@ -9,7 +9,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Bug, CheckCircle2, MessageSquarePlus, Search, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { signScreenshot } from "@/lib/feedback";
+import { reporterName, signScreenshot } from "@/lib/feedback";
+import { useTeam } from "@/hooks/useTeam";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ interface FeedbackReport {
   status: "open" | "resolved" | "discarded";
   resolution_note: string | null;
   resolved_at: string | null;
+  reporter_member_id: string | null;
   created_by_email: string | null;
   created_at: string;
 }
@@ -76,9 +78,11 @@ function Screenshots({ paths }: { paths: string[] }) {
 
 function ReportCard({
   report,
+  who,
   onTriage,
 }: {
   report: FeedbackReport;
+  who: string;
   onTriage: (id: string, status: "resolved" | "discarded", note: string) => Promise<void>;
 }) {
   const [note, setNote] = useState("");
@@ -99,7 +103,7 @@ function ReportCard({
         <div className="min-w-0 flex-1">
           <p className="text-title-small text-m-on-surface">{report.summary}</p>
           <p className="text-label-small text-m-on-surface-variant">
-            {report.created_by_email ?? "Unknown"} · {new Date(report.created_at).toLocaleString()}
+            {who} · {new Date(report.created_at).toLocaleString()}
             {report.page_path && ` · ${report.page_path}`}
           </p>
         </div>
@@ -168,6 +172,7 @@ function ReportCard({
 }
 
 export function Feedback() {
+  const { data: team = [] } = useTeam();
   const [rows, setRows] = useState<FeedbackReport[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -222,9 +227,9 @@ export function Feedback() {
           (!q ||
             r.summary.toLowerCase().includes(q) ||
             r.details.toLowerCase().includes(q) ||
-            (r.created_by_email ?? "").toLowerCase().includes(q)),
+            reporterName(r, team).toLowerCase().includes(q)),
       ),
-    [rows, status, kind, q],
+    [rows, status, kind, q, team],
   );
 
   const countBy = (pick: (r: FeedbackReport) => string, value: string) =>
@@ -280,7 +285,7 @@ export function Feedback() {
         ) : (
           <div className="space-y-3">
             {filtered.map((r) => (
-              <ReportCard key={r.id} report={r} onTriage={triage} />
+              <ReportCard key={r.id} report={r} who={reporterName(r, team)} onTriage={triage} />
             ))}
           </div>
         )}
