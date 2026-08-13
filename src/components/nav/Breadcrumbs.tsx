@@ -23,6 +23,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   reconciliation: "Reconciliation",
   productivity: "Productivity",
   guides: "Guides",
+  feedback: "Feedback",
   systems: "Systems",
   staff: "My work",
   profile: "Profile",

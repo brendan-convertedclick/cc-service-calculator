@@ -67,6 +67,9 @@ const ProjectDetail = lazy(() =>
 const NewProjectWizard = lazy(() =>
   import("@/pages/NewProjectWizard").then((m) => ({ default: m.NewProjectWizard })),
 );
+const Feedback = lazy(() =>
+  import("@/pages/Feedback").then((m) => ({ default: m.Feedback })),
+);
 const RetainersList = lazy(() =>
   import("@/pages/RetainersList").then((m) => ({ default: m.RetainersList })),
 );
@@ -210,6 +213,7 @@ export default function App() {
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
                     the nav rail and breadcrumbs like every other queue. */}
+                <Route path="feedback" element={<Feedback />} />
                 <Route element={<RequireOwner />}>
                   <Route path="escalations" element={<Escalations />} />
                 </Route>

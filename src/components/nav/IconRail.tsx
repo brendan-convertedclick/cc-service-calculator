@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
+import { Bug, ChevronDown, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/AuthContext"
@@ -21,6 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { FeedbackDialog } from "@/components/FeedbackDialog"
 
 const NavRow = forwardRef<
   HTMLAnchorElement,
@@ -192,6 +193,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
   const { role } = useCurrentRole()
   const entries = navEntriesFor(role)
   const navigate = useNavigate()
+  const [reporting, setReporting] = useState(false)
 
   // Who's signed in — resolved from the team roster (falls back to the auth
   // email, e.g. the shared team@ login which has no roster row).
@@ -288,9 +290,33 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           </>
         )}
 
-        {/* Profile + Sign out — pinned to bottom. The avatar is the profile
-            link: it's where people already look for their own account. */}
+        {/* Report a bug + Profile + Sign out — pinned to bottom. The avatar is
+            the profile link: it's where people already look for their own
+            account. Reporting sits with them because it is about you and this
+            session, not about a section of the product. */}
         <div className="mt-auto space-y-1">
+          {navOpen ? (
+            <button
+              onClick={() => setReporting(true)}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-1.5 text-label-medium tracking-normal text-m-on-surface-variant hover:bg-m-surface-container transition-colors"
+            >
+              <Bug className="h-[18px] w-[18px] shrink-0" />
+              <span className="whitespace-nowrap overflow-hidden">Report a bug</span>
+            </button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Report a bug"
+                  onClick={() => setReporting(true)}
+                  className="grid h-10 w-10 place-items-center rounded-md text-m-on-surface-variant hover:bg-m-surface-container hover:text-m-on-surface transition-colors"
+                >
+                  <Bug className="h-[18px] w-[18px]" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Report a bug</TooltipContent>
+            </Tooltip>
+          )}
           {navOpen ? (
             <NavLink
               to="/profile"
@@ -365,6 +391,7 @@ export function IconRail({ navOpen, onToggle }: IconRailProps) {
           )}
         </div>
       </aside>
+      <FeedbackDialog open={reporting} onOpenChange={setReporting} />
     </TooltipProvider>
   )
 }

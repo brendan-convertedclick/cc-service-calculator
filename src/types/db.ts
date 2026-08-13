@@ -1538,6 +1538,57 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_reports: {
+        Row: {
+          created_at: string
+          created_by: string
+          created_by_email: string | null
+          details: string
+          id: string
+          kind: string
+          page_path: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          screenshot_paths: string[]
+          status: string
+          summary: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          created_by_email?: string | null
+          details?: string
+          id?: string
+          kind?: string
+          page_path?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          screenshot_paths?: string[]
+          status?: string
+          summary: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          created_by_email?: string | null
+          details?: string
+          id?: string
+          kind?: string
+          page_path?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          screenshot_paths?: string[]
+          status?: string
+          summary?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       extension_requests: {
         Row: {
           admin_approved_at: string | null

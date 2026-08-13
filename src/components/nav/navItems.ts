@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Bug,
   Building2,
   CalendarRange,
   ClipboardList,
@@ -84,6 +85,7 @@ const team: NavItem           = { to: "/team",          label: "Team",          
 const reconciliation: NavItem = { to: "/reconciliation",label: "Reconciliation",icon: FileBarChart2,     end: false }
 const rules: NavItem          = { to: "/rules",         label: "Rules",         icon: SlidersHorizontal, end: false }
 const guides: NavItem         = { to: "/guides",        label: "Guides",        icon: BookOpen,          end: false }
+const feedback: NavItem       = { to: "/feedback",      label: "Feedback",      icon: Bug,               end: false }
 
 const reports: NavItem        = { to: "/reports",       label: "Reports",       icon: ReceiptText,       end: false }
 const settings: NavItem       = { to: "/settings",      label: "Settings",      icon: SettingsIcon,      end: false }
@@ -106,7 +108,7 @@ const organizationSection: NavSection = {
 const operationsSection: NavSection = {
   label: "Operations",
   icon: Wrench,
-  items: [reconciliation, rules, guides],
+  items: [reconciliation, rules, guides, feedback],
 }
 
 // A single ordered nav list so standalone items and section groups can be
