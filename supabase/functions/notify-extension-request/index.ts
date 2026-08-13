@@ -16,7 +16,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
-import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
+import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { sendGmail } from "../_shared/gmail.ts";
 
@@ -121,9 +121,10 @@ Deno.serve(async (req: Request) => {
       .select("clickup_chat_channel_id")
       .eq("id", row.client_id)
       .single();
-    const chatChannelId =
+    const chatChannelId = approvalsChannel(
       (clientRaw as { clickup_chat_channel_id?: string } | null)?.clickup_chat_channel_id
-      ?? CONVERTED_CLICK_CHANNEL_ID;
+      ?? CONVERTED_CLICK_CHANNEL_ID,
+    );
 
     // ClickUp chat: one message, mention every approver so it actually pings them.
     // Post as the requester's own ClickUp identity when they've connected one

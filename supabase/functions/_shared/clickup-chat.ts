@@ -39,6 +39,25 @@ export const CONVERTED_CLICK_CHANNEL_ID = "13kp3g-26752";
 export const NEW_TASKS_CHANNEL_ID = "13kp3g-34832";
 export const MEETINGS_CHANNEL_ID = "13kp3g-34852";
 
+// The third ops channel (2026-08-12): everything in the Approvals queue —
+// extension requests, revision requests and staff briefs — plus the approve/
+// reject outcome that answers each one. Before this, approval traffic went to
+// the CLIENT's own channel, which put internal capacity chatter ("needs 4 more
+// points") in front of the client.
+// Blanking this falls back to the old routing (the client's channel) rather
+// than posting into a channel id ClickUp will reject — so notifications
+// degrade instead of vanishing if the channel is ever removed.
+export const APPROVALS_CHANNEL_ID = "13kp3g-35052";
+
+/**
+ * Where an approval-queue message goes: the Approvals channel when one is
+ * configured, else whatever the caller would have used before (the client's
+ * channel, falling back to Converted Click).
+ */
+export function approvalsChannel(fallbackChannelId: string): string {
+  return APPROVALS_CHANNEL_ID || fallbackChannelId;
+}
+
 // Work Stream option labels (departments.clickup_work_stream) that mean the
 // task itself IS a meeting rather than deliverable work — created via the
 // generic brief/task-creation functions (not manage-internal-meeting), but

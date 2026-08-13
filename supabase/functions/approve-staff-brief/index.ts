@@ -14,7 +14,7 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
-import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
+import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type StaffBrief = {
   id: string;
@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
     // Confirm to the submitter in chat that their brief went through — same
     // client-channel routing as every other notify function (fallback to
     // Converted Click if the client has no channel mapped).
-    const chatChannelId = cli.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID;
+    const chatChannelId = approvalsChannel(cli.clickup_chat_channel_id ?? CONVERTED_CLICK_CHANNEL_ID);
     const mention = mentionToken({ clickupUserId: member.clickup_user_id, name: member.full_name });
     await postChatMessage(
       clickupPat,

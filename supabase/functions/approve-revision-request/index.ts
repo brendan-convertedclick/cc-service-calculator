@@ -25,7 +25,8 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { swapRevisionSuffix } from "../_shared/revision-logic.ts";
 import { cuFetch } from "../_shared/clickup.ts";
-import { postChatMessage, mentionToken, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
+import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
+import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type RevisionRow = {
   id: string;
@@ -50,7 +51,10 @@ Deno.serve(async (req: Request) => {
     if (!revision_request_id) return json({ error: "revision_request_id required" }, 400);
 
     const supabase = createUserClient(req);
-    const clickupPat = Deno.env.get("CLICKUP_PAT");
+    // The approver's own ClickUp identity, not the shared PAT — see
+    // approve-extension-request. Falls back to the shared PAT when the
+    // approver hasn't connected ClickUp yet.
+    const { token: clickupPat } = await getOperatorClickupToken(req);
     if (!clickupPat) return json({ error: "CLICKUP_PAT secret not set" }, 500);
 
     const callerEmail = (await supabase.auth.getUser()).data.user?.email ?? "";
@@ -96,9 +100,10 @@ Deno.serve(async (req: Request) => {
       .select("clickup_chat_channel_id")
       .eq("id", row.client_id)
       .single();
-    const chatChannelId =
+    const chatChannelId = approvalsChannel(
       (clientRow as { clickup_chat_channel_id?: string } | null)?.clickup_chat_channel_id
-      ?? CONVERTED_CLICK_CHANNEL_ID;
+      ?? CONVERTED_CLICK_CHANNEL_ID,
+    );
 
     const CU = {
       headers: { Authorization: clickupPat, "Content-Type": "application/json" },
