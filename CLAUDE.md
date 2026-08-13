@@ -33,7 +33,7 @@ If a channel session ever does get stuck this way, don't just restart the launch
 
 ## conductor MCP server setup
 
-The repo ships a local MCP server at `mcp-server/` that exposes 7 agency tools (find-client, check-duplicate-brief, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief).
+The repo ships an MCP server at `mcp-server/` exposing 24 tools: 20 for intake (clients, briefs, sender rules) and 4 for the systems library (`list-procedures`, `get-procedure`, `create-procedure`, `add-procedure-task`). `mcp-server/README.md` is the full account — setup, the procedure-writing shape, and the security position.
 
 **First-time setup (once per machine):**
 
@@ -47,6 +47,14 @@ cp .env.example .env
 The server runs via `npm run dev` (tsx, no build step needed). It is registered in `.mcp.json` as `conductor` and starts automatically when Claude Code opens this repo.
 
 To call tools in agent sessions: use `mcp__conductor__<tool-name>`.
+
+**Two transports, one tool registry.** `src/server.ts` builds the server; `src/index.ts` serves it over stdio (what `.mcp.json` launches) and `src/http.ts` serves it over **stateless** Streamable HTTP for clients on other people's machines — a server and transport per request, nothing held between calls. `npm run http` listens on 8787, `vite.config.ts` proxies `/mcp` to it, and the existing tunnel makes that `https://conductor.convertedclick.co.za/mcp`.
+
+Adding a tool means one entry in the `tools` table in `src/server.ts` — do not register it in an entry point, or it will exist on one transport and not the other. Mark it `true` in the fourth slot if it only reads; clients use `readOnlyHint` to decide what may run without asking.
+
+**The HTTP transport runs on the service role key and is gated by one shared bearer token (`MCP_AUTH_TOKEN`).** That token is the only thing between the internet and every client, brief and rate in the agency. Per-user auth is the real fix and has not been done — don't hand the URL outside the team until it is.
+
+**Writing procedures through the MCP.** `create-procedure` takes departments, owners and services **by name**, not uuid, and resolves every name before writing anything so a typo fails with nothing created. It writes the same rows the editor writes: top-level `process_steps` = task (`materialise_as: 'task'`), children = steps (`'checklist_item'`), consecutive tasks chained by a `system_edges` row and laid out left-to-right. Hours go on the steps — the rollup trigger owns the task's total. The result is a draft; publishing stays an admin act behind `publish_system_revision`.
 
 ### Sender rule enforcement in intake
 

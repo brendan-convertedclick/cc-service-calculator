@@ -23,6 +23,18 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
     allowedHosts,
+    proxy: {
+      // The MCP server (mcp-server/src/http.ts) is its own process on 8787.
+      // Proxying it here means the tunnel already fronting this dev server
+      // also serves /mcp, so a teammate's client has one https URL to point at
+      // and there is no second hostname or DNS record to keep alive. Returns
+      // 502 when that process isn't running, which is the honest answer.
+      "/mcp": {
+        target: `http://localhost:${env.MCP_HTTP_PORT ?? 8787}`,
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/mcp/, "") || "/",
+      },
+    },
   },
   test: {
     environment: "jsdom",
