@@ -14,6 +14,7 @@ import { ChecklistSummary } from "@/components/ChecklistSummary";
 import { SaveAsRuleModal } from "@/components/SaveAsRuleModal";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
+import { parseStepHours } from "@/lib/step-hours";
 
 interface Props {
   serviceId: string;
@@ -319,23 +320,25 @@ export function ProcessFlow({ serviceId, priceCents, pricingModel, ruleId }: Pro
                     <Input
                       type="number"
                       step="0.25"
-                      min="0.25"
+                      min="0"
                       className="h-10 w-24"
                       placeholder="hours"
                       defaultValue={s.estimated_hours != null ? String(s.estimated_hours) : ""}
                       onBlur={(e) => {
-                        const raw = e.target.value.trim();
-                        if (raw === "") {
-                          update.mutate({ id: s.id, patch: { estimated_hours: null } });
-                          return;
-                        }
-                        const n = Number(raw);
-                        if (!Number.isFinite(n) || n < 0.25) {
-                          toast.error("Step hours must be at least 0.25");
+                        // Floor comes from parseStepHours (shared with the
+                        // Systems editors); the quarter-hour rounding is this
+                        // page's own — service estimates are quoted in points.
+                        const result = parseStepHours(e.target.value);
+                        if (!result.ok) {
+                          toast.error(result.message);
                           e.target.value = s.estimated_hours != null ? String(s.estimated_hours) : "";
                           return;
                         }
-                        const rounded = Math.round(n / 0.25) * 0.25;
+                        if (result.value === null) {
+                          update.mutate({ id: s.id, patch: { estimated_hours: null } });
+                          return;
+                        }
+                        const rounded = Math.round(result.value / 0.25) * 0.25;
                         e.target.value = String(rounded);
                         update.mutate({ id: s.id, patch: { estimated_hours: rounded } });
                       }}

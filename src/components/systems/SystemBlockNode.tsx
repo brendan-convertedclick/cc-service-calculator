@@ -4,7 +4,7 @@
 // the one legitimate inline-style exception; everything else is `m-` classes.
 import { useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy as CopyIcon, ListChecks, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,19 @@ export type BlockNodeData = {
   step: Step;
   department: DeptRow | null;
   owner: TeamRow | null;
-  // Full sub-step rows (title/ordinal), not just a count — sub-steps carry
-  // no hours (process_steps_substep_no_hours), so that's all there is to
-  // show in the nested view.
+  // The task's steps, in order. They render inside the card rather than as a
+  // count, because "which steps belong to this task" is the one thing the flat
+  // canvas could never say — see 0123.
   subSteps: Step[];
+  /** Position in the run: the "Task 3" the list shows. */
+  taskNumber?: number;
+  /** Step id -> its number across the whole procedure, not within this task. */
+  stepNumbers?: Map<string, number>;
+  /** Adds a step to this task straight from the canvas. */
+  onAddStep?: (task: Step) => void;
+  /** Duplicate / delete from the selected node's toolbar. */
+  onDuplicate?: (task: Step) => void;
+  onDeleteTask?: (task: Step) => void;
   // "Highlight by person" — set on every node from SystemCanvas.tsx's render
   // overlay when someone's avatar is toggled on; dims blocks that aren't
   // theirs. Not persisted, view-only.
@@ -56,7 +65,8 @@ export function initials(fullName: string): string {
 }
 
 export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
-  const { step, department, owner, subSteps, dimmed, ownerColor, onAvatarClick, onSelectSubStep } = data;
+  const { step, department, owner, subSteps, dimmed, ownerColor, onAvatarClick, onSelectSubStep,
+    taskNumber, stepNumbers, onAddStep, onDuplicate, onDeleteTask } = data;
   const [nestedOpen, setNestedOpen] = useState(false);
   const addSub = useCreateStep();
   const updateSub = useUpdateStep();
@@ -105,6 +115,9 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
             className="text-label-small font-bold uppercase tracking-wide"
             style={department?.color ? { color: department.color } : undefined}
           >
+            {taskNumber != null && (
+              <span className="text-m-on-surface-variant">Task {taskNumber} · </span>
+            )}
             {department.name}
           </p>
         )}
@@ -154,13 +167,117 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
               {step.estimated_hours}h
             </span>
           )}
-          {hasSubSteps && (
-            <span className="rounded-md bg-m-surface-container-high px-2 py-0.5 text-label-small font-semibold text-m-on-surface-variant">
-              {subSteps.length} sub
-            </span>
+        </div>
+
+        {/* The checklist, inside the card that owns it. Tasks run left to
+            right across the canvas because that axis is time; steps run top to
+            bottom inside one because they are one person's list, not a
+            hand-off. Numbers count across the whole procedure. */}
+        <div
+          className={cn(
+            "mt-2 rounded-lg border-t px-2 py-1.5",
+            unassigned ? "border-m-error/25 bg-m-error-container/40" : "border-m-outline-variant bg-m-surface-container-low"
           )}
+        >
+          <p className="text-label-small font-semibold uppercase tracking-wider text-m-on-surface-variant">
+            {hasSubSteps ? `Checklist · ${subSteps.length}` : "No checklist"}
+          </p>
+          {hasSubSteps && (
+            <ol className="mt-1 space-y-0.5">
+              {subSteps.map((s) => (
+                <li key={s.id} className="flex items-center gap-1.5 text-label-small text-m-on-surface">
+                  <span className="w-3 flex-none text-right font-mono text-label-small text-m-on-surface-variant">
+                    {stepNumbers?.get(s.id) ?? ""}
+                  </span>
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 flex-none rounded-[3px] border",
+                      s.materialise_as === "none" ? "border-dashed border-m-outline" : "border-m-outline"
+                    )}
+                    aria-hidden
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectSubStep?.(s);
+                    }}
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-left hover:underline",
+                      s.materialise_as === "none" && "text-m-on-surface-variant line-through decoration-1"
+                    )}
+                    title={s.materialise_as === "none" ? `${s.title} — skipped on push` : s.title}
+                  >
+                    {s.title}
+                  </button>
+                  {s.estimated_hours != null && (
+                    <span className="flex-none font-mono text-label-small text-m-on-surface-variant">
+                      {s.estimated_hours}h
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddStep?.(step);
+            }}
+            className="mt-1 rounded px-0.5 font-mono text-label-small text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+          >
+            + step
+          </button>
         </div>
       </div>
+
+      {/* Everything you can do to a task, on the task. The canvas could only
+          ever create a decision before this — every other change meant going
+          back to the list. */}
+      {selected && (
+        <div
+          className="nodrag absolute -top-9 left-0 z-10 flex items-center gap-0.5 rounded-lg border border-m-outline-variant bg-m-surface p-1 shadow-elev-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            title="Add a step to this task"
+            aria-label={`Add a step to "${step.title}"`}
+            onClick={() => onAddStep?.(step)}
+            className="rounded p-1 text-m-primary hover:bg-m-surface-container-high"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Edit this task's steps"
+            aria-label={`Edit steps of "${step.title}"`}
+            onClick={() => setNestedOpen(true)}
+            className="rounded p-1 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Duplicate this task and its steps"
+            aria-label={`Duplicate "${step.title}"`}
+            onClick={() => onDuplicate?.(step)}
+            className="rounded p-1 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+          >
+            <CopyIcon className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Delete this task"
+            aria-label={`Delete "${step.title}"`}
+            onClick={() => onDeleteTask?.(step)}
+            className="rounded p-1 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <Dialog open={nestedOpen} onOpenChange={setNestedOpen}>
         {/* Every handler in here stops propagation. React portals (this Dialog

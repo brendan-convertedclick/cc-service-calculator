@@ -7,6 +7,12 @@ import dagre from "dagre";
 import type { Edge, Node } from "@xyflow/react";
 
 const BLOCK_SIZE = { width: 220, height: 100 };
+// A block is a task, and since 0123 it renders its steps inside itself, so its
+// height is no longer a constant. Dagre spaces ranks from the numbers it is
+// given — feed it the old flat 100 and a task with six steps overlaps the one
+// below it the moment you hit Tidy up.
+const CHECKLIST_CHROME = 34; // the "Checklist · n" label plus the "+ step" row
+const STEP_ROW_HEIGHT = 18;
 const DECISION_SIZE = { width: 130, height: 56 };
 // Start/Goal pills. Never laid out by dagre (they're synthetic — see
 // SystemCanvas's terminals memo), but the canvas positions them relative to
@@ -25,7 +31,12 @@ export const TERMINAL_SIZE = { width: 190, height: 56 };
 // internal per-node size measurement, which can still be catching up to a
 // batch position update by the time a fit is requested.
 export function sizeOf(node: Node): { width: number; height: number } {
-  return node.type === "decision" ? { ...DECISION_SIZE } : { ...BLOCK_SIZE };
+  if (node.type === "decision") return { ...DECISION_SIZE };
+  const steps = (node.data as { subSteps?: unknown[] } | undefined)?.subSteps?.length ?? 0;
+  return {
+    width: BLOCK_SIZE.width,
+    height: BLOCK_SIZE.height + CHECKLIST_CHROME + steps * STEP_ROW_HEIGHT,
+  };
 }
 
 // Lays out the whole graph left-to-right and returns a NEW node array with

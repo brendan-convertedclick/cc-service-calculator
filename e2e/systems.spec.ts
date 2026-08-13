@@ -100,7 +100,7 @@ test.describe("Systems", () => {
 
     expect(systemId, "system was created").toBeTruthy();
 
-    await test.step("steps attach to the system (DB-direct — no 'add step' UI exists outside canvas drag)", async () => {
+    await test.step("top-level rows attach to the system as TASKS (DB-direct)", async () => {
       const { error: e1 } = await owner.from("process_steps").insert({
         system_id: systemId,
         ordinal: 1,
@@ -118,13 +118,15 @@ test.describe("Systems", () => {
 
       await page.reload();
       await waitForShell(page);
-      // The detail page opens on Setup, and each step's title is an editable
-      // input — so this reads the Steps pane's fields, not page text.
-      await page.getByRole("button", { name: /^Steps/ }).click();
-      await expect(page.getByRole("textbox", { name: "Step 1 title" })).toHaveValue(
+      // The detail page opens on Setup, and each row's name is an editable
+      // input — so this reads the Tasks pane's fields, not page text.
+      // A top-level process_steps row is a TASK since 0123 (a step is a child
+      // row), which is why these are "Task N name" and not "Step N title".
+      await page.getByRole("button", { name: /^Tasks/ }).click();
+      await expect(page.getByRole("textbox", { name: "Task 1 name" })).toHaveValue(
         `${E2E_PREFIX}Step one`,
       );
-      await expect(page.getByRole("textbox", { name: "Step 2 title" })).toHaveValue(
+      await expect(page.getByRole("textbox", { name: "Task 2 name" })).toHaveValue(
         `${E2E_PREFIX}Step two`,
       );
     });

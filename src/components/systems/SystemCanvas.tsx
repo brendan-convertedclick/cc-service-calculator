@@ -50,6 +50,7 @@ import { BlockInspector } from "./BlockInspector";
 import { DeleteStepDialog } from "./DeleteStepDialog";
 import { DeptRollup } from "./DeptRollup";
 import { sizeOf, terminalAnchors, useAutoLayout } from "./useAutoLayout";
+import { groupProcedure } from "@/lib/procedure-shape";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
@@ -148,6 +149,12 @@ type CanvasProps = {
   onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
   focusStepId?: { id: string; nonce: number } | null;
+  /** Adds a step to a task's checklist without leaving the canvas. */
+  onAddStep?: (task: Step) => void;
+  /** Copies a task and its steps. */
+  onDuplicateTask?: (task: Step) => void;
+  /** Drops a new task into the run directly after this one. */
+  onInsertTaskAfter?: (task: Step) => void;
 };
 
 export function SystemCanvas(props: CanvasProps) {
@@ -167,6 +174,9 @@ function SystemCanvasInner({
   onPropose,
   onCreateStep,
   focusStepId,
+  onAddStep,
+  onDuplicateTask,
+  onInsertTaskAfter,
 }: CanvasProps) {
   const { data: topSteps = [], isLoading: stepsLoading } = useSystemSteps(systemId);
   const { data: depts = [] } = useDepartments();
@@ -194,6 +204,18 @@ function SystemCanvasInner({
     }
     return m;
   }, [subSteps]);
+
+  // Task and step numbering, from the one helper the list uses — so "Task 3"
+  // and "step 4" mean the same thing on the canvas as they do in the list.
+  const { taskNumberById, stepNumberById } = useMemo(() => {
+    const taskNumbers = new Map<string, number>();
+    const stepNumbers = new Map<string, number>();
+    for (const group of groupProcedure(topSteps, subSteps)) {
+      taskNumbers.set(group.task.id, group.number);
+      for (const s of group.steps) stepNumbers.set(s.step.id, s.number);
+    }
+    return { taskNumberById: taskNumbers, stepNumberById: stepNumbers };
+  }, [topSteps, subSteps]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>([]);
   // Guards the seeding effect below to "once per system", not "once per
@@ -251,10 +273,15 @@ function SystemCanvasInner({
         selected: selectedEdgeIds.has(e.id),
         // Restore the branch this edge left from, or a split collapses on reload.
         sourceHandle: e.source_handle ?? undefined,
-        data: { isHandoff },
+        data: {
+          isHandoff,
+          // Insert lands after the edge's SOURCE, which is what "here" means
+          // when you click the line between two tasks.
+          onInsert: onInsertTaskAfter && source ? () => onInsertTaskAfter(source) : undefined,
+        },
       };
     });
-  }, [edgeRows, topStepById, selectedEdgeIds]);
+  }, [edgeRows, topStepById, selectedEdgeIds, onInsertTaskAfter]);
 
   // Seed local node state once per system (on identity, not on every steps/
   // edges refetch): the position mutation never invalidates ["process_steps"]
@@ -390,16 +417,22 @@ function SystemCanvasInner({
           department,
           owner,
           subSteps: subStepsByParent.get(step.id) ?? [],
+          taskNumber: taskNumberById.get(step.id),
+          stepNumbers: stepNumberById,
           dimmed,
           ownerColor: owner ? colorByOwner.get(owner.id) ?? null : null,
           onAvatarClick: handleAvatarClick,
           onSelectSubStep: handleSelectSubStep,
+          onAddStep,
+          onDuplicate: onDuplicateTask,
+          onDeleteTask: setDeleteTarget,
         },
       };
       return blockNode;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, topStepById, deptById, teamById, colorByOwner, subStepsByParent, highlightedOwnerId]);
+  }, [nodes, topStepById, deptById, teamById, colorByOwner, subStepsByParent, highlightedOwnerId,
+      taskNumberById, stepNumberById, onAddStep, onDuplicateTask]);
 
   // Start and Goal. Derived every render from live node positions (so they
   // follow drags and Tidy up) and from edgeRows: Start feeds every block with

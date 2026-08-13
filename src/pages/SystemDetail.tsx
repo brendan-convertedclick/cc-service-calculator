@@ -6,22 +6,15 @@
 // ZERO ClickUp writes happen from this page.
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  CircleSlash,
-  Copy,
   History,
-  ListChecks,
   Plus,
-  SquareKanban,
+  Save,
   Settings2,
-  Trash2,
-  User,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -38,9 +31,10 @@ import {
   type SystemDefinitionWithJoins,
 } from "@/hooks/useSystemDefinitions";
 import { useCreateStep, useReorderStep, useSystemSteps, useUpdateStep } from "@/hooks/useProcessSteps";
-import { useConnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
+import { useConnectSteps, useDisconnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
 import { DeleteStepDialog } from "@/components/systems/DeleteStepDialog";
-import { SignalNoise, VerbSelect, verdict } from "@/components/systems/StepSignal";
+import { TaskList } from "@/components/systems/TaskList";
+import { verdict } from "@/components/systems/StepSignal";
 import {
   useProposeRevision,
   usePublishRevision,
@@ -48,6 +42,7 @@ import {
   useSystemRevisions,
 } from "@/hooks/useSystemRevisions";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useDepartments } from "@/hooks/useDepartments";
 import { memberColors, useTeam } from "@/hooks/useTeam";
 import { Button } from "@/components/ui/button";
@@ -56,8 +51,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +60,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, errorMessage, toggleInSet } from "@/lib/utils";
+import { parseStepHours } from "@/lib/step-hours";
+import { applyDraft } from "@/lib/procedure-shape";
+import { FieldHint } from "@/components/FieldHint";
 import { supabase } from "@/lib/supabase";
 // open_step_slot (0122) isn't in the generated Database types — same untyped
 // escape hatch useRecurringServiceOptions uses.
@@ -93,28 +89,11 @@ type TeamRow = Database["public"]["Tables"]["team_members"]["Row"];
 type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
 type StepUpdate = Database["public"]["Tables"]["process_steps"]["Update"];
 type SystemRevisionRow = Database["public"]["Tables"]["system_revisions"]["Row"];
-type MaterialiseMode = Database["public"]["Enums"]["materialise_mode"];
-
-// The label's icon twin — MATERIALISE_LABEL spells the same three modes out.
-const MATERIALISE_ICON: Record<MaterialiseMode, LucideIcon> = {
-  task: SquareKanban,
-  checklist_item: ListChecks,
-  none: CircleSlash,
-};
 
 // Where a step added from the "Add step" button lands relative to the one it
 // continues from — roughly a block width plus a gap, so the auto-drawn link
 // reads left-to-right instead of overlapping.
 const NEXT_STEP_GAP_X = 280;
-
-// Deliberately not imported from SystemBlockNode's `initials`: that module
-// pulls in @xyflow/react, which is lazy-loaded precisely so it stays out of
-// the main bundle.
-function stepOwnerInitials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  return ((parts[0][0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] ?? "" : "")).toUpperCase();
-}
 
 const REVISION_STATE_BADGE: Record<string, { variant: "muted" | "warning" | "success" | "outline"; label: string }> = {
   draft: { variant: "muted", label: "Draft" },
@@ -189,6 +168,7 @@ export function SystemDetail() {
   const updateStep = useUpdateStep();
   const reorder = useReorderStep();
   const connect = useConnectSteps(id ?? "");
+  const disconnect = useDisconnectSteps(id ?? "");
   // Both share a query key with the canvas, so on the Steps pane these are
   // cache reads, not extra round-trips. Needed here so the delete confirm can
   // name what it's about to take with the row.
@@ -230,17 +210,20 @@ export function SystemDetail() {
         const row = {
           system_id: id,
           service_id: system?.service_id ?? null,
-          title: opts.title ?? "New step",
+          title: opts.title ?? "New task",
           department_id: null,
           // Most steps in a procedure belong to whoever owns the procedure —
           // start there and let the avatar picker say otherwise.
           owner_id: system?.owner_id ?? null,
           estimated_hours: null,
+          // A top-level row is a TASK — one ClickUp task (0123). The column
+          // default ('checklist_item', 0121) still belongs to the service-side
+          // editor, where a step is a line on the service x department task,
+          // so it is overridden rather than changed.
           // A process block is a stage, not work: its hours and its ClickUp
-          // artefact live on the procedures attached to it. The column default
-          // ('checklist_item', 0121) would push a phantom artefact per stage
-          // and double-count against the procedures underneath.
-          ...(isProcess ? { materialise_as: "none" as const } : {}),
+          // artefact live on the procedures attached to it, so it materialises
+          // as nothing and would otherwise double-count against them.
+          materialise_as: isProcess ? ("none" as const) : ("task" as const),
           pos_x: pos_x != null ? Math.round(pos_x) : null,
           pos_y: pos_y != null ? Math.round(pos_y) : null,
           ...opts.fields,
@@ -302,8 +285,10 @@ export function SystemDetail() {
   // hours, ClickUp mode, signal answers) is the point of duplicating. Identity,
   // ordinal and position are dropped; the copy lands directly after its
   // source, which is where you're looking when you click Duplicate.
-  // Sub-steps aren't copied.
-  function duplicateStep(step: StepRow) {
+  //
+  // A task's steps come with it: duplicating "On-page SEO" to get a second pass
+  // and finding it empty is not a copy of anything. A step duplicates alone.
+  async function duplicateStep(row: StepRow) {
     const {
       id: _id,
       created_at: _created,
@@ -312,66 +297,249 @@ export function SystemDetail() {
       pos_x: _x,
       pos_y: _y,
       ...fields
-    } = step;
-    void createStep({ after: step, fields: { ...fields, title: `${step.title} (copy)` } });
+    } = row;
+
+    if (row.parent_id) {
+      await createSubStepRow(row.parent_id, { ...fields, title: `${row.title} (copy)` }, row);
+      return;
+    }
+
+    const copy = await createStep({ after: row, fields: { ...fields, title: `${row.title} (copy)` } });
+    if (!copy) return;
+    const children = subSteps
+      .filter((s) => s.parent_id === row.id)
+      .sort((a, b) => a.ordinal - b.ordinal);
+    for (const [i, child] of children.entries()) {
+      const { id: _cid, created_at: _cc, updated_at: _cu, ordinal: _co, pos_x: _cx, pos_y: _cy, ...childFields } = child;
+      try {
+        await addStep.mutateAsync({ ...childFields, parent_id: copy.id, ordinal: i + 1 });
+      } catch (e) {
+        toast.error(`Copied the task but not all of its steps: ${errorMessage(e)}`);
+        return;
+      }
+    }
   }
 
-  function patchStep(step: StepRow, patch: StepUpdate, revert?: () => void) {
-    updateStep.mutate(
-      { id: step.id, patch },
-      {
-        onError: (e) => {
-          toast.error(`Could not save that: ${errorMessage(e)}`);
-          revert?.();
-        },
+  // Field edits are STAGED, not written. Autosave-on-blur meant tabbing
+  // through a task to read it could rewrite it, and there was no way to try a
+  // wording and back out. Structural actions (add, delete, duplicate,
+  // reorder, promote, fold) still write immediately — they change what the
+  // canvas and the numbering are drawn from, and a half-applied structure is
+  // not something a Save button can hold coherently.
+  const [draft, setDraft] = useState<Map<string, StepUpdate>>(new Map());
+  const dirty = draft.size > 0;
+
+  function patchStep(step: StepRow, patch: StepUpdate) {
+    setDraft((prev) => {
+      const next = new Map(prev);
+      next.set(step.id, { ...(next.get(step.id) ?? {}), ...patch });
+      return next;
+    });
+  }
+
+  /** Returns true only if every staged edit landed — the caller uses that to
+   *  decide whether it is safe to leave the page. */
+  async function saveDraft(): Promise<boolean> {
+    const failed = new Map<string, StepUpdate>();
+    let saved = 0;
+    for (const [rowId, patch] of draft) {
+      try {
+        await updateStep.mutateAsync({ id: rowId, patch });
+        saved += 1;
+      } catch (e) {
+        failed.set(rowId, patch);
+        toast.error(`Could not save one of the changes: ${errorMessage(e)}`);
       }
-    );
+    }
+    // Anything that failed stays staged, so Save is still lit and the work
+    // isn't silently dropped.
+    setDraft(failed);
+    if (failed.size === 0) {
+      toast.success(saved === 1 ? "Saved 1 change" : `Saved ${saved} changes`);
+      return true;
+    }
+    return false;
+  }
+
+  function discardDraft() {
+    setDraft(new Map());
+  }
+
+  const { pending, setPending, guard } = useUnsavedChanges(dirty);
+  const navigate = useNavigate();
+
+  // Leaving the Tasks pane is leaving the editor as far as the work is
+  // concerned — the fields aren't rendered any more, so the staged edits would
+  // sit there invisibly until something else cleared them.
+  function switchPane(next: "setup" | "steps" | "revisions") {
+    if (next === pane) return;
+    guard(() => setPane(next));
   }
 
   function renameStep(step: StepRow, raw: string, revert: () => void) {
     const value = raw.trim();
     if (value === step.title) return;
     if (!value) {
-      toast.error("A step needs a title");
+      toast.error("Give this a name");
       revert();
       return;
     }
-    patchStep(step, { title: value }, revert);
+    patchStep(step, { title: value });
   }
 
   function saveHours(step: StepRow, raw: string, revert: () => void) {
-    const value = raw.trim();
-    if (!value) {
-      if (step.estimated_hours == null) return;
-      patchStep(step, { estimated_hours: null }, revert);
-      return;
-    }
-    const parsed = Number(value);
-    // process_steps_min_hours: null, or at least 0.25. Caught here so a typo
-    // reads as a message rather than a 400 from Postgres.
-    if (Number.isNaN(parsed) || parsed < 0.25) {
-      toast.error("Hours must be blank or at least 0.25");
+    // parseStepHours owns process_steps_min_hours, so a typo reads as a
+    // message rather than a 400 from Postgres — and the rule lives in one
+    // place shared with the canvas inspector.
+    const result = parseStepHours(raw);
+    if (!result.ok) {
+      toast.error(result.message);
       revert();
       return;
     }
-    if (parsed === step.estimated_hours) return;
-    patchStep(step, { estimated_hours: parsed }, revert);
+    if (result.value === step.estimated_hours) return;
+    patchStep(step, { estimated_hours: result.value });
   }
 
-  // Swap with the neighbour. The park ordinal has to be free in this scope's
-  // bucket — max + 1 always is; see useReorderStep.
-  function moveStep(index: number, direction: -1 | 1) {
-    const a = steps[index];
-    const b = steps[index + direction];
-    if (!a || !b) return;
+  // Swap with the neighbour. `siblings` is whichever bucket the row lives in —
+  // the run of tasks, or one task's steps — because process_steps_ordinal_idx
+  // is unique per (system, service, parent), so a step only ever competes with
+  // its own siblings. The park ordinal has to be free in that bucket; max + 1
+  // always is (see useReorderStep).
+  function moveRow(row: StepRow, siblings: StepRow[], direction: -1 | 1) {
+    const ordered = [...siblings].sort((a, b) => a.ordinal - b.ordinal);
+    const i = ordered.findIndex((s) => s.id === row.id);
+    const b = ordered[i + direction];
+    if (i === -1 || !b) return;
     reorder.mutate(
       {
-        a: { id: a.id, ordinal: a.ordinal },
+        a: { id: row.id, ordinal: row.ordinal },
         b: { id: b.id, ordinal: b.ordinal },
-        parkOrdinal: steps.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
+        parkOrdinal: ordered.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
       },
       { onError: (e) => toast.error(`Could not reorder: ${errorMessage(e)}`) }
     );
+  }
+
+  // ── steps ────────────────────────────────────────────────────────────────
+  // A step is a child row: no position, no edges, no owner of its own. It gets
+  // ClickUp's checklist_item mode so the per-step push switch has something to
+  // turn off (planMaterialisation honours 'none' on a child since 0123).
+  async function createSubStepRow(parentId: string, fields: StepUpdate, after?: StepRow) {
+    if (!id) return null;
+    try {
+      let ordinal: number;
+      if (after) {
+        // Everything below shifts up one, server-side — same slot-opening RPC
+        // the task list uses, which scopes its shift by parent bucket.
+        const { data, error } = await (supabase as unknown as SupabaseClient).rpc("open_step_slot", {
+          p_step_id: after.id,
+        });
+        if (error) throw error;
+        ordinal = data as number;
+      } else {
+        ordinal = subSteps
+          .filter((s) => s.parent_id === parentId)
+          .reduce((max, s) => Math.max(max, s.ordinal), 0) + 1;
+      }
+      const created = await addStep.mutateAsync({
+        system_id: id,
+        service_id: system?.service_id ?? null,
+        parent_id: parentId,
+        title: "New step",
+        materialise_as: "checklist_item",
+        ...fields,
+        ordinal,
+      });
+      setFocusStep({ id: parentId, nonce: Date.now() });
+      return created;
+    } catch (e) {
+      toast.error(`Could not add that step: ${errorMessage(e)}`);
+      return null;
+    }
+  }
+
+  function createSubStep(task: StepRow, after?: StepRow) {
+    return createSubStepRow(task.id, {}, after);
+  }
+
+  // A step that turns out to be somebody else's job becomes a task: it lands
+  // straight after the task it came out of, inherits that task's department and
+  // owner as a starting point, and joins the hand-off chain.
+  async function promoteStep(step: StepRow) {
+    const parent = steps.find((t) => t.id === step.parent_id);
+    if (!parent) return;
+    try {
+      const { data: ordinal, error } = await (supabase as unknown as SupabaseClient).rpc("open_step_slot", {
+        p_step_id: parent.id,
+      });
+      if (error) throw error;
+      await updateStep.mutateAsync({
+        id: step.id,
+        patch: {
+          parent_id: null,
+          ordinal: ordinal as number,
+          materialise_as: "task",
+          department_id: parent.department_id,
+          owner_id: parent.owner_id,
+          pos_x: parent.pos_x != null ? parent.pos_x + NEXT_STEP_GAP_X : null,
+          pos_y: parent.pos_y,
+        },
+      });
+      await connect.mutateAsync({ source: parent.id, target: step.id, sourceHandle: null });
+      setFocusStep({ id: step.id, nonce: Date.now() });
+    } catch (e) {
+      toast.error(`Could not make that its own task: ${errorMessage(e)}`);
+    }
+  }
+
+  // The reverse: this was never a hand-off, it is part of the task before it.
+  // The task's own title survives as the first of the steps it brings across —
+  // folding should not quietly delete something somebody wrote. Its edges go,
+  // because a step is not a place the flow can pass through.
+  async function foldTask(task: StepRow, into: StepRow) {
+    const moving = subSteps
+      .filter((s) => s.parent_id === task.id)
+      .sort((a, b) => a.ordinal - b.ordinal);
+    let next = subSteps
+      .filter((s) => s.parent_id === into.id)
+      .reduce((max, s) => Math.max(max, s.ordinal), 0);
+    try {
+      await updateStep.mutateAsync({
+        id: task.id,
+        patch: {
+          parent_id: into.id,
+          ordinal: ++next,
+          materialise_as: "checklist_item",
+          department_id: null,
+          owner_id: null,
+          pos_x: null,
+          pos_y: null,
+        },
+      });
+      for (const child of moving) {
+        await updateStep.mutateAsync({ id: child.id, patch: { parent_id: into.id, ordinal: ++next } });
+      }
+      // Rejoin the chain across the gap the folded task leaves behind, then
+      // drop the edges that pointed at it.
+      const outgoing = edgeRows.filter((e) => e.source_step_id === task.id);
+      for (const e of outgoing) {
+        if (e.target_step_id === into.id) continue;
+        try {
+          await connect.mutateAsync({ source: into.id, target: e.target_step_id, sourceHandle: e.source_handle });
+        } catch {
+          // A duplicate edge is fine — it means the chain was already joined.
+        }
+      }
+      for (const e of edgeRows) {
+        if (e.source_step_id === task.id || e.target_step_id === task.id) {
+          await disconnect.mutateAsync(e.id);
+        }
+      }
+      setFocusStep({ id: into.id, nonce: Date.now() });
+    } catch (e) {
+      toast.error(`Could not fold that task in: ${errorMessage(e)}`);
+    }
   }
 
   const { data: depts = [] } = useDepartments();
@@ -499,6 +667,14 @@ export function SystemDetail() {
   // Rounded on the way out: summing numeric(6,2) values in JS floats otherwise
   // surfaces things like 1.2500000000000002 in the total.
   const totalStepHours = Number(steps.reduce((sum, s) => sum + (s.estimated_hours ?? 0), 0).toFixed(2));
+
+  // What the list renders: saved rows with the staged edits laid over them, so
+  // an unsaved rename reads back as you typed it.
+  // No useMemo: this sits below an early return, and applyDraft already hands
+  // back the very same array when nothing is staged — which is every render
+  // that isn't mid-edit.
+  const draftTasks = applyDraft(steps, draft);
+  const draftSteps = applyDraft(subSteps, draft);
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const latestRevision = revisions[0] ?? null;
 
@@ -514,19 +690,19 @@ export function SystemDetail() {
         <p className="truncate px-3 pb-1 text-label-small font-semibold uppercase tracking-widest text-m-on-surface-variant">
           {system.name}
         </p>
-        <PaneRow icon={Settings2} label="Setup" active={pane === "setup"} onClick={() => setPane("setup")} />
+        <PaneRow icon={Settings2} label="Setup" active={pane === "setup"} onClick={() => switchPane("setup")} />
         <PaneRow
           icon={Workflow}
-          label="Steps"
+          label="Tasks"
           active={pane === "steps"}
-          onClick={() => setPane("steps")}
+          onClick={() => switchPane("steps")}
           count={steps.length}
         />
         <PaneRow
           icon={History}
           label="Revisions"
           active={pane === "revisions"}
-          onClick={() => setPane("revisions")}
+          onClick={() => switchPane("revisions")}
           count={revisions.length}
         />
       </aside>
@@ -560,7 +736,10 @@ export function SystemDetail() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <FieldLabel label="Area">
+              <FieldLabel
+                label="Area"
+                hint="Which part of the business this belongs to — Attract, Convert, Deliver, Retain or Internal. It groups the library, nothing else."
+              >
                 <select
                   value={form.band}
                   onChange={(e) => {
@@ -576,7 +755,10 @@ export function SystemDetail() {
                 </select>
               </FieldLabel>
 
-              <FieldLabel label="Owner">
+              <FieldLabel
+                label="Owner"
+                hint="The one person accountable for keeping this accurate — not everyone who runs it. They get asked when it changes."
+              >
                 <select
                   value={form.owner_id}
                   onChange={(e) => {
@@ -592,7 +774,10 @@ export function SystemDetail() {
                 </select>
               </FieldLabel>
 
-              <FieldLabel label="Review due">
+              <FieldLabel
+                label="Review due"
+                hint="When someone should check this is still how the work is actually done. Leave blank if it needs no reminder."
+              >
                 <Input
                   type="date"
                   value={form.review_due_at}
@@ -608,7 +793,12 @@ export function SystemDetail() {
         {/* Goal — the point of the feature. Prominent, always visible, editable. */}
         <Card className="border-m-primary/40 bg-m-primary-container/15">
           <CardHeader>
-            <CardTitle className="text-title-medium">Goal</CardTitle>
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="text-title-medium">Goal</CardTitle>
+              <FieldHint label="Goal">
+                What this exists to achieve, in one sentence — the outcome, not the steps. e.g. "Posts go out on the right day with the right creative and caption".
+              </FieldHint>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <Textarea
@@ -620,7 +810,12 @@ export function SystemDetail() {
               placeholder="What does this procedure exist to achieve?"
             />
             <div className="space-y-1">
-              <Label htmlFor="goal-metric">Goal metric</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="goal-metric">Goal metric</Label>
+                <FieldHint label="Goal metric">
+                  How you'd know it's working, as a number you could actually check. Leave blank if there isn't one worth tracking.
+                </FieldHint>
+              </div>
               <Input
                 id="goal-metric"
                 value={form.goal_metric}
@@ -635,7 +830,11 @@ export function SystemDetail() {
         {/* Trigger / definition of done / exceptions */}
         <Card>
           <CardContent className="space-y-4 p-5">
-            <FieldLabel label="Trigger" stacked>
+            <FieldLabel
+              label="Trigger"
+              stacked
+              hint="The event that means someone should start — not the first step. e.g. 'The client approves the copy captions'."
+            >
               <Textarea
                 value={form.trigger_text}
                 onChange={(e) => setForm({ ...form, trigger_text: e.target.value })}
@@ -644,7 +843,11 @@ export function SystemDetail() {
                 placeholder="What kicks this procedure off?"
               />
             </FieldLabel>
-            <FieldLabel label="Definition of done" stacked>
+            <FieldLabel
+              label="Definition of done"
+              stacked
+              hint="The finished state you can point at and agree on, not the last step. e.g. 'Posts are scheduled and the client has approved them'."
+            >
               <Textarea
                 value={form.definition_of_done}
                 onChange={(e) => setForm({ ...form, definition_of_done: e.target.value })}
@@ -653,7 +856,11 @@ export function SystemDetail() {
                 placeholder="How do we know this procedure's work is complete?"
               />
             </FieldLabel>
-            <FieldLabel label="Exceptions" stacked>
+            <FieldLabel
+              label="Exceptions"
+              stacked
+              hint="Situations this does NOT cover, so nobody follows it into the wrong job. e.g. 'Paid ad creative — that has its own procedure'."
+            >
               <Textarea
                 value={form.exceptions_md}
                 onChange={(e) => setForm({ ...form, exceptions_md: e.target.value })}
@@ -670,8 +877,8 @@ export function SystemDetail() {
         )}
 
         <div className="flex justify-end">
-          <Button size="sm" className="gap-1.5" onClick={() => setPane("steps")}>
-            Next: Steps <ArrowRight className="h-4 w-4" />
+          <Button size="sm" className="gap-1.5" onClick={() => switchPane("steps")}>
+            Next: Tasks <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
         </div>
@@ -684,15 +891,37 @@ export function SystemDetail() {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-title-medium">
-                  Steps <span className="text-label-medium font-normal text-m-on-surface-variant">· {steps.length}</span>
+                  Tasks{" "}
+                  <span className="text-label-medium font-normal text-m-on-surface-variant">
+                    · {steps.length} · {subSteps.length} step{subSteps.length === 1 ? "" : "s"}
+                  </span>
                 </CardTitle>
                 <div className="flex items-center gap-3">
-                  {totalStepHours > 0 && (
+                  {totalStepHours > 0 && !dirty && (
                     <span className="font-mono text-label-medium text-m-on-surface-variant">
                       {totalStepHours}h estimated
                       <span className="text-m-on-surface-variant/70"> · {pointsFromHours(totalStepHours)} pts</span>
                     </span>
                   )}
+                  {dirty && (
+                    <>
+                      <span className="font-mono text-label-medium text-m-primary">
+                        {draft.size} unsaved change{draft.size === 1 ? "" : "s"}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={discardDraft} disabled={updateStep.isPending}>
+                        Discard
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={!dirty || updateStep.isPending}
+                    onClick={() => void saveDraft()}
+                  >
+                    <Save className="h-4 w-4" />
+                    {updateStep.isPending ? "Saving…" : "Save"}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -700,300 +929,32 @@ export function SystemDetail() {
                     disabled={addStep.isPending}
                     onClick={() => void createStep()}
                   >
-                    <Plus className="h-4 w-4" /> Add step
+                    <Plus className="h-4 w-4" /> Add task
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {steps.length === 0 ? (
-                  <p className="px-5 pb-5 text-body-medium text-m-on-surface-variant">
-                    No steps yet — add the first one to start the canvas.
-                  </p>
-                ) : (
-                  <ol className="divide-y divide-m-outline-variant border-t border-m-outline-variant">
-                    {steps.map((s, i) => {
-                      const owner = s.owner_id ? teamById.get(s.owner_id) : null;
-                      const inClickUp = s.materialise_as !== "none";
-                      return (
-                        <li
-                          key={s.id}
-                          className="flex w-full items-start gap-3 px-5 py-3 hover:bg-m-surface-container"
-                        >
-                          {/* self-center against the whole row, not the title
-                              line — the row grows when Signal or noise opens
-                              and the index should stay with its middle. */}
-                          <div className="flex flex-none items-center gap-1.5 self-center">
-                            <div className="flex flex-col">
-                              <button
-                                type="button"
-                                aria-label={`Move "${s.title}" earlier`}
-                                disabled={i === 0 || reorder.isPending}
-                                onClick={() => moveStep(i, -1)}
-                                className="text-m-on-surface-variant hover:text-m-on-surface disabled:opacity-25"
-                              >
-                                <ChevronUp className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={`Move "${s.title}" later`}
-                                disabled={i === steps.length - 1 || reorder.isPending}
-                                onClick={() => moveStep(i, 1)}
-                                className="text-m-on-surface-variant hover:text-m-on-surface disabled:opacity-25"
-                              >
-                                <ChevronDown className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {/* Position in the list, not s.ordinal. Ordinals are
-                                an ordering key under a UNIQUE index and go
-                                sparse after a delete — showing them literally
-                                made a four-step list read 1, 2, 3, 5. */}
-                            <span className="w-5 text-center font-mono text-title-medium tabular-nums text-m-on-surface-variant">
-                              {i + 1}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1 space-y-1.5">
-                            {/* Rename in place. Focusing the field is also what
-                                centres the block on the canvas — one gesture,
-                                keyboard-reachable, and the ClickUp switch beside
-                                it doesn't drag the viewport around as a side
-                                effect. `key` re-seeds the uncontrolled input when
-                                the title changes elsewhere (canvas inspector). */}
-                            <div className="flex items-center gap-0.5">
-                            {/* The verb reads as part of the sentence —
-                                "Present · Share headlines" — so it sits on the
-                                title line as a chip you click, with the real
-                                <select> transparent on top of it. `title`
-                                still stores the outcome only. */}
-                            <span className="relative inline-flex flex-none">
-                              <span
-                                className={cn(
-                                  "rounded-md px-1 py-0.5 text-title-medium font-normal hover:bg-m-surface-container-high",
-                                  s.verb ? "text-m-on-surface-variant" : "text-m-outline",
-                                )}
-                              >
-                                [{s.verb ?? "verb"}]
-                              </span>
-                              <VerbSelect
-                                value={s.verb}
-                                label={`Verb for "${s.title}"`}
-                                onChange={(verb) => patchStep(s, { verb })}
-                                className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0"
-                              />
-                            </span>
-                            <input
-                              key={s.title}
-                              defaultValue={s.title}
-                              aria-label={`Step ${i + 1} title`}
-                              title="Rename this step — also centres it on the canvas"
-                              onFocus={() => setFocusStep({ id: s.id, nonce: Date.now() })}
-                              onBlur={(e) => {
-                                const el = e.target;
-                                renameStep(s, el.value, () => {
-                                  el.value = s.title;
-                                });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") e.currentTarget.blur();
-                                if (e.key === "Escape") {
-                                  e.currentTarget.value = s.title;
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                              className="w-full truncate rounded-md bg-transparent px-1 py-0.5 text-title-medium font-semibold text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
-                            />
-                            </div>
-                            {/* Everything about a step is editable from here;
-                                the canvas inspector is the same fields on the
-                                selected block, not the only way in. */}
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {/* The avatar IS the picker — a transparent
-                                  native <select> sits on top of it, so the
-                                  name stops eating 11rem of the row while
-                                  keyboard, screen readers and the option list
-                                  all still come free. */}
-                              <span className="relative inline-flex flex-none">
-                                {owner ? (
-                                  <span
-                                    className="grid h-8 w-8 place-items-center rounded-full text-label-small font-bold leading-none text-white"
-                                    style={{ background: colorById.get(owner.id) }}
-                                  >
-                                    {stepOwnerInitials(owner.full_name)}
-                                  </span>
-                                ) : (
-                                  <span className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-m-outline text-m-on-surface-variant">
-                                    <User className="h-4 w-4" />
-                                  </span>
-                                )}
-                                <select
-                                  value={s.owner_id ?? ""}
-                                  aria-label={`Owner of "${s.title}"`}
-                                  title={owner ? `${owner.full_name} — click to change` : "Unassigned — click to set an owner"}
-                                  onChange={(e) => patchStep(s, { owner_id: e.target.value || null })}
-                                  className="absolute inset-0 cursor-pointer appearance-none rounded-full bg-transparent text-transparent opacity-0"
-                                >
-                                  <option value="">— unassigned</option>
-                                  {team.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.full_name}</option>
-                                  ))}
-                                </select>
-                              </span>
-                              <select
-                                value={s.department_id ?? ""}
-                                aria-label={`Department for "${s.title}"`}
-                                onChange={(e) =>
-                                  patchStep(s, { department_id: e.target.value || null })
-                                }
-                                className="h-8 max-w-[11rem] rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-label-small text-m-on-surface"
-                              >
-                                <option value="">— no department</option>
-                                {depts.map((d) => (
-                                  <option key={d.id} value={d.id}>{d.name}</option>
-                                ))}
-                              </select>
-                              <input
-                                key={String(s.estimated_hours)}
-                                defaultValue={s.estimated_hours ?? ""}
-                                type="number"
-                                step="0.25"
-                                min="0.25"
-                                placeholder="—"
-                                aria-label={`Estimated hours for "${s.title}"`}
-                                onBlur={(e) => {
-                                  const el = e.target;
-                                  saveHours(s, el.value, () => {
-                                    el.value = s.estimated_hours != null ? String(s.estimated_hours) : "";
-                                  });
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") e.currentTarget.blur();
-                                }}
-                                className="h-7 w-16 rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-right font-mono text-label-small text-m-on-surface"
-                              />
-                              <span className="font-mono text-label-small text-m-on-surface-variant">
-                                h
-                                {s.estimated_hours != null && ` · ${pointsFromHours(s.estimated_hours)}pt`}
-                              </span>
-                            </div>
-                            {/* The questions themselves, with no heading and
-                                no summary line — the chevron at the bottom of
-                                the row's icon cluster is the whole affordance. */}
-                            {signalOpen.has(s.id) && (
-                              <div className="pt-1.5">
-                                <SignalNoise step={s} onPatch={(patch) => patchStep(s, patch)} />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex flex-none flex-col items-end gap-1 pt-1">
-                            <div className="flex items-center gap-2">
-                            {/* On by default (materialise_as defaults to
-                                'checklist_item', 0121); off writes 'none', which
-                                planMaterialisation skips on push while still
-                                keeping the step in the flow. Toggling back on
-                                restores the default, not 'task' — a step that
-                                should be its own task is set in the inspector. */}
-                            <Switch
-                              checked={inClickUp}
-                              aria-label={`Push "${s.title}" to ClickUp`}
-                              title={
-                                inClickUp
-                                  ? "Goes to ClickUp on push"
-                                  : "Skipped on push — stays part of the process here"
-                              }
-                              onCheckedChange={(on) =>
-                                patchStep(s, { materialise_as: on ? "checklist_item" : "none" })
-                              }
-                            />
-                            {/* What the step becomes in ClickUp, as the icon
-                                it will be — the word took 7rem on every row to
-                                say what a glyph says. The menu spells it out
-                                with the same icons. */}
-                            <Select
-                              value={s.materialise_as}
-                              onValueChange={(v) => patchStep(s, { materialise_as: v as MaterialiseMode })}
-                            >
-                              <SelectTrigger
-                                aria-label={`What "${s.title}" becomes in ClickUp`}
-                                title={MATERIALISE_LABEL[s.materialise_as]}
-                                // [&>svg]:hidden drops the trigger's own chevron,
-                                // which is a direct child svg — so the mode icon
-                                // below is wrapped to survive it.
-                                className={cn(
-                                  "h-8 w-8 flex-none justify-center rounded-md border-0 bg-transparent p-0 hover:bg-m-surface-container-high [&>svg]:hidden",
-                                  inClickUp ? "text-m-on-surface" : "text-m-outline",
-                                )}
-                              >
-                                <span>
-                                  {(() => {
-                                    const Icon = MATERIALISE_ICON[s.materialise_as];
-                                    return <Icon className="h-4 w-4" />;
-                                  })()}
-                                </span>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(Object.keys(MATERIALISE_ICON) as MaterialiseMode[]).map((mode) => {
-                                  const Icon = MATERIALISE_ICON[mode];
-                                  return (
-                                    <SelectItem key={mode} value={mode}>
-                                      <span className="flex items-center gap-2">
-                                        <Icon className="h-4 w-4" />
-                                        {MATERIALISE_LABEL[mode]}
-                                      </span>
-                                    </SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
-                            <button
-                              type="button"
-                              aria-label={`Add a step after "${s.title}"`}
-                              title="Insert a new step after this one"
-                              disabled={addStep.isPending}
-                              onClick={() => void createStep({ after: s })}
-                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Duplicate "${s.title}"`}
-                              title="Duplicate this step"
-                              disabled={addStep.isPending}
-                              onClick={() => void duplicateStep(s)}
-                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Delete "${s.title}"`}
-                              title="Delete this step"
-                              onClick={() => setDeleteTarget(s)}
-                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                            </div>
-                            <button
-                              type="button"
-                              aria-label={`Signal or noise for "${s.title}"`}
-                              title="Signal or noise — is this step worth keeping?"
-                              aria-expanded={signalOpen.has(s.id)}
-                              onClick={() => setSignalOpen((prev) => toggleInSet(prev, s.id))}
-                              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 transition-transform",
-                                  signalOpen.has(s.id) && "rotate-180",
-                                )}
-                              />
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
+                <TaskList
+                  tasks={draftTasks}
+                  steps={draftSteps}
+                  depts={depts}
+                  team={team}
+                  colorById={colorById}
+                  busy={addStep.isPending || reorder.isPending}
+                  signalOpen={signalOpen}
+                  onToggleSignal={(id) => setSignalOpen((prev) => toggleInSet(prev, id))}
+                  onFocus={(id) => setFocusStep({ id, nonce: Date.now() })}
+                  onAddTask={(after) => void createStep({ after })}
+                  onAddStep={(task, after) => void createSubStep(task, after)}
+                  onPatch={patchStep}
+                  onRename={renameStep}
+                  onHours={saveHours}
+                  onDuplicate={duplicateStep}
+                  onDelete={setDeleteTarget}
+                  onMove={moveRow}
+                  onPromote={promoteStep}
+                  onFold={foldTask}
+                />
               </CardContent>
               {steps.length > 0 && (
                 <div className="flex items-center justify-end gap-3 border-t border-m-outline-variant px-5 py-2.5 text-label-medium">
@@ -1034,6 +995,9 @@ export function SystemDetail() {
                   onPropose={() => setProposeOpen(true)}
                   onCreateStep={createStep}
                   focusStepId={focusStep}
+                  onAddStep={(task) => void createSubStep(task)}
+                  onDuplicateTask={(task) => void duplicateStep(task)}
+                  onInsertTaskAfter={(task) => void createStep({ after: task })}
                 />
               </Suspense>
             </Card>
@@ -1064,6 +1028,55 @@ export function SystemDetail() {
         reason={proposeReason}
         setReason={setProposeReason}
       />
+
+      {/* The exit interview. `beforeunload` covers the tab closing; this
+          covers every link and pane switch inside the app, which that event
+          never sees. */}
+      <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {draft.size} unsaved change{draft.size === 1 ? "" : "s"}
+            </DialogTitle>
+            <DialogDescription>
+              Leaving now throws them away. Save them first, or discard them and go.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPending(null)}>
+              Stay here
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const exit = pending;
+                discardDraft();
+                setPending(null);
+                if (exit?.kind === "href") navigate(exit.href);
+                else exit?.run();
+              }}
+            >
+              Discard and leave
+            </Button>
+            <Button
+              disabled={updateStep.isPending}
+              onClick={() => {
+                const exit = pending;
+                setPending(null);
+                void saveDraft().then((ok) => {
+                  // A failed save keeps you here — leaving would drop exactly
+                  // the edits that could not be written.
+                  if (!ok) return;
+                  if (exit?.kind === "href") navigate(exit.href);
+                  else exit?.run();
+                });
+              }}
+            >
+              Save and leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DeleteStepDialog
         step={deleteTarget}
@@ -1112,15 +1125,21 @@ function PaneRow({
 function FieldLabel({
   label,
   stacked,
+  hint,
   children,
 }: {
   label: string;
   stacked?: boolean;
+  /** One sentence on what belongs in the field, shown on hover/focus. */
+  hint?: string;
   children: ReactNode;
 }) {
   return (
     <div className={cn("space-y-1", stacked && "space-y-1.5")}>
-      <Label className="text-label-small text-m-on-surface-variant">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label className="text-label-small text-m-on-surface-variant">{label}</Label>
+        {hint && <FieldHint label={label}>{hint}</FieldHint>}
+      </div>
       {children}
     </div>
   );

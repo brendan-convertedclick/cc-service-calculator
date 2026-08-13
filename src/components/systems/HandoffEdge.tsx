@@ -14,10 +14,16 @@
 // `secondary` as the closest neutral-but-distinct role rather than inventing
 // a token or a hex. Same choice here for consistency.
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type HandoffEdgeData = { isHandoff: boolean };
+export type HandoffEdgeData = {
+  isHandoff: boolean;
+  /** Drops a new task into the run at this point. A procedure gets written in
+      the middle at least as often as at the end, and before this the only way
+      to add one here was to add it at the end and walk it up. */
+  onInsert?: () => void;
+};
 export type HandoffEdgeType = Edge<HandoffEdgeData, "handoff">;
 
 export function HandoffEdge({
@@ -71,19 +77,37 @@ export function HandoffEdge({
           because SystemCanvas passes onReconnect. */}
       {selected ? (
         <EdgeLabelRenderer>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void deleteElements({ edges: [{ id }] });
-            }}
-            title="Delete this connection"
-            aria-label="Delete this connection"
+          <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="nodrag nopan pointer-events-auto absolute grid h-5 w-5 place-items-center rounded-md border border-m-outline bg-m-surface text-m-error shadow-elev-2 hover:bg-m-error-container hover:text-m-on-error-container"
+            className="nodrag nopan pointer-events-auto absolute flex items-center gap-0.5"
           >
-            <X className="h-3 w-3" />
-          </button>
+            {data?.onInsert && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onInsert?.();
+                }}
+                title="Add a task here"
+                aria-label="Add a task here"
+                className="grid h-5 w-5 place-items-center rounded-md border border-m-outline bg-m-surface text-m-primary shadow-elev-2 hover:bg-m-primary-container hover:text-m-on-primary-container"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void deleteElements({ edges: [{ id }] });
+              }}
+              title="Delete this connection"
+              aria-label="Delete this connection"
+              className="grid h-5 w-5 place-items-center rounded-md border border-m-outline bg-m-surface text-m-error shadow-elev-2 hover:bg-m-error-container hover:text-m-on-error-container"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         </EdgeLabelRenderer>
       ) : (
         isHandoff && (

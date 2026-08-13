@@ -8,12 +8,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { Plus, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, errorMessage } from "@/lib/utils";
+import { parseStepHours } from "@/lib/step-hours";
+import { FieldHint } from "@/components/FieldHint";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
 import { memberColors } from "@/hooks/useTeam";
 import { MATERIALISE_LABEL, systemLayer, useSystemDefinitions } from "@/hooks/useSystemDefinitions";
@@ -36,7 +39,6 @@ type StepUpdate = Database["public"]["Tables"]["process_steps"]["Update"];
 // Radix Select can't hold a "" value — this stands in for "no department" /
 // "no owner" and is translated back to null on commit.
 const NONE = "__none__";
-const MATERIALISE_OPTIONS: MaterialiseMode[] = ["task", "checklist_item", "none"];
 
 type InspectorForm = {
   title: string;
@@ -106,7 +108,6 @@ export function BlockInspector({
   }
 
   const isSubStep = step.parent_id != null;
-  const department = form.department_id ? depts.find((d) => d.id === form.department_id) ?? null : null;
   const owner = form.owner_id ? team.find((t) => t.id === form.owner_id) ?? null : null;
 
   function commit(patch: StepUpdate) {
@@ -128,7 +129,10 @@ export function BlockInspector({
         Block inspector
       </p>
 
-      <Field label="Title">
+      <Field
+        label="Title"
+        hint="What actually happens here, in a few words. Start with the doing word — 'Export creatives', not 'Creatives'."
+      >
         <Input
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -147,7 +151,10 @@ export function BlockInspector({
 
       {/* Verb only, plus the verdict read-only — the question grid that sets
           that verdict lives in the Steps pane; this rail is 186px wide. */}
-      <Field label="Verb">
+      <Field
+        label="Verb"
+        hint="The kind of action this is. It drives the checks below, which flag steps that look like busywork."
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           <VerbSelect
             value={step.verb}
@@ -161,7 +168,10 @@ export function BlockInspector({
         </div>
       </Field>
 
-      <Field label="Goal / purpose">
+      <Field
+        label="Goal / purpose"
+        hint="Why this step exists — what would go wrong if someone skipped it."
+      >
         <Textarea
           value={form.goal}
           onChange={(e) => setForm({ ...form, goal: e.target.value })}
@@ -176,17 +186,19 @@ export function BlockInspector({
           "this is the outcome — and this is what delivers it", so an outcome
           with nothing under it reads as a gap rather than as a blank field. */}
       {isProcess && (
-        <Field label="Procedures">
+        <Field
+          label="Procedures"
+          hint="The procedure that actually does this stage. A stage with none isn't systemised yet."
+        >
           <StepProcedures stepId={step.id} attached={attachedByStep?.get(step.id) ?? []} />
         </Field>
       )}
 
-      <Field label="Department">
+      <Field
+        label="Department"
+        hint="Which team does this step. It sets the ClickUp Work Stream, and the order departments hand over in."
+      >
         <div className="flex min-w-0 items-center gap-1.5">
-          <span
-            className="h-2.5 w-2.5 flex-none rounded-sm"
-            style={{ background: department?.color ?? "hsl(var(--mcolor-outline-variant))" }}
-          />
           <Select
             value={form.department_id || NONE}
             onValueChange={(v) => {
@@ -210,19 +222,13 @@ export function BlockInspector({
         </div>
       </Field>
 
-      <Field label="Responsible">
+      <Field
+        label="Responsible"
+        hint="Who does this by default. Left unassigned, it falls back to the department's lead."
+      >
+        {/* The avatar *is* the control — no field box, no chevron. The name
+            lives on hover/aria, which is enough at 186px wide. */}
         <div className="flex min-w-0 items-center gap-1.5">
-          {owner && (
-            <span
-              className={cn(
-                "grid h-5 w-5 flex-none place-items-center rounded-full text-label-small font-bold leading-none",
-                colorById.has(owner.id) ? "text-white" : "bg-m-secondary-container text-m-on-secondary-container"
-              )}
-              style={colorById.has(owner.id) ? { background: colorById.get(owner.id) } : undefined}
-            >
-              {initials(owner.full_name)}
-            </span>
-          )}
           <Select
             value={form.owner_id || NONE}
             onValueChange={(v) => {
@@ -231,9 +237,24 @@ export function BlockInspector({
               commit({ owner_id: value });
             }}
           >
-            <SelectTrigger className="min-w-0 flex-1 text-label-medium">
-              <SelectValue placeholder="— unassigned" />
-            </SelectTrigger>
+            {/* The primitive, not our SelectTrigger: that one hard-codes
+                w-full / px-3 / a chevron, all of which fight a 32px circle. */}
+            <SelectPrimitive.Trigger
+              aria-label={owner ? `Responsible: ${owner.full_name}` : "Assign someone"}
+              title={owner?.full_name ?? "Unassigned"}
+              className={cn(
+                "grid h-8 w-8 flex-none place-items-center rounded-full text-label-small font-bold leading-none",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                owner
+                  ? colorById.has(owner.id)
+                    ? "text-white"
+                    : "bg-m-secondary-container text-m-on-secondary-container"
+                  : "border border-dashed border-m-outline text-m-on-surface-variant"
+              )}
+              style={owner && colorById.has(owner.id) ? { background: colorById.get(owner.id) } : undefined}
+            >
+              {owner ? initials(owner.full_name) : <Plus className="h-4 w-4" />}
+            </SelectPrimitive.Trigger>
             <SelectContent>
               <SelectItem value={NONE}>— unassigned</SelectItem>
               {team.map((t) => (
@@ -252,46 +273,78 @@ export function BlockInspector({
         // double-counting against the very rollup they'd feed.
         null
       ) : isSubStep ? (
-        // process_steps_substep_no_hours forbids hours on a sub-step, and the
-        // P3 materialise matrix ignores materialise_as for sub-steps (always
-        // a checklist item on the parent) — hiding both rather than shipping
-        // controls that would either 400 or silently do nothing.
-        <p className="rounded-lg bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
-          Sub-steps carry no hours of their own and always materialise as a checklist item on
-          their parent's task.
-        </p>
-      ) : (
+        // A step is estimated (0123 dropped process_steps_substep_no_hours and
+        // rolls the sum up to its task), but it is always a checklist item on
+        // that task — so the hours field stays and the mode picker doesn't.
         <>
-          <Field label="Estimated hours">
+          <Field
+            label="Estimated hours"
+            hint="How long this step takes. It adds into its task's estimate — the task never carries its own."
+          >
             <Input
               type="number"
               step="0.25"
-              min="0.25"
+              min="0"
               value={form.hours}
               onChange={(e) => setForm({ ...form, hours: e.target.value })}
               onBlur={(e) => {
-                const raw = e.target.value.trim();
-                if (raw === "") {
-                  commit({ estimated_hours: null });
-                  return;
-                }
-                const parsed = Number(raw);
-                if (Number.isNaN(parsed)) {
-                  toast.error("Hours must be a number");
+                const result = parseStepHours(e.target.value);
+                if (!result.ok) {
+                  toast.error(result.message);
                   setForm(toForm(step));
                   return;
                 }
-                commit({ estimated_hours: parsed });
+                commit({ estimated_hours: result.value });
+              }}
+              className="font-mono text-label-medium font-semibold text-m-primary"
+            />
+          </Field>
+          <p className="rounded-lg bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
+            A step is one tick-box on its task's checklist. It belongs to whoever owns the task —
+            a ClickUp checklist item has no assignee of its own. Use <b>Promote to its own task</b> in
+            the list if this needs to change hands.
+          </p>
+        </>
+      ) : (
+        <>
+          <Field
+            label="Estimated hours"
+            hint="How long this takes. 0.25 = 15 minutes = 1 point. 0 is fine for a quick check; blank means not estimated yet."
+          >
+            <Input
+              type="number"
+              step="0.25"
+              min="0"
+              value={form.hours}
+              onChange={(e) => setForm({ ...form, hours: e.target.value })}
+              onBlur={(e) => {
+                // Below process_steps_min_hours this used to POST anyway and
+                // show Postgres' raw constraint text — the field appeared to
+                // silently refuse the edit. Same rule as the Steps list.
+                const result = parseStepHours(e.target.value);
+                if (!result.ok) {
+                  toast.error(result.message);
+                  setForm(toForm(step));
+                  return;
+                }
+                commit({ estimated_hours: result.value });
               }}
               className="font-mono text-label-medium font-semibold text-m-primary"
             />
           </Field>
 
-          <Field label="Materialise as">
+          {/* No three-way mode picker any more: a row is a task or a step by
+              where it sits, so a picker that disagreed with the layout could
+              only ever be a way to break it. What is left is the one real
+              choice — does this go to ClickUp at all. */}
+          <Field
+            label="Goes to ClickUp"
+            hint="Off keeps this task in the written procedure but creates nothing when the work is briefed."
+          >
             <Select
-              value={form.materialise_as}
+              value={form.materialise_as === "none" ? "none" : "task"}
               onValueChange={(v) => {
-                const value = v as MaterialiseMode;
+                const value = (v === "none" ? "none" : "task") as MaterialiseMode;
                 setForm({ ...form, materialise_as: value });
                 commit({ materialise_as: value });
               }}
@@ -300,18 +353,18 @@ export function BlockInspector({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MATERIALISE_OPTIONS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {MATERIALISE_LABEL[m]}
-                  </SelectItem>
-                ))}
+                <SelectItem value="task">{MATERIALISE_LABEL.task}</SelectItem>
+                <SelectItem value="none">{MATERIALISE_LABEL.none}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
         </>
       )}
 
-      <Field label="Incoming">
+      <Field
+        label="Incoming"
+        hint="What connects into this block. ⇄ Handoff means the step before it belongs to a different department."
+      >
         <p
           className={cn(
             "text-label-medium",
@@ -322,7 +375,10 @@ export function BlockInspector({
         </p>
       </Field>
 
-      <Field label="Revision">
+      <Field
+        label="Revision"
+        hint="The latest saved revision of this whole system — not of this one block."
+      >
         <p className="text-label-medium text-m-on-surface-variant">{revisionLabel}</p>
       </Field>
 
@@ -425,12 +481,24 @@ function StepProcedures({ stepId, attached }: { stepId: string; attached: Attach
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  /** One sentence on what belongs in the field, shown on hover/focus. */
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="space-y-1">
-      <Label className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">
-        {label}
-      </Label>
+      <div className="flex items-center gap-1">
+        <Label className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">
+          {label}
+        </Label>
+        {hint && <FieldHint label={label}>{hint}</FieldHint>}
+      </div>
       {children}
     </div>
   );

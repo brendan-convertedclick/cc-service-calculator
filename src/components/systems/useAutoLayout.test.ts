@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { terminalAnchors } from "./useAutoLayout";
+import { sizeOf, terminalAnchors } from "./useAutoLayout";
 
 const node = (id: string, x: number, y: number) => ({ id, position: { x, y } });
 
@@ -34,5 +34,28 @@ describe("terminalAnchors", () => {
     expect(leaves).toEqual([]);
     expect(Number.isFinite(start.x)).toBe(true);
     expect(Number.isFinite(goal.x)).toBe(true);
+  });
+});
+
+describe("sizeOf", () => {
+  it("grows a task block by its steps — a fixed height overlaps them on Tidy up", () => {
+    const empty = sizeOf({ id: "a", position: { x: 0, y: 0 }, data: { subSteps: [] } } as never);
+    const six = sizeOf({
+      id: "b",
+      position: { x: 0, y: 0 },
+      data: { subSteps: [1, 2, 3, 4, 5, 6] },
+    } as never);
+    expect(six.height).toBeGreaterThan(empty.height);
+    expect(six.width).toBe(empty.width);
+  });
+
+  it("still sizes a node whose data has no steps at all", () => {
+    expect(sizeOf({ id: "c", position: { x: 0, y: 0 }, data: {} } as never).height).toBeGreaterThan(0);
+  });
+
+  it("hands back a fresh object each call — dagre writes onto what it is given", () => {
+    const a = sizeOf({ id: "a", position: { x: 0, y: 0 }, data: { subSteps: [] } } as never);
+    const b = sizeOf({ id: "b", position: { x: 0, y: 0 }, data: { subSteps: [] } } as never);
+    expect(a).not.toBe(b);
   });
 });

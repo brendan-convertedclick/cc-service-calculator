@@ -32,8 +32,10 @@ import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, addClickupDependency, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
 import { isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
-import { planMaterialisation, type MaterialiseStep } from "../_shared/system-materialise.ts";
+import { planMaterialisation, renderHowTo, type MaterialisePlan, type MaterialiseStep } from "../_shared/system-materialise.ts";
 import { orderChildrenBySteps, type DeptChild } from "../_shared/dept-sequence.ts";
+
+const APP_URL = "https://conductor.convertedclick.co.za";
 
 type SnapshotAllocation = {
   dept_id: string;
@@ -613,7 +615,7 @@ Deno.serve(async (req: Request) => {
         owner_id: string | null;
         system_id: string | null;
       };
-      type SubStepRow = { id: string; parent_id: string | null; title: string; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
+      type SubStepRow = { id: string; parent_id: string | null; title: string; description: string | null; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
       // Shape of a row inside system_revisions.body: a full process_steps
       // snapshot (top-level AND sub-steps — parent_id tells them apart).
       type BodyStep = TemplateStep & { parent_id: string | null };
@@ -679,7 +681,7 @@ Deno.serve(async (req: Request) => {
       const { data: rawSubSteps } = rawTopLevelIds.length > 0
         ? await supabase
             .from("process_steps")
-            .select("id,parent_id,title,ordinal,materialise_as")
+            .select("id,parent_id,title,description,ordinal,materialise_as")
             .in("parent_id", rawTopLevelIds)
             .order("ordinal")
         : { data: [] as SubStepRow[] };
@@ -694,7 +696,7 @@ Deno.serve(async (req: Request) => {
       for (const [serviceId, steps] of publishedBodyByServiceId) {
         for (const s of steps) {
           if (s.parent_id) {
-            bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, ordinal: s.ordinal, materialise_as: s.materialise_as });
+            bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, description: s.description ?? null, ordinal: s.ordinal, materialise_as: s.materialise_as });
           } else {
             bodyTopLevel.push({
               id: s.id,
@@ -781,7 +783,7 @@ Deno.serve(async (req: Request) => {
       for (const s of (templateSteps ?? []) as TemplateStep[]) {
         if (internalStepIds.has(s.id)) continue; // internal-system guard, see above
         const arr = stepsByService.get(s.service_id) ?? [];
-        arr.push({ id: s.id, parent_id: null, ordinal: s.ordinal, title: s.title, materialise_as: s.materialise_as });
+        arr.push({ id: s.id, parent_id: null, ordinal: s.ordinal, title: s.title, description: s.description, materialise_as: s.materialise_as });
         stepsByService.set(s.service_id, arr);
       }
       for (const sub of (subStepRows ?? []) as SubStepRow[]) {
@@ -789,18 +791,21 @@ Deno.serve(async (req: Request) => {
         if (!parentStep) continue; // scoped to topLevelIds above — shouldn't happen
         if (internalStepIds.has(parentStep.id)) continue; // internal-system guard, see above
         const arr = stepsByService.get(parentStep.service_id) ?? [];
-        arr.push({ id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title, materialise_as: sub.materialise_as });
+        arr.push({ id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title, description: sub.description, materialise_as: sub.materialise_as });
         stepsByService.set(parentStep.service_id, arr);
       }
       const materialisePlanByService = new Map(
         [...stepsByService.entries()].map(([serviceId, steps]) => [serviceId, planMaterialisation(steps)]),
       );
-      // Keyed by top-level template step id -> the sub-step titles that
-      // belong on ITS task (only populated for materialise_as='task' steps).
-      const checklistByStepId = new Map<string, string[]>();
+      // Keyed by top-level template step id -> the plan entry for ITS task
+      // (only populated for materialise_as='task' steps). Carries the checklist
+      // and the prose, because the working instructions have to be rendered
+      // into the task's description — a checklist item has nowhere to put them.
+      const planByStepId = new Map<string, MaterialisePlan["tasks"][number]>();
       for (const plan of materialisePlanByService.values()) {
-        for (const t of plan.tasks) checklistByStepId.set(t.stepId, t.checklist);
+        for (const t of plan.tasks) planByStepId.set(t.stepId, t);
       }
+      const serviceNameById = new Map(items.map((i) => [i.service_id, i.service_name]));
 
       if (templateSteps && templateSteps.length > 0) {
         // Global ordinal: sort by quote service order, then template step ordinal
@@ -883,10 +888,25 @@ Deno.serve(async (req: Request) => {
               const now = Date.now();
               const stepDueDateMs = stepDueDays ? now + stepDueDays * 24 * 60 * 60 * 1000 : null;
 
+              // A task's name is the name someone wrote for it, prefixed with
+              // the service so it reads in a ClickUp list: "3D Configurator —
+              // On-page SEO and indexing". Not the department (that is the Work
+              // Stream field and it already picks the list), and not "[Step N]"
+              // — a task is not a step, and Conductor's step numbers count
+              // across the whole procedure, so they mean nothing on one task.
+              const plannedTask = planByStepId.get(instance.template_step_id);
+              const serviceName = serviceNameById.get(instance.service_id);
+              const howTo = plannedTask
+                ? renderHowTo(plannedTask, {
+                    label: "How this is done — the procedure in Conductor",
+                    url: `${APP_URL}/systems/${templateStepsById.get(instance.template_step_id)?.system_id ?? ""}`,
+                  })
+                : null;
+
               const taskBody: Record<string, unknown> = {
                 ...buildBriefTaskBody(cuFields, {
-                  name: `[Step ${instance.ordinal}] ${instance.title}`,
-                  description: instance.description ?? "",
+                  name: serviceName ? `${serviceName} — ${instance.title}` : instance.title,
+                  description: howTo ?? instance.description ?? "",
                   clientName: client.clickup_client_name ?? client.name,
                   workStream,
                   engagementType: "Task",
@@ -901,6 +921,11 @@ Deno.serve(async (req: Request) => {
                 // never wants one); the service×department child sibling above
                 // does, alongside due_date — match it here.
                 ...(stepDueDateMs !== null && { start_date: now, start_date_time: false }),
+                // Sent alongside `description`, not instead of it: ClickUp
+                // renders the markdown when it understands the field and still
+                // has the plain copy if it doesn't, so the instructions can't
+                // go missing either way.
+                ...(howTo ? { markdown_description: howTo } : {}),
               };
 
               const stepTaskUrl = `https://api.clickup.com/api/v2/list/${projectsList.id}/task`;
@@ -920,11 +945,18 @@ Deno.serve(async (req: Request) => {
                   .from("process_step_instances")
                   .update({ clickup_task_id: stepTask.id })
                   .eq("id", instance.id);
-                // Sub-steps become this step task's checklist (P2/P3 — see plan).
+                // The task's steps become its checklist (P2/P3 — see plan).
+                // Titles only: an item is a name and a tick, which is why the
+                // step descriptions went into markdown_description above.
                 // Non-fatal: addClickupChecklist already swallows its own errors.
-                const subStepTitles = checklistByStepId.get(instance.template_step_id);
-                if (subStepTitles && subStepTitles.length > 0) {
-                  await addClickupChecklist(clickupPat, stepTask.id, subStepTitles, stepAssigneeClickupId);
+                const checklist = plannedTask?.checklist ?? [];
+                if (checklist.length > 0) {
+                  await addClickupChecklist(
+                    clickupPat,
+                    stepTask.id,
+                    checklist.map((c) => c.title),
+                    stepAssigneeClickupId,
+                  );
                 }
               }
             } catch (e) {
@@ -953,7 +985,7 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         try {
-          await addClickupChecklist(clickupPat, taskId, plan.serviceChecklist);
+          await addClickupChecklist(clickupPat, taskId, plan.serviceChecklist.map((c) => c.title));
         } catch (e) {
           console.error(`[push-to-clickup] service checklist failed for service ${serviceId}: ${e instanceof Error ? e.message : String(e)}`);
         }
