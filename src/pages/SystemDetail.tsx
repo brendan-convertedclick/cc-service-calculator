@@ -41,6 +41,12 @@ import {
   useRequestChanges,
   useSystemRevisions,
 } from "@/hooks/useSystemRevisions";
+import {
+  useAddRevisionApproval,
+  useRemoveRevisionApproval,
+  useRevisionApprovals,
+  useSetRevisionApproval,
+} from "@/hooks/useRevisionApprovals";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -60,6 +66,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, errorMessage, toggleInSet } from "@/lib/utils";
+import { toLocalDateTimeInput } from "@/lib/dates";
 import { parseStepHours } from "@/lib/step-hours";
 import { applyDraft } from "@/lib/procedure-shape";
 import { FieldHint } from "@/components/FieldHint";
@@ -89,6 +96,7 @@ type TeamRow = Database["public"]["Tables"]["team_members"]["Row"];
 type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
 type StepUpdate = Database["public"]["Tables"]["process_steps"]["Update"];
 type SystemRevisionRow = Database["public"]["Tables"]["system_revisions"]["Row"];
+type ApprovalRow = Database["public"]["Tables"]["system_revision_approvals"]["Row"];
 
 // Where a step added from the "Add step" button lands relative to the one it
 // continues from — roughly a block width plus a gap, so the auto-drawn link
@@ -546,6 +554,7 @@ export function SystemDetail() {
   const { data: team = [] } = useTeam();
   const update = useUpdateSystem();
   const { data: revisions = [], isLoading: revisionsLoading } = useSystemRevisions(id);
+  const { data: approvals = [] } = useRevisionApprovals(id, revisions.map((r) => r.id));
   const { role } = useCurrentRole();
   // Anyone signed in can edit a procedure — that's the point of a shared
   // library. Approving a revision is the one admin/owner act (the
@@ -1009,9 +1018,11 @@ export function SystemDetail() {
           <RevisionsCard
             systemId={system.id}
             revisions={revisions}
+            approvals={approvals}
             isLoading={revisionsLoading}
             canApprove={canApprove}
             deptById={deptById}
+            team={team}
             teamById={teamById}
             onPropose={() => setProposeOpen(true)}
           />
@@ -1280,17 +1291,21 @@ function ProposeDialog({
 function RevisionsCard({
   systemId,
   revisions,
+  approvals,
   isLoading,
   canApprove,
   deptById,
+  team,
   teamById,
   onPropose,
 }: {
   systemId: string;
   revisions: SystemRevisionRow[];
+  approvals: ApprovalRow[];
   isLoading: boolean;
   canApprove: boolean;
   deptById: Map<string, DeptRow>;
+  team: TeamRow[];
   teamById: Map<string, TeamRow>;
   // The dialog itself lives in SystemDetail, not here: the canvas window bar
   // opens it from the Steps pane, where this card isn't mounted.
@@ -1317,9 +1332,12 @@ function RevisionsCard({
         {revisions.map((rev) => (
           <RevisionRow
             key={rev.id}
+            systemId={systemId}
             rev={rev}
+            approvals={approvals.filter((a) => a.revision_id === rev.id)}
             canApprove={canApprove}
             deptById={deptById}
+            team={team}
             teamById={teamById}
             approvePending={publish.isPending}
             requestPending={requestChanges.isPending}
@@ -1349,18 +1367,24 @@ function RevisionsCard({
 }
 
 function RevisionRow({
+  systemId,
   rev,
+  approvals,
   canApprove,
   deptById,
+  team,
   teamById,
   approvePending,
   requestPending,
   onApprove,
   onRequestChanges,
 }: {
+  systemId: string;
   rev: SystemRevisionRow;
+  approvals: ApprovalRow[];
   canApprove: boolean;
   deptById: Map<string, DeptRow>;
+  team: TeamRow[];
   teamById: Map<string, TeamRow>;
   approvePending: boolean;
   requestPending: boolean;
@@ -1375,6 +1399,17 @@ function RevisionRow({
   // (team@) resolves to a null team_members id (see CLAUDE.md), so
   // `approver`/`proposer` can be null while the date is still real; a bare
   // unlabelled date reads as ambiguous, so the action verb always shows.
+  // The publish gate, mirrored client-side so the button explains itself —
+  // publish_system_revision (0126) raises on both of these anyway.
+  const outstanding = approvals.filter((a) => a.required && !a.approved_at);
+  const blockedReason =
+    approvals.length === 0
+      ? "Name who approved this procedure first — no approvers recorded."
+      : outstanding.length > 0
+        ? `Still waiting on required approval from ${outstanding
+            .map((a) => teamById.get(a.team_member_id)?.full_name ?? "someone")
+            .join(", ")}.`
+        : null;
   const meta = [
     rev.proposed_at && `Proposed${proposer ? ` by ${proposer}` : ""} ${new Date(rev.proposed_at).toLocaleDateString()}`,
     rev.approved_at && `Approved${approver ? ` by ${approver}` : ""} ${new Date(rev.approved_at).toLocaleDateString()}`,
@@ -1399,7 +1434,12 @@ function RevisionRow({
             <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
               Request changes
             </Button>
-            <Button size="sm" disabled={approvePending} onClick={() => onApprove(rev.id)}>
+            <Button
+              size="sm"
+              disabled={approvePending || !!blockedReason}
+              title={blockedReason ?? undefined}
+              onClick={() => onApprove(rev.id)}
+            >
               {approvePending ? "Approving…" : "Approve"}
             </Button>
           </div>
@@ -1407,6 +1447,15 @@ function RevisionRow({
       </div>
       <p className="mt-1.5 text-body-small text-m-on-surface">{rev.reason_for_change}</p>
       {meta && <p className="mt-1 text-label-small text-m-on-surface-variant">{meta}</p>}
+      <RevisionApprovals
+        systemId={systemId}
+        revisionId={rev.id}
+        approvals={approvals}
+        team={team}
+        teamById={teamById}
+        editable={rev.state === "proposed" || rev.state === "draft"}
+        blockedReason={rev.state === "proposed" ? blockedReason : null}
+      />
       {diff && (
         <details open={rev.state === "proposed"} className="mt-2 rounded-lg border border-m-outline-variant">
           <summary className="cursor-pointer select-none px-2.5 py-1.5 text-label-small font-medium text-m-on-surface-variant">
@@ -1418,6 +1467,194 @@ function RevisionRow({
         </details>
       )}
     </div>
+  );
+}
+
+// Who signed this revision off, and when (0126). A `required` approver blocks
+// publishing until their datetime is recorded; an optional one is a log entry
+// nobody waits on. Sign-offs are entered, not self-served — the person filling
+// this in is recording an agreement that already happened, which is why the
+// datetime is editable rather than stamped.
+function RevisionApprovals({
+  systemId,
+  revisionId,
+  approvals,
+  team,
+  teamById,
+  editable,
+  blockedReason,
+}: {
+  systemId: string;
+  revisionId: string;
+  approvals: ApprovalRow[];
+  team: TeamRow[];
+  teamById: Map<string, TeamRow>;
+  editable: boolean;
+  blockedReason: string | null;
+}) {
+  const add = useAddRevisionApproval();
+  const [memberId, setMemberId] = useState("");
+  const [required, setRequired] = useState(true);
+  const [signedAt, setSignedAt] = useState(() => toLocalDateTimeInput(new Date()));
+
+  const named = new Set(approvals.map((a) => a.team_member_id));
+  const options = team.filter((t) => !named.has(t.id));
+
+  return (
+    <div className="mt-2 rounded-lg border border-m-outline-variant p-2.5">
+      <p className="text-label-small font-medium text-m-on-surface-variant">Approved by</p>
+      {approvals.length === 0 ? (
+        <p className="mt-1 text-label-small text-m-on-surface-variant">
+          No one named yet.
+        </p>
+      ) : (
+        <ul className="mt-1.5 space-y-1.5">
+          {approvals.map((a) => (
+            <ApprovalLine
+              key={a.id}
+              systemId={systemId}
+              approval={a}
+              name={teamById.get(a.team_member_id)?.full_name ?? "Unknown"}
+              editable={editable}
+            />
+          ))}
+        </ul>
+      )}
+      {editable && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Approver"
+            value={memberId}
+            onChange={(e) => setMemberId(e.target.value)}
+            className="h-9 rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+          >
+            <option value="">— choose a person</option>
+            {options.map((t) => (
+              <option key={t.id} value={t.id}>{t.full_name}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Approval requirement"
+            value={required ? "required" : "optional"}
+            onChange={(e) => setRequired(e.target.value === "required")}
+            className="h-9 rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+          >
+            <option value="required">Required</option>
+            <option value="optional">Optional</option>
+          </select>
+          <Input
+            type="datetime-local"
+            aria-label="Approved at"
+            value={signedAt}
+            onChange={(e) => setSignedAt(e.target.value)}
+            className="h-9 w-auto"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!memberId || add.isPending}
+            onClick={() =>
+              add.mutate(
+                {
+                  systemId,
+                  revisionId,
+                  teamMemberId: memberId,
+                  required,
+                  // Blank means named but not signed yet — the required ones
+                  // then hold up the publish until someone fills it in.
+                  approvedAt: signedAt ? new Date(signedAt).toISOString() : null,
+                },
+                {
+                  onSuccess: () => setMemberId(""),
+                  onError: (e) => toast.error(`Could not add approver: ${errorMessage(e)}`),
+                }
+              )
+            }
+          >
+            Add approver
+          </Button>
+        </div>
+      )}
+      {blockedReason && (
+        <p className="mt-1.5 text-label-small text-m-error">{blockedReason}</p>
+      )}
+    </div>
+  );
+}
+
+function ApprovalLine({
+  systemId,
+  approval,
+  name,
+  editable,
+}: {
+  systemId: string;
+  approval: ApprovalRow;
+  name: string;
+  editable: boolean;
+}) {
+  const setApproval = useSetRevisionApproval();
+  const removeApproval = useRemoveRevisionApproval();
+  const stored = approval.approved_at ? toLocalDateTimeInput(new Date(approval.approved_at)) : "";
+  const [draft, setDraft] = useState(stored);
+  const dirty = draft !== stored;
+
+  return (
+    <li className="flex flex-wrap items-center gap-2">
+      <span className="text-body-small text-m-on-surface">{name}</span>
+      <Badge variant={approval.required ? "outline" : "muted"}>
+        {approval.required ? "Required" : "Optional"}
+      </Badge>
+      {editable ? (
+        <>
+          <Input
+            type="datetime-local"
+            aria-label={`${name} approved at`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="h-9 w-auto"
+          />
+          {dirty && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={setApproval.isPending}
+              onClick={() =>
+                setApproval.mutate(
+                  {
+                    systemId,
+                    approvalId: approval.id,
+                    approvedAt: draft ? new Date(draft).toISOString() : null,
+                  },
+                  { onError: (e) => toast.error(`Could not save sign-off: ${errorMessage(e)}`) }
+                )
+              }
+            >
+              Save
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={removeApproval.isPending}
+            onClick={() =>
+              removeApproval.mutate(
+                { systemId, approvalId: approval.id },
+                { onError: (e) => toast.error(`Could not remove approver: ${errorMessage(e)}`) }
+              )
+            }
+          >
+            Remove
+          </Button>
+        </>
+      ) : (
+        <span className="text-label-small text-m-on-surface-variant">
+          {approval.approved_at
+            ? new Date(approval.approved_at).toLocaleString()
+            : "not signed off"}
+        </span>
+      )}
+    </li>
   );
 }
 

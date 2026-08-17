@@ -46,6 +46,8 @@ function quoteRow(over: Partial<Quote> & { id: string; scope_id: string }): Quot
     sow_pdf_url: null,
     cost_estimate_pdf_url: null,
     xero_quote_id: null,
+    xero_quote_number: null,
+    xero_quote_status: null,
     created_at: "2026-05-01T00:00:00Z",
     updated_at: "2026-05-07T00:00:00Z",
     ...over,

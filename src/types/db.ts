@@ -1538,6 +1538,145 @@ export type Database = {
         }
         Relationships: []
       }
+      extension_requests: {
+        Row: {
+          admin_approved_at: string | null
+          admin_approver_id: string | null
+          approved_at: string | null
+          approver_id: string | null
+          clickup_subtask_id: string | null
+          clickup_subtask_url: string | null
+          client_id: string
+          created_at: string
+          delta_pct: number | null
+          due_date_reason: string | null
+          extra_points: number | null
+          id: string
+          info_request: string | null
+          info_requested_at: string | null
+          info_requested_by: string | null
+          info_responded_at: string | null
+          info_response: string | null
+          original_due_date: string | null
+          original_points: number | null
+          owner_notified_at: string | null
+          parent_clickup_task_id: string
+          parent_task_name: string
+          reason: string | null
+          rejected_reason: string | null
+          requested_due_date: string | null
+          requester_id: string
+          status: string
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          admin_approved_at?: string | null
+          admin_approver_id?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_subtask_id?: string | null
+          clickup_subtask_url?: string | null
+          client_id: string
+          created_at?: string
+          delta_pct?: number | null
+          due_date_reason?: string | null
+          extra_points?: number | null
+          id?: string
+          info_request?: string | null
+          info_requested_at?: string | null
+          info_requested_by?: string | null
+          info_responded_at?: string | null
+          info_response?: string | null
+          original_due_date?: string | null
+          original_points?: number | null
+          owner_notified_at?: string | null
+          parent_clickup_task_id: string
+          parent_task_name: string
+          reason?: string | null
+          rejected_reason?: string | null
+          requested_due_date?: string | null
+          requester_id: string
+          status: string
+          tier: string
+          updated_at?: string
+        }
+        Update: {
+          admin_approved_at?: string | null
+          admin_approver_id?: string | null
+          approved_at?: string | null
+          approver_id?: string | null
+          clickup_subtask_id?: string | null
+          clickup_subtask_url?: string | null
+          client_id?: string
+          created_at?: string
+          delta_pct?: number | null
+          due_date_reason?: string | null
+          extra_points?: number | null
+          id?: string
+          info_request?: string | null
+          info_requested_at?: string | null
+          info_requested_by?: string | null
+          info_responded_at?: string | null
+          info_response?: string | null
+          original_due_date?: string | null
+          original_points?: number | null
+          owner_notified_at?: string | null
+          parent_clickup_task_id?: string
+          parent_task_name?: string
+          reason?: string | null
+          rejected_reason?: string | null
+          requested_due_date?: string | null
+          requester_id?: string
+          status?: string
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extension_requests_admin_approver_id_fkey"
+            columns: ["admin_approver_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "extension_requests_info_requested_by_fkey"
+            columns: ["info_requested_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback_reports: {
         Row: {
           created_at: string
@@ -1590,138 +1729,10 @@ export type Database = {
           summary?: string
           user_agent?: string | null
         }
-        Relationships: []
-      }
-      extension_requests: {
-        Row: {
-          admin_approved_at: string | null
-          admin_approver_id: string | null
-          approved_at: string | null
-          approver_id: string | null
-          info_request: string | null
-          info_requested_at: string | null
-          info_requested_by: string | null
-          info_responded_at: string | null
-          info_response: string | null
-          clickup_subtask_id: string | null
-          clickup_subtask_url: string | null
-          client_id: string
-          created_at: string
-          delta_pct: number | null
-          due_date_reason: string | null
-          extra_points: number | null
-          id: string
-          original_due_date: string | null
-          original_points: number | null
-          parent_clickup_task_id: string
-          parent_task_name: string
-          reason: string | null
-          rejected_reason: string | null
-          requested_due_date: string | null
-          requester_id: string
-          status: string
-          tier: string
-          updated_at: string
-        }
-        Insert: {
-          admin_approved_at?: string | null
-          admin_approver_id?: string | null
-          approved_at?: string | null
-          approver_id?: string | null
-          info_request?: string | null
-          info_requested_at?: string | null
-          info_requested_by?: string | null
-          info_responded_at?: string | null
-          info_response?: string | null
-          clickup_subtask_id?: string | null
-          clickup_subtask_url?: string | null
-          client_id: string
-          created_at?: string
-          delta_pct?: number | null
-          due_date_reason?: string | null
-          extra_points?: number | null
-          id?: string
-          original_due_date?: string | null
-          original_points?: number | null
-          parent_clickup_task_id: string
-          parent_task_name: string
-          reason?: string | null
-          rejected_reason?: string | null
-          requested_due_date?: string | null
-          requester_id: string
-          status: string
-          tier: string
-          updated_at?: string
-        }
-        Update: {
-          admin_approved_at?: string | null
-          admin_approver_id?: string | null
-          approved_at?: string | null
-          approver_id?: string | null
-          info_request?: string | null
-          info_requested_at?: string | null
-          info_requested_by?: string | null
-          info_responded_at?: string | null
-          info_response?: string | null
-          clickup_subtask_id?: string | null
-          clickup_subtask_url?: string | null
-          client_id?: string
-          created_at?: string
-          delta_pct?: number | null
-          due_date_reason?: string | null
-          extra_points?: number | null
-          id?: string
-          original_due_date?: string | null
-          original_points?: number | null
-          parent_clickup_task_id?: string
-          parent_task_name?: string
-          reason?: string | null
-          rejected_reason?: string | null
-          requested_due_date?: string | null
-          requester_id?: string
-          status?: string
-          tier?: string
-          updated_at?: string
-        }
         Relationships: [
           {
-            foreignKeyName: "extension_requests_admin_approver_id_fkey"
-            columns: ["admin_approver_id"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extension_requests_info_requested_by_fkey"
-            columns: ["info_requested_by"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extension_requests_approver_id_fkey"
-            columns: ["approver_id"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extension_requests_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "extension_requests_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "v_foundations_coverage"
-            referencedColumns: ["client_id"]
-          },
-          {
-            foreignKeyName: "extension_requests_requester_id_fkey"
-            columns: ["requester_id"]
+            foreignKeyName: "feedback_reports_reporter_member_id_fkey"
+            columns: ["reporter_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]
@@ -1805,9 +1816,58 @@ export type Database = {
           },
         ]
       }
+      internal_meeting_tasks: {
+        Row: {
+          clickup_sync_error: string | null
+          clickup_task_id: string | null
+          clickup_task_url: string | null
+          created_at: string
+          id: string
+          meeting_id: string
+          team_member_id: string
+          updated_at: string
+        }
+        Insert: {
+          clickup_sync_error?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          created_at?: string
+          id?: string
+          meeting_id: string
+          team_member_id: string
+          updated_at?: string
+        }
+        Update: {
+          clickup_sync_error?: string | null
+          clickup_task_id?: string | null
+          clickup_task_url?: string | null
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          team_member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_meeting_tasks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "internal_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_meeting_tasks_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_meetings: {
         Row: {
           agenda: string | null
+          clickup_status_override: string | null
           clickup_sync_error: string | null
           clickup_task_id: string | null
           clickup_task_url: string | null
@@ -1826,9 +1886,11 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          work_stream_override: string | null
         }
         Insert: {
           agenda?: string | null
+          clickup_status_override?: string | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
           clickup_task_url?: string | null
@@ -1847,9 +1909,11 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          work_stream_override?: string | null
         }
         Update: {
           agenda?: string | null
+          clickup_status_override?: string | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
           clickup_task_url?: string | null
@@ -1868,6 +1932,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          work_stream_override?: string | null
         }
         Relationships: [
           {
@@ -2647,6 +2712,94 @@ export type Database = {
           },
         ]
       }
+      process_steps_pre_0123: {
+        Row: {
+          ai_generated: boolean | null
+          created_at: string | null
+          definition_of_done: string | null
+          department_id: string | null
+          description: string | null
+          estimated_hours: number | null
+          goal_statement: string | null
+          id: string | null
+          keep_decision: string | null
+          materialise_as: Database["public"]["Enums"]["materialise_mode"] | null
+          ordinal: number | null
+          owner_id: string | null
+          parent_id: string | null
+          pos_x: number | null
+          pos_y: number | null
+          service_id: string | null
+          signal_q1: boolean | null
+          signal_q2: boolean | null
+          signal_q3: boolean | null
+          signal_q4: boolean | null
+          signal_q5: boolean | null
+          system_id: string | null
+          title: string | null
+          updated_at: string | null
+          verb: string | null
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          created_at?: string | null
+          definition_of_done?: string | null
+          department_id?: string | null
+          description?: string | null
+          estimated_hours?: number | null
+          goal_statement?: string | null
+          id?: string | null
+          keep_decision?: string | null
+          materialise_as?:
+            | Database["public"]["Enums"]["materialise_mode"]
+            | null
+          ordinal?: number | null
+          owner_id?: string | null
+          parent_id?: string | null
+          pos_x?: number | null
+          pos_y?: number | null
+          service_id?: string | null
+          signal_q1?: boolean | null
+          signal_q2?: boolean | null
+          signal_q3?: boolean | null
+          signal_q4?: boolean | null
+          signal_q5?: boolean | null
+          system_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          verb?: string | null
+        }
+        Update: {
+          ai_generated?: boolean | null
+          created_at?: string | null
+          definition_of_done?: string | null
+          department_id?: string | null
+          description?: string | null
+          estimated_hours?: number | null
+          goal_statement?: string | null
+          id?: string | null
+          keep_decision?: string | null
+          materialise_as?:
+            | Database["public"]["Enums"]["materialise_mode"]
+            | null
+          ordinal?: number | null
+          owner_id?: string | null
+          parent_id?: string | null
+          pos_x?: number | null
+          pos_y?: number | null
+          service_id?: string | null
+          signal_q1?: boolean | null
+          signal_q2?: boolean | null
+          signal_q3?: boolean | null
+          signal_q4?: boolean | null
+          signal_q5?: boolean | null
+          system_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          verb?: string | null
+        }
+        Relationships: []
+      }
       project_actuals: {
         Row: {
           actual_hours: number
@@ -3223,6 +3376,8 @@ export type Database = {
           updated_at: string
           version: number
           xero_quote_id: string | null
+          xero_quote_number: string | null
+          xero_quote_status: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -3250,6 +3405,8 @@ export type Database = {
           updated_at?: string
           version?: number
           xero_quote_id?: string | null
+          xero_quote_number?: string | null
+          xero_quote_status?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -3277,6 +3434,8 @@ export type Database = {
           updated_at?: string
           version?: number
           xero_quote_id?: string | null
+          xero_quote_number?: string | null
+          xero_quote_status?: string | null
         }
         Relationships: [
           {
@@ -3486,6 +3645,7 @@ export type Database = {
           client_id: string
           created_at: string
           id: string
+          owner_notified_at: string | null
           parent_clickup_task_id: string
           parent_task_name: string
           rejected_reason: string | null
@@ -3502,6 +3662,7 @@ export type Database = {
           client_id: string
           created_at?: string
           id?: string
+          owner_notified_at?: string | null
           parent_clickup_task_id: string
           parent_task_name: string
           rejected_reason?: string | null
@@ -3518,6 +3679,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           id?: string
+          owner_notified_at?: string | null
           parent_clickup_task_id?: string
           parent_task_name?: string
           rejected_reason?: string | null
@@ -4238,12 +4400,13 @@ export type Database = {
           id: string
           is_internal: boolean
           measurable_outcome: string
+          owner_notified_at: string | null
           rejected_reason: string | null
           sprint_points: number
           status: string
           submitter_id: string
-          system_id: string | null
           success_criteria: string
+          system_id: string | null
           task_name: string
           updated_at: string
         }
@@ -4261,12 +4424,13 @@ export type Database = {
           id?: string
           is_internal?: boolean
           measurable_outcome: string
+          owner_notified_at?: string | null
           rejected_reason?: string | null
           sprint_points: number
           status?: string
           submitter_id: string
-          system_id?: string | null
           success_criteria: string
+          system_id?: string | null
           task_name: string
           updated_at?: string
         }
@@ -4284,12 +4448,13 @@ export type Database = {
           id?: string
           is_internal?: boolean
           measurable_outcome?: string
+          owner_notified_at?: string | null
           rejected_reason?: string | null
           sprint_points?: number
           status?: string
           submitter_id?: string
-          system_id?: string | null
           success_criteria?: string
+          system_id?: string | null
           task_name?: string
           updated_at?: string
         }
@@ -4450,27 +4615,27 @@ export type Database = {
       system_edges: {
         Row: {
           created_at: string
-          source_handle: string | null
           id: string
           label: string | null
+          source_handle: string | null
           source_step_id: string
           system_id: string
           target_step_id: string
         }
         Insert: {
           created_at?: string
-          source_handle?: string | null
           id?: string
           label?: string | null
+          source_handle?: string | null
           source_step_id: string
           system_id: string
           target_step_id: string
         }
         Update: {
           created_at?: string
-          source_handle?: string | null
           id?: string
           label?: string | null
+          source_handle?: string | null
           source_step_id?: string
           system_id?: string
           target_step_id?: string
@@ -4495,6 +4660,78 @@ export type Database = {
             columns: ["target_step_id"]
             isOneToOne: false
             referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_edges_pre_0123: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          label: string | null
+          source_handle: string | null
+          source_step_id: string | null
+          system_id: string | null
+          target_step_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          label?: string | null
+          source_handle?: string | null
+          source_step_id?: string | null
+          system_id?: string | null
+          target_step_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          label?: string | null
+          source_handle?: string | null
+          source_step_id?: string | null
+          system_id?: string | null
+          target_step_id?: string | null
+        }
+        Relationships: []
+      }
+      system_revision_approvals: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          id: string
+          required: boolean
+          revision_id: string
+          team_member_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          required?: boolean
+          revision_id: string
+          team_member_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          required?: boolean
+          revision_id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_revision_approvals_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "system_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_revision_approvals_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]
@@ -4811,6 +5048,8 @@ export type Database = {
           invoice_number: string | null
           paid_at: string | null
           project_id: string | null
+          quote_id: string | null
+          quote_match_confidence: string | null
           status: string
           synced_at: string
           xero_contact_id: string | null
@@ -4826,6 +5065,8 @@ export type Database = {
           invoice_number?: string | null
           paid_at?: string | null
           project_id?: string | null
+          quote_id?: string | null
+          quote_match_confidence?: string | null
           status: string
           synced_at?: string
           xero_contact_id?: string | null
@@ -4841,6 +5082,8 @@ export type Database = {
           invoice_number?: string | null
           paid_at?: string | null
           project_id?: string | null
+          quote_id?: string | null
+          quote_match_confidence?: string | null
           status?: string
           synced_at?: string
           xero_contact_id?: string | null
@@ -4867,6 +5110,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xero_invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
         ]
@@ -5115,6 +5365,7 @@ export type Database = {
     Functions: {
       current_team_member_id: { Args: never; Returns: string }
       current_team_member_role: { Args: never; Returns: string }
+      duplicate_system: { Args: { p_system_id: string }; Returns: string }
       generate_project_code: { Args: never; Returns: string }
       get_direct_multiplier: {
         Args: { p_end: string; p_logged_by?: string; p_start: string }
@@ -5127,8 +5378,16 @@ export type Database = {
         }[]
       }
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
+      is_own_team_member_row: {
+        Args: { m: Database["public"]["Tables"]["team_members"]["Row"] }
+        Returns: boolean
+      }
       normalise_git_remote: { Args: { remote: string }; Returns: string }
-      publish_system_revision: { Args: { p_revision_id: string }; Returns: undefined }
+      open_step_slot: { Args: { p_step_id: string }; Returns: number }
+      publish_system_revision: {
+        Args: { p_revision_id: string }
+        Returns: undefined
+      }
       queue_pending_client: {
         Args: { p_domain: string; p_sender: string; p_subject: string }
         Returns: {

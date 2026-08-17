@@ -190,6 +190,48 @@ test.describe("Systems", () => {
       expect(stillProposed?.state).toBe("proposed");
     });
 
+    await test.step("publishing is blocked until the named required approver has signed off", async () => {
+      const { data: rev1 } = await owner
+        .from("system_revisions")
+        .select("id")
+        .eq("system_id", systemId)
+        .eq("revision", 1)
+        .single();
+
+      // No approvers yet: "who approved this" is a required field (0126), so
+      // the button is dead and the RPC refuses independently of the UI.
+      await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
+      const { error: noneErr } = await owner.rpc("publish_system_revision", { p_revision_id: rev1!.id });
+      expect(noneErr?.message).toContain("no approvers recorded");
+
+      // Name a required approver but leave the datetime blank — named is not
+      // signed off, and the guard has to tell those two states apart.
+      await page.getByLabel("Approver").selectOption(fixture!.memberId);
+      await page.getByLabel("Approved at", { exact: true }).fill("");
+      await page.getByRole("button", { name: "Add approver" }).click();
+      // "Remove" only exists on an approval row — a text match on the badge
+      // would also hit the add-row select's <option>Required</option>.
+      await expect(page.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
+
+      const { error: unsignedErr } = await owner.rpc("publish_system_revision", { p_revision_id: rev1!.id });
+      expect(unsignedErr?.message).toContain("still waiting on required approval");
+
+      // Record the datetime they completed it — now it publishes.
+      await page.getByLabel(`${E2E_PREFIX}Owner approved at`).fill("2026-08-17T09:30");
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled();
+
+      const { data: signed } = await owner
+        .from("system_revision_approvals")
+        .select("team_member_id, required, approved_at")
+        .eq("revision_id", rev1!.id);
+      expect(signed).toHaveLength(1);
+      expect(signed![0].team_member_id).toBe(fixture!.memberId);
+      expect(signed![0].required).toBe(true);
+      expect(signed![0].approved_at).not.toBeNull();
+    });
+
     await test.step("approve rev 1 through the UI", async () => {
       await page.getByRole("button", { name: "Approve", exact: true }).click();
       await expect(page.getByText("Revision published")).toBeVisible();
@@ -215,6 +257,13 @@ test.describe("Systems", () => {
       await proposeDialog.getByRole("button", { name: "Propose", exact: true }).click();
       await expect(page.getByText("Revision proposed")).toBeVisible();
       await expect(page.getByText("Rev 2", { exact: true })).toBeVisible();
+
+      // Sign-offs don't carry forward: a new snapshot needs its own approver,
+      // named on rev 2. The datetime field defaults to now, so this one is
+      // signed the moment it's added.
+      await page.getByLabel("Approver").selectOption(fixture!.memberId);
+      await page.getByRole("button", { name: "Add approver" }).click();
+      await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled();
 
       await page.getByRole("button", { name: "Approve", exact: true }).click();
       await expect(page.getByText("Revision published")).toBeVisible();
