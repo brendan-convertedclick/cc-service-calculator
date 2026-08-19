@@ -88,6 +88,9 @@ const Settings = lazy(() =>
 const SettingsConnectGmail = lazy(() =>
   import("@/pages/SettingsConnectGmail").then((m) => ({ default: m.SettingsConnectGmail })),
 );
+const SettingsEmailTemplates = lazy(() =>
+  import("@/pages/SettingsEmailTemplates").then((m) => ({ default: m.SettingsEmailTemplates })),
+);
 const SettingsConnectGoogle = lazy(() =>
   import("@/pages/SettingsConnectGoogle").then((m) => ({ default: m.SettingsConnectGoogle })),
 );
@@ -243,6 +246,7 @@ export default function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/gmail" element={<SettingsConnectGmail />} />
+              <Route path="settings/email-templates" element={<SettingsEmailTemplates />} />
               {/* Scope Composer — visual SOW builder (reclaims the old /sow redirect). */}
               <Route path="sow" element={<SowList />} />
               <Route path="sow/manage" element={<SowManage />} />

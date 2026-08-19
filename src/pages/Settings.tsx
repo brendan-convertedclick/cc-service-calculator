@@ -29,7 +29,7 @@ import {
 } from "@/hooks/useOngoingTasks";
 import type { TaskGroup, TaskTemplate } from "@/types/ongoing";
 
-type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "google" | "productivity" | "output-multiplier" | "task-catalog";
+type SectionKey = "clickup" | "anthropic" | "xero" | "gmail" | "google" | "email-templates" | "productivity" | "output-multiplier" | "task-catalog";
 
 const NAV: { key: SectionKey; label: string }[] = [
   { key: "clickup",          label: "ClickUp" },
@@ -37,6 +37,7 @@ const NAV: { key: SectionKey; label: string }[] = [
   { key: "xero",             label: "Xero" },
   { key: "gmail",            label: "Gmail" },
   { key: "google",           label: "Google Calendar" },
+  { key: "email-templates",  label: "Email templates" },
   { key: "productivity",     label: "Productivity" },
   { key: "output-multiplier", label: "Output Multiplier" },
   { key: "task-catalog",     label: "Task catalog" },
@@ -362,6 +363,23 @@ export function Settings() {
               <CardContent>
                 <Button asChild>
                   <Link to="/settings/gmail">Connect Gmail →</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "email-templates" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Email templates</CardTitle>
+                <CardDescription>
+                  The standard client emails. Start a reply from one when composing, or point a
+                  procedure step at the one it sends.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/settings/email-templates">Manage templates →</Link>
                 </Button>
               </CardContent>
             </Card>
