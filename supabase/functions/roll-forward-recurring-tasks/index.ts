@@ -33,6 +33,19 @@ Deno.serve(async (req: Request) => {
     .toISOString()
     .slice(0, 10);
 
+  // Retainers carry the current period's month-end due date. This runs BEFORE
+  // the provisioning fan-out below: it depends only on today's date, and going
+  // last meant a fan-out that overran the function's wall clock killed the
+  // process before the update ever fired — every retainer kept last period's
+  // due date and the dashboard filed them all as overdue (Jul and Aug 2026).
+  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
+    .toISOString();
+  const { error: dueErr } = await sb
+    .from("projects")
+    .update({ due_date: periodEnd })
+    .eq("engagement_type", "retainer")
+    .neq("status", "archived");
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   // Run every project's provisioning concurrently — sequential awaits across
@@ -55,15 +68,6 @@ Deno.serve(async (req: Request) => {
       }
     }),
   );
-
-  // Retainers carry the current period's month-end due date.
-  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
-    .toISOString();
-  const { error: dueErr } = await sb
-    .from("projects")
-    .update({ due_date: periodEnd })
-    .eq("engagement_type", "retainer")
-    .neq("status", "archived");
 
   return json({
     period_start: periodStart,
