@@ -18,7 +18,9 @@ module.exports = {
       name: "conductor-mcp",
       script: "npm",
       args: "run http",
-      cwd: "./mcp-server",
+      // Absolute, via __dirname: `pm2 resurrect` runs from launchd at login with
+      // cwd "/", so a relative path here resurrects as /mcp-server and dies.
+      cwd: require("node:path").join(__dirname, "mcp-server"),
       watch: false,
       autorestart: true,
       max_restarts: 10,
