@@ -25,8 +25,23 @@ No build step — both entry points run through `tsx`.
 
 ```sh
 openssl rand -hex 32                      # put the result in .env as MCP_AUTH_TOKEN
-npm run http                              # listens on localhost:8787
+npm run http                              # listens on 127.0.0.1:8787
 ```
+
+**It is already running on Brendan's Mac** — don't start a second one. `pm2`
+supervises it as `conductor-mcp` (see `ecosystem.config.cjs` at the repo root),
+and a launchd agent resurrects pm2 at login, so it survives a reboot:
+
+```sh
+pm2 list                # conductor-mcp should be online
+pm2 logs conductor-mcp  # what it's doing
+pm2 restart conductor-mcp
+```
+
+The port is bound to loopback, so the Vite proxy on the same machine is the only
+thing that can reach it directly. That also means **the MCP is only up while the
+dev server on :5391 is up** — the tunnel publishes `/mcp` through Vite, not
+around it.
 
 `vite.config.ts` proxies `/mcp` to that port, so the cloudflared tunnel already
 fronting the app serves the MCP server too — no second hostname, no DNS record.

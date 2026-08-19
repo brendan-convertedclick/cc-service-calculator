@@ -98,6 +98,10 @@ const http = createHttpServer(async (req, res) => {
   }
 })
 
-http.listen(PORT, () => {
+// Bound to loopback on purpose: the only thing that should reach this port is
+// the Vite proxy on the same machine, which is what the tunnel publishes as
+// /mcp. Listening on every interface would also offer the service role key to
+// whatever network this laptop is on, with the shared token as the only gate.
+http.listen(PORT, '127.0.0.1', () => {
   console.error(`[conductor-mcp] stateless HTTP transport listening on http://localhost:${PORT}/`)
 })

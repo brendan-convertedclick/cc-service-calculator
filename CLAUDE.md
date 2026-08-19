@@ -70,7 +70,9 @@ To call tools in agent sessions: use `mcp__conductor__<tool-name>`.
 
 Adding a tool means one entry in the `tools` table in `src/server.ts` — do not register it in an entry point, or it will exist on one transport and not the other. Mark it `true` in the fourth slot if it only reads; clients use `readOnlyHint` to decide what may run without asking.
 
-**The HTTP transport runs on the service role key and is gated by one shared bearer token (`MCP_AUTH_TOKEN`).** That token is the only thing between the internet and every client, brief and rate in the agency. Per-user auth is the real fix and has not been done — don't hand the URL outside the team until it is.
+**The HTTP transport is live** — `pm2` runs it as `conductor-mcp` (root `ecosystem.config.cjs`), a launchd agent resurrects pm2 at login, and it binds 127.0.0.1 only, so the Vite proxy is the one thing that can reach it. It is therefore up only while the dev server on :5391 is: the tunnel publishes `/mcp` *through* Vite, not around it. `pm2 logs conductor-mcp` when a client says the URL is dead.
+
+**It runs on the service role key and is gated by one shared bearer token (`MCP_AUTH_TOKEN` in `mcp-server/.env`, generated 2026-08-19).** That token is the only thing between the internet and every client, brief and rate in the agency. Per-user auth is the real fix and has not been done — don't hand the URL outside the team until it is, and rotate the token when someone leaves.
 
 **Writing procedures through the MCP.** `create-procedure` takes departments, owners and services **by name**, not uuid, and resolves every name before writing anything so a typo fails with nothing created. It writes the same rows the editor writes: top-level `process_steps` = task (`materialise_as: 'task'`), children = steps (`'checklist_item'`), consecutive tasks chained by a `system_edges` row and laid out left-to-right. Hours go on the steps — the rollup trigger owns the task's total. The result is a draft; publishing stays an admin act behind `publish_system_revision`.
 
