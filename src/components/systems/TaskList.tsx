@@ -12,28 +12,42 @@
 // Step numbers run straight through the procedure (1..N across every task)
 // rather than restarting inside each one — see groupProcedure.
 
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronUp,
   Copy,
   CornerLeftDown,
   CornerLeftUp,
+  Link2,
+  Mail,
   Plus,
+  StickyNote,
   Trash2,
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SignalNoise, VerbSelect } from "@/components/systems/StepSignal";
+import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { useUpdateStep } from "@/hooks/useProcessSteps";
+import { useSystemDefinitions } from "@/hooks/useSystemDefinitions";
+import {
+  useAttachProcedure,
+  useDetachProcedure,
+  useStepProcedures,
+} from "@/hooks/useStepProcedures";
 import { groupProcedure, taskBlockedReason, taskHours } from "@/lib/procedure-shape";
 import { pointsFromHours } from "@/types/placement-tasks";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage, toggleInSet } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
 type StepUpdate = Database["public"]["Tables"]["process_steps"]["Update"];
 
 export type TaskListProps = {
+  systemId: string;
   tasks: StepRow[];
   steps: StepRow[];
   depts: { id: string; name: string }[];
@@ -64,7 +78,160 @@ function initials(fullName: string): string {
 const ICON_BTN =
   "rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40";
 
+// Titles are edited in place, so the editor IS the label — and an <input>
+// cannot wrap, which is why long step names were cut off mid-sentence. A
+// textarea wraps; this keeps it exactly as tall as its content so it still
+// reads as a line of text rather than a form field.
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+/** What a row points at: the procedures it hands off to, and the email it
+ *  sends. Both write immediately rather than staging into the pane's draft —
+ *  a picker that appears to do nothing until Save is the trap that has already
+ *  caught people twice, and procedure attachments live in their own table with
+ *  no draft to stage into anyway.
+ *
+ *  These replace what used to be typed into the title as [Procedure] and
+ *  [Template]: a title goes to ClickUp verbatim, so markers typed there ship
+ *  as literal text. */
+function StepLinks({ row, systemId }: { row: StepRow; systemId: string }) {
+  const { data: attachedByStep } = useStepProcedures(systemId);
+  const { data: templates = [] } = useEmailTemplates();
+  const { data: systems = [] } = useSystemDefinitions();
+  const attach = useAttachProcedure();
+  const detach = useDetachProcedure();
+  const update = useUpdateStep();
+
+  const attached = attachedByStep?.get(row.id) ?? [];
+  const template = templates.find((t) => t.id === row.email_template_id) ?? null;
+  // Never offer this row's own system: a procedure that runs itself is a loop,
+  // and the one thing a pointer must not do is point home.
+  const options = systems.filter((sys) => sys.id !== systemId && !attached.some((a) => a.system_id === sys.id));
+
+  function setTemplate(id: string | null) {
+    update.mutate(
+      { id: row.id, patch: { email_template_id: id } },
+      { onError: (e) => toast.error(`Could not link the template: ${errorMessage(e)}`) }
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+      {attached.map((a) => (
+        <span
+          key={a.id}
+          className="inline-flex items-center gap-1 rounded-md bg-m-secondary-container px-2 py-0.5 text-label-small text-m-on-secondary-container"
+        >
+          <Link2 className="h-3 w-3" />
+          <a href={`/systems/${a.system_id}`} className="hover:underline">{a.name}</a>
+          <button
+            type="button"
+            aria-label={`Unlink "${a.name}"`}
+            title="Unlink"
+            onClick={() => detach.mutate(a.id)}
+            className="opacity-60 hover:opacity-100"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+
+      {template && (
+        <span className="inline-flex items-center gap-1 rounded-md bg-m-tertiary-container px-2 py-0.5 text-label-small text-m-on-tertiary-container">
+          <Mail className="h-3 w-3" />
+          {template.name}
+          <button
+            type="button"
+            aria-label={`Unlink template "${template.name}"`}
+            title="Unlink"
+            onClick={() => setTemplate(null)}
+            className="opacity-60 hover:opacity-100"
+          >
+            ×
+          </button>
+        </span>
+      )}
+
+      <select
+        value=""
+        aria-label={`Link a procedure to "${row.title}"`}
+        title="Link the procedure this step hands off to"
+        disabled={attach.isPending}
+        onChange={(e) => {
+          if (!e.target.value) return;
+          attach.mutate(
+            { stepId: row.id, systemId: e.target.value },
+            { onError: (err) => toast.error(`Could not link: ${errorMessage(err)}`) }
+          );
+          e.target.value = "";
+        }}
+        className="h-6 max-w-[10rem] rounded-md border border-dashed border-m-outline-variant bg-transparent px-1 text-label-small text-m-on-surface-variant"
+      >
+        <option value="">+ procedure</option>
+        {options.map((sys) => (
+          <option key={sys.id} value={sys.id}>{sys.name}</option>
+        ))}
+      </select>
+
+      {!template && (
+        <select
+          value=""
+          aria-label={`Link an email template to "${row.title}"`}
+          title="Link the email this step sends"
+          onChange={(e) => e.target.value && setTemplate(e.target.value)}
+          className="h-6 max-w-[10rem] rounded-md border border-dashed border-m-outline-variant bg-transparent px-1 text-label-small text-m-on-surface-variant"
+        >
+          <option value="">+ email template</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+/** Free-text note on a task or a step — the `description` column. Staged like
+ *  every other edit in this pane, so it lands on Save. */
+function NoteField({
+  row,
+  onPatch,
+}: {
+  row: StepRow;
+  onPatch: (row: StepRow, patch: StepUpdate) => void;
+}) {
+  return (
+    <textarea
+      key={row.description ?? ""}
+      defaultValue={row.description ?? ""}
+      aria-label={`Note for "${row.title}"`}
+      placeholder="Add a note — a gotcha, a link, anything the title doesn't say…"
+      rows={1}
+      ref={autoGrow}
+      onInput={(e) => autoGrow(e.currentTarget)}
+      onBlur={(e) => onPatch(row, { description: e.target.value.trim() || null })}
+      className="w-full resize-none overflow-hidden rounded-md border border-m-outline-variant bg-m-surface-container-low px-2 py-1.5 text-label-medium leading-snug text-m-on-surface-variant outline-none focus:border-m-primary focus:bg-m-surface"
+    />
+  );
+}
+
 export function TaskList(props: TaskListProps) {
+  // Which rows have their note box showing. A row that already has a note
+  // always shows it — otherwise notes written by the MCP stay invisible until
+  // someone happens to click the icon.
+  const [noteOpen, setNoteOpen] = useState<Set<string>>(new Set());
+  const toggleNote = (id: string) => setNoteOpen((prev) => toggleInSet(prev, id));
+  const noteShown = (row: StepRow) => noteOpen.has(row.id) || (row.description ?? "") !== "";
+  // Same rule for links: a row that already points somewhere always shows it,
+  // otherwise the chain is invisible until you happen to click the icon.
+  const [linkOpen, setLinkOpen] = useState<Set<string>>(new Set());
+  const toggleLink = (id: string) => setLinkOpen((prev) => toggleInSet(prev, id));
+  const { data: attachedByStep } = useStepProcedures(props.systemId);
+  const linksShown = (row: StepRow) =>
+    linkOpen.has(row.id) || row.email_template_id != null || (attachedByStep?.get(row.id)?.length ?? 0) > 0;
   const { tasks, steps, depts, team, colorById, busy } = props;
   const groups = groupProcedure(tasks, steps);
   const deptName = new Map(depts.map((d) => [d.id, d.name]));
@@ -133,27 +300,37 @@ export function TaskList(props: TaskListProps) {
 
               {/* The name is the ClickUp task name. Not the department — that
                   is routing, and it sits beside the name as a chip. */}
-              <input
+              <textarea
                 key={task.title}
+                ref={autoGrow}
+                rows={1}
                 defaultValue={task.title}
                 aria-label={`Task ${group.number} name`}
                 title="Rename this task — this is the name that appears in ClickUp"
                 placeholder="Name this task…"
                 onFocus={() => props.onFocus(task.id)}
+                onInput={(e) => autoGrow(e.currentTarget)}
                 onBlur={(e) => {
                   const el = e.target;
                   props.onRename(task, el.value, () => {
                     el.value = task.title;
+                    autoGrow(el);
                   });
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Enter") {
+                    // Enter commits the rename; it never puts a newline into a
+                    // ClickUp task name.
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  }
                   if (e.key === "Escape") {
                     e.currentTarget.value = task.title;
+                    autoGrow(e.currentTarget);
                     e.currentTarget.blur();
                   }
                 }}
-                className="min-w-0 flex-1 truncate rounded-md bg-transparent px-1 py-0.5 text-title-medium font-semibold text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                className="min-w-0 flex-1 resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-title-medium font-semibold leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
               />
 
               <select
@@ -287,6 +464,35 @@ export function TaskList(props: TaskListProps) {
                 )}
                 <button
                   type="button"
+                  aria-label={`Links for task "${task.title}"`}
+                  title="Link a procedure or an email template"
+                  onClick={() => toggleLink(task.id)}
+                  className={cn(ICON_BTN, linksShown(task) && "text-m-primary")}
+                >
+                  <Link2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Note for task "${task.title}"`}
+                  title="Add a note to this task"
+                  onClick={() => toggleNote(task.id)}
+                  className={cn(ICON_BTN, task.description && "text-m-primary")}
+                >
+                  <StickyNote className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Signal or noise for task "${task.title}"`}
+                  title="Signal or noise — is this task worth keeping?"
+                  onClick={() => props.onToggleSignal(task.id)}
+                  className={ICON_BTN}
+                >
+                  <ChevronDown
+                    className={cn("h-4 w-4 transition-transform", props.signalOpen.has(task.id) && "rotate-180")}
+                  />
+                </button>
+                <button
+                  type="button"
                   aria-label={`Delete task "${task.title}"`}
                   title="Delete this task"
                   onClick={() => props.onDelete(task)}
@@ -296,6 +502,28 @@ export function TaskList(props: TaskListProps) {
                 </button>
               </div>
             </div>
+
+            {linksShown(task) && (
+              <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 pb-2">
+                <StepLinks row={task} systemId={props.systemId} />
+              </div>
+            )}
+
+            {noteShown(task) && (
+              <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 py-2">
+                <NoteField row={task} onPatch={props.onPatch} />
+              </div>
+            )}
+
+            {/* The same question grid the steps have, one level up. The propose
+                gate reads top-level rows — which 0123 turned from steps into
+                tasks — so without this the verdict on a task can never leave
+                "pending" and Propose stays disabled forever. */}
+            {props.signalOpen.has(task.id) && (
+              <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 py-2.5">
+                <SignalNoise step={task} onPatch={(patch) => props.onPatch(task, patch)} />
+              </div>
+            )}
 
             {/* ── its steps ────────────────────────────────────────────── */}
             <ol className="pb-2 pl-12 pr-5">
@@ -348,28 +576,42 @@ export function TaskList(props: TaskListProps) {
                             className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0"
                           />
                         </span>
-                        <input
+                        <textarea
                           key={step.title}
+                          ref={autoGrow}
+                          rows={1}
                           defaultValue={step.title}
                           aria-label={`Step ${number} title`}
                           title="Rename this step — also centres its task on the canvas"
                           onFocus={() => props.onFocus(task.id)}
+                          onInput={(e) => autoGrow(e.currentTarget)}
                           onBlur={(e) => {
                             const el = e.target;
                             props.onRename(step, el.value, () => {
                               el.value = step.title;
+                              autoGrow(el);
                             });
                           }}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") e.currentTarget.blur();
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
                             if (e.key === "Escape") {
                               e.currentTarget.value = step.title;
+                              autoGrow(e.currentTarget);
                               e.currentTarget.blur();
                             }
                           }}
-                          className="w-full truncate rounded-md bg-transparent px-1 py-0.5 text-body-large text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                          className="w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-body-large leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                         />
                       </div>
+                      {linksShown(step) && <StepLinks row={step} systemId={props.systemId} />}
+                      {noteShown(step) && (
+                        <div className="pt-1">
+                          <NoteField row={step} onPatch={props.onPatch} />
+                        </div>
+                      )}
                       {props.signalOpen.has(step.id) && (
                         <div className="pt-1">
                           <SignalNoise step={step} onPatch={(patch) => props.onPatch(step, patch)} />
@@ -434,6 +676,24 @@ export function TaskList(props: TaskListProps) {
                         className={ICON_BTN}
                       >
                         <CornerLeftDown className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Links for step ${number}`}
+                        title="Link a procedure or an email template"
+                        onClick={() => toggleLink(step.id)}
+                        className={cn(ICON_BTN, linksShown(step) && "text-m-primary")}
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Note for step ${number}`}
+                        title="Add a note to this step"
+                        onClick={() => toggleNote(step.id)}
+                        className={cn(ICON_BTN, step.description && "text-m-primary")}
+                      >
+                        <StickyNote className="h-4 w-4" />
                       </button>
                       <button
                         type="button"

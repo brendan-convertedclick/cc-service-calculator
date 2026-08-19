@@ -808,6 +808,11 @@ function SystemCanvasInner({
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 fitView
+                // @xyflow's default floor is 0.5, which on a long procedure
+                // stops you before the whole run is on screen. Blocks wrap
+                // their text now, so they are taller and that ceiling bit
+                // sooner.
+                minZoom={0.2}
                 proOptions={{ hideAttribution: true }}
                 // Default @xyflow behaviour maps trackpad two-finger scroll to
                 // zoom, not pan — a long step chain then has no way to reach

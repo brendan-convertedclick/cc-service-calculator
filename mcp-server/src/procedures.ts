@@ -19,9 +19,12 @@ import { resolveDepartment, resolvePerson } from './lookup.js'
  *     joined by a `system_edges` row and laid out left-to-right — the canvas
  *     draws tasks horizontally and their steps vertically inside the card.
  *
- * Hours on a task with steps are not worth sending: the
- * `process_steps_rollup_hours` trigger overwrites the parent with the sum of
- * its children on every child write.
+ * Hours can go on the task, the steps, or both. The
+ * `process_steps_rollup_hours` trigger only overwrites the task's hours with
+ * the sum of its steps once at least one step actually has an hour value
+ * (migration 0125) — a task whose steps are all unestimated keeps whatever
+ * was set on the task directly. So the task's `estimated_hours` is always
+ * worth sending, steps or no steps.
  */
 
 /** Horizontal gap between task cards — matches NEXT_STEP_GAP_X in SystemDetail. */
@@ -38,7 +41,7 @@ export const taskInput = z.object({
   department: z.string().optional().describe('Department name e.g. "Design". Required before the task can push to ClickUp'),
   owner: z.string().optional().describe('Team member name or email; defaults to the procedure owner'),
   description: z.string().optional().describe('Markdown instructions for the whole task'),
-  estimated_hours: z.number().optional().describe('Only used when the task has no steps — otherwise steps are summed'),
+  estimated_hours: z.number().optional().describe('Hours for the whole task. Kept as-is if its steps are left unestimated; overwritten by the sum of step hours once any step has one'),
   steps: z.array(stepInput).optional().describe('Checklist items, in order'),
 })
 
@@ -96,9 +99,7 @@ export async function writeTasks(
         description: t.description ?? null,
         department_id: resolved[i].department_id,
         owner_id: resolved[i].owner_id,
-        // Steps carry the hours when there are steps; the rollup trigger would
-        // overwrite anything set here anyway.
-        estimated_hours: t.steps?.length ? null : (t.estimated_hours ?? null),
+        estimated_hours: t.estimated_hours ?? null,
         materialise_as: 'task' as const,
         pos_x: startX + i * TASK_GAP_X,
         pos_y: 0,

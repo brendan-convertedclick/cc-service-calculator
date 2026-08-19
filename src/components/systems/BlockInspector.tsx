@@ -43,6 +43,7 @@ const NONE = "__none__";
 type InspectorForm = {
   title: string;
   goal: string;
+  note: string;
   department_id: string;
   owner_id: string;
   hours: string;
@@ -53,6 +54,7 @@ function toForm(step: Step): InspectorForm {
   return {
     title: step.title,
     goal: step.goal_statement ?? "",
+    note: step.description ?? "",
     department_id: step.department_id ?? "",
     owner_id: step.owner_id ?? "",
     hours: step.estimated_hours != null ? String(step.estimated_hours) : "",
@@ -179,6 +181,20 @@ export function BlockInspector({
           rows={3}
           className="text-label-medium italic"
           placeholder="What is this step for?"
+        />
+      </Field>
+
+      <Field
+        label="Note"
+        hint="Anything the person running this needs to know that the title doesn't say — a gotcha, a link, a where-to-find-it. Shows on the block."
+      >
+        <Textarea
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          onBlur={(e) => commit({ description: e.target.value.trim() || null })}
+          rows={3}
+          className="text-label-medium"
+          placeholder="Add a note…"
         />
       </Field>
 

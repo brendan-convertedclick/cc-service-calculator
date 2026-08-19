@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
+  Copy,
   History,
   Plus,
   Save,
@@ -24,7 +25,9 @@ import {
   SYSTEM_BANDS,
   SYSTEM_BAND_LABEL,
   SYSTEM_KIND_LABEL,
+  SYSTEM_LAYER_LABEL,
   systemLayer,
+  useDuplicateSystem,
   useSystemDefinition,
   useSystemOverhead,
   useUpdateSystem,
@@ -553,6 +556,7 @@ export function SystemDetail() {
   const { data: depts = [] } = useDepartments();
   const { data: team = [] } = useTeam();
   const update = useUpdateSystem();
+  const duplicate = useDuplicateSystem();
   const { data: revisions = [], isLoading: revisionsLoading } = useSystemRevisions(id);
   const { data: approvals = [] } = useRevisionApprovals(id, revisions.map((r) => r.id));
   const { role } = useCurrentRole();
@@ -742,6 +746,35 @@ export function SystemDetail() {
                   )}
                 </div>
               </div>
+
+              {/* Copies the definition, its tasks and steps, and the canvas
+                  edges between them (0122's RPC) — not the revisions: a copy
+                  has never been published, so it starts at revision 0. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-none gap-1.5"
+                disabled={duplicate.isPending}
+                onClick={() =>
+                  duplicate.mutate(system.id, {
+                    onSuccess: (newId) => {
+                      // A service-kind copy can't hang off the same service
+                      // (0107), so the RPC lands it as a reference. Say so
+                      // rather than let the badge silently disagree.
+                      toast.success(
+                        system.kind === "service"
+                          ? "Copied as a Reference procedure — a service can only back one."
+                          : `${SYSTEM_LAYER_LABEL[systemLayer(system.kind)].slice(0, -1)} duplicated`
+                      );
+                      navigate(`/systems/${newId}`);
+                    },
+                    onError: (e) => toast.error(`Could not duplicate: ${errorMessage(e)}`),
+                  })
+                }
+              >
+                <Copy className="h-4 w-4" />
+                {duplicate.isPending ? "Duplicating…" : "Duplicate"}
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -944,6 +977,7 @@ export function SystemDetail() {
               </CardHeader>
               <CardContent className="p-0">
                 <TaskList
+                  systemId={system.id}
                   tasks={draftTasks}
                   steps={draftSteps}
                   depts={depts}
@@ -1034,6 +1068,7 @@ export function SystemDetail() {
       <ProposeDialog
         systemId={system.id}
         steps={steps}
+        dirty={dirty}
         open={proposeOpen}
         setOpen={setProposeOpen}
         reason={proposeReason}
@@ -1208,6 +1243,7 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
 function ProposeDialog({
   systemId,
   steps,
+  dirty,
   open,
   setOpen,
   reason,
@@ -1215,6 +1251,7 @@ function ProposeDialog({
 }: {
   systemId: string;
   steps: StepRow[];
+  dirty: boolean;
   open: boolean;
   setOpen: (open: boolean) => void;
   reason: string;
@@ -1226,6 +1263,9 @@ function ProposeDialog({
   // 'pending' only — a Force keep/cut is an answer, and "Needs a look" (some
   // answered, none decisive) is a judgement someone already made.
   const unevaluated = steps.filter((s) => verdict(s).effective === "pending");
+  // A revision snapshots what is IN THE DATABASE, so staged edits must land
+  // first — otherwise the snapshot silently omits them, and the gate above
+  // reads the saved rows and keeps complaining about answers already on screen.
 
   return (
     <Dialog
@@ -1253,16 +1293,22 @@ function ProposeDialog({
             placeholder="Why is this procedure changing?"
           />
         </div>
-        {unevaluated.length > 0 && (
+        {dirty && (
           <p className="rounded-lg bg-m-error-container px-3 py-2 text-label-medium text-m-on-error-container">
-            Answer signal or noise on {unevaluated.length} step
+            Save your changes first — a revision snapshots the saved procedure, so anything
+            still unsaved would be left out of it.
+          </p>
+        )}
+        {!dirty && unevaluated.length > 0 && (
+          <p className="rounded-lg bg-m-error-container px-3 py-2 text-label-medium text-m-on-error-container">
+            Answer signal or noise on {unevaluated.length} task
             {unevaluated.length === 1 ? "" : "s"} first: {unevaluated.map((s) => s.title).join(", ")}
           </p>
         )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={!reason.trim() || unevaluated.length > 0 || propose.isPending}
+            disabled={!reason.trim() || dirty || unevaluated.length > 0 || propose.isPending}
             onClick={() => {
               propose.mutate(
                 { systemId, reasonForChange: reason.trim() },

@@ -65,7 +65,7 @@ describe('writeTasks', () => {
     })
   })
 
-  it('leaves hours to the steps when a task has any, and keeps them when it does not', async () => {
+  it('sends task-level hours regardless of whether the task has steps', async () => {
     await write(
       [
         { title: 'With steps', estimated_hours: 9, steps: [{ title: 'a', estimated_hours: 1 }] },
@@ -75,7 +75,7 @@ describe('writeTasks', () => {
     )
 
     const tasks = rowsFor('process_steps').filter((r) => r.parent_id === null)
-    expect(tasks[0].estimated_hours).toBeNull()
+    expect(tasks[0].estimated_hours).toBe(9)
     expect(tasks[1].estimated_hours).toBe(2)
   })
 

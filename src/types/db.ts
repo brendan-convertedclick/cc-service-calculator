@@ -2592,6 +2592,7 @@ export type Database = {
           definition_of_done: string | null
           department_id: string | null
           description: string | null
+          email_template_id: string | null
           estimated_hours: number | null
           goal_statement: string | null
           id: string
@@ -2619,6 +2620,7 @@ export type Database = {
           definition_of_done?: string | null
           department_id?: string | null
           description?: string | null
+          email_template_id?: string | null
           estimated_hours?: number | null
           goal_statement?: string | null
           id?: string
@@ -2646,6 +2648,7 @@ export type Database = {
           definition_of_done?: string | null
           department_id?: string | null
           description?: string | null
+          email_template_id?: string | null
           estimated_hours?: number | null
           goal_statement?: string | null
           id?: string
@@ -2673,6 +2676,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_steps_email_template_id_fkey"
+            columns: ["email_template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
             referencedColumns: ["id"]
           },
           {
@@ -5123,6 +5133,23 @@ export type Database = {
       }
     }
     Views: {
+      actuals_intervals: {
+        Row: {
+          billable: boolean | null
+          clickup_task_id: string | null
+          clickup_user_id: number | null
+          client_id: string | null
+          entry_id: string | null
+          entry_start: string | null
+          hours: number | null
+          ongoing_task_id: string | null
+          project_id: string | null
+          source: string | null
+          task_name: string | null
+          team_member_id: string | null
+        }
+        Relationships: []
+      }
       live_actuals_by_period: {
         Row: {
           billable: boolean | null
@@ -5136,27 +5163,6 @@ export type Database = {
           time_category_id: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "ongoing_tasks_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ongoing_tasks_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "v_foundations_coverage"
-            referencedColumns: ["client_id"]
-          },
-          {
-            foreignKeyName: "ongoing_tasks_team_member_id_fkey"
-            columns: ["team_member_id"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ongoing_tasks_time_category_id_fkey"
             columns: ["time_category_id"]

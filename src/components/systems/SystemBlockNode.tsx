@@ -131,14 +131,20 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
           {step.title}
         </p>
 
-        {(step.goal_statement || step.description) && (
+        {step.goal_statement && (
           <p
             className={cn(
-              "mt-0.5 italic text-label-small",
+              "mt-0.5 italic text-label-small leading-snug",
               unassigned ? "text-m-on-error-container/85" : "text-m-on-surface-variant"
             )}
           >
-            {step.goal_statement || step.description}
+            {step.goal_statement}
+          </p>
+        )}
+
+        {step.description && (
+          <p className="mt-1 rounded-md border-l-2 border-m-outline-variant bg-m-surface-container-low py-1 pl-2 pr-1 text-label-small leading-snug text-m-on-surface-variant">
+            {step.description}
           </p>
         )}
 
@@ -185,13 +191,13 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
           {hasSubSteps && (
             <ol className="mt-1 space-y-0.5">
               {subSteps.map((s) => (
-                <li key={s.id} className="flex items-center gap-1.5 text-label-small text-m-on-surface">
-                  <span className="w-3 flex-none text-right font-mono text-label-small text-m-on-surface-variant">
+                <li key={s.id} className="flex items-start gap-1.5 text-label-small text-m-on-surface">
+                  <span className="w-3 flex-none pt-px text-right font-mono text-label-small text-m-on-surface-variant">
                     {stepNumbers?.get(s.id) ?? ""}
                   </span>
                   <span
                     className={cn(
-                      "h-2.5 w-2.5 flex-none rounded-[3px] border",
+                      "mt-[3px] h-2.5 w-2.5 flex-none rounded-[3px] border",
                       s.materialise_as === "none" ? "border-dashed border-m-outline" : "border-m-outline"
                     )}
                     aria-hidden
@@ -203,12 +209,17 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       onSelectSubStep?.(s);
                     }}
                     className={cn(
-                      "min-w-0 flex-1 truncate text-left hover:underline",
+                      "min-w-0 flex-1 text-left leading-snug hover:underline",
                       s.materialise_as === "none" && "text-m-on-surface-variant line-through decoration-1"
                     )}
                     title={s.materialise_as === "none" ? `${s.title} — skipped on push` : s.title}
                   >
                     {s.title}
+                    {s.description && (
+                      <span className="mt-0.5 block font-normal not-italic text-label-small leading-snug text-m-on-surface-variant">
+                        {s.description}
+                      </span>
+                    )}
                   </button>
                   {s.estimated_hours != null && (
                     <span className="flex-none font-mono text-label-small text-m-on-surface-variant">
