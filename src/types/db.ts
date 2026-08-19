@@ -4513,6 +4513,7 @@ export type Database = {
           created_at: string
           current_revision_id: string | null
           definition_of_done: string | null
+          doc_links: string[]
           exceptions_md: string | null
           expert_id: string | null
           goal_metric: string | null
@@ -4534,6 +4535,7 @@ export type Database = {
           created_at?: string
           current_revision_id?: string | null
           definition_of_done?: string | null
+          doc_links?: string[]
           exceptions_md?: string | null
           expert_id?: string | null
           goal_metric?: string | null
@@ -4555,6 +4557,7 @@ export type Database = {
           created_at?: string
           current_revision_id?: string | null
           definition_of_done?: string | null
+          doc_links?: string[]
           exceptions_md?: string | null
           expert_id?: string | null
           goal_metric?: string | null

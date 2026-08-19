@@ -26,6 +26,7 @@ import {
   SYSTEM_BAND_LABEL,
   SYSTEM_KIND_LABEL,
   SYSTEM_LAYER_LABEL,
+  SYSTEM_LAYER_NOUN,
   systemLayer,
   useDuplicateSystem,
   useSystemDefinition,
@@ -37,6 +38,7 @@ import { useCreateStep, useReorderStep, useSystemSteps, useUpdateStep } from "@/
 import { useConnectSteps, useDisconnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
 import { DeleteStepDialog } from "@/components/systems/DeleteStepDialog";
 import { TaskList } from "@/components/systems/TaskList";
+import { DocLinksField } from "@/components/systems/DocLinksField";
 import { verdict } from "@/components/systems/StepSignal";
 import {
   useProposeRevision,
@@ -909,6 +911,17 @@ export function SystemDetail() {
                 onBlur={(e) => save("exceptions_md", e.target.value)}
                 rows={2}
                 placeholder="Edge cases this procedure doesn't cover"
+              />
+            </FieldLabel>
+            <FieldLabel
+              label="Reference documents"
+              stacked
+              hint="Links to the documents this needs — a Google Doc, a spec, a brand sheet. They ride along into the ClickUp task description, so whoever does the work can open them from there."
+            >
+              <DocLinksField
+                systemId={system.id}
+                links={system.doc_links}
+                noun={SYSTEM_LAYER_NOUN[systemLayer(system.kind)]}
               />
             </FieldLabel>
           </CardContent>

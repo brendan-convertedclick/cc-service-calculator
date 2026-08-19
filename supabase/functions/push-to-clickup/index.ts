@@ -763,10 +763,17 @@ Deno.serve(async (req: Request) => {
       const stepSystemIds = [...new Set(
         templateSteps.map((s) => s.system_id).filter((id): id is string => !!id),
       )];
+      // doc_links rides along on the query that was already fetching `kind`:
+      // the reference documents on a system get rendered into every task the
+      // system raises, so the person doing the work opens them from ClickUp.
+      // Read live rather than from the published revision snapshot — a doc that
+      // moves should update every future task without republishing (0129).
+      type SystemRow = { id: string; kind: string; doc_links: string[] | null };
       const { data: systemRows } = stepSystemIds.length > 0
-        ? await supabase.from("system_definitions").select("id,kind").in("id", stepSystemIds)
-        : { data: [] as { id: string; kind: string }[] };
-      const systemKindById = new Map((systemRows ?? []).map((s: { id: string; kind: string }) => [s.id, s.kind]));
+        ? await supabase.from("system_definitions").select("id,kind,doc_links").in("id", stepSystemIds)
+        : { data: [] as SystemRow[] };
+      const systemKindById = new Map((systemRows ?? []).map((s: SystemRow) => [s.id, s.kind]));
+      const docLinksBySystemId = new Map((systemRows ?? []).map((s: SystemRow) => [s.id, s.doc_links ?? []]));
       const internalStepIds = new Set(
         templateSteps
           .filter((s) => s.system_id && systemKindById.get(s.system_id) === "internal")
@@ -896,11 +903,16 @@ Deno.serve(async (req: Request) => {
               // across the whole procedure, so they mean nothing on one task.
               const plannedTask = planByStepId.get(instance.template_step_id);
               const serviceName = serviceNameById.get(instance.service_id);
+              const stepSystemId = templateStepsById.get(instance.template_step_id)?.system_id ?? null;
               const howTo = plannedTask
-                ? renderHowTo(plannedTask, {
-                    label: "How this is done — the procedure in Conductor",
-                    url: `${APP_URL}/systems/${templateStepsById.get(instance.template_step_id)?.system_id ?? ""}`,
-                  })
+                ? renderHowTo(
+                    plannedTask,
+                    {
+                      label: "How this is done — the procedure in Conductor",
+                      url: `${APP_URL}/systems/${stepSystemId ?? ""}`,
+                    },
+                    stepSystemId ? docLinksBySystemId.get(stepSystemId) : null,
+                  )
                 : null;
 
               const taskBody: Record<string, unknown> = {

@@ -1,5 +1,10 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { planMaterialisation, renderHowTo, type MaterialiseStep } from "./system-materialise.ts";
+import {
+  planMaterialisation,
+  renderDocLinks,
+  renderHowTo,
+  type MaterialiseStep,
+} from "./system-materialise.ts";
 
 const step = (
   id: string,
@@ -134,4 +139,49 @@ Deno.test("renderHowTo appends the link back to Conductor, and is just the link 
     renderHowTo({ title: "T", description: null, checklist: [] }, origin),
     "[Procedure in Conductor](https://x/systems/1)",
   );
+});
+
+// ── doc links (0129) ────────────────────────────────────────────────────────
+
+Deno.test("renderDocLinks is null for no links, and drops blank entries", () => {
+  assertEquals(renderDocLinks(), null);
+  assertEquals(renderDocLinks([]), null);
+  assertEquals(renderDocLinks(["", "   "]), null);
+  assertEquals(
+    renderDocLinks(["  https://docs.example/a  ", "", "https://docs.example/b"]),
+    "**Reference docs**\n\n- https://docs.example/a\n- https://docs.example/b",
+  );
+});
+
+Deno.test("renderHowTo puts docs after the instructions and before the origin footer", () => {
+  const origin = { label: "Procedure in Conductor", url: "https://x/systems/1" };
+  assertEquals(
+    renderHowTo(
+      { title: "T", description: "Do it.", checklist: [item("Check", "Twice.")] },
+      origin,
+      ["https://docs.example/a"],
+    ),
+    "Do it.\n\n## Check\n\nTwice.\n\n**Reference docs**\n\n- https://docs.example/a" +
+      "\n\n---\n\n[Procedure in Conductor](https://x/systems/1)",
+  );
+});
+
+// The regression the early return invites: with no prose written anywhere,
+// renderHowTo used to bail before it could reach anything but the origin link.
+// Docs alone have to be enough to produce a description.
+Deno.test("renderHowTo returns the docs when they are the only thing written", () => {
+  assertEquals(
+    renderHowTo({ title: "T", description: null, checklist: [item("a")] }, null, [
+      "https://docs.example/a",
+    ]),
+    "**Reference docs**\n\n- https://docs.example/a",
+  );
+});
+
+Deno.test("renderHowTo is unchanged when a system has no doc links", () => {
+  assertEquals(
+    renderHowTo({ title: "T", description: "Do it.", checklist: [] }, null, []),
+    "Do it.",
+  );
+  assertEquals(renderHowTo({ title: "T", description: null, checklist: [] }, null, []), null);
 });

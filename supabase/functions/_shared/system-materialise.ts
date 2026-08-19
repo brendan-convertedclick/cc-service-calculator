@@ -139,6 +139,7 @@ export function planMaterialisation(steps: MaterialiseStep[]): MaterialisePlan {
 export function renderHowTo(
   task: { title: string; description: string | null; checklist: ChecklistEntry[] },
   origin?: { label: string; url: string } | null,
+  docLinks?: readonly string[] | null,
 ): string | null {
   const parts: string[] = [];
   if (task.description?.trim()) parts.push(task.description.trim());
@@ -148,7 +149,32 @@ export function renderHowTo(
     parts.push(`## ${item.title}\n\n${item.description.trim()}`);
   }
 
+  // After the instructions, before the origin footer: the docs are reference
+  // material for the work above, not part of the audit trail below.
+  const docs = renderDocLinks(docLinks);
+  if (docs) parts.push(docs);
+
   if (parts.length === 0) return origin ? `[${origin.label}](${origin.url})` : null;
   if (origin) parts.push(`---\n\n[${origin.label}](${origin.url})`);
   return parts.join("\n\n");
+}
+
+/**
+ * The reference documents on a system (system_definitions.doc_links, 0129), as
+ * a markdown section — or null when there are none, so every caller can decide
+ * whether to append rather than stamping an empty heading.
+ *
+ * Bare URLs on purpose: ClickUp auto-links them, and doc_links stores no label
+ * to render as the anchor text. Blank and whitespace-only entries are dropped
+ * here rather than at each call site — the column is a plain text[] with no
+ * check constraint, and the MCP writes to it too.
+ *
+ * Shared by all three ClickUp push paths (push-to-clickup, approve-staff-brief,
+ * create-quick-brief-task) so a doc list reads identically wherever a task was
+ * raised from.
+ */
+export function renderDocLinks(links?: readonly string[] | null): string | null {
+  const clean = (links ?? []).map((l) => l.trim()).filter(Boolean);
+  if (clean.length === 0) return null;
+  return `**Reference docs**\n\n${clean.map((l) => `- ${l}`).join("\n")}`;
 }

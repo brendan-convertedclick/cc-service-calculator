@@ -14,6 +14,7 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
+import { renderDocLinks } from "../_shared/system-materialise.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 type StaffBrief = {
@@ -125,12 +126,36 @@ Deno.serve(async (req: Request) => {
     const engagementType = brief.is_internal ? "Task" : "Project";
     const workStream = brief.clickup_list_name;
 
-    // Compose description: the three answers, plus an audit footer.
+    // The chosen system's reference documents (0129), so the person doing the
+    // work opens them from the ClickUp task. Any kind qualifies — this is the
+    // one push path a kind='process' system can reach, since WorkflowSelect
+    // offers anything with steps and a process's blocks all materialise as
+    // 'none' (so the checklist below comes out empty but the task still ships).
+    // Best-effort: a brief must not fail to approve because a doc list didn't
+    // load.
+    let docLinks: string[] = [];
+    if (brief.system_id) {
+      const { data: sys, error: sysErr } = await supabase
+        .from("system_definitions")
+        .select("doc_links")
+        .eq("id", brief.system_id)
+        .maybeSingle();
+      if (sysErr) {
+        console.error(`[approve-staff-brief] doc_links lookup failed for system ${brief.system_id}: ${sysErr.message}`);
+      } else {
+        docLinks = ((sys as { doc_links: string[] | null } | null)?.doc_links) ?? [];
+      }
+    }
+    const docsSection = renderDocLinks(docLinks);
+
+    // Compose description: the three answers, the reference docs, then an
+    // audit footer.
     const description =
       `# ${brief.task_name}\n\n` +
       `**Goal**\n${brief.goal}\n\n` +
       `**What success looks like**\n${brief.success_criteria}\n\n` +
       `**Measurable outcome**\n${brief.measurable_outcome}\n\n` +
+      (docsSection ? `${docsSection}\n\n` : "") +
       `---\n` +
       `_Phase 1 staff brief · submitted by ${member.full_name} · approved on ${dateOfEngagement}_`;
 

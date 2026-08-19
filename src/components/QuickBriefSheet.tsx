@@ -191,6 +191,10 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         briefed_by_member_id: briefedBy === UNASSIGNED ? null : briefedBy,
         billing_type: billingType,
         checklist_items: checklistItems.split("\n").filter((i) => i.trim()),
+        // The steps were flattened into checklist text above, which loses where
+        // they came from — send the id too so the task can carry the system's
+        // reference docs (0129).
+        system_id: systemId === NO_WORKFLOW ? null : systemId,
         attachments,
       });
       toast.success("Task created in ClickUp", {

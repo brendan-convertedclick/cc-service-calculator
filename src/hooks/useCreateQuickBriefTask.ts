@@ -16,6 +16,10 @@ export type CreateQuickBriefArgs = {
   billing_type?: "retainer" | "adhoc";
   /** One item per line — creates a ClickUp checklist on the task. */
   checklist_items?: string[];
+  /** The Systems entry `checklist_items` was built from, if one was picked.
+   *  Sent so the task can carry that system's reference docs — the flattened
+   *  checklist text no longer says where it came from. */
+  system_id?: string | null;
   /** Optional files — each uploaded as a ClickUp task attachment after create. */
   attachments?: File[];
 };

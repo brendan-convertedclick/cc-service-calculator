@@ -1,7 +1,7 @@
 // supabase/functions/create-quick-brief-task/index.ts
 //
 // Request:  POST { brief_id, task_name, assignee_member_id?, sprint_points,
-//                  work_stream, due_date?, list_id?, status? }
+//                  work_stream, due_date?, list_id?, status?, system_id? }
 // Response: 200 { clickup_task_id, clickup_task_url }
 //
 // Turns a brief into ONE ClickUp task with no scope/SOW/quote. Idempotent:
@@ -13,6 +13,7 @@ import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
 import { briefBriefedMessage, isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
+import { renderDocLinks } from "../_shared/system-materialise.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -25,6 +26,7 @@ Deno.serve(async (req: Request) => {
       sprint_points?: number; work_stream?: string; due_date?: string | null;
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
       billing_type?: string; checklist_items?: string[];
+      system_id?: string | null;
     };
     // File attachments arrive as multipart/form-data (payload = JSON string,
     // one or more "file" entries); no attachments → plain JSON, as before.
@@ -114,10 +116,31 @@ Deno.serve(async (req: Request) => {
     // Operator-supplied description wins; fall back to task name + brief body.
     const descriptionBody =
       b.description?.trim() || `${b.task_name}\n\n${brief.raw_body ?? ""}`;
+    // The picked system's reference documents (0129). QuickBriefSheet resolves
+    // the system's steps into checklist text client-side, so the id has to be
+    // sent alongside it — the checklist text alone can't say where it came
+    // from. Any kind qualifies, which is how a kind='process' system's docs
+    // reach ClickUp at all. Best-effort: never fail a task over a doc list.
+    let docLinks: string[] = [];
+    if (b.system_id) {
+      const { data: sys, error: sysErr } = await sb
+        .from("system_definitions")
+        .select("doc_links")
+        .eq("id", b.system_id)
+        .maybeSingle();
+      if (sysErr) {
+        console.error(`[create-quick-brief-task] doc_links lookup failed for system ${b.system_id}: ${sysErr.message}`);
+      } else {
+        docLinks = ((sys as { doc_links: string[] | null } | null)?.doc_links) ?? [];
+      }
+    }
+    const docsSection = renderDocLinks(docLinks);
     // Conductor is the origin of every task, so the audit line is a clickable
     // link back to the brief rather than a bare uuid nobody can act on.
     const description =
-      `${descriptionBody}\n\n---\n` +
+      `${descriptionBody}\n\n` +
+      (docsSection ? `${docsSection}\n\n` : "") +
+      `---\n` +
       `_Quick-briefed from [Conductor brief](https://conductor.convertedclick.co.za/briefs/view/${brief.id})` +
       ` on ${dateOfEngagement}${briefedByName ? ` by ${briefedByName}` : ""}._`;
 
