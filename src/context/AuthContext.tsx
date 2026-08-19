@@ -160,8 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           redirectTo: window.location.origin,
           // calendar.events lets staff schedule internal meetings on their own
-          // calendar (see google-token/index.ts + _shared/google-token.ts).
-          scopes: 'https://www.googleapis.com/auth/calendar.events',
+          // calendar; gmail.send lets them send client email as themselves
+          // rather than from a shared alias (see google-token/index.ts +
+          // _shared/google-token.ts). Both must also be listed on the Google
+          // Cloud OAuth consent screen, or Google silently grants neither.
+          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send',
           queryParams: {
             hd: 'convertedclick.co.za',
             access_type: 'offline',

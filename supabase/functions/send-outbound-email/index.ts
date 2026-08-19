@@ -3,26 +3,34 @@
 // Request:  POST { outbound_email_id: string }
 // Response: 200 { gmail_message_id, gmail_thread_id }
 //
-// Sends a previously composed outbound email via the Gmail API using the
-// account-manager Send-as alias on Brendan's Workspace identity.
+// Sends a previously composed outbound email via the Gmail API AS THE SIGNED-IN
+// PERSON — lisa@ sends from lisa@ — so replies come back to whoever actually
+// wrote it and the trail is a real person rather than a shared mailbox.
 //
 // Auth model:
 //   - Caller must be admin or owner.
-//   - The Gmail OAuth access token is read from the GOOGLE_ACCESS_TOKEN
-//     edge secret. Operator runs the one-time OAuth flow externally (or
-//     via a future Settings page wiring) and pastes the access token into
-//     Supabase secrets. Refresh-token rotation is a follow-up.
+//   - The Gmail access token is minted from that person's own Google refresh
+//     token, the one already captured by the Supabase Auth Google sign-in
+//     (_shared/google-token.ts, same path the calendar integration uses).
+//     There is no pasted GOOGLE_ACCESS_TOKEN secret any more: it was a manual
+//     access token that expired an hour after being set, which is why every
+//     send failed.
 //
-// Workspace prerequisite (manual, one-time):
-//   1. Add `accountmanager@convertedclick.co.za` as a Send-as alias on
-//      Brendan's Google Workspace account.
-//   2. Verify the alias (Google sends a confirmation email).
-//   3. Mark "Treat as alias" enabled.
+// The operator fallback in getGoogleAccessToken is deliberately REFUSED here.
+// For a calendar event, falling back to the earliest-connected account is a
+// convenience; for email it would put one person's name on another person's
+// message. If the sender has no grant of their own, the send fails and says so.
+//
+// Prerequisite: the Google OAuth consent screen must carry
+// https://www.googleapis.com/auth/gmail.send, and each person must have signed
+// in with Google since it was added. No Send-as alias or Workspace setup is
+// needed — everyone sends as themselves.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient, createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { sendGmail } from "../_shared/gmail.ts";
+import { getGoogleAccessToken } from "../_shared/google-token.ts";
 
 type OutboundRow = {
   id: string;
@@ -48,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const callerEmail = (await user.auth.getUser()).data.user?.email ?? "";
     const { data: caller } = await user
       .from("team_members")
-      .select("id, role")
+      .select("id, role, full_name")
       .eq("email", callerEmail)
       .maybeSingle();
     const role = (caller as { role?: string } | null)?.role;
@@ -67,29 +75,28 @@ Deno.serve(async (req: Request) => {
 
     if (row.status === "sent") return json({ already_sent: true });
 
-    const { data: settings } = await sb
-      .from("settings")
-      .select("account_manager_email")
-      .eq("id", 1)
-      .single();
-    const fromEmail =
-      (settings as { account_manager_email?: string } | null)?.account_manager_email
-      ?? "accountmanager@convertedclick.co.za";
-
-    const accessToken = Deno.env.get("GOOGLE_ACCESS_TOKEN");
-    if (!accessToken) {
-      // Save error for visibility.
+    const grant = await getGoogleAccessToken(req);
+    // via !== "member" means this token belongs to someone else (the operator
+    // fallback). Sending under it would sign this person's email with another
+    // person's address — refuse rather than misattribute.
+    const failure =
+      grant.accessToken == null
+        ? grant.error ?? "No Google account connected."
+        : grant.via !== "member"
+          ? `No Google account connected for ${callerEmail} — sign out and sign in with Google to send as yourself.`
+          : null;
+    if (failure) {
       await sb
         .from("outbound_emails")
-        .update({ status: "send_failed", send_error: "GOOGLE_ACCESS_TOKEN secret not set" })
+        .update({ status: "send_failed", send_error: failure })
         .eq("id", row.id);
-      return json({ error: "GOOGLE_ACCESS_TOKEN secret not set" }, 500);
+      return json({ error: failure }, 400);
     }
 
     const sent = await sendGmail({
-      accessToken,
-      fromEmail,
-      fromName: "Converted Click Account Manager",
+      accessToken: grant.accessToken!,
+      fromEmail: grant.googleEmail ?? callerEmail,
+      fromName: (caller as { full_name?: string } | null)?.full_name ?? "Converted Click",
       to: row.to_addresses,
       cc: row.cc_addresses,
       bcc: row.bcc_addresses,
