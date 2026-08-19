@@ -2,6 +2,22 @@
 
 Internal service calculator for Converted Click. React SPA + Supabase. See the plan at `~/.claude/plans/https-lpgwxacoqiqpcfpkklib-supabase-co-i-cuddly-puffin.md` for the full V1 spec.
 
+## Hosting — prod is Cloudflare Pages, the tunnel is dev
+
+Two hostnames, and they are not the same thing:
+
+| URL | What it is | How code gets there |
+| --- | --- | --- |
+| `https://conductor.convertedclick.co.za` | **Production.** Cloudflare Pages project `conductor` (direct upload, no Git integration), account "Converted Clicks Account". Also reachable at `conductor-ehv.pages.dev`. | `npm run deploy` — builds and uploads `dist/`. Nothing deploys on push; a commit that is not deployed is not live. |
+| `https://conductor-dev.convertedclick.co.za` | **Dev preview.** The cloudflared tunnel `conductor` → this machine's Vite dev server on `localhost:5391`. | HMR from the working tree. Uncommitted work shows here and only here. |
+
+- The build is a static SPA. `public/_redirects` (`/* /index.html 200`) is what makes deep links work — without it Pages 404s on every route but `/`.
+- `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are baked into the bundle at build time from `.env.local`, so `npm run deploy` must run on a machine that has it.
+- The tunnel is a **public URL**, so `isLocalDev()` (`src/lib/env.ts`) tests for localhost positively. It used to test "not the prod hostname" — on a `-dev` host that would auto-sign the internet in as the shared `team@` owner. Do not loosen it back.
+- The tunnel serves `/mcp` (Vite proxies it to `mcp-server` on 8787), so the HTTP MCP URL is on `conductor-dev`, not prod. Prod is static — it has no proxy.
+- Edge functions link users to prod (`APP_URL` in `supabase/functions/*`), which is correct — those emails and ClickUp comments should not point at a laptop.
+- Tunnel config is `/etc/cloudflared/config.yml` (root LaunchDaemon `com.cloudflare.cloudflared`). `DEV_ALLOWED_HOSTS` in `.env.local` must list the tunnel hostname or Vite refuses the request.
+
 ## Development workflow
 
 Feature work defaults to **superpowers subagents with git worktrees**:
@@ -50,7 +66,7 @@ The server runs via `npm run dev` (tsx, no build step needed). It is registered 
 
 To call tools in agent sessions: use `mcp__conductor__<tool-name>`.
 
-**Two transports, one tool registry.** `src/server.ts` builds the server; `src/index.ts` serves it over stdio (what `.mcp.json` launches) and `src/http.ts` serves it over **stateless** Streamable HTTP for clients on other people's machines — a server and transport per request, nothing held between calls. `npm run http` listens on 8787, `vite.config.ts` proxies `/mcp` to it, and the existing tunnel makes that `https://conductor.convertedclick.co.za/mcp`.
+**Two transports, one tool registry.** `src/server.ts` builds the server; `src/index.ts` serves it over stdio (what `.mcp.json` launches) and `src/http.ts` serves it over **stateless** Streamable HTTP for clients on other people's machines — a server and transport per request, nothing held between calls. `npm run http` listens on 8787, `vite.config.ts` proxies `/mcp` to it, and the existing tunnel makes that `https://conductor-dev.convertedclick.co.za/mcp`.
 
 Adding a tool means one entry in the `tools` table in `src/server.ts` — do not register it in an entry point, or it will exist on one transport and not the other. Mark it `true` in the fourth slot if it only reads; clients use `readOnlyHint` to decide what may run without asking.
 
@@ -189,6 +205,6 @@ Internal meetings reuse the existing Supabase Auth Google login (see `signInWith
 
 - Set Supabase secrets `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` — the same values already configured in Supabase Auth → Providers → Google.
 - The Google Cloud project needs the **Calendar API** enabled and `calendar.events` added to the OAuth consent screen's scopes.
-- `https://conductor.convertedclick.co.za` must be listed in Supabase Auth → URL Configuration → Redirect URLs, or the provider refresh token is never captured and every meeting reports "No Google account connected".
+- `https://conductor.convertedclick.co.za` must be listed in Supabase Auth → URL Configuration → Redirect URLs, or the provider refresh token is never captured and every meeting reports "No Google account connected". `conductor-dev.convertedclick.co.za` and `conductor-ehv.pages.dev` are on the allow list too, so a Google sign-in works on the dev preview as well.
 - Staff must sign in with Google once to grant calendar access — existing sessions (email/password or an earlier Google sign-in without the calendar scope) must **sign out and sign in with Google again**. Status/reconnect lives at Settings → Google Calendar.
 - `settings.clickup_internal_list_id` must be set (Settings → ClickUp) or meetings skip the ClickUp leg entirely and their time is never tracked as overhead.

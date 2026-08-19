@@ -33,13 +33,13 @@ fronting the app serves the MCP server too — no second hostname, no DNS record
 The public URL is:
 
 ```
-https://conductor.convertedclick.co.za/mcp
+https://conductor-dev.convertedclick.co.za/mcp
 ```
 
 Point a client at it with the token as a bearer header. In Claude Code:
 
 ```sh
-claude mcp add --transport http conductor https://conductor.convertedclick.co.za/mcp \
+claude mcp add --transport http conductor https://conductor-dev.convertedclick.co.za/mcp \
   --header "Authorization: Bearer <MCP_AUTH_TOKEN>"
 ```
 

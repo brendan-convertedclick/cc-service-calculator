@@ -10,6 +10,7 @@
     "dev:logs": "pm2 logs conductor",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name conductor --branch main --commit-dirty=true",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
