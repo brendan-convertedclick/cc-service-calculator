@@ -15,7 +15,7 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { sendGmail } from "../_shared/gmail.ts";
+import { sendNotificationEmails } from "../_shared/gmail.ts";
 
 const APP_URL = "https://conductor.convertedclick.co.za";
 
@@ -84,50 +84,15 @@ Deno.serve(async (req: Request) => {
       `🔁 ${mentions} — revision request from ${requesterName} needs your approval: ${summary}\n${APP_URL}/approvals`,
     );
 
-    const { data: settings } = await sb.from("settings").select("account_manager_email").eq("id", 1).single();
-    const fromEmail =
-      (settings as { account_manager_email?: string } | null)?.account_manager_email
-      ?? "accountmanager@convertedclick.co.za";
-    const accessToken = Deno.env.get("GOOGLE_ACCESS_TOKEN");
-
-    const notified: string[] = [];
-    for (const a of approvers) {
-      if (!a.email) continue;
-      const { data: outbound } = await sb.from("outbound_emails").insert({
-        composed_by: row.requester_id,
-        to_addresses: [a.email],
-        subject: `Revision request needs your approval — ${row.parent_task_name}`,
-        body_text:
-          `${requesterName} requested a revision: ${summary}\n\nReview: ${APP_URL}/approvals`,
-        body_html:
-          `<p>${requesterName} requested a revision: ${summary}</p>` +
-          `<p><a href="${APP_URL}/approvals">Review in Conductor</a></p>`,
-        status: "draft",
-      }).select("id").single();
-      if (!outbound?.id) continue;
-
-      if (!accessToken) {
-        await sb.from("outbound_emails").update({ status: "send_failed", send_error: "GOOGLE_ACCESS_TOKEN secret not set" }).eq("id", outbound.id);
-        continue;
-      }
-      const sent = await sendGmail({
-        accessToken,
-        fromEmail,
-        fromName: "Converted Click Account Manager",
-        to: [a.email],
-        subject: `Revision request needs your approval — ${row.parent_task_name}`,
-        bodyText: `${requesterName} requested a revision: ${summary}\n\nReview: ${APP_URL}/approvals`,
-        bodyHtml: `<p>${requesterName} requested a revision: ${summary}</p><p><a href="${APP_URL}/approvals">Review in Conductor</a></p>`,
-      });
-      if (sent.ok) {
-        await sb.from("outbound_emails").update({
-          status: "sent", gmail_message_id: sent.id, gmail_thread_id: sent.threadId, sent_at: new Date().toISOString(),
-        }).eq("id", outbound.id);
-        notified.push(a.email);
-      } else {
-        await sb.from("outbound_emails").update({ status: "send_failed", send_error: sent.error }).eq("id", outbound.id);
-      }
-    }
+    const notified = await sendNotificationEmails({
+      req,
+      sb,
+      composedBy: row.requester_id,
+      recipientEmails: approvers.map((a) => a.email),
+      subject: `Revision request needs your approval — ${row.parent_task_name}`,
+      bodyText: `${requesterName} requested a revision: ${summary}\n\nReview: ${APP_URL}/approvals`,
+      bodyHtml: `<p>${requesterName} requested a revision: ${summary}</p><p><a href="${APP_URL}/approvals">Review in Conductor</a></p>`,
+    });
 
     return json({ notified, chat_ok: chatResult.ok, chat_error: chatResult.ok ? undefined : chatResult.error });
   } catch (e) {

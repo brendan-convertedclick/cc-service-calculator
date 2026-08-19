@@ -1,9 +1,12 @@
 // supabase/functions/_shared/gmail.ts
 //
-// Shared Gmail send-as helper (RFC822 build + send). Used by both
-// send-outbound-email (user-initiated client email) and
-// notify-extension-request (system-triggered internal notification) so the
-// message-building logic isn't duplicated.
+// Shared Gmail send-as helper. Two layers:
+//   buildRfc822/sendGmail  — transport, used by send-outbound-email.
+//   sendNotificationEmails — the outbound_emails-row-per-recipient loop the
+//                            three notify-* functions all share.
+
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { getGoogleAccessToken } from "./google-token.ts";
 
 export function buildRfc822(args: {
   fromEmail: string;
@@ -86,4 +89,83 @@ export async function sendGmail(args: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Send one internal notification email per recipient, recording each as an
+ * outbound_emails row (audit trail) before and after the send.
+ *
+ * The three notify-* functions each had an identical copy of this loop, all
+ * reading a hand-pasted GOOGLE_ACCESS_TOKEN secret that stopped existing when
+ * send-outbound-email moved to per-person Google grants — so every one of them
+ * failed with "GOOGLE_ACCESS_TOKEN secret not set". The token now comes from
+ * getGoogleAccessToken, the same path send-outbound-email and the calendar
+ * integration use.
+ *
+ * Unlike send-outbound-email, the operator fallback is ALLOWED here. These are
+ * internal notices to our own approvers, not client correspondence: a staff
+ * member without their own Google grant should still get their brief noticed.
+ * The guard against misattribution is that fromName stays "Converted Click" —
+ * we never sign a fallback send with a person's name, and the body already
+ * says who submitted it.
+ */
+export async function sendNotificationEmails(args: {
+  req: Request;
+  sb: SupabaseClient;
+  composedBy: string;
+  recipientEmails: (string | null)[];
+  subject: string;
+  bodyText: string;
+  bodyHtml: string;
+}): Promise<string[]> {
+  const grant = await getGoogleAccessToken(args.req);
+  const failure = grant.accessToken == null
+    ? grant.error ?? "No Google account connected — sign in with Google to send notifications."
+    : null;
+
+  const notified: string[] = [];
+  for (const email of args.recipientEmails) {
+    if (!email) continue;
+    const { data: outbound } = await args.sb.from("outbound_emails").insert({
+      composed_by: args.composedBy,
+      to_addresses: [email],
+      subject: args.subject,
+      body_text: args.bodyText,
+      body_html: args.bodyHtml,
+      status: "draft",
+    }).select("id").single();
+    if (!outbound?.id) continue;
+
+    if (failure) {
+      await args.sb.from("outbound_emails")
+        .update({ status: "send_failed", send_error: failure })
+        .eq("id", outbound.id);
+      continue;
+    }
+
+    const sent = await sendGmail({
+      accessToken: grant.accessToken!,
+      fromEmail: grant.googleEmail ?? "",  // null column: Gmail rewrites From to the authenticated user
+      fromName: "Converted Click",
+      to: [email],
+      subject: args.subject,
+      bodyText: args.bodyText,
+      bodyHtml: args.bodyHtml,
+    });
+    if (sent.ok) {
+      await args.sb.from("outbound_emails").update({
+        status: "sent",
+        gmail_message_id: sent.id,
+        gmail_thread_id: sent.threadId,
+        sent_at: new Date().toISOString(),
+        send_error: null,
+      }).eq("id", outbound.id);
+      notified.push(email);
+    } else {
+      await args.sb.from("outbound_emails")
+        .update({ status: "send_failed", send_error: sent.error })
+        .eq("id", outbound.id);
+    }
+  }
+  return notified;
 }
