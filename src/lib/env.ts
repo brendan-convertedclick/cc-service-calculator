@@ -1,13 +1,16 @@
-const PROD_HOSTNAME = "conductor.convertedclick.co.za";
+const LOCAL_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"];
 
 /**
- * True only for actual local dev. Prod is also served via `npm run dev` (no
- * build step), so `import.meta.env.DEV` is true there too — must also check
- * the hostname or every auth gate is bypassed in prod.
+ * True only for actual local dev. This must be a POSITIVE test for localhost,
+ * never "not the prod hostname": the cloudflared tunnel now fronts the dev
+ * server at conductor-dev.convertedclick.co.za, which is a public URL where
+ * `import.meta.env.DEV` is true. Anything less strict auto-logs the whole
+ * internet in as the shared team@ owner account.
  */
 export function isLocalDev(): boolean {
   return (
     import.meta.env.DEV &&
-    (typeof window === "undefined" || !window.location.hostname.includes(PROD_HOSTNAME))
+    typeof window !== "undefined" &&
+    LOCAL_HOSTNAMES.includes(window.location.hostname)
   );
 }
