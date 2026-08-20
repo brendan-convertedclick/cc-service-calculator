@@ -23,6 +23,15 @@ export type InternalMeetingRow = {
   clickup_sync_error: string | null;
   work_stream_override: string | null;
   clickup_status_override: string | null;
+  /** 'conductor' = we scheduled it and own the Google event. 'calendar' = we
+   *  found it on a staff calendar and must not edit or delete it (0132). */
+  source: "conductor" | "calendar";
+  /** 'client' = someone outside our domains was on the invite. */
+  meeting_type: "internal" | "client";
+  organiser_email: string | null;
+  external_emails: string[];
+  matched_domain: string | null;
+  calendar_synced_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -46,6 +46,12 @@ type MeetingJoinRow = {
   clickup_sync_error: string | null;
   work_stream_override: string | null;
   clickup_status_override: string | null;
+  source: "conductor" | "calendar";
+  meeting_type: "internal" | "client";
+  organiser_email: string | null;
+  external_emails: string[];
+  matched_domain: string | null;
+  calendar_synced_at: string | null;
   created_at: string;
   updated_at: string;
   clients: { name: string } | null;

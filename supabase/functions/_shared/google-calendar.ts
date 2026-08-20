@@ -193,3 +193,98 @@ export async function deleteEvent(
   }
   return { ok: true, status: res.status, error: null };
 }
+
+// ── Reading a calendar ───────────────────────────────────────────────────
+
+/** A listed event carries far more than the write path returns. */
+export interface GoogleCalendarListedEvent extends GoogleCalendarEvent {
+  status?: string;
+  summary?: string;
+  organizer?: { email?: string; self?: boolean };
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  attendees?: Array<{
+    email?: string;
+    responseStatus?: string;
+    resource?: boolean;
+    self?: boolean;
+  }>;
+}
+
+export interface GoogleCalendarListResult {
+  ok: boolean;
+  status: number;
+  events: GoogleCalendarListedEvent[];
+  error: string | null;
+}
+
+/** Google caps this at 2500; 250 is its default. Fewer round-trips, same result. */
+const LIST_PAGE_SIZE = 250;
+/** Backstop against an unbounded loop if nextPageToken ever fails to terminate. */
+const LIST_MAX_PAGES = 40;
+
+/**
+ * Every event on the token owner's primary calendar between two instants,
+ * following nextPageToken to the end.
+ *
+ * Three query params are load-bearing:
+ *  - singleEvents=true expands a recurring series into one event PER
+ *    OCCURRENCE, each with its own id and its own start/end. Without it a
+ *    weekly client WIP comes back as a single master event and eleven of its
+ *    twelve hours are invisible — which is most of the reason to read the
+ *    calendar at all.
+ *  - showDeleted=true returns cancelled events as tombstones (status:
+ *    "cancelled"). Without it, a meeting called off after we synced it keeps
+ *    counting against the client forever, because its absence from the
+ *    response is indistinguishable from it never having existed.
+ *  - orderBy=startTime is required by the API whenever singleEvents is set.
+ *
+ * Read-only: never mutates, never notifies anyone.
+ */
+export async function listEvents(
+  accessToken: string,
+  input: { timeMinIso: string; timeMaxIso: string },
+): Promise<GoogleCalendarListResult> {
+  const events: GoogleCalendarListedEvent[] = [];
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const params = new URLSearchParams({
+      timeMin: input.timeMinIso,
+      timeMax: input.timeMaxIso,
+      singleEvents: "true",
+      showDeleted: "true",
+      orderBy: "startTime",
+      maxResults: String(LIST_PAGE_SIZE),
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const res = await fetch(`${CALENDAR_EVENTS_URL}?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        ok: false,
+        status: res.status,
+        events,
+        error: `Google Calendar list ${res.status}: ${text}`,
+      };
+    }
+
+    const body = await res.json() as {
+      items?: GoogleCalendarListedEvent[];
+      nextPageToken?: string;
+    };
+    events.push(...(body.items ?? []));
+    pageToken = body.nextPageToken;
+    if (!pageToken) return { ok: true, status: res.status, events, error: null };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    events,
+    error: `Stopped after ${LIST_MAX_PAGES} pages — window is too wide, narrow the date range.`,
+  };
+}

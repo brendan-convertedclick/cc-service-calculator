@@ -316,6 +316,7 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
       <div className="space-y-2">
         <Label htmlFor="meeting-attendees">Attendees</Label>
         <MultiSelect
+          id="meeting-attendees"
           options={teamOptions}
           values={attendeeIds}
           onChange={setAttendeeIds}

@@ -39,7 +39,14 @@ import { createServiceRoleClient, createUserClient } from "../_shared/supabase-c
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
 import { createEvent, deleteEvent, getEvent, patchEvent, type AttendeeInput } from "../_shared/google-calendar.ts";
-import { resolveDropdownOption, type CuField } from "../_shared/clickup.ts";
+import {
+  createMeetingTask,
+  fetchListFields,
+  meetingCustomFields,
+  nativeMeetingTaskBody,
+  NO_CLICKUP_LIST_ERROR,
+  resolveMeetingListId,
+} from "../_shared/meeting-clickup.ts";
 import { postChatMessage, mentionToken, MEETINGS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import {
   buildMeetingDescription,
@@ -88,6 +95,7 @@ interface MeetingRow {
   clickup_sync_error: string | null;
   work_stream_override: string | null;
   clickup_status_override: string | null;
+  source: string;
   created_at: string;
   updated_at: string;
 }
@@ -179,8 +187,16 @@ async function safeClickupSync(
   }
 }
 
-const NO_CLICKUP_LIST_ERROR =
-  "No Meetings, Overhead or Admin list found in this client's ClickUp folder - add one (then re-sync the client's lists), or set a fallback internal list in Settings -> ClickUp.";
+/**
+ * A meeting discovered on someone's calendar is not ours to change. The
+ * Google event belongs to whoever sent the invite — patching it would edit a
+ * client's event on their calendar, and deleting it would cancel their
+ * meeting for everyone. Edit or cancel those in Google Calendar; the next
+ * sync brings the change back.
+ */
+const CALENDAR_SOURCED_ERROR =
+  "This meeting came from Google Calendar, not Conductor. Change it in Google Calendar — the next sync will pick it up.";
+
 const NO_GOOGLE_ACCOUNT_ERROR =
   "No Google account connected — sign in with Google to grant calendar access";
 
@@ -199,44 +215,6 @@ function dedupeEmailsExcluding(emails: Array<string | null>, exclude: string | n
     out.push(email);
   }
   return out;
-}
-
-function nativeMeetingTaskBody(input: {
-  description: string;
-  startsAtMs: number;
-  endsAtMs: number;
-  points: number;
-  /** Staff-picked status override. Omitted (not even the key) when unset —
-   * a hardcoded status otherwise fails with CRTSK_001 on lists whose
-   * default status isn't "to do". */
-  statusOverride?: string | null;
-}): Record<string, unknown> {
-  return {
-    description: input.description,
-    points: input.points,
-    time_estimate: input.endsAtMs - input.startsAtMs,
-    start_date: input.startsAtMs,
-    start_date_time: true,
-    due_date: input.endsAtMs,
-    due_date_time: true,
-    ...(input.statusOverride ? { status: input.statusOverride } : {}),
-  };
-}
-
-function meetingCustomFields(
-  cuFields: CuField[],
-  clickupClientName: string,
-  workStream: string | null,
-): Array<{ id: string; value: unknown }> {
-  const cf: Array<{ id: string; value: unknown }> = [];
-  const pushDropdown = (fieldName: string, value: string) => {
-    const resolved = resolveDropdownOption(cuFields, fieldName, value);
-    if (resolved) cf.push(resolved);
-  };
-  pushDropdown("Client Name", clickupClientName);
-  pushDropdown("Engagement Type", "Task");
-  if (workStream) pushDropdown("Work Stream", workStream);
-  return cf;
 }
 
 // ── Google Calendar sync ────────────────────────────────────────────────
@@ -423,48 +401,6 @@ interface ClickupSyncCreateCtx {
   meetUrl: string | null;
 }
 
-/** ClickUp list NAMES that are a sane home for a meeting, best first. */
-const MEETING_LIST_NAMES = ["meetings", "overhead", "admin", "administration"];
-
-/**
- * Resolve the ClickUp list a meeting's task belongs in, by list NAME.
- *
- * Deliberately does NOT use client_lists.group_id. Migration 0048's four
- * task_groups were only ever rolled out to three folders; on the rest the
- * group tags are arbitrary — as of 2026-07-29 the "meetings" group points at
- * lists literally named Paid Media, Content, General and Strategy, so routing
- * by group would drop meeting tasks into client delivery lists. Matching the
- * name covers 30 of 31 clients (3 have a real "Meetings" list, 27 an "Admin"
- * one) and degrades to a clear error instead of a wrong list.
- *
- * The choice does NOT affect billing: get-productivity keys overhead off the
- * meeting's task id, not its list.
- */
-async function resolveMeetingListId(
-  sb: SupabaseClient,
-  clientId: string,
-): Promise<string | null> {
-  const { data: listRows } = await sb
-    .from("client_lists")
-    .select("clickup_list_id, clickup_list_name")
-    .eq("client_id", clientId)
-    .is("archived_at", null);
-  const lists = (listRows ?? []) as Array<{ clickup_list_id: string | null; clickup_list_name: string | null }>;
-
-  for (const name of MEETING_LIST_NAMES) {
-    const hit = lists.find((l) => l.clickup_list_name?.trim().toLowerCase() === name);
-    if (hit?.clickup_list_id) return hit.clickup_list_id;
-  }
-
-  // Last resort: the pre-0048 single-internal-list setting (unset on this project).
-  const { data: settingsRow } = await sb
-    .from("settings")
-    .select("clickup_internal_list_id")
-    .eq("id", 1)
-    .maybeSingle();
-  return (settingsRow as { clickup_internal_list_id: string | null } | null)?.clickup_internal_list_id ?? null;
-}
-
 async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promise<ClickupSyncResult> {
   const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
   if (!listId) {
@@ -474,12 +410,7 @@ async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promi
   if (!pat) {
     return { taskId: null, taskUrl: null, personTaskLinks: [], error: "No ClickUp token available (CLICKUP_PAT secret not set)." };
   }
-  const CU = { headers: { Authorization: pat, "Content-Type": "application/json" } };
-  const fieldsRes = await fetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU);
-  if (!fieldsRes.ok) {
-    return { taskId: null, taskUrl: null, personTaskLinks: [], error: `ClickUp fields ${fieldsRes.status}: ${await fieldsRes.text()}` };
-  }
-  const cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
+  const cuFields = await fetchListFields(pat, listId);
 
   const clickupClientName = ctx.client.clickup_client_name ?? ctx.client.name;
   const description = buildMeetingDescription({
@@ -510,35 +441,17 @@ async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promi
 
   const results: PersonTaskResult[] = [];
   for (const person of people) {
-    const taskBody: Record<string, unknown> = {
+    const created = await createMeetingTask(pat, listId, {
       name: taskName,
-      ...nativeMeetingTaskBody({
+      body: nativeMeetingTaskBody({
         description, startsAtMs, endsAtMs, points,
         statusOverride: ctx.meeting.clickup_status_override,
       }),
-      custom_fields: customFields,
-    };
-    if (person.clickup_user_id) taskBody.assignees = [person.clickup_user_id];
-
-    const createUrl = `https://api.clickup.com/api/v2/list/${listId}/task`;
-    let createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });
-    // ClickUp rejects very large sprint-point values on create; retry once
-    // without `points` rather than fail the task (time_estimate still carries
-    // the effort).
-    if (!createRes.ok && "points" in taskBody) {
-      const errText = await createRes.text();
-      console.warn(
-        `[manage-internal-meeting] ClickUp create failed with points for ${person.full_name} (${createRes.status}: ${errText}); retrying without points`,
-      );
-      const { points: _dropped, ...noPoints } = taskBody;
-      createRes = await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
-    }
-    if (!createRes.ok) {
-      results.push({ teamMemberId: person.id, taskId: null, taskUrl: null, error: `ClickUp create ${createRes.status}: ${await createRes.text()}` });
-      continue;
-    }
-    const created = (await createRes.json()) as { id: string; url: string };
-    results.push({ teamMemberId: person.id, taskId: created.id, taskUrl: created.url, error: null });
+      customFields,
+      clickupUserId: person.clickup_user_id,
+      label: person.full_name,
+    });
+    results.push({ teamMemberId: person.id, ...created });
   }
 
   const { error: upsertErr } = await ctx.sb.from("internal_meeting_tasks").upsert(
@@ -631,13 +544,10 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
   // Not gated on the internal list still being configured: an edit to
   // already-synced tasks must keep working even if lists are later remapped.
   const listId = await resolveMeetingListId(ctx.sb, ctx.client.id);
-  const fieldsRes = listId ? await fetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU) : null;
-  const cuFields = fieldsRes?.ok ? ((await fieldsRes.json()).fields ?? []) as CuField[] : [];
-  if (fieldsRes && !fieldsRes.ok) {
-    console.warn(`[manage-internal-meeting] could not refresh ClickUp field defs for list ${listId}: ${fieldsRes.status}`);
-  } else if (!fieldsRes) {
+  if (!listId) {
     console.warn(`[manage-internal-meeting] no ClickUp list resolved for client ${ctx.client.id} — skipping custom-field refresh`);
   }
+  const cuFields = listId ? await fetchListFields(pat, listId) : [];
   const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? null;
   const customFields = meetingCustomFields(cuFields, clickupClientName, workStream);
 
@@ -657,28 +567,21 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
     const existingTaskId = existing?.clickup_task_id ?? null;
     if (!existingTaskId) {
       // New attendee since last sync — create their task from scratch.
-      const taskBody: Record<string, unknown> = {
+      if (!listId) {
+        results.push({ teamMemberId: person.id, taskId: null, taskUrl: null, error: NO_CLICKUP_LIST_ERROR });
+        continue;
+      }
+      const created = await createMeetingTask(pat, listId, {
         name: taskName,
-        ...nativeMeetingTaskBody({
+        body: nativeMeetingTaskBody({
           description, startsAtMs, endsAtMs, points,
           statusOverride: ctx.meeting.clickup_status_override,
         }),
-        custom_fields: customFields,
-      };
-      if (person.clickup_user_id) taskBody.assignees = [person.clickup_user_id];
-      const createUrl = `https://api.clickup.com/api/v2/list/${listId}/task`;
-      const createRes = listId
-        ? await fetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) })
-        : null;
-      if (!createRes || !createRes.ok) {
-        results.push({
-          teamMemberId: person.id, taskId: null, taskUrl: null,
-          error: !listId ? NO_CLICKUP_LIST_ERROR : `ClickUp create ${createRes!.status}: ${await createRes!.text()}`,
-        });
-        continue;
-      }
-      const created = (await createRes.json()) as { id: string; url: string };
-      results.push({ teamMemberId: person.id, taskId: created.id, taskUrl: created.url, error: null });
+        customFields,
+        clickupUserId: person.clickup_user_id,
+        label: person.full_name,
+      });
+      results.push({ teamMemberId: person.id, ...created });
       continue;
     }
 
@@ -923,6 +826,7 @@ async function handleUpdate(req: Request, sb: SupabaseClient, caller: Caller, bo
     return json({ error: "Only the organiser can update this meeting." }, 403);
   }
   if (current.status === "cancelled") return json({ error: "Cannot update a cancelled meeting" }, 400);
+  if (current.source === "calendar") return json({ error: CALENDAR_SOURCED_ERROR }, 400);
 
   const title = body.title !== undefined ? body.title.trim() : current.title;
   if (!title) return json({ error: "title cannot be empty" }, 400);
@@ -1063,6 +967,7 @@ async function handleCancel(req: Request, sb: SupabaseClient, caller: Caller, bo
     return json({ error: "Only the organiser can cancel this meeting." }, 403);
   }
   if (meeting.status === "cancelled") return json({ ok: true }); // idempotent
+  if (meeting.source === "calendar") return json({ error: CALENDAR_SOURCED_ERROR }, 400);
 
   // Row is the source of truth: mark cancelled FIRST. A Google/ClickUp
   // failure below must not resurrect the meeting or block cancellation.

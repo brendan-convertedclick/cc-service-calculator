@@ -230,10 +230,26 @@ Deno.serve(async (req: Request) => {
     const periodTaskIds = Array.from(
       new Set((timeBody.data ?? []).map((e) => e.task?.id).filter((id): id is string => !!id)),
     );
-    const { data: meetingRows } = periodTaskIds.length > 0
-      ? await supabase.from("internal_meetings").select("clickup_task_id").in("clickup_task_id", periodTaskIds)
-      : { data: [] as Array<{ clickup_task_id: string | null }> };
-    const meetingTaskIds = new Set<string>((meetingRows ?? []).map((r) => r.clickup_task_id as string));
+    // BOTH tables, not either one. Since 0099 every attendee gets their OWN
+    // ClickUp task (ClickUp splits sprint points per assignee) and those live
+    // in internal_meeting_tasks; internal_meetings.clickup_task_id only ever
+    // holds the ORGANISER's. Reading only the parent missed 25 of the first 46
+    // meeting tasks, which then fell through to "assume billable" and inflated
+    // every margin and invoice figure that touched them. Reading only the
+    // child would drop the 3 meetings created before 0099, which have no
+    // child rows at all.
+    const [meetingRes, meetingTaskRes] = periodTaskIds.length > 0
+      ? await Promise.all([
+        supabase.from("internal_meetings").select("clickup_task_id").in("clickup_task_id", periodTaskIds),
+        supabase.from("internal_meeting_tasks").select("clickup_task_id").in("clickup_task_id", periodTaskIds),
+      ])
+      : [{ data: [] }, { data: [] }];
+    const meetingTaskIds = new Set<string>(
+      [
+        ...((meetingRes.data ?? []) as Array<{ clickup_task_id: string | null }>),
+        ...((meetingTaskRes.data ?? []) as Array<{ clickup_task_id: string | null }>),
+      ].map((r) => r.clickup_task_id).filter((id): id is string => !!id),
+    );
 
     // Aggregate sprint points by bucket + userId
     const sprintMap = new Map<string, SprintPoint>();

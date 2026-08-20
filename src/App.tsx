@@ -88,6 +88,9 @@ const Settings = lazy(() =>
 const SettingsConnectGmail = lazy(() =>
   import("@/pages/SettingsConnectGmail").then((m) => ({ default: m.SettingsConnectGmail })),
 );
+const ClientTimeView = lazy(() =>
+  import("@/pages/ClientTimeView").then((m) => ({ default: m.ClientTimeView })),
+);
 const SettingsEmailTemplates = lazy(() =>
   import("@/pages/SettingsEmailTemplates").then((m) => ({ default: m.SettingsEmailTemplates })),
 );
@@ -217,6 +220,7 @@ export default function App() {
                     else — and being here makes the route agree with the nav,
                     which is admin/owner because sending refuses anyone else. */}
                 <Route path="comms/new" element={<ComposeEmail />} />
+                <Route path="time" element={<ClientTimeView />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
                     the nav rail and breadcrumbs like every other queue. */}

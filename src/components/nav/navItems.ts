@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarRange,
   ClipboardList,
+  Clock3,
   FileBarChart2,
   FileText,
   FolderKanban,
@@ -75,6 +76,7 @@ const services: NavItem       = { to: "/services",      label: "Services",      
 const systems: NavItem        = { to: "/systems",       label: "Systems",       icon: Waypoints,         end: false, roles: ALL_ROLES }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false }
 const projects: NavItem       = { to: "/projects",      label: "Projects",      icon: FolderKanban,      end: false }
+const clientTime: NavItem   = { to: "/time",          label: "Time per client",icon: Clock3,            end: false }
 const retainers: NavItem      = { to: "/retainers",     label: "Retainers",     icon: Repeat,            end: false }
 const sow: NavItem            = { to: "/sow",           label: "Scope Composer",icon: ScrollText,        end: false }
 const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks", icon: ListTodo,       end: false }
@@ -98,7 +100,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, briefs, projects, sow, retainers, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, clientTime, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

@@ -160,6 +160,7 @@ function MeetingGroup({
                   <div className="flex items-center gap-2">
                     <span className="text-body-medium font-medium text-m-on-surface">{m.title}</span>
                     {m.status === "cancelled" && <Badge variant="destructive">Cancelled</Badge>}
+                    {m.source === "calendar" && <Badge variant="secondary">From calendar</Badge>}
                   </div>
                   <div className="text-body-small text-m-on-surface-variant">
                     {m.client_name ?? "Unknown client"}
@@ -198,13 +199,20 @@ function MeetingGroup({
                         </a>
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onEdit(m)}>
-                      <Pencil className="h-3.5 w-3.5" /> Edit
-                    </Button>
+                    {/* A meeting we found on someone's calendar belongs to
+                        whoever sent the invite. Editing would patch THEIR
+                        event and cancelling would call the meeting off for
+                        everyone, so neither is offered — the edge function
+                        refuses both for source='calendar' regardless. */}
+                    {m.source !== "calendar" && (
+                      <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onEdit(m)}>
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    )}
                     {/* Cancelling deletes the ClickUp task (and any time logged
                         against it), so it's only offered while the meeting is
                         still upcoming — a past meeting's actuals must survive. */}
-                    {isFuture(m) &&
+                    {isFuture(m) && m.source !== "calendar" &&
                       (confirmingId === m.id ? (
                         <>
                           <Button
