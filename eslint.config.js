@@ -13,6 +13,9 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "node_modules/**",
+      // pm2's config is CommonJS by design — the TS require-imports rule is a
+      // false positive on it, and it was the one `error` failing verify.
+      "ecosystem.config.cjs",
       "playwright-report/**",
       "**/.claude/**",
       "**/.claire/**",
