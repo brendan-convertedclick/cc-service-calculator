@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { DocLinksField } from "@/components/systems/DocLinksField";
 import {
   ChevronDown,
   ChevronUp,
@@ -97,7 +98,17 @@ function autoGrow(el: HTMLTextAreaElement | null) {
  *  These replace what used to be typed into the title as [Procedure] and
  *  [Template]: a title goes to ClickUp verbatim, so markers typed there ship
  *  as literal text. */
-function StepLinks({ row, systemId }: { row: StepRow; systemId: string }) {
+function StepLinks({
+  row,
+  systemId,
+  showDocs = false,
+}: {
+  row: StepRow;
+  systemId: string;
+  /** Task rows only. A checklist item has nowhere to put a link in ClickUp,
+   *  so offering the field on a step would promise what the push can't keep. */
+  showDocs?: boolean;
+}) {
   const { data: attachedByStep } = useStepProcedures(systemId);
   const { data: templates = [] } = useEmailTemplates();
   const { data: systems = [] } = useSystemDefinitions();
@@ -119,7 +130,8 @@ function StepLinks({ row, systemId }: { row: StepRow; systemId: string }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+    <div className="space-y-1.5 pt-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {attached.map((a) => (
         <span
           key={a.id}
@@ -198,6 +210,21 @@ function StepLinks({ row, systemId }: { row: StepRow; systemId: string }) {
         </select>
       )}
     </div>
+
+      {showDocs && (
+        <DocLinksField
+          links={row.doc_links ?? []}
+          pending={update.isPending}
+          onWrite={(next) =>
+            update.mutate(
+              { id: row.id, patch: { doc_links: next } },
+              { onError: (e) => toast.error(`Could not save the documents: ${errorMessage(e)}`) },
+            )
+          }
+          noun="task"
+        />
+      )}
+    </div>
   );
 }
 
@@ -238,7 +265,10 @@ export function TaskList(props: TaskListProps) {
   const toggleLink = (id: string) => setLinkOpen((prev) => toggleInSet(prev, id));
   const { data: attachedByStep } = useStepProcedures(props.systemId);
   const linksShown = (row: StepRow) =>
-    linkOpen.has(row.id) || row.email_template_id != null || (attachedByStep?.get(row.id)?.length ?? 0) > 0;
+    linkOpen.has(row.id)
+    || row.email_template_id != null
+    || (row.doc_links?.length ?? 0) > 0
+    || (attachedByStep?.get(row.id)?.length ?? 0) > 0;
   const { tasks, steps, depts, team, colorById, busy } = props;
   const groups = groupProcedure(tasks, steps);
   const deptName = new Map(depts.map((d) => [d.id, d.name]));
@@ -471,8 +501,8 @@ export function TaskList(props: TaskListProps) {
                 )}
                 <button
                   type="button"
-                  aria-label={`Links for task "${task.title}"`}
-                  title="Link a procedure or an email template"
+                  aria-label={`Links and documents for task "${task.title}"`}
+                  title="Link a procedure, an email template or a document"
                   onClick={() => toggleLink(task.id)}
                   className={cn(ICON_BTN, linksShown(task) && "text-m-primary")}
                 >
@@ -512,7 +542,7 @@ export function TaskList(props: TaskListProps) {
 
             {linksShown(task) && (
               <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 pb-2">
-                <StepLinks row={task} systemId={props.systemId} />
+                <StepLinks row={task} systemId={props.systemId} showDocs />
               </div>
             )}
 

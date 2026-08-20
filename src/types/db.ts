@@ -2592,6 +2592,7 @@ export type Database = {
           definition_of_done: string | null
           department_id: string | null
           description: string | null
+          doc_links: string[]
           email_template_id: string | null
           estimated_hours: number | null
           goal_statement: string | null
@@ -2620,6 +2621,7 @@ export type Database = {
           definition_of_done?: string | null
           department_id?: string | null
           description?: string | null
+          doc_links?: string[]
           email_template_id?: string | null
           estimated_hours?: number | null
           goal_statement?: string | null
@@ -2648,6 +2650,7 @@ export type Database = {
           definition_of_done?: string | null
           department_id?: string | null
           description?: string | null
+          doc_links?: string[]
           email_template_id?: string | null
           estimated_hours?: number | null
           goal_statement?: string | null

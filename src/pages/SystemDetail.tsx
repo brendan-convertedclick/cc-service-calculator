@@ -919,8 +919,14 @@ export function SystemDetail() {
               hint="Links to the documents this needs — a Google Doc, a spec, a brand sheet. They ride along into the ClickUp task description, so whoever does the work can open them from there."
             >
               <DocLinksField
-                systemId={system.id}
                 links={system.doc_links}
+                pending={update.isPending}
+                onWrite={(next) =>
+                  update.mutate(
+                    { id: system.id, patch: { doc_links: next } },
+                    { onError: (e) => toast.error(`Could not save the documents: ${errorMessage(e)}`) },
+                  )
+                }
                 noun={SYSTEM_LAYER_NOUN[systemLayer(system.kind)]}
               />
             </FieldLabel>

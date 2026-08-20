@@ -3,12 +3,12 @@ import { ExternalLink, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useUpdateSystem } from "@/hooks/useSystemDefinitions";
-import { errorMessage } from "@/lib/utils";
 import { docLinkLabel, normaliseDocLink } from "@/lib/doc-links";
 
 /**
- * The reference documents on a system (system_definitions.doc_links, 0129).
+ * A list of reference document URLs — the system's own (0129) or a single
+ * task's (0131). The owner of the list passes `onWrite`, so this component
+ * knows nothing about which table it is editing.
  *
  * Writes immediately rather than staging into SystemDetail's draft — same call
  * as StepLinks makes for procedure/template links: a picker that appears to do
@@ -17,24 +17,20 @@ import { docLinkLabel, normaliseDocLink } from "@/lib/doc-links";
  * adding a link is a discrete act with a button, so there's nothing to stage.
  */
 export function DocLinksField({
-  systemId,
   links,
+  onWrite,
+  pending = false,
   noun,
 }: {
-  systemId: string;
   links: string[];
-  /** "process" / "procedure" / "policy" — this page's own word for itself. */
+  /** Persist the whole new list. Errors are the caller's to report. */
+  onWrite: (next: string[]) => void;
+  pending?: boolean;
+  /** "process" / "procedure" / "policy" / "task" — what this list hangs off. */
   noun: string;
 }) {
   const [draft, setDraft] = useState("");
-  const update = useUpdateSystem();
-
-  function write(next: string[]) {
-    update.mutate(
-      { id: systemId, patch: { doc_links: next } },
-      { onError: (e) => toast.error(`Could not save the documents: ${errorMessage(e)}`) },
-    );
-  }
+  const write = onWrite;
 
   function add() {
     const link = normaliseDocLink(draft);
@@ -73,7 +69,7 @@ export function DocLinksField({
                   type="button"
                   aria-label={`Remove ${link}`}
                   title="Remove"
-                  disabled={update.isPending}
+                  disabled={pending}
                   onClick={() => write(links.filter((l) => l !== link))}
                   className="opacity-60 hover:opacity-100"
                 >
@@ -104,7 +100,7 @@ export function DocLinksField({
           size="sm"
           variant="outline"
           className="shrink-0 gap-1.5"
-          disabled={!draft.trim() || update.isPending}
+          disabled={!draft.trim() || pending}
           onClick={add}
         >
           <Plus className="h-4 w-4" /> Add

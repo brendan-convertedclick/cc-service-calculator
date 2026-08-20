@@ -614,6 +614,7 @@ Deno.serve(async (req: Request) => {
         materialise_as: "task" | "checklist_item" | "none";
         owner_id: string | null;
         system_id: string | null;
+        doc_links: string[] | null;
       };
       type SubStepRow = { id: string; parent_id: string | null; title: string; description: string | null; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
       // Shape of a row inside system_revisions.body: a full process_steps
@@ -672,7 +673,7 @@ Deno.serve(async (req: Request) => {
       const { data: rawTopLevel } = servicesNeedingRaw.length > 0
         ? await supabase
             .from("process_steps")
-            .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id")
+            .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id,doc_links")
             .in("service_id", servicesNeedingRaw)
             .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
             .order("service_id,ordinal")
@@ -709,15 +710,22 @@ Deno.serve(async (req: Request) => {
               materialise_as: s.materialise_as,
               owner_id: s.owner_id ?? null,
               system_id: s.system_id ?? null,
+              // Left null on purpose: read live from process_steps below, so a
+              // document that moves reaches every future task without
+              // republishing the revision (same rule as 0129's system links).
+              doc_links: null,
             });
           }
         }
       }
       const bodyStepIds = [...bodyTopLevel, ...bodySubSteps].map((s) => s.id);
       const { data: stillLive } = bodyStepIds.length > 0
-        ? await supabase.from("process_steps").select("id").in("id", bodyStepIds)
-        : { data: [] as { id: string }[] };
+        ? await supabase.from("process_steps").select("id,doc_links").in("id", bodyStepIds)
+        : { data: [] as { id: string; doc_links: string[] | null }[] };
       const liveIds = new Set((stillLive ?? []).map((r) => r.id));
+      const liveDocLinksByStepId = new Map(
+        (stillLive ?? []).map((r: { id: string; doc_links: string[] | null }) => [r.id, r.doc_links ?? []]),
+      );
       const droppedCount = bodyStepIds.filter((id) => !liveIds.has(id)).length;
       if (droppedCount > 0) {
         console.warn(`[push-to-clickup] ${droppedCount} step(s) in a published revision snapshot no longer exist in process_steps; skipping`);
@@ -903,7 +911,15 @@ Deno.serve(async (req: Request) => {
               // across the whole procedure, so they mean nothing on one task.
               const plannedTask = planByStepId.get(instance.template_step_id);
               const serviceName = serviceNameById.get(instance.service_id);
-              const stepSystemId = templateStepsById.get(instance.template_step_id)?.system_id ?? null;
+              const templateStep = templateStepsById.get(instance.template_step_id);
+              const stepSystemId = templateStep?.system_id ?? null;
+              // The task's own documents first, then the procedure's — one
+              // "Reference docs" list, most specific at the top. Deduped
+              // because a link pinned to a task is often also on the shelf.
+              const docLinks = [...new Set([
+                ...(liveDocLinksByStepId.get(instance.template_step_id) ?? templateStep?.doc_links ?? []),
+                ...(stepSystemId ? docLinksBySystemId.get(stepSystemId) ?? [] : []),
+              ])];
               const howTo = plannedTask
                 ? renderHowTo(
                     plannedTask,
@@ -911,7 +927,7 @@ Deno.serve(async (req: Request) => {
                       label: "How this is done — the procedure in Conductor",
                       url: `${APP_URL}/systems/${stepSystemId ?? ""}`,
                     },
-                    stepSystemId ? docLinksBySystemId.get(stepSystemId) : null,
+                    docLinks,
                   )
                 : null;
 
