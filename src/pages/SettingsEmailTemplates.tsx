@@ -71,8 +71,12 @@ export function SettingsEmailTemplates() {
     const name = draft.name.trim();
     const subject = draft.subject.trim();
     const body = draft.body_text.trim();
-    if (!name || !subject || !body) {
-      toast.error("Name, subject and body are all needed");
+    // Subject is optional on purpose: a template written to answer a client
+    // reply has no business setting one, because the thread already has a
+    // subject and replacing it breaks the conversation in their inbox.
+    // Stored as "" rather than null — the column is NOT NULL from 0056.
+    if (!name || !body) {
+      toast.error("A template needs a name and a body");
       return;
     }
     const slug = draft.slug || slugify(name);
@@ -151,13 +155,17 @@ export function SettingsEmailTemplates() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-subject">Subject</Label>
+              <Label htmlFor="tpl-subject">Subject (optional)</Label>
               <Input
                 id="tpl-subject"
                 value={draft.subject}
                 onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
                 placeholder="A few questions on {project_name}"
               />
+              <p className="text-label-small text-m-on-surface-variant">
+                Leave blank for a template you reply with — the thread already has a
+                subject, and setting one here would replace it.
+              </p>
             </div>
 
             <div className="space-y-1.5">

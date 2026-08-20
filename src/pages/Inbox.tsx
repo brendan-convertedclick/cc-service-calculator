@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Plus, ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Plus, ArrowDownWideNarrow, ArrowUpWideNarrow, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -162,6 +162,10 @@ Output: Confirmation of brief created or updated, with intent classification and
               <span className="ml-2 text-title-medium text-m-primary">· {filterLabel}</span>
             )}
           </h1>
+          <div className="flex items-center gap-2">
+          <Button variant="secondary" asChild className="gap-1.5">
+            <Link to="/comms/new"><Mail className="h-4 w-4" /> Compose</Link>
+          </Button>
           <Button
             disabled={createBrief.isPending}
             onClick={() =>
@@ -178,6 +182,7 @@ Output: Confirmation of brief created or updated, with intent classification and
           >
             <Plus className="h-4 w-4" /> {createBrief.isPending ? "Creating…" : "New brief"}
           </Button>
+          </div>
         </div>
 
         <StatusPipeline

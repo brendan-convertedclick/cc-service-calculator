@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CalendarDays, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/utils";
 
@@ -150,6 +152,20 @@ export function Profile() {
                 <Label>Skills</Label>
                 <SkillsEditor skills={me.skills} onChange={(skills) => save({ skills })} />
               </div>
+
+              {/* Gmail's own signature is added by its web and phone clients,
+                  never by the API — so mail sent from Conductor arrives bare
+                  unless we append this ourselves.
+
+                  Two fields, not one, because outbound mail is
+                  multipart/alternative: the HTML part carries the designed
+                  signature, the plain-text part still needs something readable
+                  for anyone whose client shows text. */}
+              <SignatureEditor
+                text={me.email_signature ?? ""}
+                html={me.email_signature_html ?? ""}
+                onSave={save}
+              />
             </>
           )}
         </CardContent>
@@ -183,6 +199,185 @@ export function Profile() {
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+/** Email signature: one of two kinds, never both.
+ *
+ *  HTML mode renders the signature in an iframe you can type straight into.
+ *  The sandbox is deliberate and precise: allow-same-origin (so this page can
+ *  reach into the document, make it editable and read the edits back out) but
+ *  NOT allow-scripts — so script inside an uploaded signature can never run.
+ *  Rendering the same HTML into this page's own DOM to get contentEditable
+ *  would hand a signature file the run of Conductor.
+ */
+function SignatureEditor({
+  text,
+  html,
+  onSave,
+}: {
+  text: string;
+  html: string;
+  onSave: (patch: { email_signature?: string | null; email_signature_html?: string | null }) => void;
+}) {
+  const [mode, setMode] = useState<"text" | "html">(html ? "html" : "text");
+  const [draftHtml, setDraftHtml] = useState(html);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  const MAX_BYTES = 100_000;
+
+  async function onFile(file: File) {
+    setUploadError(null);
+    if (file.size > MAX_BYTES) {
+      setUploadError("That file is over 100KB. Host images at a URL rather than embedding them.");
+      return;
+    }
+    const content = await file.text();
+    setDraftHtml(content);
+    onSave({ email_signature_html: content });
+    toast.success("Signature uploaded");
+  }
+
+  /** Make the rendered signature typeable, once the iframe has its content. */
+  function onFrameLoad() {
+    const doc = frameRef.current?.contentDocument;
+    if (!doc) return;
+    doc.body.contentEditable = "true";
+    doc.body.style.margin = "8px";
+    doc.body.style.outline = "none";
+    doc.body.addEventListener("blur", () => {
+      const edited = doc.body.innerHTML;
+      setDraftHtml(edited);
+      if (edited !== html) onSave({ email_signature_html: edited });
+    }, true);
+  }
+
+  function chooseMode(next: "text" | "html") {
+    if (next === mode) return;
+    setMode(next);
+    // One or the other, as asked — the unused one is cleared rather than left
+    // behind to be silently appended by some future change.
+    if (next === "text") {
+      setDraftHtml("");
+      onSave({ email_signature_html: null });
+    } else {
+      onSave({ email_signature: null });
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <Label>Email signature</Label>
+
+      <div className="flex flex-wrap gap-2">
+        {(["text", "html"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => chooseMode(m)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-label-medium transition-colors",
+              mode === m
+                ? "border-m-primary bg-m-primary text-m-on-primary"
+                : "border-m-outline-variant bg-m-surface text-m-on-surface-variant hover:bg-m-surface-container-high"
+            )}
+          >
+            {m === "text" ? "Plain text" : "HTML"}
+          </button>
+        ))}
+      </div>
+      <p className="text-label-small text-m-on-surface-variant">
+        One or the other. Switching clears the one you are not using.
+      </p>
+
+      {mode === "text" ? (
+        <div className="space-y-2">
+          <Textarea
+            id="profile-signature"
+            defaultValue={text}
+            rows={4}
+            placeholder={"Lisa Zietsman\nConverted Click\n082 000 0000"}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v !== text) onSave({ email_signature: v || null });
+            }}
+          />
+          <p className="text-label-small text-m-on-surface-variant">
+            Added to the bottom of every email you send. Keep it short — name,
+            company, number.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="profile-signature-html"
+              type="file"
+              accept=".html,.htm,text/html"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onFile(f);
+                e.target.value = "";
+              }}
+              className="text-label-small file:mr-3 file:rounded-md file:border-0 file:bg-m-secondary-container file:px-3 file:py-1.5 file:text-label-medium file:text-m-on-secondary-container"
+            />
+            {draftHtml && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraftHtml("");
+                  onSave({ email_signature_html: null });
+                }}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+          {uploadError && <p className="text-label-small text-m-error">{uploadError}</p>}
+
+          {draftHtml ? (
+            <div className="space-y-2">
+              <Label>Edit — click into it and type</Label>
+              <iframe
+                ref={frameRef}
+                title="Email signature"
+                sandbox="allow-same-origin"
+                srcDoc={draftHtml}
+                onLoad={onFrameLoad}
+                className="h-56 w-full rounded-md border border-m-outline-variant bg-white"
+              />
+              <p className="text-label-small text-m-on-surface-variant">
+                Type directly on the signature — replace the name, title and numbers.
+                It saves when you click away. Images must be absolute https links.
+              </p>
+              <details>
+                <summary className="cursor-pointer text-label-small text-m-on-surface-variant">
+                  Edit the HTML source instead
+                </summary>
+                <Textarea
+                  value={draftHtml}
+                  onChange={(e) => setDraftHtml(e.target.value)}
+                  onBlur={() => {
+                    if (draftHtml !== html) onSave({ email_signature_html: draftHtml.trim() || null });
+                  }}
+                  rows={8}
+                  className="mt-2 font-mono text-label-small"
+                />
+              </details>
+            </div>
+          ) : (
+            <p className="text-label-small text-m-on-surface-variant">
+              Upload a .html file, or paste your signature's HTML into the source box
+              after uploading. In Gmail you can copy your signature and paste it here.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

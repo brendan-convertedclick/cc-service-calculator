@@ -68,18 +68,17 @@ export function SettingsConnectGoogle() {
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ChevronLeft className="h-4 w-4" /> Back
         </Button>
-        <h1 className="text-headline-medium">Connect Google Calendar</h1>
+        <h1 className="text-headline-medium">Connect Google</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Calendar access</CardTitle>
+          <CardTitle>Calendar and email access</CardTitle>
           <CardDescription>
-            Signing in with Google grants Conductor permission to create calendar
-            events (with a Meet link) for internal meetings you organise, so they
-            land on every attendee's calendar. If you signed in before this
-            feature shipped, sign out and sign in with Google again to grant it —
-            the extra consent screen only appears once.
+            Signing in with Google grants Conductor two things: permission to
+            create calendar events (with a Meet link) for internal meetings you
+            organise, and permission to send client email as you, from your own
+            address, rather than from a shared mailbox.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -102,13 +101,20 @@ export function SettingsConnectGoogle() {
                   Connected {new Date(status.connected_at).toLocaleString("en-ZA")}
                 </p>
               )}
+              <p className="rounded-lg bg-m-surface-container-high px-3 py-2 text-label-small text-m-on-surface-variant">
+                Granted before a permission was added? Being connected isn't the
+                same as having every permission — the grant is fixed at the date
+                above. Disconnect and sign in with Google again to refresh it,
+                and check the Google screen lists what you expect before you
+                accept.
+              </p>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleDisconnect}
                 disabled={disconnecting}
               >
-                {disconnecting ? "Disconnecting…" : "Disconnect Google Calendar"}
+                {disconnecting ? "Disconnecting…" : "Disconnect Google"}
               </Button>
             </div>
           ) : (

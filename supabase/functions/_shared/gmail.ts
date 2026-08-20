@@ -8,6 +8,23 @@
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { getGoogleAccessToken } from "./google-token.ts";
 
+/**
+ * RFC 2047 encoded-word for a header value.
+ *
+ * Headers are ASCII. A UTF-8 byte sequence dropped into Subject: raw arrives as
+ * mojibake — an em dash renders as "Ã¢Â€Â", which is exactly what happened to
+ * every subject line containing one. Anything non-ASCII has to be announced as
+ * encoded, not merely sent as bytes.
+ */
+export function encodeHeaderWord(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(value)) return value;
+  const utf8 = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of utf8) binary += String.fromCharCode(byte);
+  return `=?UTF-8?B?${btoa(binary)}?=`;
+}
+
 export function buildRfc822(args: {
   fromEmail: string;
   fromName?: string;
@@ -20,13 +37,13 @@ export function buildRfc822(args: {
 }): string {
   const boundary = `cc_${crypto.randomUUID()}`;
   const headers: string[] = [
-    `From: ${args.fromName ?? "Converted Click"} <${args.fromEmail}>`,
+    `From: ${encodeHeaderWord(args.fromName ?? "Converted Click")} <${args.fromEmail}>`,
     `To: ${args.to.join(", ")}`,
   ];
   if (args.cc.length) headers.push(`Cc: ${args.cc.join(", ")}`);
   if (args.bcc.length) headers.push(`Bcc: ${args.bcc.join(", ")}`);
   headers.push(
-    `Subject: ${args.subject}`,
+    `Subject: ${encodeHeaderWord(args.subject)}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   );

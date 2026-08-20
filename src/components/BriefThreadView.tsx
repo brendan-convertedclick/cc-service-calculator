@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Copy, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MessageItem } from "@/components/MessageItem";
 import { useBriefMessages } from "@/hooks/useBriefMessages";
@@ -58,6 +59,26 @@ export function BriefThreadView({
         ]
       : [];
 
+  // Reply hands off to the compose page rather than growing a second composer
+  // here. thread_id is the part that matters: Gmail threads on the id, so a
+  // reply without it starts a new conversation in the client's inbox even when
+  // the subject matches.
+  const replyHref = (() => {
+    const lastInbound = [...messages].reverse().find((m) => m.direction === "inbound");
+    const subject = brief.raw_subject
+      ? /^re:/i.test(brief.raw_subject)
+        ? brief.raw_subject
+        : `Re: ${brief.raw_subject}`
+      : "";
+    const q = new URLSearchParams({ brief_id: brief.id });
+    const to = lastInbound?.from_email ?? brief.sender_email;
+    if (to) q.set("to", to);
+    if (subject) q.set("subject", subject);
+    if (brief.gmail_thread_id) q.set("thread_id", brief.gmail_thread_id);
+    if (brief.client_id) q.set("client_id", brief.client_id);
+    return `/comms/new?${q.toString()}`;
+  })();
+
   const submitNote = async () => {
     const body = noteText.trim();
     if (!body || !user?.email) return;
@@ -111,13 +132,20 @@ export function BriefThreadView({
             className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-body-medium ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
           <div className="flex items-center justify-between">
-            <Button
-              size="sm"
-              disabled={!noteText.trim() || addNote.isPending}
-              onClick={submitNote}
-            >
-              Add note
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                disabled={!noteText.trim() || addNote.isPending}
+                onClick={submitNote}
+              >
+                Add note
+              </Button>
+              <Button asChild size="sm" variant="secondary" className="gap-1.5">
+                <Link to={replyHref} title="Reply to this thread by email — sends as you and stays in the same conversation">
+                  <Mail className="h-4 w-4" /> Reply by email
+                </Link>
+              </Button>
+            </div>
             {composerExtra}
           </div>
         </div>

@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const callerEmail = (await user.auth.getUser()).data.user?.email ?? "";
     const { data: caller } = await user
       .from("team_members")
-      .select("id, role, full_name")
+      .select("id, role, full_name, email_signature, email_signature_html")
       .eq("email", callerEmail)
       .maybeSingle();
     const role = (caller as { role?: string } | null)?.role;
@@ -93,6 +93,32 @@ Deno.serve(async (req: Request) => {
       return json({ error: failure }, 400);
     }
 
+    // Appended here rather than pasted into each template or into the compose
+    // box: one definition per person, and it cannot go stale in fifteen copies.
+    // Gmail never adds one — its signature belongs to the web and phone
+    // clients, so anything sent through the API arrives bare without this.
+    const me = caller as { email_signature?: string | null; email_signature_html?: string | null } | null;
+    const sigText = me?.email_signature?.trim() ?? "";
+    const sigHtml = me?.email_signature_html?.trim() ?? "";
+
+    // The text part never takes HTML. If someone has only uploaded an HTML
+    // signature, strip it back to something readable rather than posting tags
+    // into a plain-text email.
+    const textFallback = sigText || (sigHtml
+      ? sigHtml.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/\n{3,}/g, "\n\n").trim()
+      : "");
+
+    const bodyText = textFallback ? `${row.body_text}\n\n--\n${textFallback}` : row.body_text;
+    const bodyHtml = sigHtml
+      ? `${row.body_html}\n<br>--<br>\n${sigHtml}`
+      : sigText
+        ? `${row.body_html}\n<p>--<br>${sigText
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>")}</p>`
+        : row.body_html;
+
     const sent = await sendGmail({
       accessToken: grant.accessToken!,
       fromEmail: grant.googleEmail ?? callerEmail,
@@ -101,8 +127,8 @@ Deno.serve(async (req: Request) => {
       cc: row.cc_addresses,
       bcc: row.bcc_addresses,
       subject: row.subject,
-      bodyHtml: row.body_html,
-      bodyText: row.body_text,
+      bodyHtml,
+      bodyText,
       threadId: row.gmail_thread_id,
     });
     if (!sent.ok) {

@@ -183,8 +183,6 @@ export default function App() {
             {/* Full-screen surfaces that deliberately sit outside the shell. */}
             <Route element={<RequireAdmin />}>
               <Route path="approvals" element={<Approvals />} />
-              {/* Phase 6: outbound communications compose */}
-              <Route path="comms/new" element={<ComposeEmail />} />
             </Route>
 
             {/* The shell (nav rail + breadcrumbs) wraps everyone, staff
@@ -213,6 +211,12 @@ export default function App() {
 
               {/* Everything below requires admin or owner. Staff bounce to /staff. */}
               <Route element={<RequireAdmin />}>
+                {/* Compose used to sit outside the shell, back when it was only
+                    reachable from a cost estimate and did one thing. It is now
+                    a nav destination, so it keeps the rail like everything
+                    else — and being here makes the route agree with the nav,
+                    which is admin/owner because sending refuses anyone else. */}
+                <Route path="comms/new" element={<ComposeEmail />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
                     the nav rail and breadcrumbs like every other queue. */}

@@ -143,6 +143,13 @@ function StepLinks({ row, systemId }: { row: StepRow; systemId: string }) {
         <span className="inline-flex items-center gap-1 rounded-md bg-m-tertiary-container px-2 py-0.5 text-label-small text-m-on-tertiary-container">
           <Mail className="h-3 w-3" />
           {template.name}
+          <a
+            href={`/comms/new?template=${encodeURIComponent(template.slug)}`}
+            title={`Open a new email from the "${template.name}" template`}
+            className="rounded px-1 font-medium underline decoration-dotted underline-offset-2 hover:bg-m-tertiary-container hover:opacity-100"
+          >
+            Draft
+          </a>
           <button
             type="button"
             aria-label={`Unlink template "${template.name}"`}
@@ -534,10 +541,10 @@ export function TaskList(props: TaskListProps) {
                     key={step.id}
                     className="group/step flex items-start gap-2 border-l border-m-outline-variant py-1 pl-3"
                   >
-                    <span className="w-5 flex-none self-center pt-0.5 text-right font-mono text-label-medium tabular-nums text-m-on-surface-variant">
+                    <span className="w-5 flex-none pt-1 text-right font-mono text-label-medium tabular-nums text-m-on-surface-variant">
                       {number}
                     </span>
-                    <div className="flex flex-none flex-col self-center">
+                    <div className="flex flex-none flex-col pt-0.5">
                       <button
                         type="button"
                         aria-label={`Move step ${number} earlier`}
@@ -559,11 +566,11 @@ export function TaskList(props: TaskListProps) {
                     </div>
 
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-start gap-0.5">
                         <span className="relative inline-flex flex-none">
                           <span
                             className={cn(
-                              "rounded-md px-1 py-0.5 text-body-medium hover:bg-m-surface-container-high",
+                              "block rounded-md px-1 py-0.5 text-label-medium leading-snug hover:bg-m-surface-container-high",
                               step.verb ? "text-m-on-surface-variant" : "text-m-outline",
                             )}
                           >
@@ -603,7 +610,7 @@ export function TaskList(props: TaskListProps) {
                               e.currentTarget.blur();
                             }
                           }}
-                          className="w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-body-large leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
+                          className="w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-body-medium leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                         />
                       </div>
                       {linksShown(step) && <StepLinks row={step} systemId={props.systemId} />}

@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   Inbox as InboxIcon,
+  Mail as MailIcon,
   ListTodo,
   Network,
   PackageSearch,
@@ -61,6 +62,10 @@ export interface NavSection {
 
 const dashboard: NavItem    = { to: "/",              label: "Dashboard",     icon: LayoutDashboard,   end: true  }
 const inbox: NavItem        = { to: "/inbox",         label: "Inbox",         icon: InboxIcon,         end: false }
+// Default (admin/owner) visibility on purpose: send-outbound-email refuses
+// anyone else, so showing staff a compose screen they cannot send from would
+// be a dead end.
+const compose: NavItem      = { to: "/comms/new",     label: "Compose",       icon: MailIcon,          end: false }
 const pulse: NavItem        = { to: "/pulse",         label: "Pulse",         icon: Zap,               end: false }
 const productivity: NavItem = { to: "/productivity",  label: "Productivity",  icon: TrendingUp,        end: false }
 const myWork: NavItem       = { to: "/staff",         label: "My work",       icon: ClipboardList,     end: false, roles: ALL_ROLES }
@@ -122,6 +127,7 @@ export const navEntries: NavEntry[] = [
   { kind: "item", item: dashboard },
   { kind: "item", item: myWork },
   { kind: "item", item: inbox },
+  { kind: "item", item: compose },
   { kind: "item", item: productivity },
   { kind: "section", section: deliverySection },
   { kind: "section", section: scaffoldSection },

@@ -28,16 +28,27 @@ import {
 /**
  * Phase 6 — Compose email page. Supports template-assisted and free-form
  * composition. Send routes through send-outbound-email which uses the
- * accountmanager@ Send-as alias.
+ * signed-in person's own Gmail account — replies come back to them, not to a
+ * shared mailbox nobody owns.
  */
 export function ComposeEmail() {
-  const { currentUserId } = useAuth();
+  const { currentUserId, user } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const projectId = params.get("project_id") ?? null;
   const clientIdParam = params.get("client_id") ?? null;
   const briefId = params.get("brief_id") ?? null;
   const ceIdParam = params.get("ce_id") ?? null;
+  // Reply hand-off from a thread. gmail_thread_id is what makes the reply land
+  // in the existing conversation instead of starting a new one — Gmail threads
+  // on the id, not on the subject line.
+  const toParam = params.get("to") ?? "";
+  const subjectParam = params.get("subject") ?? "";
+  const threadId = params.get("thread_id") ?? null;
+  // Hand-off from a procedure step: open compose with the email that step
+  // sends already loaded, so "step 4 sends the clarifying questions" is one
+  // click rather than a name to go and look up.
+  const templateParam = params.get("template") ?? "";
 
   // Cost-estimate context (brief flow Stage 4 hand-off): prefill the email
   // from the CE + brief, and mark the CE 'sent' when the email goes out.
@@ -47,9 +58,9 @@ export function ComposeEmail() {
 
   const [templates, setTemplates] = useState<EmailTemplateRow[]>([]);
   const [templateSlug, setTemplateSlug] = useState<string>("");
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState(toParam);
   const [cc, setCc] = useState("");
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(subjectParam);
   const [body, setBody] = useState("");
   const [driveLink, setDriveLink] = useState("");
   const [approvalLink, setApprovalLink] = useState("");
@@ -59,13 +70,13 @@ export function ComposeEmail() {
     name: string;
     primary_domain: string | null;
   } | null>(null);
+  const [contextProjectName, setContextProjectName] = useState<string | null>(null);
 
-  // Load templates only when Phase 6 backend is enabled (migration 0056
-  // applied). Until then we skip the fetch to avoid a 404 in console — the
-  // page still works for blank composition.
-  const phase6Enabled = import.meta.env.VITE_PHASE6_ENABLED === "1";
+  // Was gated behind VITE_PHASE6_ENABLED, which was never set in any env file —
+  // so the dropdown silently held nothing but "Blank" and the templates, and
+  // later the whole page for managing them, were unreachable. 0056 is long
+  // applied; the guard only hid a working feature.
   useEffect(() => {
-    if (!phase6Enabled) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
@@ -82,7 +93,7 @@ export function ComposeEmail() {
     return () => {
       cancelled = true;
     };
-  }, [phase6Enabled]);
+  }, []);
 
   useEffect(() => {
     const clientId = clientIdParam;
@@ -100,6 +111,25 @@ export function ComposeEmail() {
       cancelled = true;
     };
   }, [clientIdParam]);
+
+  // {project_name} used to resolve to the literal placeholder on both branches
+  // of a ternary — it could never fill. It needs the project's name, which
+  // means fetching it.
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("name")
+        .eq("id", projectId)
+        .single();
+      if (!cancelled && data) setContextProjectName((data as { name: string | null }).name);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // Prefill once from the CE context: recipient (the brief's sender), subject,
   // and a plain-text body with summary, line items, totals and the PDF link.
@@ -160,13 +190,29 @@ export function ComposeEmail() {
     if (!t) return;
     const vars: Record<string, string> = {
       client_first_name: contextClient?.name?.split(" ")[0] ?? "{client_first_name}",
-      project_name: projectId ? "{project_name}" : "{project_name}",
+      project_name: contextProjectName ?? "{project_name}",
       drive_link: driveLink || "{drive_link}",
       approval_link: approvalLink || "{approval_link}",
     };
-    setSubject(interpolate(t.subject, vars));
+    // A template with no subject leaves the current one alone. On a reply that
+    // subject came from the thread, and overwriting it with "" would start a
+    // new conversation in the client's inbox instead of continuing theirs.
+    if (t.subject.trim()) setSubject(interpolate(t.subject, vars));
     setBody(interpolate(t.body_text, vars));
   };
+
+  // Runs once the templates arrive, and never fights the operator: if they have
+  // already picked one, or typed a body, we leave it alone.
+  const urlTemplateApplied = useRef(false);
+  useEffect(() => {
+    if (urlTemplateApplied.current || !templateParam || templates.length === 0) return;
+    if (templateSlug || body.trim()) return;
+    if (!templates.some((t) => t.slug === templateParam)) return;
+    urlTemplateApplied.current = true;
+    onPickTemplate(templateParam);
+    // onPickTemplate is recreated each render; the ref guard is what stops a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateParam, templates, templateSlug, body]);
 
   const canSubmit = !!currentUserId && to.trim().length > 0 && subject.trim().length > 0 && body.trim().length > 0;
 
@@ -186,6 +232,7 @@ export function ComposeEmail() {
       body_text: body,
       drive_link: driveLink || null,
       approval_link: approvalLink || null,
+      gmail_thread_id: threadId,
       status: "draft",
     };
     const { data, error } = await supabase
@@ -251,7 +298,11 @@ export function ComposeEmail() {
         <CardHeader>
           <CardTitle className="text-headline-small">Compose email</CardTitle>
           <p className="text-body-small text-m-on-surface-variant">
-            Sent from <strong>accountmanager@convertedclick.co.za</strong>
+            {/* Whoever is signed in is the sender — send-outbound-email mints the
+                token from their own Google grant, so this is not a label to
+                hardcode. It used to read accountmanager@, which stopped being
+                true the moment sending moved to per-user grants. */}
+            Sent from <strong>{user?.email ?? "your Google account"}</strong>
             {contextClient && (
               <>
                 {" · "}context: <strong>{contextClient.name}</strong>

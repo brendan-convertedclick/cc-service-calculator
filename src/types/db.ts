@@ -4903,6 +4903,8 @@ export type Database = {
           cost_rate_cents: number | null
           created_at: string
           email: string | null
+          email_signature: string | null
+          email_signature_html: string | null
           full_name: string
           id: string
           primary_department_id: string | null
@@ -4918,6 +4920,8 @@ export type Database = {
           cost_rate_cents?: number | null
           created_at?: string
           email?: string | null
+          email_signature?: string | null
+          email_signature_html?: string | null
           full_name: string
           id?: string
           primary_department_id?: string | null
@@ -4933,6 +4937,8 @@ export type Database = {
           cost_rate_cents?: number | null
           created_at?: string
           email?: string | null
+          email_signature?: string | null
+          email_signature_html?: string | null
           full_name?: string
           id?: string
           primary_department_id?: string | null
