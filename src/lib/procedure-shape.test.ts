@@ -71,6 +71,8 @@ describe("taskHours", () => {
 
   it("stays null when nothing is estimated — not zero", () => {
     expect(taskHours({ estimated_hours: null }, [{ estimated_hours: null }])).toBeNull();
+    // Task-level estimate with unestimated steps: the task's figure stands.
+    expect(taskHours({ estimated_hours: 1.5 }, [{ estimated_hours: null }, { estimated_hours: null }])).toBe(1.5);
     expect(taskHours({ estimated_hours: null }, [])).toBeNull();
   });
 

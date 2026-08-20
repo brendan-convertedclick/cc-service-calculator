@@ -71,12 +71,15 @@ export function taskHours(
   task: { estimated_hours: number | string | null },
   steps: { estimated_hours: number | string | null }[],
 ): number | null {
-  if (steps.length === 0) {
-    return task.estimated_hours == null ? null : Number(task.estimated_hours);
-  }
+  // Steps win once ANY of them is estimated; otherwise the task's own figure
+  // stands. Returning null whenever a task had unestimated steps is the same
+  // bug 0125 fixed in the rollup trigger — it read "no hours" for every task
+  // estimated at task level, which is how most of them are written.
   const estimated = steps.filter((s) => s.estimated_hours != null);
-  if (estimated.length === 0) return null;
-  return estimated.reduce((sum, s) => sum + Number(s.estimated_hours), 0);
+  if (estimated.length > 0) {
+    return estimated.reduce((sum, s) => sum + Number(s.estimated_hours), 0);
+  }
+  return task.estimated_hours == null ? null : Number(task.estimated_hours);
 }
 
 /**
