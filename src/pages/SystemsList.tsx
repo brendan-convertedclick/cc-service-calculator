@@ -5,10 +5,10 @@
 // Layer is a tab; band demotes to a rail filter. Rail matches the
 // SowList/ServicesList standard.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, Plus, Search, Wand2 } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MenuItem } from "@/components/ui/menu-item";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,7 @@ import {
   useDuplicateSystem,
   useRecurringServiceOptions,
   useSystemDefinitions,
+  useUpdateSystem,
   type SystemBand,
   type SystemDefinitionWithJoins,
   type SystemKind,
@@ -113,8 +116,10 @@ export function SystemsList() {
   // this list all read the same colour for the same owner.
   const colorById = useMemo(() => memberColors(team), [team]);
   const duplicate = useDuplicateSystem();
+  const update = useUpdateSystem();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<Status>("active");
+  const [editing, setEditing] = useState<SystemDefinitionWithJoins | null>(null);
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
   const [dept, setDept] = useState<string | null>(null);
@@ -199,6 +204,20 @@ export function SystemsList() {
     () => scoped.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
     [scoped],
   );
+
+  // Archive, not delete — a system that has run carries revisions, steps and
+  // ClickUp history behind it. It drops out of every list (the query filters
+  // archived_at) and there is no un-archive surface yet, so confirm first.
+  const archive = (s: SystemDefinitionWithJoins) => {
+    if (!window.confirm(`Archive "${s.name}"? It disappears from the library — there's no undo screen yet.`)) return;
+    update.mutate(
+      { id: s.id, patch: { archived_at: new Date().toISOString() } },
+      {
+        onSuccess: () => toast.success(`${s.name} archived`),
+        onError: (e) => toast.error(`Could not archive: ${errorMessage(e)}`),
+      },
+    );
+  };
 
   return (
     <div className="flex h-full">
@@ -344,7 +363,7 @@ export function SystemsList() {
                         {status === "active" && !anyFilterActive ? (
                           <>
                             No {SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} approved yet — a system
-                            goes active when a revision is published.{" "}
+                            goes active when a revision is approved.{" "}
                             <button
                               type="button"
                               className="underline underline-offset-2"
@@ -364,7 +383,9 @@ export function SystemsList() {
                             key={s.id}
                             system={s}
                             onClick={() => navigate(`/systems/${s.id}`)}
-                            duplicating={duplicate.isPending}
+                            onEdit={() => setEditing(s)}
+                            onArchive={() => archive(s)}
+                            busy={duplicate.isPending || update.isPending}
                             ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
                             onDuplicate={() =>
                               duplicate.mutate(s.id, {
@@ -395,6 +416,24 @@ export function SystemsList() {
         )}
       </div>
 
+      <EditSystemDialog
+        system={editing}
+        onClose={() => setEditing(null)}
+        onSave={(patch) =>
+          editing &&
+          update.mutate(
+            { id: editing.id, patch },
+            {
+              onSuccess: () => {
+                toast.success("Saved");
+                setEditing(null);
+              },
+              onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
+            },
+          )
+        }
+      />
+
       <NewSystemDialog
         layer={creating}
         initialName={wizardName ?? ""}
@@ -412,13 +451,17 @@ function SystemRow({
   system,
   onClick,
   onDuplicate,
-  duplicating,
+  onEdit,
+  onArchive,
+  busy,
   ownerColor,
 }: {
   system: SystemDefinitionWithJoins;
   onClick: () => void;
   onDuplicate: () => void;
-  duplicating: boolean;
+  onEdit: () => void;
+  onArchive: () => void;
+  busy: boolean;
   ownerColor: string | undefined;
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
@@ -436,8 +479,8 @@ function SystemRow({
   const subLine = linkLabel ?? (isUnmapped ? null : system.goal_statement);
 
   return (
-    // The row's body is a button, so Duplicate has to be its sibling, not a
-    // nested button — hover and padding move up to the <li>.
+    // The row's body is a button, so the actions menu has to be its sibling,
+    // not a nested button — hover and padding move up to the <li>.
     <li className="flex items-center gap-1 pr-2 hover:bg-m-surface-container">
       <button
         type="button"
@@ -484,17 +527,98 @@ function SystemRow({
           />
         )}
       </button>
-      <button
-        type="button"
-        aria-label={`Duplicate "${system.name}"`}
-        title="Duplicate — copies the steps, canvas and attachments"
-        disabled={duplicating}
-        onClick={onDuplicate}
-        className="flex-none rounded-md p-2 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40"
-      >
-        <Copy className="h-4 w-4" />
-      </button>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Actions for "${system.name}"`}
+            className="flex-none rounded-md p-2 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-52 p-1">
+          <MenuItem icon={ArrowRight} label="Open" onClick={onClick} />
+          <MenuItem icon={Pencil} label="Rename / area" onClick={onEdit} />
+          <MenuItem icon={Copy} label="Duplicate" disabled={busy} onClick={onDuplicate} />
+          <MenuItem icon={Archive} label="Archive" destructive disabled={busy} onClick={onArchive} />
+        </PopoverContent>
+      </Popover>
     </li>
+  );
+}
+
+// Name and area, the two things the list itself shows and sorts on. Everything
+// else about a system is edited on its own page — this is the quick fix you
+// make without leaving the library.
+function EditSystemDialog({
+  system,
+  onClose,
+  onSave,
+}: {
+  system: SystemDefinitionWithJoins | null;
+  onClose: () => void;
+  onSave: (patch: { name: string; band: string | null }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [band, setBand] = useState("");
+
+  // Re-seed each time a different row opens the dialog.
+  useEffect(() => {
+    if (system) {
+      setName(system.name);
+      setBand(system.band ?? "");
+    }
+  }, [system]);
+
+  const trimmed = name.trim();
+
+  return (
+    <Dialog open={!!system} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rename {system ? SYSTEM_LAYER_NOUN[systemLayer(system.kind)] : "system"}</DialogTitle>
+          <DialogDescription>Name and area. The rest lives on its own page.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-system-name">Name</Label>
+            <Input
+              id="edit-system-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && trimmed) onSave({ name: trimmed, band: band || null });
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-system-band">Area</Label>
+            <select
+              id="edit-system-band"
+              value={band}
+              onChange={(e) => setBand(e.target.value)}
+              className="h-10 w-full rounded-md border border-m-outline-variant bg-transparent px-3 text-body-medium"
+            >
+              <option value="">No area</option>
+              {SYSTEM_BANDS.map((b) => (
+                <option key={b} value={b}>
+                  {SYSTEM_BAND_LABEL[b]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!trimmed} onClick={() => onSave({ name: trimmed, band: band || null })}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MenuItem } from "@/components/ui/menu-item";
 import {
   Dialog,
   DialogContent,
@@ -417,32 +418,6 @@ function FilterRow({
         {count !== undefined && <span className="ml-2 tabular-nums text-label-small opacity-70">{count}</span>}
       </button>
     </li>
-  );
-}
-
-function MenuItem({
-  icon: Icon,
-  label,
-  onClick,
-  destructive,
-}: {
-  icon: typeof Pencil;
-  label: string;
-  onClick: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small hover:bg-m-surface-container",
-        destructive ? "text-m-error" : "text-m-on-surface",
-      )}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
   );
 }
 

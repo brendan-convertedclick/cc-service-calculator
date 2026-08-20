@@ -24,6 +24,8 @@ export type MultiSelectProps = {
   searchPlaceholder?: string;
   emptyLabel?: string;
   className?: string;
+  /** Put the caller's Label's htmlFor target on the trigger. */
+  id?: string;
 };
 
 export function MultiSelect({
@@ -34,6 +36,7 @@ export function MultiSelect({
   searchPlaceholder = "Search…",
   emptyLabel = "No results found.",
   className,
+  id,
 }: MultiSelectProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const selected = React.useMemo(() => new Set(values), [values]);
@@ -53,12 +56,15 @@ export function MultiSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          // Same as Combobox: a field wearing Button's outline styling, so it
-          // takes the field radius rather than the action pill.
-          className={cn("justify-between rounded-md font-normal", className)}
+          // Same as Combobox: a full-width field wearing Button's outline
+          // styling, so it takes the field radius rather than the action pill.
+          // Without w-full the Button shrinks to its text and the Label beside
+          // it flows onto the same line instead of stacking.
+          className={cn("w-full justify-between rounded-md font-normal", className)}
         >
           <span className={cn("truncate", values.length === 0 && "text-muted-foreground")}>
             {triggerLabel}
