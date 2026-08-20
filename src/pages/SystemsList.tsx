@@ -54,6 +54,21 @@ import { useTimeCategories } from "@/hooks/useOngoingTasks";
 const UNBANDED = "unbanded";
 const NO_DEPT = "none";
 
+// Active = a published revision, i.e. someone approved it. Everything else is
+// written up but not yet agreed, which is most of the library — so the page
+// opens on Active and you have to ask for the rest.
+const STATUSES = ["active", "unapproved", "all"] as const;
+type Status = (typeof STATUSES)[number];
+const STATUS_LABEL: Record<Status, string> = {
+  active: "Active",
+  unapproved: "Not approved",
+  all: "All",
+};
+function matchesStatus(s: SystemDefinitionWithJoins, status: Status): boolean {
+  if (status === "all") return true;
+  return status === "active" ? !!s.current_revision_id : !s.current_revision_id;
+}
+
 function isBand(b: string | null): b is SystemBand {
   return !!b && (SYSTEM_BANDS as readonly string[]).includes(b);
 }
@@ -99,6 +114,7 @@ export function SystemsList() {
   const colorById = useMemo(() => memberColors(team), [team]);
   const duplicate = useDuplicateSystem();
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<Status>("active");
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
   const [dept, setDept] = useState<string | null>(null);
@@ -114,9 +130,13 @@ export function SystemsList() {
 
   const q = search.trim().toLowerCase();
 
+  // Every other rail count is read against the status-scoped set, so "All
+  // areas · 121" can't sit next to a one-row list.
+  const scoped = useMemo(() => systems.filter((s) => matchesStatus(s, status)), [systems, status]);
+
   const filtered = useMemo(
     () =>
-      systems.filter((s) => {
+      scoped.filter((s) => {
         if (band && (isBand(s.band) ? s.band : UNBANDED) !== band) return false;
         if (kind && s.kind !== kind) return false;
         // A system sits in every department its steps do, so a cross-team
@@ -127,7 +147,7 @@ export function SystemsList() {
         if (q && !haystack(s).includes(q)) return false;
         return true;
       }),
-    [systems, band, kind, dept, unmappedOnly, q],
+    [scoped, band, kind, dept, unmappedOnly, q],
   );
 
   // All three tabs always render, empty or not — the taxonomy is the point of
@@ -146,33 +166,38 @@ export function SystemsList() {
 
   const bandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const s of systems) {
+    for (const s of scoped) {
       const key = isBand(s.band) ? s.band : UNBANDED;
       counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
-  }, [systems]);
+  }, [scoped]);
 
   const kindCounts = useMemo(() => {
     const counts: Partial<Record<SystemKind, number>> = {};
-    for (const s of systems) counts[s.kind] = (counts[s.kind] ?? 0) + 1;
+    for (const s of scoped) counts[s.kind] = (counts[s.kind] ?? 0) + 1;
     return counts;
-  }, [systems]);
+  }, [scoped]);
 
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const s of systems) {
+    for (const s of scoped) {
       if (s.department_ids.length === 0) counts[NO_DEPT] = (counts[NO_DEPT] ?? 0) + 1;
       for (const d of s.department_ids) counts[d] = (counts[d] ?? 0) + 1;
     }
     return counts;
+  }, [scoped]);
+
+  const statusCounts = useMemo(() => {
+    const active = systems.filter((s) => s.current_revision_id).length;
+    return { active, unapproved: systems.length - active, all: systems.length };
   }, [systems]);
 
   const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly;
 
   const unmappedCount = useMemo(
-    () => systems.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
-    [systems],
+    () => scoped.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
+    [scoped],
   );
 
   return (
@@ -191,9 +216,24 @@ export function SystemsList() {
         </div>
 
         <div>
+          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Status</p>
+          <ul className="space-y-0.5">
+            {STATUSES.map((st) => (
+              <FilterRow
+                key={st}
+                label={STATUS_LABEL[st]}
+                active={status === st}
+                onClick={() => setStatus(st)}
+                count={statusCounts[st]}
+              />
+            ))}
+          </ul>
+        </div>
+
+        <div>
           <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Area</p>
           <ul className="space-y-0.5">
-            <FilterRow label="All areas" active={band === null} onClick={() => setBand(null)} count={systems.length} />
+            <FilterRow label="All areas" active={band === null} onClick={() => setBand(null)} count={scoped.length} />
             {[...SYSTEM_BANDS, UNBANDED].map((b) =>
               bandCounts[b] ? (
                 <FilterRow
@@ -211,7 +251,7 @@ export function SystemsList() {
         <div>
           <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Attached to</p>
           <ul className="space-y-0.5">
-            <FilterRow label="Anything" active={kind === null} onClick={() => setKind(null)} count={systems.length} />
+            <FilterRow label="Anything" active={kind === null} onClick={() => setKind(null)} count={scoped.length} />
             {ATTACHMENT_KINDS.map((k) =>
               kindCounts[k] ? (
                 <FilterRow key={k} label={SYSTEM_KIND_LABEL[k]} active={kind === k} onClick={() => setKind(k)} count={kindCounts[k]} />
@@ -223,7 +263,7 @@ export function SystemsList() {
         <div>
           <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Department</p>
           <ul className="space-y-0.5">
-            <FilterRow label="All departments" active={dept === null} onClick={() => setDept(null)} count={systems.length} />
+            <FilterRow label="All departments" active={dept === null} onClick={() => setDept(null)} count={scoped.length} />
             {depts.map((d) =>
               deptCounts[d.id] ? (
                 <FilterRow key={d.id} label={d.name} active={dept === d.id} onClick={() => setDept(d.id)} count={deptCounts[d.id]} />
@@ -301,7 +341,19 @@ export function SystemsList() {
                   <CardContent className="p-0">
                     {g.items.length === 0 ? (
                       <p className="px-4 py-6 text-center text-body-small text-m-on-surface-variant">
-                        {anyFilterActive
+                        {status === "active" && !anyFilterActive ? (
+                          <>
+                            No {SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} approved yet — a system
+                            goes active when a revision is published.{" "}
+                            <button
+                              type="button"
+                              className="underline underline-offset-2"
+                              onClick={() => setStatus("all")}
+                            >
+                              Show all {statusCounts.all}
+                            </button>
+                          </>
+                        ) : anyFilterActive || status !== "all"
                           ? `No ${SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} match your filters.`
                           : `No ${SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} written up yet.`}
                       </p>
@@ -397,6 +449,9 @@ function SystemRow({
             <span className="truncate text-title-small text-m-on-surface">{system.name}</span>
             {layer === "procedure" && (
               <Badge variant="outline" className="flex-none text-label-small">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
+            )}
+            {system.current_revision_id && (
+              <Badge variant="success" className="flex-none text-label-small">Active</Badge>
             )}
             {isUnmapped && (
               <Badge variant="warning" className="flex-none gap-1 text-label-small">
