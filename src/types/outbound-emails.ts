@@ -41,5 +41,25 @@ export type EmailTemplateRow = {
  * left as-is so the operator notices them and fills in.
  */
 export function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+  return template.replace(PLACEHOLDER, (_, key) => vars[key] ?? `{${key}}`);
+}
+
+const PLACEHOLDER = /\{(\w+)\}/g;
+
+/**
+ * The `{placeholder}` tokens interpolate() left behind, deduped and in the
+ * order they appear.
+ *
+ * interpolate's contract is that an unknown token stays visible so the operator
+ * fills it in — but visible only works if someone looks. On 2026-08-20 a
+ * template opened with no project in context sent "Approval needed —
+ * {project_name}" to a real person. Compose calls this before sending and
+ * refuses, which is the part that was missing.
+ */
+export function unresolvedPlaceholders(...texts: string[]): string[] {
+  const found = new Set<string>();
+  for (const text of texts) {
+    for (const [, key] of text.matchAll(PLACEHOLDER)) found.add(key);
+  }
+  return [...found];
 }

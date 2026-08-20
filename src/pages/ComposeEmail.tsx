@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   interpolate,
+  unresolvedPlaceholders,
   type EmailTemplateRow,
 } from "@/types/outbound-emails";
 
@@ -250,6 +251,19 @@ export function ComposeEmail() {
   const onSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
+    // A template opened without a project in context keeps its placeholders
+    // (see interpolate's fallback above) — and they will go out verbatim to a
+    // real person unless something stops the send. Refuse rather than warn:
+    // the fix is to type over them, which takes seconds, and an email cannot
+    // be unsent.
+    const unresolved = unresolvedPlaceholders(subject, body);
+    if (unresolved.length > 0) {
+      toast.error(
+        `Fill in ${unresolved.map((p) => `{${p}}`).join(", ")} before sending — ` +
+          "a template placeholder would go out as written.",
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       const id = await saveDraft();
