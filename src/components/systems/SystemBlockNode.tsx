@@ -221,11 +221,6 @@ export function SystemBlockNode({ data, selected }: NodeProps<BlockNodeType>) {
                       </span>
                     )}
                   </button>
-                  {s.estimated_hours != null && (
-                    <span className="flex-none font-mono text-label-small text-m-on-surface-variant">
-                      {s.estimated_hours}h
-                    </span>
-                  )}
                 </li>
               ))}
             </ol>

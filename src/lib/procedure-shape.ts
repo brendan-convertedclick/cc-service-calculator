@@ -71,15 +71,17 @@ export function taskHours(
   task: { estimated_hours: number | string | null },
   steps: { estimated_hours: number | string | null }[],
 ): number | null {
-  // Steps win once ANY of them is estimated; otherwise the task's own figure
-  // stands. Returning null whenever a task had unestimated steps is the same
-  // bug 0125 fixed in the rollup trigger — it read "no hours" for every task
-  // estimated at task level, which is how most of them are written.
+  // The task's own figure wins whenever it has one — that column is what the
+  // rollup trigger writes, what the header totals, what ClickUp gets, and
+  // what someone typed if they overrode the sum. Steps are the fallback for a
+  // task that carries no estimate of its own. (Returning null whenever a task
+  // had unestimated steps was the same bug 0125 fixed in the trigger — it
+  // read "no hours" for every task estimated at task level, which is how most
+  // of them are written.)
+  if (task.estimated_hours != null) return Number(task.estimated_hours);
   const estimated = steps.filter((s) => s.estimated_hours != null);
-  if (estimated.length > 0) {
-    return estimated.reduce((sum, s) => sum + Number(s.estimated_hours), 0);
-  }
-  return task.estimated_hours == null ? null : Number(task.estimated_hours);
+  if (estimated.length === 0) return null;
+  return estimated.reduce((sum, s) => sum + Number(s.estimated_hours), 0);
 }
 
 /**

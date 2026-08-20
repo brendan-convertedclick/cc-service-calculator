@@ -2546,6 +2546,68 @@ export type Database = {
           },
         ]
       }
+      process_step_notes: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          done_at: string | null
+          done_by: string | null
+          id: string
+          step_id: string
+          system_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          step_id: string
+          system_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          step_id?: string
+          system_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_notes_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_notes_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_step_notes_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "system_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_step_procedures: {
         Row: {
           created_at: string
@@ -4414,6 +4476,7 @@ export type Database = {
           is_internal: boolean
           measurable_outcome: string
           owner_notified_at: string | null
+          project_id: string | null
           rejected_reason: string | null
           sprint_points: number
           status: string
@@ -4438,6 +4501,7 @@ export type Database = {
           is_internal?: boolean
           measurable_outcome: string
           owner_notified_at?: string | null
+          project_id?: string | null
           rejected_reason?: string | null
           sprint_points: number
           status?: string
@@ -4462,6 +4526,7 @@ export type Database = {
           is_internal?: boolean
           measurable_outcome?: string
           owner_notified_at?: string | null
+          project_id?: string | null
           rejected_reason?: string | null
           sprint_points?: number
           status?: string
@@ -4492,6 +4557,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_foundations_coverage"
             referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "staff_briefs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "staff_briefs_submitter_id_fkey"

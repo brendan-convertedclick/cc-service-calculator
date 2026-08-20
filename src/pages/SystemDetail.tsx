@@ -2,7 +2,7 @@
 //
 // /systems/:id — one system: goal, owner, steps, revisions, and (kind='internal'
 // only) an overhead-vs-estimate read, plus the Phase 6 drag-and-drop canvas
-// (mounted at the bottom, its own window bar owns Tidy up/Propose/Unsaved).
+// (mounted at the bottom, its own window bar owns Tidy up/Unsaved).
 // ZERO ClickUp writes happen from this page.
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -13,6 +13,8 @@ import {
   ArrowRight,
   Copy,
   History,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Save,
   Settings2,
@@ -35,9 +37,17 @@ import {
   type SystemDefinitionWithJoins,
 } from "@/hooks/useSystemDefinitions";
 import { useCreateStep, useReorderStep, useSystemSteps, useUpdateStep } from "@/hooks/useProcessSteps";
-import { useConnectSteps, useDisconnectSteps, useSystemEdges, useSystemSubSteps } from "@/hooks/useSystemCanvas";
+import {
+  useConnectSteps,
+  useDisconnectSteps,
+  useReconnectEdge,
+  useSystemEdges,
+  useSystemSubSteps,
+} from "@/hooks/useSystemCanvas";
 import { DeleteStepDialog } from "@/components/systems/DeleteStepDialog";
 import { TaskList } from "@/components/systems/TaskList";
+import { StepNotesPanel } from "@/components/systems/StepNotesPanel";
+import { useStepNotes } from "@/hooks/useStepNotes";
 import { DocLinksField } from "@/components/systems/DocLinksField";
 import { verdict } from "@/components/systems/StepSignal";
 import {
@@ -108,11 +118,27 @@ type ApprovalRow = Database["public"]["Tables"]["system_revision_approvals"]["Ro
 // reads left-to-right instead of overlapping.
 const NEXT_STEP_GAP_X = 280;
 
+// The publish gate, mirrored client-side so the Approve button explains
+// itself — publish_system_revision (0126) raises on both of these anyway.
+// Shared by the revision row and the Tasks header, which offer the same act.
+function publishBlockedReason(approvals: ApprovalRow[], teamById: Map<string, TeamRow>): string | null {
+  if (approvals.length === 0) return "Name who approved this procedure first — no approvers recorded.";
+  const outstanding = approvals.filter((a) => a.required && !a.approved_at);
+  if (outstanding.length === 0) return null;
+  return `Still waiting on required approval from ${outstanding
+    .map((a) => teamById.get(a.team_member_id)?.full_name ?? "someone")
+    .join(", ")}.`;
+}
+
+// A procedure is in one of three states: Draft while it's being written,
+// In review once it's been sent out, Approved once someone signed it off.
+// Those are system_revisions.state's draft/proposed/published under the names
+// the team actually uses; superseded is a previously-approved revision.
 const REVISION_STATE_BADGE: Record<string, { variant: "muted" | "warning" | "success" | "outline"; label: string }> = {
   draft: { variant: "muted", label: "Draft" },
-  proposed: { variant: "warning", label: "Proposed" },
-  published: { variant: "success", label: "Published" },
-  superseded: { variant: "outline", label: "Superseded" },
+  proposed: { variant: "warning", label: "In review" },
+  published: { variant: "success", label: "Approved" },
+  superseded: { variant: "outline", label: "Replaced" },
 };
 
 // The five fields diffSteps() (system-diff.ts) compares on a 'changed' step.
@@ -182,6 +208,16 @@ export function SystemDetail() {
   const reorder = useReorderStep();
   const connect = useConnectSteps(id ?? "");
   const disconnect = useDisconnectSteps(id ?? "");
+  const reconnect = useReconnectEdge(id ?? "");
+  const publish = usePublishRevision();
+  // The notes panel is docked beside the editor rather than laid over it, so
+  // its open/closed state and the row it points at belong to the page, not to
+  // the list that asks for it.
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesRow, setNotesRow] = useState<string | null>(null);
+  // Same query key the list badges from, so this is a cache read.
+  const { data: stepNotes = [] } = useStepNotes(id);
+  const openNoteCount = stepNotes.filter((n) => n.done_at == null).length;
   // Both share a query key with the canvas, so on the Steps pane these are
   // cache reads, not extra round-trips. Needed here so the delete confirm can
   // name what it's about to take with the row.
@@ -193,6 +229,22 @@ export function SystemDetail() {
   // cluster and the panel opens under the row's left column, which no
   // <summary> can straddle.
   const [signalOpen, setSignalOpen] = useState<Set<string>>(new Set());
+
+  // A task that lands after another belongs IN the chain, not beside it:
+  // whatever `prevId` pointed at now hangs off the new task, so 1→3 becomes
+  // 1→2→3. Without this the insert only adds prev→new, the old prev→next edge
+  // survives, and the canvas forks where the numbered list says it runs
+  // straight. Handled edges (a decision's yes/no) are left alone — which
+  // branch an insert belongs on isn't ours to guess.
+  const takeOverOutgoing = useCallback(
+    async (prevId: string, newId: string) => {
+      for (const e of edgeRows) {
+        if (e.source_step_id !== prevId || e.source_handle != null || e.target_step_id === newId) continue;
+        await reconnect.mutateAsync({ id: e.id, source: newId, target: e.target_step_id, sourceHandle: null });
+      }
+    },
+    [edgeRows, reconnect]
+  );
 
   // One creation path for both callers: the "Add step" button (no position, no
   // explicit source — chains off the last step) and the canvas dropping a
@@ -253,6 +305,7 @@ export function SystemDetail() {
           );
           if (error) throw error;
           step = await addStep.mutateAsync({ ...row, ordinal: ordinal as number });
+          await takeOverOutgoing(opts.after.id, step.id);
         } else {
           try {
             step = await addStep.mutateAsync({
@@ -291,7 +344,7 @@ export function SystemDetail() {
         return null;
       }
     },
-    [id, steps, system?.service_id, system?.owner_id, isProcess, addStep, connect]
+    [id, steps, system?.service_id, system?.owner_id, isProcess, addStep, connect, takeOverOutgoing]
   );
 
   // Copy every editable column of the row — the config (verb, dept, owner,
@@ -499,6 +552,7 @@ export function SystemDetail() {
           pos_y: parent.pos_y,
         },
       });
+      await takeOverOutgoing(parent.id, step.id);
       await connect.mutateAsync({ source: parent.id, target: step.id, sourceHandle: null });
       setFocusStep({ id: step.id, nonce: Date.now() });
     } catch (e) {
@@ -601,7 +655,7 @@ export function SystemDetail() {
 
   const [form, setForm] = useState<FormState | null>(null);
   // Lifted so both RevisionsCard's own trigger AND the canvas window bar's
-  // "Propose" button (P5's dialog, wired per this phase's task) can open the
+  // "Send for review" button (P5's dialog, wired per this phase's task) can open the
   // same dialog instance.
   // Clicking a Steps row selects and centres that block on the canvas. The
   // nonce makes a repeat click on the same row re-centre.
@@ -692,6 +746,15 @@ export function SystemDetail() {
   const draftSteps = applyDraft(subSteps, draft);
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const latestRevision = revisions[0] ?? null;
+  // What's actually in force, which is not always the newest row: a proposal
+  // sits in front of the published revision until someone approves it.
+  const publishedRevision = revisions.find((r) => r.state === "published") ?? null;
+  const pendingRevision = latestRevision?.state === "proposed" ? latestRevision : null;
+  const approveBlocked = pendingRevision
+    ? publishBlockedReason(approvals.filter((a) => a.revision_id === pendingRevision.id), teamById)
+    : null;
+  // No revision yet means nobody has been asked to look at it — that's a draft.
+  const stageBadge = REVISION_STATE_BADGE[latestRevision?.state ?? "draft"] ?? REVISION_STATE_BADGE.draft;
 
   return (
     <div className="flex h-full">
@@ -723,9 +786,11 @@ export function SystemDetail() {
       </aside>
 
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
-        <div className={cn("mx-auto max-w-4xl space-y-6", pane !== "setup" && "hidden")}>
-
-        {/* Header */}
+      {/* Header — outside the panes: the name, kind and Duplicate stay
+          on screen on Tasks and Revisions too. Only the config fields
+          below belong to Setup. */}
+      {/* Matches the active pane's width — Tasks is wider for the canvas. */}
+      <div className={cn("mx-auto mb-6", pane === "steps" ? "max-w-5xl" : "max-w-4xl")}>
         <Card>
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -779,7 +844,7 @@ export function SystemDetail() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div className={cn("grid grid-cols-2 gap-4 sm:grid-cols-3", pane !== "setup" && "hidden")}>
               <FieldLabel
                 label="Area"
                 hint="Which part of the business this belongs to — Attract, Convert, Deliver, Retain or Internal. It groups the library, nothing else."
@@ -833,6 +898,9 @@ export function SystemDetail() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+        <div className={cn("mx-auto max-w-4xl space-y-6", pane !== "setup" && "hidden")}>
 
         {/* Goal — the point of the feature. Prominent, always visible, editable. */}
         <Card className="border-m-primary/40 bg-m-primary-container/15">
@@ -974,6 +1042,19 @@ export function SystemDetail() {
                       </Button>
                     </>
                   )}
+                  {/* Where the procedure stands and the acts that move it on.
+                      Next to Save because a change is sent for review from
+                      where it was made — the canvas bar no longer carries it.
+                      With nothing sent yet the procedure is still a draft. */}
+                  {publishedRevision && publishedRevision !== latestRevision && (
+                    <span className="font-mono text-label-medium text-m-on-surface-variant">
+                      v{publishedRevision.revision} approved
+                    </span>
+                  )}
+                  <Badge variant={stageBadge.variant}>
+                    {stageBadge.label}
+                    {latestRevision ? ` v${latestRevision.revision}` : ""}
+                  </Badge>
                   <Button
                     size="sm"
                     className="gap-1.5"
@@ -983,6 +1064,27 @@ export function SystemDetail() {
                     <Save className="h-4 w-4" />
                     {updateStep.isPending ? "Saving…" : "Save"}
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => setProposeOpen(true)}>
+                    Send for review
+                  </Button>
+                  {pendingRevision && canApprove && (
+                    <Button
+                      size="sm"
+                      disabled={publish.isPending || !!approveBlocked}
+                      title={approveBlocked ?? `Approve v${pendingRevision.revision}`}
+                      onClick={() =>
+                        publish.mutate(
+                          { revisionId: pendingRevision.id, systemId: system.id },
+                          {
+                            onSuccess: () => toast.success(`v${pendingRevision.revision} approved`),
+                            onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
+                          }
+                        )
+                      }
+                    >
+                      {publish.isPending ? "Approving…" : "Approve"}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -991,6 +1093,24 @@ export function SystemDetail() {
                     onClick={() => void createStep()}
                   >
                     <Plus className="h-4 w-4" /> Add task
+                  </Button>
+                  {/* Slides the notes column in and out. It docks rather than
+                      overlays, so reading a note while editing the task it is
+                      about is one screen, not two. */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5"
+                    aria-expanded={notesOpen}
+                    title={notesOpen ? "Slide the notes out" : "Slide the notes in"}
+                    onClick={() => setNotesOpen((v) => !v)}
+                  >
+                    {notesOpen ? (
+                      <PanelRightClose className="h-4 w-4" />
+                    ) : (
+                      <PanelRightOpen className="h-4 w-4" />
+                    )}
+                    Notes
                   </Button>
                 </div>
               </CardHeader>
@@ -1006,6 +1126,10 @@ export function SystemDetail() {
                   signalOpen={signalOpen}
                   onToggleSignal={(id) => setSignalOpen((prev) => toggleInSet(prev, id))}
                   onFocus={(id) => setFocusStep({ id, nonce: Date.now() })}
+                  onOpenNotes={(rowId) => {
+                    setNotesRow(rowId);
+                    setNotesOpen(true);
+                  }}
                   onAddTask={(after) => void createStep({ after })}
                   onAddStep={(task, after) => void createSubStep(task, after)}
                   onPatch={patchStep}
@@ -1034,7 +1158,7 @@ export function SystemDetail() {
 
             {/* Canvas — drag-and-drop visual mapping of this system's steps,
                 handoffs and department ownership. The window bar (breadcrumb,
-                Unsaved, Tidy up, Propose) is rendered inside SystemCanvas itself
+                Unsaved, Tidy up) is rendered inside SystemCanvas itself
                 — that's where the state it depends on already lives — so this
                 card is just a frame around it, no separate CardHeader. */}
             <Card className="overflow-hidden p-0">
@@ -1054,7 +1178,6 @@ export function SystemDetail() {
                   // not-null column — blank it here or the Goal pill reads
                   // "TODO: set a goal for this system".
                   goalStatement={system.goal_statement === PLACEHOLDER_GOAL ? null : system.goal_statement}
-                  onPropose={() => setProposeOpen(true)}
                   onCreateStep={createStep}
                   focusStepId={focusStep}
                   onAddStep={(task) => void createSubStep(task)}
@@ -1082,7 +1205,41 @@ export function SystemDetail() {
         </div>
       </div>
 
-      {/* Propose lives outside all three panes: the canvas window bar's
+      {/* Closed, the panel leaves a rail behind rather than disappearing: an
+          icon that only exists in a header you have scrolled past is an icon
+          nobody finds. */}
+      {!notesOpen && (
+        <button
+          type="button"
+          onClick={() => setNotesOpen(true)}
+          title="Slide the notes in"
+          aria-label="Open notes"
+          className="flex w-9 flex-none flex-col items-center gap-2 border-l border-m-outline-variant bg-m-surface py-3 text-m-on-surface-variant transition-colors hover:bg-m-surface-container-high hover:text-m-on-surface"
+        >
+          <PanelRightOpen className="h-4 w-4" />
+          {openNoteCount > 0 && (
+            <span className="grid h-4 min-w-4 place-items-center rounded-full bg-m-primary px-1 font-mono text-[10px] leading-none text-m-on-primary">
+              {openNoteCount}
+            </span>
+          )}
+          <span className="text-label-small [writing-mode:vertical-rl]">Notes</span>
+        </button>
+      )}
+
+      {notesOpen && (
+        <StepNotesPanel
+          systemId={system.id}
+          tasks={draftTasks}
+          steps={draftSteps}
+          team={team}
+          onClose={() => setNotesOpen(false)}
+          rowId={notesRow ?? steps[0]?.id ?? null}
+          onSelectRow={setNotesRow}
+          onPatch={patchStep}
+        />
+      )}
+
+      {/* Send for review lives outside all three panes: the canvas window bar's
           button opens it while the Revisions pane is unmounted/hidden. */}
       <ProposeDialog
         systemId={system.id}
@@ -1296,10 +1453,10 @@ function ProposeDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Propose a change to this procedure</DialogTitle>
+          <DialogTitle>Send this procedure for review</DialogTitle>
           <DialogDescription>
             Snapshots the current steps as a new revision. An admin or owner must approve it
-            before it publishes — nothing reaches ClickUp until then.
+            before it goes live — nothing reaches ClickUp until then.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
@@ -1333,16 +1490,16 @@ function ProposeDialog({
                 { systemId, reasonForChange: reason.trim() },
                 {
                   onSuccess: () => {
-                    toast.success("Revision proposed");
+                    toast.success("Sent for review");
                     setOpen(false);
                     setReason("");
                   },
-                  onError: (e) => toast.error(`Could not propose revision: ${errorMessage(e)}`),
+                  onError: (e) => toast.error(`Could not send for review: ${errorMessage(e)}`),
                 }
               );
             }}
           >
-            {propose.isPending ? "Proposing…" : "Propose"}
+            {propose.isPending ? "Sending…" : "Send for review"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1350,8 +1507,8 @@ function ProposeDialog({
   );
 }
 
-// Revision history + propose/approve. Published is the prominent entry
-// (highlighted border); proposed entries default their diff open since
+// Revision history + review/approve. The approved revision is the prominent
+// entry (highlighted border); in-review entries default their diff open since
 // that's the one someone needs to act on.
 function RevisionsCard({
   systemId,
@@ -1385,13 +1542,13 @@ function RevisionsCard({
         <CardTitle className="text-title-medium">
           Revisions <span className="text-label-medium font-normal text-m-on-surface-variant">· {revisions.length}</span>
         </CardTitle>
-        <Button size="sm" variant="outline" onClick={onPropose}>Propose changes</Button>
+        <Button size="sm" variant="outline" onClick={onPropose}>Send for review</Button>
       </CardHeader>
       <CardContent className="space-y-3 p-5 pt-0">
         {isLoading && <p className="text-body-medium text-m-on-surface-variant">Loading…</p>}
         {!isLoading && revisions.length === 0 && (
           <p className="text-body-medium text-m-on-surface-variant">
-            No revisions yet — this system has never been published.
+            No revisions yet — this system has never been sent for review.
           </p>
         )}
         {revisions.map((rev) => (
@@ -1410,8 +1567,8 @@ function RevisionsCard({
               publish.mutate(
                 { revisionId, systemId },
                 {
-                  onSuccess: () => toast.success("Revision published"),
-                  onError: (e) => toast.error(`Could not publish revision: ${errorMessage(e)}`),
+                  onSuccess: () => toast.success("Revision approved"),
+                  onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
                 }
               )
             }
@@ -1464,19 +1621,10 @@ function RevisionRow({
   // (team@) resolves to a null team_members id (see CLAUDE.md), so
   // `approver`/`proposer` can be null while the date is still real; a bare
   // unlabelled date reads as ambiguous, so the action verb always shows.
-  // The publish gate, mirrored client-side so the button explains itself —
-  // publish_system_revision (0126) raises on both of these anyway.
-  const outstanding = approvals.filter((a) => a.required && !a.approved_at);
-  const blockedReason =
-    approvals.length === 0
-      ? "Name who approved this procedure first — no approvers recorded."
-      : outstanding.length > 0
-        ? `Still waiting on required approval from ${outstanding
-            .map((a) => teamById.get(a.team_member_id)?.full_name ?? "someone")
-            .join(", ")}.`
-        : null;
+  const blockedReason = publishBlockedReason(approvals, teamById);
   const meta = [
-    rev.proposed_at && `Proposed${proposer ? ` by ${proposer}` : ""} ${new Date(rev.proposed_at).toLocaleDateString()}`,
+    rev.proposed_at &&
+      `Sent for review${proposer ? ` by ${proposer}` : ""} ${new Date(rev.proposed_at).toLocaleDateString()}`,
     rev.approved_at && `Approved${approver ? ` by ${approver}` : ""} ${new Date(rev.approved_at).toLocaleDateString()}`,
   ]
     .filter(Boolean)

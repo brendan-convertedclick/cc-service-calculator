@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
+import { useSystemDefinition } from "@/hooks/useSystemDefinitions";
 
 const SEGMENT_LABELS: Record<string, string> = {
   inbox: "Inbox",
@@ -53,6 +54,13 @@ export function Breadcrumbs() {
   const { pathname } = useLocation();
   const segments = pathname.split("/").filter(Boolean);
 
+  // A system id says nothing; its name does. The detail page has already
+  // cached this query, so on /systems/:id it costs nothing and everywhere
+  // else it's disabled.
+  const { data: system } = useSystemDefinition(
+    segments[0] === "systems" ? segments[1] : undefined
+  );
+
   // Root path is the Dashboard — surface it as the current-page crumb so the
   // dashboard carries the same breadcrumb bar as every other page.
   const crumbs =
@@ -60,7 +68,10 @@ export function Breadcrumbs() {
       ? [{ to: "/", label: "Dashboard", isLast: true }]
       : segments.map((seg, i) => {
           const to = "/" + segments.slice(0, i + 1).join("/");
-          const label = labelFor(seg, segments[i - 1]);
+          const label =
+            i === 1 && segments[0] === "systems" && system
+              ? system.name
+              : labelFor(seg, segments[i - 1]);
           return { to, label, isLast: i === segments.length - 1 };
         });
 

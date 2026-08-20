@@ -289,38 +289,14 @@ export function BlockInspector({
         // double-counting against the very rollup they'd feed.
         null
       ) : isSubStep ? (
-        // A step is estimated (0123 dropped process_steps_substep_no_hours and
-        // rolls the sum up to its task), but it is always a checklist item on
-        // that task — so the hours field stays and the mode picker doesn't.
-        <>
-          <Field
-            label="Estimated hours"
-            hint="How long this step takes. It adds into its task's estimate — the task never carries its own."
-          >
-            <Input
-              type="number"
-              step="0.25"
-              min="0"
-              value={form.hours}
-              onChange={(e) => setForm({ ...form, hours: e.target.value })}
-              onBlur={(e) => {
-                const result = parseStepHours(e.target.value);
-                if (!result.ok) {
-                  toast.error(result.message);
-                  setForm(toForm(step));
-                  return;
-                }
-                commit({ estimated_hours: result.value });
-              }}
-              className="font-mono text-label-medium font-semibold text-m-primary"
-            />
-          </Field>
-          <p className="rounded-lg bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
-            A step is one tick-box on its task's checklist. It belongs to whoever owns the task —
-            a ClickUp checklist item has no assignee of its own. Use <b>Promote to its own task</b> in
-            the list if this needs to change hands.
-          </p>
-        </>
+        // A step is neither estimated nor addressable: the estimate lives on
+        // the task (one number per ClickUp task, which is what gets quoted)
+        // and so does the owner. Nothing here to edit but the words.
+        <p className="rounded-lg bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
+          A step is one tick-box on its task's checklist. Its time and its owner belong to the task —
+          a ClickUp checklist item has neither of its own. Use <b>Promote to its own task</b> in the
+          list if this needs its own estimate or needs to change hands.
+        </p>
       ) : (
         <>
           <Field

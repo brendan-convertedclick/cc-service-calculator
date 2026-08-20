@@ -142,22 +142,22 @@ test.describe("Systems", () => {
       expect(error).not.toBeNull();
       expect(error?.code).toBe("23502");
 
-      // "Propose changes" lives on the Revisions pane; the canvas window bar's
-      // "Propose" opens the same dialog from the Steps pane.
+      // "Send for review" lives on the Revisions pane; the Tasks card header
+      // opens the same dialog from the Steps pane.
       await page.getByRole("button", { name: /^Revisions/ }).click();
-      await page.getByRole("button", { name: "Propose changes" }).click();
+      await page.getByRole("button", { name: "Send for review" }).click();
       const proposeDialog = page.getByRole("dialog");
       await expect(proposeDialog).toBeVisible();
-      await expect(proposeDialog.getByRole("button", { name: "Propose", exact: true })).toBeDisabled();
+      await expect(proposeDialog.getByRole("button", { name: "Send for review", exact: true })).toBeDisabled();
     });
 
     await test.step("propose rev 1 through the UI", async () => {
       const proposeDialog = page.getByRole("dialog");
       await proposeDialog.getByLabel("Reason for change").fill(`${E2E_PREFIX}initial process definition`);
-      await proposeDialog.getByRole("button", { name: "Propose", exact: true }).click();
-      await expect(page.getByText("Revision proposed")).toBeVisible();
+      await proposeDialog.getByRole("button", { name: "Send for review", exact: true }).click();
+      await expect(page.getByText("Sent for review")).toBeVisible();
       await expect(page.getByText("Rev 1", { exact: true })).toBeVisible();
-      await expect(page.getByText("Proposed", { exact: true })).toBeVisible();
+      await expect(page.getByText("In review", { exact: true })).toBeVisible();
     });
 
     await test.step("publish_system_revision rejects a caller with no admin/owner team_members row", async () => {
@@ -234,8 +234,8 @@ test.describe("Systems", () => {
 
     await test.step("approve rev 1 through the UI", async () => {
       await page.getByRole("button", { name: "Approve", exact: true }).click();
-      await expect(page.getByText("Revision published")).toBeVisible();
-      await expect(page.getByText("Published", { exact: true })).toBeVisible();
+      await expect(page.getByText("Revision approved")).toBeVisible();
+      await expect(page.getByText("Approved", { exact: true })).toBeVisible();
     });
 
     await test.step("change a step, propose rev 2 through the UI, approve it — rev 1 supersedes", async () => {
@@ -251,11 +251,11 @@ test.describe("Systems", () => {
         .eq("id", step1!.id);
       expect(updateErr).toBeNull();
 
-      await page.getByRole("button", { name: "Propose changes" }).click();
+      await page.getByRole("button", { name: "Send for review" }).click();
       const proposeDialog = page.getByRole("dialog");
       await proposeDialog.getByLabel("Reason for change").fill(`${E2E_PREFIX}bumped step one's estimate`);
-      await proposeDialog.getByRole("button", { name: "Propose", exact: true }).click();
-      await expect(page.getByText("Revision proposed")).toBeVisible();
+      await proposeDialog.getByRole("button", { name: "Send for review", exact: true }).click();
+      await expect(page.getByText("Sent for review")).toBeVisible();
       await expect(page.getByText("Rev 2", { exact: true })).toBeVisible();
 
       // Sign-offs don't carry forward: a new snapshot needs its own approver,
@@ -266,8 +266,8 @@ test.describe("Systems", () => {
       await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled();
 
       await page.getByRole("button", { name: "Approve", exact: true }).click();
-      await expect(page.getByText("Revision published")).toBeVisible();
-      await expect(page.getByText("Superseded", { exact: true })).toBeVisible(); // rev 1, now superseded
+      await expect(page.getByText("Revision approved")).toBeVisible();
+      await expect(page.getByText("Replaced", { exact: true })).toBeVisible(); // rev 1, now superseded
     });
 
     await test.step("DB confirms: rev 2 published, rev 1 superseded, current_revision_id points at rev 2", async () => {
@@ -319,7 +319,7 @@ test.describe("Systems", () => {
     // detail page opens on Setup.
     await page.getByRole("button", { name: /^Steps/ }).click();
     await expect(page.getByRole("button", { name: "Tidy up" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Propose", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send for review", exact: true })).toBeVisible();
     expect(errors, "unexpected JS errors").toHaveLength(0);
   });
 });

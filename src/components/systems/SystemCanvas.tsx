@@ -145,7 +145,6 @@ type CanvasProps = {
   triggerText?: string | null;
   /** system.goal_statement, PLACEHOLDER_GOAL already blanked by the caller. */
   goalStatement?: string | null;
-  onPropose: () => void;
   onCreateStep: CreateStepFn;
   /** Step to select and centre — bumped when a Steps-list row is clicked. */
   focusStepId?: { id: string; nonce: number } | null;
@@ -171,7 +170,6 @@ function SystemCanvasInner({
   isProcess = false,
   triggerText,
   goalStatement,
-  onPropose,
   onCreateStep,
   focusStepId,
   onAddStep,
@@ -748,8 +746,8 @@ function SystemCanvasInner({
 
   return (
     <div className="flex h-[680px] w-full flex-col overflow-hidden">
-      {/* Window bar — breadcrumb-ish title, Unsaved indicator, Tidy up,
-          Propose. Matches docs/2026-08-05-systems-canvas-visual-spec.html's
+      {/* Window bar — breadcrumb-ish title, Unsaved indicator, Tidy up.
+          Send for review lives in the Tasks card header, next to Save. Matches docs/2026-08-05-systems-canvas-visual-spec.html's
           `.winbar`. Rendered unconditionally (ahead of the loading/empty
           states below) so it doesn't flicker in and out. */}
       <div className="flex flex-none items-center gap-2 border-b border-m-outline-variant bg-m-surface-container-high px-3 py-2">
@@ -775,9 +773,6 @@ function SystemCanvasInner({
           </Button>
           <Button size="sm" variant="outline" onClick={handleTidyUp} className="gap-1.5">
             <LayoutGrid className="h-3.5 w-3.5" /> Tidy up
-          </Button>
-          <Button size="sm" onClick={onPropose}>
-            Propose
           </Button>
         </div>
       </div>

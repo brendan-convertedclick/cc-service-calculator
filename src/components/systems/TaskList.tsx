@@ -12,27 +12,33 @@
 // Step numbers run straight through the procedure (1..N across every task)
 // rather than restarting inside each one — see groupProcedure.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { DocLinksField } from "@/components/systems/DocLinksField";
 import {
   ChevronDown,
   ChevronUp,
+  CircleHelp,
   Copy,
   CornerLeftDown,
   CornerLeftUp,
   Link2,
   Mail,
   Plus,
+  Settings,
   StickyNote,
+  ToggleLeft,
+  ToggleRight,
   Trash2,
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { MenuItem } from "@/components/ui/menu-item";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SignalNoise, VerbSelect } from "@/components/systems/StepSignal";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
+import { useStepNotes } from "@/hooks/useStepNotes";
 import { useSystemDefinitions } from "@/hooks/useSystemDefinitions";
 import {
   useAttachProcedure,
@@ -64,6 +70,8 @@ export type TaskListProps = {
   onPatch: (row: StepRow, patch: StepUpdate, revert?: () => void) => void;
   onRename: (row: StepRow, raw: string, revert: () => void) => void;
   onHours: (row: StepRow, raw: string, revert: () => void) => void;
+  /** Point the page's notes panel at this row (and slide it in if it's out). */
+  onOpenNotes: (rowId: string) => void;
   onDuplicate: (row: StepRow) => void;
   onDelete: (row: StepRow) => void;
   onMove: (row: StepRow, siblings: StepRow[], direction: -1 | 1) => void;
@@ -77,7 +85,39 @@ function initials(fullName: string): string {
 }
 
 const ICON_BTN =
-  "rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40";
+  "relative rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40";
+
+// How many notes on this row are still open. Silent when there are none —
+// a zero would make every row look annotated.
+function NoteCount({ n }: { n: number | undefined }) {
+  if (!n) return null;
+  return (
+    <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-m-primary px-0.5 font-mono text-[9px] leading-none text-m-on-primary">
+      {n}
+    </span>
+  );
+}
+
+/** Everything a row can do except duplicate and delete, behind one cog.
+ *  Eight icons in a row do not survive a narrow window — the task row already
+ *  carries a name, a department, an owner and an estimate before any of them
+ *  appear. The open-note count rides on the trigger so a row with something to
+ *  read still says so without the menu being open. */
+function RowMenu({ label, notes, children }: { label: string; notes?: number; children: ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={label} title={label} className={ICON_BTN}>
+          <Settings className="h-4 w-4" />
+          <NoteCount n={notes} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-1">
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // Titles are edited in place, so the editor IS the label — and an <input>
 // cannot wrap, which is why long step names were cut off mid-sentence. A
@@ -228,37 +268,17 @@ function StepLinks({
   );
 }
 
-/** Free-text note on a task or a step — the `description` column. Staged like
- *  every other edit in this pane, so it lands on Save. */
-function NoteField({
-  row,
-  onPatch,
-}: {
-  row: StepRow;
-  onPatch: (row: StepRow, patch: StepUpdate) => void;
-}) {
-  return (
-    <textarea
-      key={row.description ?? ""}
-      defaultValue={row.description ?? ""}
-      aria-label={`Note for "${row.title}"`}
-      placeholder="Add a note — a gotcha, a link, anything the title doesn't say…"
-      rows={1}
-      ref={autoGrow}
-      onInput={(e) => autoGrow(e.currentTarget)}
-      onBlur={(e) => onPatch(row, { description: e.target.value.trim() || null })}
-      className="w-full resize-none overflow-hidden rounded-md border border-m-outline-variant bg-m-surface-container-low px-2 py-1.5 text-label-medium leading-snug text-m-on-surface-variant outline-none focus:border-m-primary focus:bg-m-surface"
-    />
-  );
-}
-
 export function TaskList(props: TaskListProps) {
-  // Which rows have their note box showing. A row that already has a note
-  // always shows it — otherwise notes written by the MCP stay invisible until
-  // someone happens to click the icon.
-  const [noteOpen, setNoteOpen] = useState<Set<string>>(new Set());
-  const toggleNote = (id: string) => setNoteOpen((prev) => toggleInSet(prev, id));
-  const noteShown = (row: StepRow) => noteOpen.has(row.id) || (row.description ?? "") !== "";
+  // Notes live in the docked panel on the right, not inline: one row's note is
+  // a conversation (who, when, dealt with or not), which is more than a line
+  // under the title can hold. The panel is owned by the page — it sits beside
+  // the whole editor — so a row only asks for it to point at itself.
+  const { data: notes = [] } = useStepNotes(props.systemId);
+  const openNotes = new Map<string, number>();
+  for (const n of notes) {
+    if (n.done_at) continue;
+    openNotes.set(n.step_id, (openNotes.get(n.step_id) ?? 0) + 1);
+  }
   // Same rule for links: a row that already points somewhere always shows it,
   // otherwise the chain is invisible until you happen to click the icon.
   const [linkOpen, setLinkOpen] = useState<Set<string>>(new Set());
@@ -335,6 +355,14 @@ export function TaskList(props: TaskListProps) {
                 aria-hidden
               />
 
+              {/* Its place in the run, in front of the name it belongs to — the
+                  same position the steps number from. It used to sit far right
+                  as a "TASK 3" chip, which is the first thing a narrow window
+                  pushed off the end. */}
+              <span className="w-5 flex-none text-right font-mono text-label-large tabular-nums text-m-on-surface-variant">
+                {group.number}
+              </span>
+
               {/* The name is the ClickUp task name. Not the department — that
                   is routing, and it sits beside the name as a chip. */}
               <textarea
@@ -388,11 +416,9 @@ export function TaskList(props: TaskListProps) {
                 ))}
               </select>
 
-              {gi > 0 && !blocked && (
-                <span className="hidden flex-none font-mono text-label-small text-m-on-surface-variant lg:inline">
-                  blocked by Task {gi}
-                </span>
-              )}
+              {/* The blocked-by chain is not spelled out here any more: it is
+                  always the task above, so the row said the obvious and was the
+                  first thing to wrap on a narrow window. The canvas draws it. */}
               {blocked && (
                 <span className="flex-none font-mono text-label-small text-m-error">won&rsquo;t push</span>
               )}
@@ -426,17 +452,10 @@ export function TaskList(props: TaskListProps) {
                 </select>
               </span>
 
-              {/* With steps, the estimate is their sum and the DB keeps it that
-                  way (process_steps_rollup_hours) — so it reads, it doesn't
-                  edit. A task with no steps carries its own estimate. */}
-              {rows.length > 0 ? (
-                <span
-                  className="flex-none font-mono text-label-small tabular-nums text-m-on-surface-variant"
-                  title={`Sum of ${rows.length} step${rows.length === 1 ? "" : "s"}`}
-                >
-                  {hours == null ? "— h" : `${hours}h · ${pointsFromHours(hours)}pt`}
-                </span>
-              ) : (
+              {/* The only estimate in the procedure. Steps are the how, not the
+                  how long — a task is what ClickUp gets and what gets quoted,
+                  so it carries the number and the points it works out to. */}
+              <span className="flex flex-none items-center gap-1.5">
                 <input
                   key={String(task.estimated_hours)}
                   defaultValue={task.estimated_hours ?? ""}
@@ -454,89 +473,59 @@ export function TaskList(props: TaskListProps) {
                   onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   className="h-7 w-16 flex-none rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-right font-mono text-label-small"
                 />
-              )}
-
-              <span className="flex-none rounded-md bg-m-primary-container px-2 py-0.5 font-mono text-label-small text-m-on-primary-container">
-                TASK {group.number}
+                <span className="w-10 flex-none font-mono text-label-small tabular-nums text-m-on-surface-variant">
+                  {hours == null ? "" : `${pointsFromHours(hours)}pt`}
+                </span>
               </span>
 
-              <div className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/task:opacity-100">
-                <Switch
-                  checked={pushes}
-                  aria-label={`Push task "${task.title}" to ClickUp`}
-                  title={pushes ? "Creates a ClickUp task on push" : "Skipped on push — stays part of the written procedure"}
-                  onCheckedChange={(on) => props.onPatch(task, { materialise_as: on ? "task" : "none" })}
-                />
-                <button
-                  type="button"
-                  aria-label={`Add a step to "${task.title}"`}
-                  title="Add a step to this task"
-                  disabled={busy}
-                  onClick={() => props.onAddStep(task)}
-                  className={ICON_BTN}
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Duplicate task "${task.title}"`}
-                  title="Duplicate this task and its steps"
-                  disabled={busy}
-                  onClick={() => props.onDuplicate(task)}
-                  className={ICON_BTN}
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
-                {previous && (
+              <div className="flex flex-none items-center gap-0.5">
+                <RowMenu label={`Options for task "${task.title}"`} notes={openNotes.get(task.id)}>
+                  <MenuItem icon={Plus} label="Add a step" disabled={busy} onClick={() => props.onAddStep(task)} />
+                  <MenuItem icon={Link2} label="Links and documents" onClick={() => toggleLink(task.id)} />
+                  <MenuItem icon={StickyNote} label="Notes" onClick={() => props.onOpenNotes(task.id)} />
+                  <MenuItem
+                    icon={CircleHelp}
+                    label={props.signalOpen.has(task.id) ? "Hide signal or noise" : "Signal or noise"}
+                    onClick={() => props.onToggleSignal(task.id)}
+                  />
+                  {previous && (
+                    <MenuItem
+                      icon={CornerLeftUp}
+                      label={`Fold into "${previous.title}"`}
+                      disabled={busy}
+                      onClick={() => props.onFold(task, previous)}
+                    />
+                  )}
+                  {/* This was a Switch in the row; as a menu line it has to say
+                      which way it is pointing, so the label is the state and
+                      the click is the flip. */}
+                  <MenuItem
+                    icon={pushes ? ToggleRight : ToggleLeft}
+                    label={pushes ? "Creates a ClickUp task" : "Skipped on push"}
+                    onClick={() => props.onPatch(task, { materialise_as: pushes ? "none" : "task" })}
+                  />
+                </RowMenu>
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/task:opacity-100">
                   <button
                     type="button"
-                    aria-label={`Fold "${task.title}" into "${previous.title}"`}
-                    title={`Fold into "${previous.title}" — its steps join that task's checklist`}
+                    aria-label={`Duplicate task "${task.title}"`}
+                    title="Duplicate this task and its steps"
                     disabled={busy}
-                    onClick={() => props.onFold(task, previous)}
+                    onClick={() => props.onDuplicate(task)}
                     className={ICON_BTN}
                   >
-                    <CornerLeftUp className="h-4 w-4" />
+                    <Copy className="h-4 w-4" />
                   </button>
-                )}
-                <button
-                  type="button"
-                  aria-label={`Links and documents for task "${task.title}"`}
-                  title="Link a procedure, an email template or a document"
-                  onClick={() => toggleLink(task.id)}
-                  className={cn(ICON_BTN, linksShown(task) && "text-m-primary")}
-                >
-                  <Link2 className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Note for task "${task.title}"`}
-                  title="Add a note to this task"
-                  onClick={() => toggleNote(task.id)}
-                  className={cn(ICON_BTN, task.description && "text-m-primary")}
-                >
-                  <StickyNote className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Signal or noise for task "${task.title}"`}
-                  title="Signal or noise — is this task worth keeping?"
-                  onClick={() => props.onToggleSignal(task.id)}
-                  className={ICON_BTN}
-                >
-                  <ChevronDown
-                    className={cn("h-4 w-4 transition-transform", props.signalOpen.has(task.id) && "rotate-180")}
-                  />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Delete task "${task.title}"`}
-                  title="Delete this task"
-                  onClick={() => props.onDelete(task)}
-                  className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete task "${task.title}"`}
+                    title="Delete this task"
+                    onClick={() => props.onDelete(task)}
+                    className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -546,16 +535,10 @@ export function TaskList(props: TaskListProps) {
               </div>
             )}
 
-            {noteShown(task) && (
-              <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 py-2">
-                <NoteField row={task} onPatch={props.onPatch} />
-              </div>
-            )}
-
             {/* The same question grid the steps have, one level up. The propose
                 gate reads top-level rows — which 0123 turned from steps into
                 tasks — so without this the verdict on a task can never leave
-                "pending" and Propose stays disabled forever. */}
+                "pending" and Send for review stays disabled forever. */}
             {props.signalOpen.has(task.id) && (
               <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 py-2.5">
                 <SignalNoise step={task} onPatch={(patch) => props.onPatch(task, patch)} />
@@ -644,11 +627,6 @@ export function TaskList(props: TaskListProps) {
                         />
                       </div>
                       {linksShown(step) && <StepLinks row={step} systemId={props.systemId} />}
-                      {noteShown(step) && (
-                        <div className="pt-1">
-                          <NoteField row={step} onPatch={props.onPatch} />
-                        </div>
-                      )}
                       {props.signalOpen.has(step.id) && (
                         <div className="pt-1">
                           <SignalNoise step={step} onPatch={(patch) => props.onPatch(step, patch)} />
@@ -656,102 +634,56 @@ export function TaskList(props: TaskListProps) {
                       )}
                     </div>
 
-                    <input
-                      key={String(step.estimated_hours)}
-                      defaultValue={step.estimated_hours ?? ""}
-                      type="number"
-                      step="0.25"
-                      min="0"
-                      placeholder="—"
-                      aria-label={`Estimated hours for step ${number}`}
-                      title="Hours for this step — adds into its task's estimate"
-                      onBlur={(e) => {
-                        const el = e.target;
-                        props.onHours(step, el.value, () => {
-                          el.value = step.estimated_hours != null ? String(step.estimated_hours) : "";
-                        });
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                      className="mt-0.5 h-7 w-14 flex-none rounded-md border border-m-outline-variant bg-m-surface px-1.5 text-right font-mono text-label-small"
-                    />
-
-                    <div className="mt-0.5 flex flex-none items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/step:opacity-100">
-                      <Switch
-                        checked={pushesStep}
-                        aria-label={`Push step ${number} to ClickUp`}
-                        title={pushesStep ? "Goes on the checklist" : "Skipped on push — stays part of the written procedure"}
-                        onCheckedChange={(on) =>
-                          props.onPatch(step, { materialise_as: on ? "checklist_item" : "none" })
-                        }
-                      />
-                      <button
-                        type="button"
-                        aria-label={`Insert a step after step ${number}`}
-                        title="Insert a step after this one"
-                        disabled={busy}
-                        onClick={() => props.onAddStep(task, step)}
-                        className={ICON_BTN}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Duplicate step ${number}`}
-                        title="Duplicate this step"
-                        disabled={busy}
-                        onClick={() => props.onDuplicate(step)}
-                        className={ICON_BTN}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Promote step ${number} to its own task`}
-                        title="Make this its own task — it gets an owner and a place in the hand-off chain"
-                        disabled={busy}
-                        onClick={() => props.onPromote(step)}
-                        className={ICON_BTN}
-                      >
-                        <CornerLeftDown className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Links for step ${number}`}
-                        title="Link a procedure or an email template"
-                        onClick={() => toggleLink(step.id)}
-                        className={cn(ICON_BTN, linksShown(step) && "text-m-primary")}
-                      >
-                        <Link2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Note for step ${number}`}
-                        title="Add a note to this step"
-                        onClick={() => toggleNote(step.id)}
-                        className={cn(ICON_BTN, step.description && "text-m-primary")}
-                      >
-                        <StickyNote className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Signal or noise for step ${number}`}
-                        title="Signal or noise — is this step worth keeping?"
-                        onClick={() => props.onToggleSignal(step.id)}
-                        className={ICON_BTN}
-                      >
-                        <ChevronDown
-                          className={cn("h-4 w-4 transition-transform", props.signalOpen.has(step.id) && "rotate-180")}
+                    <div className="mt-0.5 flex flex-none items-center gap-0.5">
+                      <RowMenu label={`Options for step ${number}`} notes={openNotes.get(step.id)}>
+                        <MenuItem
+                          icon={Plus}
+                          label="Insert a step after this"
+                          disabled={busy}
+                          onClick={() => props.onAddStep(task, step)}
                         />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Delete step ${number}`}
-                        title="Delete this step"
-                        onClick={() => props.onDelete(step)}
-                        className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        <MenuItem icon={Link2} label="Links" onClick={() => toggleLink(step.id)} />
+                        <MenuItem icon={StickyNote} label="Notes" onClick={() => props.onOpenNotes(step.id)} />
+                        <MenuItem
+                          icon={CircleHelp}
+                          label={props.signalOpen.has(step.id) ? "Hide signal or noise" : "Signal or noise"}
+                          onClick={() => props.onToggleSignal(step.id)}
+                        />
+                        <MenuItem
+                          icon={CornerLeftDown}
+                          label="Make it its own task"
+                          disabled={busy}
+                          onClick={() => props.onPromote(step)}
+                        />
+                        <MenuItem
+                          icon={pushesStep ? ToggleRight : ToggleLeft}
+                          label={pushesStep ? "Goes on the checklist" : "Skipped on push"}
+                          onClick={() =>
+                            props.onPatch(step, { materialise_as: pushesStep ? "none" : "checklist_item" })
+                          }
+                        />
+                      </RowMenu>
+                      <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/step:opacity-100">
+                        <button
+                          type="button"
+                          aria-label={`Duplicate step ${number}`}
+                          title="Duplicate this step"
+                          disabled={busy}
+                          onClick={() => props.onDuplicate(step)}
+                          className={ICON_BTN}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete step ${number}`}
+                          title="Delete this step"
+                          onClick={() => props.onDelete(step)}
+                          className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );

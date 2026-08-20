@@ -76,6 +76,10 @@ describe("taskHours", () => {
     expect(taskHours({ estimated_hours: null }, [])).toBeNull();
   });
 
+  it("lets a task-level estimate override the sum of its steps", () => {
+    expect(taskHours({ estimated_hours: 3 }, [{ estimated_hours: 1 }, { estimated_hours: 0.25 }])).toBe(3);
+  });
+
   it("counts a zero-hour step as estimated", () => {
     expect(taskHours({ estimated_hours: null }, [{ estimated_hours: 0 }, { estimated_hours: 1 }])).toBe(1);
   });
