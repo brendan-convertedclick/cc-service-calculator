@@ -821,6 +821,9 @@ Deno.serve(async (req: Request) => {
         for (const t of plan.tasks) planByStepId.set(t.stepId, t);
       }
       const serviceNameById = new Map(items.map((i) => [i.service_id, i.service_name]));
+      // Filled as each materialise_as='task' step's ClickUp task is created;
+      // read afterwards to turn the procedure's arrows into dependencies.
+      const clickupTaskByTemplateStepId = new Map<string, string>();
 
       if (templateSteps && templateSteps.length > 0) {
         // Global ordinal: sort by quote service order, then template step ordinal
@@ -969,6 +972,10 @@ Deno.serve(async (req: Request) => {
               }
               if (stepTaskRes.ok) {
                 const stepTask = await stepTaskRes.json();
+                // Keyed by TEMPLATE step id, not instance id: system_edges is
+                // drawn between template steps, so that's the id the handover
+                // chain below has to match on.
+                clickupTaskByTemplateStepId.set(instance.template_step_id, stepTask.id);
                 await supabase
                   .from("process_step_instances")
                   .update({ clickup_task_id: stepTask.id })
@@ -992,6 +999,48 @@ Deno.serve(async (req: Request) => {
               // Continue — remaining steps should still be created
             }
           }
+        }
+      }
+
+      // Handover inside a procedure: the arrows drawn between tasks on the
+      // Conductor canvas (system_edges) become ClickUp "waiting on" links, so
+      // a task whose predecessor isn't done reads as blocked where the work
+      // actually happens. The department chain above is the other axis — it
+      // sequences service × department tasks; this one sequences the steps of
+      // one procedure.
+      //
+      // Only steps that became their own ClickUp task can carry a link: a
+      // checklist item has no status to block on, which is exactly why a real
+      // handover has to be its own task.
+      //
+      // Read live from system_edges rather than the revision snapshot, which
+      // holds process_steps only and has never carried the edges.
+      //
+      // Best-effort, like every other post-commit call here: the tasks and the
+      // projects row already exist, so a failed link is logged, not thrown.
+      if (clickupTaskByTemplateStepId.size > 1 && stepSystemIds.length > 0) {
+        const { data: edges, error: edgeErr } = await supabase
+          .from("system_edges")
+          .select("source_step_id,target_step_id")
+          .in("system_id", stepSystemIds);
+        if (edgeErr) {
+          console.error(`[push-to-clickup] system_edges lookup failed: ${edgeErr.message}`);
+        } else {
+          let linked = 0;
+          for (const e of (edges ?? []) as { source_step_id: string; target_step_id: string }[]) {
+            const from = clickupTaskByTemplateStepId.get(e.source_step_id);
+            const to = clickupTaskByTemplateStepId.get(e.target_step_id);
+            // An edge touching a checklist_item/none step has no task on one
+            // end; skip rather than guess which neighbour it meant.
+            if (!from || !to || from === to) continue;
+            try {
+              await addClickupDependency(clickupPat, to, from);
+              linked++;
+            } catch (err) {
+              console.error(`[push-to-clickup] dependency ${to} <- ${from} failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          if (linked > 0) console.log(`[push-to-clickup] chained ${linked} step task(s) from system_edges`);
         }
       }
 
