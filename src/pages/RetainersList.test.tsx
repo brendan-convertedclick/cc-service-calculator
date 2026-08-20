@@ -37,6 +37,31 @@ vi.mock("@/hooks/usePulseRetainerBurn", () => ({
   usePulseRetainerBurn: () => [burnRow],
   currentMonthKey: () => "2026-08",
 }));
+vi.mock("@/hooks/useRetainerAllocation", () => ({
+  useRetainerAllocation: () => ({
+    data: [
+      {
+        month: "2026-08",
+        rows: [
+          {
+            key: "p1",
+            kind: "retainer",
+            clientName: "Test Conductor",
+            name: "Test Conductor retainer",
+            projectId: "p1",
+            feeCents: 1000000,
+            soldHours: 10,
+            committedHours: 8,
+            deliveredHours: 6,
+            deliveredPoints: 24,
+            briefCount: 3,
+            openPoints: 0,
+          },
+        ],
+      },
+    ],
+  }),
+}));
 vi.mock("@/hooks/useSyncActuals", () => ({
   useSyncActuals: () => ({ mutate: mockSyncMutate, isPending: false, variables: undefined }),
 }));
@@ -64,13 +89,25 @@ import { RetainersList } from "./RetainersList";
 describe("RetainersList sync controls", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows hours consumed for the retainer", () => {
+  it("rolls a client up to sold, committed and delivered before any drilldown", () => {
     render(<RetainersList />);
-    expect(screen.getByText("2 / 10h")).toBeInTheDocument();
+    // The rollup is the default view: the client's numbers are on screen and
+    // its retainers are not.
+    expect(screen.getByText("10h")).toBeInTheDocument();
+    expect(screen.getByText("8h")).toBeInTheDocument();
+    expect(screen.getByText("6h")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Sync Test Conductor retainer")).not.toBeInTheDocument();
+  });
+
+  it("drills from the client rollup down to its retainers", async () => {
+    render(<RetainersList />);
+    await userEvent.click(screen.getByLabelText("Show retainers for Test Conductor"));
+    expect(screen.getByLabelText("Sync Test Conductor retainer")).toBeInTheDocument();
   });
 
   it("per-row sync invokes with the project id and does not navigate", async () => {
     render(<RetainersList />);
+    await userEvent.click(screen.getByLabelText("Show retainers for Test Conductor"));
     await userEvent.click(screen.getByLabelText("Sync Test Conductor retainer"));
     expect(mockSyncMutate).toHaveBeenCalled();
     expect(mockSyncMutate.mock.calls[0][0]).toBe("p1");
@@ -91,6 +128,7 @@ describe("RetainersList sub-items", () => {
   it("expands a retainer's sub-tasks via the chevron without navigating", async () => {
     render(<RetainersList />);
     expect(screen.queryByText("Local SEO Pack")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Show retainers for Test Conductor"));
     await userEvent.click(
       screen.getByLabelText("Show tasks for Test Conductor retainer"),
     );
@@ -102,6 +140,7 @@ describe("RetainersList sub-items", () => {
 
   it("collapses sub-tasks on a second click", async () => {
     render(<RetainersList />);
+    await userEvent.click(screen.getByLabelText("Show retainers for Test Conductor"));
     await userEvent.click(
       screen.getByLabelText("Show tasks for Test Conductor retainer"),
     );

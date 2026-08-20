@@ -14,13 +14,16 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { checklistFromSteps, NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
 import { useTeam } from "@/hooks/useTeam";
+import { supabase } from "@/lib/supabase";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useRetainers } from "@/hooks/useRetainers";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
 import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
 
+const NO_PROJECT = "__none__";
 const UNASSIGNED = "__unassigned__";
 const STATUS_DEFAULT = "__default__";
 
@@ -37,6 +40,8 @@ export interface QuickBriefSheetBrief {
   billing_type?: "retainer" | "adhoc" | null;
   /** Seeds the Assignee select so a pre-assigned brief doesn't open as Unassigned. */
   assignee_id?: string | null;
+  /** The retainer this brief already sits against, if any — seeds the picker. */
+  parent_project_id?: string | null;
 }
 
 export interface QuickBriefSheetProps {
@@ -54,6 +59,14 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const { data: team = [] } = useTeam();
   const { data: departments = [] } = useDepartments();
   const createTask = useCreateQuickBriefTask();
+  // Which retainer this work belongs to. Until now the sheet asked whether the
+  // work was retainer or adhoc but never which retainer — so "retainer" work
+  // was created with no project behind it and never reached a burn figure.
+  const { data: allRetainers = [] } = useRetainers();
+  const clientRetainers = allRetainers.filter(
+    (r) => r.status === "in_progress" && brief.client_id != null && r.client_id === brief.client_id,
+  );
+  const [projectId, setProjectId] = useState<string>(brief.parent_project_id ?? NO_PROJECT);
 
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
@@ -178,6 +191,11 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         measurableOutcome.trim() && `**Expected output**\n${measurableOutcome.trim()}`,
       ].filter(Boolean) as string[];
       const composedDescription = [description.trim(), ...extras].filter(Boolean).join("\n\n");
+      // The link lives on the brief, not on the ClickUp task — it is what makes
+      // this work show up against the retainer.
+      if (billingType === "retainer" && projectId !== NO_PROJECT && projectId !== brief.parent_project_id) {
+        await supabase.from("briefs").update({ parent_project_id: projectId }).eq("id", brief.id);
+      }
       const { clickup_task_url } = await createTask.mutateAsync({
         brief_id: brief.id,
         task_name: taskName.trim() || "Untitled task",
@@ -404,6 +422,29 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                   <SelectItem value="adhoc">Adhoc</SelectItem>
                 </SelectContent>
               </Select>
+              {billingType === "retainer" && (
+                <div className="mt-2 space-y-1.5">
+                  <Label htmlFor="qb-project">Against which retainer</Label>
+                  <Select value={projectId} onValueChange={setProjectId}>
+                    <SelectTrigger id="qb-project">
+                      <SelectValue placeholder="Pick a retainer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PROJECT}>— not chosen</SelectItem>
+                      {clientRetainers.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {projectId === NO_PROJECT && (
+                    <p className="rounded-md bg-m-error-container px-2 py-1.5 text-label-small text-m-on-error-container">
+                      {clientRetainers.length === 0
+                        ? "This client has no live retainer. Bill it adhoc, or set the retainer up first — otherwise this work is delivered against nothing."
+                        : "Retainer work with no retainer chosen is invisible: it never counts against a budget and never reaches an invoice."}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

@@ -9,6 +9,7 @@ export type RetainerListRow = Pick<
   | "id"
   | "name"
   | "status"
+  | "client_id"
   | "retainer_hours_target"
   | "retainer_monthly_fee_cents"
   | "started_at"
@@ -23,7 +24,7 @@ export function useRetainers() {
       const { data, error } = await supabase
         .from("projects")
         .select(
-          "id, name, status, retainer_hours_target, retainer_monthly_fee_cents, started_at, clients(name)",
+          "id, name, status, client_id, retainer_hours_target, retainer_monthly_fee_cents, started_at, clients(name)",
         )
         .eq("engagement_type", "retainer")
         .order("created_at", { ascending: false });
@@ -34,6 +35,7 @@ export function useRetainers() {
         id: p.id,
         name: p.name,
         status: p.status,
+        client_id: p.client_id,
         retainer_hours_target: p.retainer_hours_target,
         retainer_monthly_fee_cents: p.retainer_monthly_fee_cents,
         started_at: p.started_at,

@@ -31,6 +31,7 @@ type StaffBrief = {
   measurable_outcome: string;
   status: string;
   system_id: string | null;
+  project_id: string | null;
   clickup_task_id: string | null;
   clickup_task_url: string | null;
 };
@@ -50,7 +51,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { staff_brief_id } = (await req.json()) as { staff_brief_id?: string };
+    const { staff_brief_id, project_id } = (await req.json()) as {
+      staff_brief_id?: string;
+      project_id?: string | null;
+    };
     if (!staff_brief_id) return json({ error: "staff_brief_id required" }, 400);
 
     const supabase = createUserClient(req);
@@ -87,6 +91,16 @@ Deno.serve(async (req: Request) => {
     }
     if (brief.status === "rejected") {
       return json({ error: "Brief was already rejected" }, 400);
+    }
+
+    // Allocation is enforced here rather than on the staff form: the submitter
+    // is rarely the person who knows whether this is retainer work or something
+    // to invoice. Internal work is the one case with nothing to allocate to.
+    const allocatedProjectId = project_id ?? brief.project_id ?? null;
+    if (!brief.is_internal && !allocatedProjectId) {
+      return json({
+        error: "Pick the retainer or project this is delivered against before approving.",
+      }, 400);
     }
 
     const { data: submitter, error: subErr } = await supabase
@@ -254,6 +268,7 @@ Deno.serve(async (req: Request) => {
         approved_at: new Date().toISOString(),
         clickup_task_id: created.id,
         clickup_task_url: created.url,
+        project_id: allocatedProjectId,
       })
       .eq("id", brief.id);
     if (updateErr) {
@@ -262,6 +277,33 @@ Deno.serve(async (req: Request) => {
         clickup_task_id: created.id,
         clickup_task_url: created.url,
       }, 500);
+    }
+
+    // A staff brief that only exists in ClickUp is invisible to every report
+    // Conductor draws. Mirroring it into briefs is what puts it on the
+    // allocation view, and sync-clickup-actuals then tracks its closure and
+    // actual points automatically, exactly as for a normal brief.
+    const { error: mirrorErr } = await supabase.from("briefs").insert({
+      client_id: brief.client_id,
+      parent_project_id: allocatedProjectId,
+      source: "manual",
+      status: "briefed",
+      raw_subject: brief.task_name,
+      raw_body: brief.goal,
+      original_points: brief.sprint_points,
+      billing_type: brief.is_internal ? "adhoc" : "retainer",
+      clickup_task_id: created.id,
+    });
+    if (mirrorErr) {
+      // Loud, not silent: a failed mirror means the work is in ClickUp and in no
+      // report, which is the exact problem this insert exists to prevent.
+      console.error(`[staff-brief] mirror into briefs FAILED for ${brief.id}: ${mirrorErr.message}`);
+      return json({
+        clickup_task_id: created.id,
+        clickup_task_url: created.url,
+        via,
+        warning: `Task created, but it could not be recorded against the retainer: ${mirrorErr.message}`,
+      });
     }
 
     return json({ clickup_task_id: created.id, clickup_task_url: created.url, via });

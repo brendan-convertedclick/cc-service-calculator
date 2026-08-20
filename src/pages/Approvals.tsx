@@ -5,7 +5,8 @@ import { fmtPtH } from "@/lib/sprint-points";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
-import { errorMessage } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
+import { useRetainers } from "@/hooks/useRetainers";
 import { askForInfo, notifyExtension } from "@/lib/extension-actions";
 import { RequestContext } from "@/components/approvals/RequestContext";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,10 @@ type RevJoined = RevisionRequestRow & {
 export function Approvals() {
   const { currentUserId } = useAuth();
   const [briefs, setBriefs] = useState<BriefJoined[] | null>(null);
+  // Which retainer each pending brief is being allocated to. Held here rather
+  // than in the card so a re-render mid-approval cannot lose the choice.
+  const [briefProject, setBriefProject] = useState<Record<string, string | null>>({});
+  const { data: allRetainers = [] } = useRetainers();
   const [exts, setExts] = useState<ExtJoined[] | null>(null);
   const [revs, setRevs] = useState<RevJoined[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -92,10 +97,10 @@ export function Approvals() {
     loadRevs();
   }, []);
 
-  const approveBrief = async (id: string) => {
+  const approveBrief = async (id: string, projectId: string | null) => {
     setBusyId(id);
     try {
-      await callEdgeFn("approve-staff-brief", { staff_brief_id: id });
+      await callEdgeFn("approve-staff-brief", { staff_brief_id: id, project_id: projectId });
       toast.success("Approved — ClickUp task created.");
       await loadBriefs();
     } catch (e) {
@@ -250,7 +255,10 @@ export function Approvals() {
                 rejecting={rejectingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
-                onApprove={() => approveBrief(row.id)}
+                retainers={allRetainers}
+                projectId={briefProject[row.id] ?? null}
+                onProjectChange={(pid) => setBriefProject((m) => ({ ...m, [row.id]: pid }))}
+                onApprove={() => approveBrief(row.id, briefProject[row.id] ?? null)}
                 onRejectStart={() => {
                   setRejectingId(row.id);
                   setRejectReason("");
@@ -390,6 +398,9 @@ function EmptyState({ label }: { label: string }) {
 
 function BriefCard({
   row,
+  retainers,
+  projectId,
+  onProjectChange,
   busy,
   rejecting,
   rejectReason,
@@ -400,6 +411,9 @@ function BriefCard({
   onRejectConfirm,
 }: {
   row: BriefJoined;
+  retainers: { id: string; name: string; client_id: string | null; status: string }[];
+  projectId: string | null;
+  onProjectChange: (id: string | null) => void;
   busy: boolean;
   rejecting: boolean;
   rejectReason: string;
@@ -451,12 +465,44 @@ function BriefCard({
             busy={busy}
           />
         ) : (
-          <ActionRow
-            onReject={onRejectStart}
-            onApprove={onApprove}
-            busy={busy}
-            approveLabel="Approve & push to ClickUp"
-          />
+          <div className="space-y-2">
+            {/* Enforced here, not on the staff form: the submitter rarely knows
+                whether their task is covered by a retainer or is billable. */}
+            {!row.is_internal && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <label htmlFor={`alloc-${row.id}`} className="text-label-small text-m-on-surface-variant">
+                  Delivered against
+                </label>
+                <select
+                  id={`alloc-${row.id}`}
+                  value={projectId ?? ""}
+                  onChange={(e) => onProjectChange(e.target.value || null)}
+                  className={cn(
+                    "h-8 max-w-[18rem] rounded-md border bg-m-surface px-2 text-label-medium",
+                    projectId ? "border-m-outline" : "border-m-error text-m-error",
+                  )}
+                >
+                  <option value="">— pick a retainer</option>
+                  {retainers
+                    .filter((r) => r.status === "in_progress" && r.client_id === row.client?.id)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {!row.is_internal && !projectId && (
+              <p className="text-right text-label-small text-m-error">
+                Approving without one puts this work in no budget and on no invoice.
+              </p>
+            )}
+            <ActionRow
+              onReject={onRejectStart}
+              onApprove={onApprove}
+              busy={busy || (!row.is_internal && !projectId)}
+              approveLabel="Approve & push to ClickUp"
+            />
+          </div>
         )}
       </CardContent>
     </Card>

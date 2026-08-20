@@ -16,9 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRetainers, useDeleteRetainer } from "@/hooks/useRetainers";
-import { usePulseRetainerBurn, currentMonthKey } from "@/hooks/usePulseRetainerBurn";
+import { currentMonthKey } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
-import { HoursUsedCell } from "@/components/retainers/HoursUsedCell";
+import { useRetainerAllocation } from "@/hooks/useRetainerAllocation";
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
 import { formatZar, cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
@@ -49,6 +49,19 @@ function statusVariant(status: string): "success" | "muted" | "outline" {
   return "muted"; // complete, completed, cancelled, archived, closed, done
 }
 
+function fmtHours(n: number): string {
+  return n ? `${Math.round(n * 10) / 10}h` : "—";
+}
+
+/** Red in BOTH directions: over-delivery is a margin problem, not a win. */
+function deliveredTone(delivered: number, basis: number): string {
+  if (!basis || !delivered) return "text-m-on-surface-variant";
+  const ratio = delivered / basis;
+  if (ratio > 1.25) return "text-m-error";
+  if (ratio < 0.6) return "text-amber-600";
+  return "text-m-tertiary";
+}
+
 // Client is the group header; every row is a retainer — so strip the redundant
 // "{Client} … Retainer" boilerplate from the name and show only the differentiator.
 function displayRetainerName(name: string, clientName: string | null): string {
@@ -68,12 +81,7 @@ export function RetainersList() {
   // includeCompleted: a retainer that has completed must still show its
   // consumed hours here (Pulse keeps the default in-progress-only view).
   const [month, setMonth] = useState(() => currentMonthKey());
-  const burnRows = usePulseRetainerBurn(month, { includeCompleted: true });
   const sync = useSyncActuals();
-  const burnByProject = useMemo(
-    () => new Map(burnRows.map((b) => [b.projectId, b])),
-    [burnRows],
-  );
 
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
@@ -120,6 +128,31 @@ export function RetainersList() {
 
   // Collapse the repeated Client column into real per-client groups, each with a
   // count + monthly-fee total so the operator doesn't eyeball-sum the column.
+  // Sold / Committed / Delivered come from the allocation model, not from
+  // project_actuals. project_actuals only ever counted provisioned tasks, which
+  // is why this page read 0 hours used on retainers carrying dozens of briefs.
+  const { data: allocMonths = [] } = useRetainerAllocation();
+  const alloc = useMemo(() => {
+    const m = allocMonths.find((x) => x.month === month) ?? allocMonths[0];
+    return new Map((m?.rows ?? []).filter((r) => r.projectId).map((r) => [r.projectId!, r]));
+  }, [allocMonths, month]);
+
+  // Work a client had delivered this month that sits on NO retainer of theirs —
+  // a fixed-price project, adhoc work, or internal. Without this the page reads
+  // as though nothing happened: Trellidor closed 8 hours on two fixed-price
+  // campaigns in August and the Delivered column showed a dash.
+  const deliveredElsewhere = useMemo(() => {
+    const m = allocMonths.find((x) => x.month === month) ?? allocMonths[0];
+    const retainerIds = new Set(retainers.map((r) => r.id));
+    const byClient = new Map<string, number>();
+    for (const r of m?.rows ?? []) {
+      if (r.deliveredHours <= 0) continue;
+      if (r.projectId && retainerIds.has(r.projectId)) continue;
+      byClient.set(r.clientName, (byClient.get(r.clientName) ?? 0) + r.deliveredHours);
+    }
+    return byClient;
+  }, [allocMonths, month, retainers]);
+
   const clientGroups = useMemo(() => {
     const map = new Map<string, typeof filteredRetainers>();
     for (const r of filteredRetainers) {
@@ -133,11 +166,18 @@ export function RetainersList() {
         (sum, r) => sum + (r.retainer_monthly_fee_cents ?? 0),
         0,
       ),
+      sold: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.soldHours ?? 0), 0),
+      committed: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.committedHours ?? 0), 0),
+      delivered: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0),
+      open: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0),
     }));
-  }, [filteredRetainers]);
+  }, [filteredRetainers, alloc]);
 
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Clients start closed: the point of the page is the rollup, with the
+  // retainers behind it a click away rather than a wall on arrival.
+  const [openClients, setOpenClients] = useState<Record<string, boolean>>({});
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -259,7 +299,9 @@ export function RetainersList() {
                     <TableHead className="w-px" />
                     <TableHead>Name</TableHead>
                     <TableHead className="whitespace-nowrap text-right">Monthly fee</TableHead>
-                    <TableHead className="whitespace-nowrap">Hours used</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="What the fee buys at the standard rate">Sold</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Recurring work scheduled against it">Committed</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Work that closed this month">Delivered</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -267,28 +309,72 @@ export function RetainersList() {
                 <TableBody>
                   {clientGroups.map((group) => (
                     <Fragment key={group.clientName}>
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={6} className="border-b border-m-outline-variant bg-m-surface-container-low py-2">
-                          <div className="flex items-baseline justify-between gap-4">
-                            <span className="text-title-small font-semibold text-m-on-surface">
-                              {group.clientName}
-                            </span>
-                            <span className="text-label-small text-m-on-surface-variant">
-                              {group.rows.length} retainer{group.rows.length !== 1 ? "s" : ""}
-                              {group.totalFeeCents > 0 && (
-                                <>
-                                  {" · "}
-                                  <span className="font-mono tabular-nums text-m-on-surface">
-                                    {formatZar(group.totalFeeCents)}
-                                  </span>
-                                  /mo
-                                </>
-                              )}
-                            </span>
-                          </div>
+                      <TableRow
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!!openClients[group.clientName]}
+                        aria-label={`${openClients[group.clientName] ? "Hide" : "Show"} retainers for ${group.clientName}`}
+                        className="cursor-pointer hover:bg-m-surface-container"
+                        onClick={() =>
+                          setOpenClients((p) => ({ ...p, [group.clientName]: !p[group.clientName] }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setOpenClients((p) => ({ ...p, [group.clientName]: !p[group.clientName] }));
+                          }
+                        }}
+                      >
+                        <TableCell className="w-px border-b border-m-outline-variant bg-m-surface-container-low pr-0">
+                          <ChevronRight
+                            className={cn(
+                              "h-4 w-4 text-m-on-surface-variant transition-transform",
+                              openClients[group.clientName] && "rotate-90",
+                            )}
+                          />
                         </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low py-2">
+                          <span className="text-title-small font-semibold text-m-on-surface">
+                            {group.clientName}
+                          </span>
+                          <span className="ml-2 text-label-small text-m-on-surface-variant">
+                            {group.rows.length} retainer{group.rows.length !== 1 ? "s" : ""}
+                          </span>
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">
+                          {group.totalFeeCents > 0 ? formatZar(group.totalFeeCents) : "—"}
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(group.sold)}
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(group.committed)}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold",
+                            deliveredTone(group.delivered, group.committed || group.sold),
+                          )}
+                        >
+                          {fmtHours(group.delivered)}
+                          {group.open > 0 && (
+                            <span className="ml-1 text-label-small font-normal text-m-on-surface-variant" title="Raised and still open">
+                              +{fmtHours(group.open)}
+                            </span>
+                          )}
+                          {(deliveredElsewhere.get(group.clientName) ?? 0) > 0 && (
+                            <span
+                              className="ml-1 text-label-small font-normal text-m-on-surface-variant"
+                              title="Delivered for this client but not against a retainer — fixed-price, adhoc or internal work"
+                            >
+                              ({fmtHours(deliveredElsewhere.get(group.clientName) ?? 0)} off-retainer)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
                       </TableRow>
-                      {group.rows.map((r) => (
+                      {openClients[group.clientName] && group.rows.map((r) => (
                         <Fragment key={r.id}>
                           <TableRow
                             onClick={() => navigate(`/projects/${r.id}`)}
@@ -321,8 +407,22 @@ export function RetainersList() {
                                 ? formatZar(r.retainer_monthly_fee_cents)
                                 : "—"}
                             </TableCell>
-                            <TableCell>
-                              <HoursUsedCell burn={burnByProject.get(r.id) ?? null} />
+                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                              {fmtHours(alloc.get(r.id)?.soldHours ?? 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                              {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                "text-right font-mono tabular-nums text-body-medium font-semibold",
+                                deliveredTone(
+                                  alloc.get(r.id)?.deliveredHours ?? 0,
+                                  (alloc.get(r.id)?.committedHours || alloc.get(r.id)?.soldHours) ?? 0,
+                                ),
+                              )}
+                            >
+                              {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                             </TableCell>
                             <TableCell>
                               <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">

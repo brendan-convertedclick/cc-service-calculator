@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     // they're excluded here (and deduped again by task id further down).
     const { data: briefs, error: briefsErr } = await supabase
       .from("briefs")
-      .select("id, raw_subject, clickup_task_id, clickup_task_url")
+      .select("id, raw_subject, clickup_task_id, clickup_task_url, clickup_task_status, completed_at, actual_hours, clickup_status_synced_at")
       .eq("client_id", client_id)
       .eq("billing_type", "adhoc")
       .is("invoiced_at", null)
@@ -99,20 +99,71 @@ Deno.serve(async (req) => {
     const adhocItems: AdhocItem[] = [];
     let adhocOpen = 0;
 
-    // Fetch ClickUp tasks with modest concurrency; a missing/deleted task is
-    // surfaced as a warning rather than failing the report.
-    const queue = [...(briefs ?? [])];
-    const workers = Array.from({ length: Math.min(5, queue.length) }, async () => {
+    // sync-clickup-actuals already mirrors status, close date and time spent
+    // onto every briefed task every 30 minutes. Re-fetching all of it live meant
+    // one ClickUp call per brief, which on a busy client tripped the rate limit
+    // and filled the report with "could not be fetched (429)" instead of lines.
+    //
+    // So: read what we already hold, and only call ClickUp for rows the sync has
+    // never touched.
+    type BriefRow = {
+      id: string;
+      raw_subject: string | null;
+      clickup_task_id: string | null;
+      clickup_task_url: string | null;
+      clickup_task_status: string | null;
+      completed_at: string | null;
+      actual_hours: number | null;
+      clickup_status_synced_at: string | null;
+    };
+
+    const all = (briefs ?? []) as unknown as BriefRow[];
+
+    for (const b of all.filter((r) => r.clickup_status_synced_at != null)) {
+      const status = (b.clickup_task_status ?? "").toLowerCase();
+      if (!CLOSED.has(status)) {
+        adhocOpen++;
+        continue;
+      }
+      const completedMs = b.completed_at ? Date.parse(b.completed_at) : Date.now();
+      if (completedMs >= endMs) continue; // completed after this cycle
+      adhocItems.push({
+        brief_id: b.id,
+        clickup_task_id: b.clickup_task_id!,
+        name: b.raw_subject ?? "(untitled task)",
+        clickup_task_url: b.clickup_task_url,
+        completed_at: new Date(completedMs).toISOString(),
+        hours: Number(b.actual_hours ?? 0),
+        amount_cents: null,
+        carried_over: completedMs < startMs,
+      });
+    }
+
+    // Whatever the sync has not reached yet, fetched live — a much smaller set.
+    const queue = all.filter((r) => r.clickup_status_synced_at == null);
+    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
       for (;;) {
         const b = queue.shift();
         if (!b) return;
         try {
-          const res = await fetch(
-            `https://api.clickup.com/api/v2/task/${b.clickup_task_id}`,
-            { headers: { Authorization: token } },
-          );
-          if (!res.ok) {
-            warnings.push(`ClickUp task for "${b.raw_subject ?? b.id}" could not be fetched (${res.status}).`);
+          let res: Response | null = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            res = await fetch(
+              `https://api.clickup.com/api/v2/task/${b.clickup_task_id}`,
+              { headers: { Authorization: token } },
+            );
+            if (res.status !== 429) break;
+            // ClickUp says when to come back; default to a widening pause.
+            const retryAfter = Number(res.headers.get("retry-after") ?? 0);
+            const waitMs = retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt;
+            await new Promise((r) => setTimeout(r, waitMs));
+          }
+          if (!res || !res.ok) {
+            warnings.push(
+              res?.status === 429
+                ? `ClickUp is rate-limiting us — "${b.raw_subject ?? b.id}" was skipped. Re-run in a minute.`
+                : `ClickUp task for "${b.raw_subject ?? b.id}" could not be fetched (${res?.status ?? "no response"}).`,
+            );
             continue;
           }
           const task = (await res.json()) as CuTask;
