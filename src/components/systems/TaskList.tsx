@@ -479,6 +479,27 @@ export function TaskList(props: TaskListProps) {
               </span>
 
               <div className="flex flex-none items-center gap-0.5">
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/task:opacity-100">
+                  <button
+                    type="button"
+                    aria-label={`Duplicate task "${task.title}"`}
+                    title="Duplicate this task and its steps"
+                    disabled={busy}
+                    onClick={() => props.onDuplicate(task)}
+                    className={ICON_BTN}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete task "${task.title}"`}
+                    title="Delete this task"
+                    onClick={() => props.onDelete(task)}
+                    className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
                 <RowMenu label={`Options for task "${task.title}"`} notes={openNotes.get(task.id)}>
                   <MenuItem icon={Plus} label="Add a step" disabled={busy} onClick={() => props.onAddStep(task)} />
                   <MenuItem icon={Link2} label="Links and documents" onClick={() => toggleLink(task.id)} />
@@ -505,27 +526,6 @@ export function TaskList(props: TaskListProps) {
                     onClick={() => props.onPatch(task, { materialise_as: pushes ? "none" : "task" })}
                   />
                 </RowMenu>
-                <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/task:opacity-100">
-                  <button
-                    type="button"
-                    aria-label={`Duplicate task "${task.title}"`}
-                    title="Duplicate this task and its steps"
-                    disabled={busy}
-                    onClick={() => props.onDuplicate(task)}
-                    className={ICON_BTN}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete task "${task.title}"`}
-                    title="Delete this task"
-                    onClick={() => props.onDelete(task)}
-                    className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -635,6 +635,27 @@ export function TaskList(props: TaskListProps) {
                     </div>
 
                     <div className="mt-0.5 flex flex-none items-center gap-0.5">
+                      <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/step:opacity-100">
+                        <button
+                          type="button"
+                          aria-label={`Duplicate step ${number}`}
+                          title="Duplicate this step"
+                          disabled={busy}
+                          onClick={() => props.onDuplicate(step)}
+                          className={ICON_BTN}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete step ${number}`}
+                          title="Delete this step"
+                          onClick={() => props.onDelete(step)}
+                          className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                       <RowMenu label={`Options for step ${number}`} notes={openNotes.get(step.id)}>
                         <MenuItem
                           icon={Plus}
@@ -663,27 +684,6 @@ export function TaskList(props: TaskListProps) {
                           }
                         />
                       </RowMenu>
-                      <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/step:opacity-100">
-                        <button
-                          type="button"
-                          aria-label={`Duplicate step ${number}`}
-                          title="Duplicate this step"
-                          disabled={busy}
-                          onClick={() => props.onDuplicate(step)}
-                          className={ICON_BTN}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Delete step ${number}`}
-                          title="Delete this step"
-                          onClick={() => props.onDelete(step)}
-                          className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
                     </div>
                   </li>
                 );

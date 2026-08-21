@@ -2548,6 +2548,7 @@ export type Database = {
       }
       process_step_notes: {
         Row: {
+          assigned_to: string | null
           body: string
           created_at: string
           created_by: string | null
@@ -2558,6 +2559,7 @@ export type Database = {
           system_id: string
         }
         Insert: {
+          assigned_to?: string | null
           body: string
           created_at?: string
           created_by?: string | null
@@ -2568,6 +2570,7 @@ export type Database = {
           system_id: string
         }
         Update: {
+          assigned_to?: string | null
           body?: string
           created_at?: string
           created_by?: string | null
@@ -2578,6 +2581,13 @@ export type Database = {
           system_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "process_step_notes_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "process_step_notes_created_by_fkey"
             columns: ["created_by"]

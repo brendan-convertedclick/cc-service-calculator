@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, Wand2 } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, StickyNote, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,8 @@ import {
   type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useMyOpenNoteCounts } from "@/hooks/useStepNotes";
+import { useCurrentUserId } from "@/context/AuthContext";
 import { memberColors, useTeam } from "@/hooks/useTeam";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
@@ -124,6 +126,13 @@ export function SystemsList() {
   const [kind, setKind] = useState<SystemKind | null>(null);
   const [dept, setDept] = useState<string | null>(null);
   const [unmappedOnly, setUnmappedOnly] = useState(false);
+  // Notes assigned to whoever is signed in, across the whole library — the
+  // way a staff member finds the procedures somebody left work for them on.
+  // Null on the shared team@ login (no team_members row), which is why the
+  // filter hides itself rather than sitting there reading 0 forever.
+  const currentUserId = useCurrentUserId();
+  const { data: myNoteCounts } = useMyOpenNoteCounts(currentUserId);
+  const [myNotesOnly, setMyNotesOnly] = useState(false);
   // ?new=<name> is how the wizard hands over: open the create dialog with the
   // candidate's name already in it, then drop the param so a refresh doesn't
   // reopen it. The wizard only ever proposes procedures.
@@ -149,10 +158,11 @@ export function SystemsList() {
         if (dept && !(dept === NO_DEPT ? s.department_ids.length === 0 : s.department_ids.includes(dept)))
           return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
+        if (myNotesOnly && !myNoteCounts?.has(s.id)) return false;
         if (q && !haystack(s).includes(q)) return false;
         return true;
       }),
-    [scoped, band, kind, dept, unmappedOnly, q],
+    [scoped, band, kind, dept, unmappedOnly, myNotesOnly, myNoteCounts, q],
   );
 
   // All three tabs always render, empty or not — the taxonomy is the point of
@@ -198,7 +208,7 @@ export function SystemsList() {
     return { active, unapproved: systems.length - active, all: systems.length };
   }, [systems]);
 
-  const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly;
+  const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly || myNotesOnly;
 
   const unmappedCount = useMemo(
     () => scoped.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
@@ -307,6 +317,18 @@ export function SystemsList() {
             <span className="ml-auto tabular-nums text-label-small text-m-on-surface-variant">{unmappedCount}</span>
           </label>
         </div>
+        {currentUserId && (
+          <div>
+            <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Notes</p>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-label-medium text-m-on-surface hover:bg-m-surface-container">
+              <Checkbox checked={myNotesOnly} onCheckedChange={(v) => setMyNotesOnly(!!v)} />
+              Assigned to me
+              <span className="ml-auto tabular-nums text-label-small text-m-on-surface-variant">
+                {scoped.filter((s) => myNoteCounts?.has(s.id)).length}
+              </span>
+            </label>
+          </div>
+        )}
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
@@ -387,6 +409,7 @@ export function SystemsList() {
                             onArchive={() => archive(s)}
                             busy={duplicate.isPending || update.isPending}
                             ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
+                            myNotes={myNoteCounts?.get(s.id)}
                             onDuplicate={() =>
                               duplicate.mutate(s.id, {
                                 onSuccess: (newId) => {
@@ -455,6 +478,7 @@ function SystemRow({
   onArchive,
   busy,
   ownerColor,
+  myNotes,
 }: {
   system: SystemDefinitionWithJoins;
   onClick: () => void;
@@ -463,6 +487,8 @@ function SystemRow({
   onArchive: () => void;
   busy: boolean;
   ownerColor: string | undefined;
+  /** Open notes on this system assigned to whoever is signed in. */
+  myNotes: number | undefined;
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
@@ -506,6 +532,18 @@ function SystemRow({
             {subLine ?? "—"}
           </p>
         </div>
+        {/* Work somebody left for you on this procedure. Silent at zero — a
+            "0" on every row is noise, and the whole point is that a row with
+            something waiting stands out. */}
+        {myNotes ? (
+          <span
+            title={`${myNotes} open note${myNotes === 1 ? "" : "s"} assigned to you`}
+            className="flex flex-none items-center gap-1 rounded-full bg-m-primary-container px-2 py-0.5 text-label-small text-m-on-primary-container"
+          >
+            <StickyNote className="h-3 w-3" />
+            {myNotes}
+          </span>
+        ) : null}
         {/* A policy is prose, not steps — a "0 steps" tag on one reads as a gap. */}
         {layer !== "policy" && (
           <span className="flex-none text-label-small text-m-on-surface-variant">
