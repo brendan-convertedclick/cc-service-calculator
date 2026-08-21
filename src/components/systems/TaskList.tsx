@@ -18,7 +18,6 @@ import { DocLinksField } from "@/components/systems/DocLinksField";
 import {
   ChevronDown,
   ChevronUp,
-  CircleHelp,
   Copy,
   CornerLeftDown,
   CornerLeftUp,
@@ -35,7 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MenuItem } from "@/components/ui/menu-item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SignalNoise, VerbSelect } from "@/components/systems/StepSignal";
+import { VerbSelect } from "@/components/systems/VerbSelect";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useUpdateStep } from "@/hooks/useProcessSteps";
 import { useStepNotes } from "@/hooks/useStepNotes";
@@ -61,9 +60,6 @@ export type TaskListProps = {
   team: { id: string; full_name: string }[];
   colorById: Map<string, string>;
   busy: boolean;
-  /** Which steps have their signal/noise questions open. */
-  signalOpen: Set<string>;
-  onToggleSignal: (id: string) => void;
   onFocus: (id: string) => void;
   onAddTask: (after?: StepRow) => void;
   onAddStep: (task: StepRow, after?: StepRow) => void;
@@ -504,11 +500,6 @@ export function TaskList(props: TaskListProps) {
                   <MenuItem icon={Plus} label="Add a step" disabled={busy} onClick={() => props.onAddStep(task)} />
                   <MenuItem icon={Link2} label="Links and documents" onClick={() => toggleLink(task.id)} />
                   <MenuItem icon={StickyNote} label="Notes" onClick={() => props.onOpenNotes(task.id)} />
-                  <MenuItem
-                    icon={CircleHelp}
-                    label={props.signalOpen.has(task.id) ? "Hide signal or noise" : "Signal or noise"}
-                    onClick={() => props.onToggleSignal(task.id)}
-                  />
                   {previous && (
                     <MenuItem
                       icon={CornerLeftUp}
@@ -532,16 +523,6 @@ export function TaskList(props: TaskListProps) {
             {linksShown(task) && (
               <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 pb-2">
                 <StepLinks row={task} systemId={props.systemId} showDocs />
-              </div>
-            )}
-
-            {/* The same question grid the steps have, one level up. The propose
-                gate reads top-level rows — which 0123 turned from steps into
-                tasks — so without this the verdict on a task can never leave
-                "pending" and Send for review stays disabled forever. */}
-            {props.signalOpen.has(task.id) && (
-              <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 py-2.5">
-                <SignalNoise step={task} onPatch={(patch) => props.onPatch(task, patch)} />
               </div>
             )}
 
@@ -627,11 +608,6 @@ export function TaskList(props: TaskListProps) {
                         />
                       </div>
                       {linksShown(step) && <StepLinks row={step} systemId={props.systemId} />}
-                      {props.signalOpen.has(step.id) && (
-                        <div className="pt-1">
-                          <SignalNoise step={step} onPatch={(patch) => props.onPatch(step, patch)} />
-                        </div>
-                      )}
                     </div>
 
                     <div className="mt-0.5 flex flex-none items-center gap-0.5">
@@ -665,11 +641,6 @@ export function TaskList(props: TaskListProps) {
                         />
                         <MenuItem icon={Link2} label="Links" onClick={() => toggleLink(step.id)} />
                         <MenuItem icon={StickyNote} label="Notes" onClick={() => props.onOpenNotes(step.id)} />
-                        <MenuItem
-                          icon={CircleHelp}
-                          label={props.signalOpen.has(step.id) ? "Hide signal or noise" : "Signal or noise"}
-                          onClick={() => props.onToggleSignal(step.id)}
-                        />
                         <MenuItem
                           icon={CornerLeftDown}
                           label="Make it its own task"

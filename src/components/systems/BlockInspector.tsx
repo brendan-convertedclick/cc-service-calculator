@@ -27,7 +27,7 @@ import {
   type AttachedProcedure,
 } from "@/hooks/useStepProcedures";
 import { initials } from "./SystemBlockNode";
-import { VerbSelect, VerdictPill, verdict } from "./StepSignal";
+import { VerbSelect } from "./VerbSelect";
 import type { Database } from "@/types/db";
 
 type Step = Database["public"]["Tables"]["process_steps"]["Row"];
@@ -151,12 +151,7 @@ export function BlockInspector({
         />
       </Field>
 
-      {/* Verb only, plus the verdict read-only — the question grid that sets
-          that verdict lives in the Steps pane; this rail is 186px wide. */}
-      <Field
-        label="Verb"
-        hint="The kind of action this is. It drives the checks below, which flag steps that look like busywork."
-      >
+      <Field label="Verb" hint="The kind of action this is.">
         <div className="flex min-w-0 items-center gap-1.5">
           <VerbSelect
             value={step.verb}
@@ -164,9 +159,6 @@ export function BlockInspector({
             className="min-w-0 flex-1"
             onChange={(verb) => commit({ verb })}
           />
-        </div>
-        <div className="pt-1.5">
-          <VerdictPill value={verdict(step).effective} />
         </div>
       </Field>
 

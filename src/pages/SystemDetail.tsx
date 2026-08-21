@@ -49,7 +49,6 @@ import { TaskList } from "@/components/systems/TaskList";
 import { StepNotesPanel } from "@/components/systems/StepNotesPanel";
 import { useStepNotes } from "@/hooks/useStepNotes";
 import { DocLinksField } from "@/components/systems/DocLinksField";
-import { verdict } from "@/components/systems/StepSignal";
 import {
   useProposeRevision,
   usePublishRevision,
@@ -80,7 +79,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, errorMessage, toggleInSet } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { toLocalDateTimeInput } from "@/lib/dates";
 import { parseStepHours } from "@/lib/step-hours";
 import { applyDraft, pruneDraft } from "@/lib/procedure-shape";
@@ -230,7 +229,6 @@ export function SystemDetail() {
   // native <details>: the toggle lives at the bottom of the row's right-hand
   // cluster and the panel opens under the row's left column, which no
   // <summary> can straddle.
-  const [signalOpen, setSignalOpen] = useState<Set<string>>(new Set());
 
   // A task that lands after another belongs IN the chain, not beside it:
   // whatever `prevId` pointed at now hangs off the new task, so 1→3 becomes
@@ -1150,8 +1148,6 @@ export function SystemDetail() {
                   team={team}
                   colorById={colorById}
                   busy={addStep.isPending || reorder.isPending}
-                  signalOpen={signalOpen}
-                  onToggleSignal={(id) => setSignalOpen((prev) => toggleInSet(prev, id))}
                   onFocus={(id) => setFocusStep({ id, nonce: Date.now() })}
                   onOpenNotes={(rowId) => {
                     setNotesRow(rowId);
@@ -1270,7 +1266,6 @@ export function SystemDetail() {
           button opens it while the Revisions pane is unmounted/hidden. */}
       <ProposeDialog
         systemId={system.id}
-        steps={steps}
         dirty={dirty}
         open={proposeOpen}
         setOpen={setProposeOpen}
@@ -1445,7 +1440,6 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
 // dialog that unmounts with its trigger simply wouldn't open from the other.
 function ProposeDialog({
   systemId,
-  steps,
   dirty,
   open,
   setOpen,
@@ -1453,7 +1447,6 @@ function ProposeDialog({
   setReason,
 }: {
   systemId: string;
-  steps: StepRow[];
   dirty: boolean;
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -1461,11 +1454,6 @@ function ProposeDialog({
   setReason: (reason: string) => void;
 }) {
   const propose = useProposeRevision();
-  // Signal/noise is required, not optional: a revision is the moment the
-  // procedure becomes what everyone follows, so no step reaches it unexamined.
-  // 'pending' only — a Force keep/cut is an answer, and "Needs a look" (some
-  // answered, none decisive) is a judgement someone already made.
-  const unevaluated = steps.filter((s) => verdict(s).effective === "pending");
   // A revision snapshots what is IN THE DATABASE, so staged edits must land
   // first — otherwise the snapshot silently omits them, and the gate above
   // reads the saved rows and keeps complaining about answers already on screen.
@@ -1502,16 +1490,10 @@ function ProposeDialog({
             still unsaved would be left out of it.
           </p>
         )}
-        {!dirty && unevaluated.length > 0 && (
-          <p className="rounded-lg bg-m-error-container px-3 py-2 text-label-medium text-m-on-error-container">
-            Answer signal or noise on {unevaluated.length} task
-            {unevaluated.length === 1 ? "" : "s"} first: {unevaluated.map((s) => s.title).join(", ")}
-          </p>
-        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={!reason.trim() || dirty || unevaluated.length > 0 || propose.isPending}
+            disabled={!reason.trim() || dirty || propose.isPending}
             onClick={() => {
               propose.mutate(
                 { systemId, reasonForChange: reason.trim() },
