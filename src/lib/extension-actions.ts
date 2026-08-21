@@ -18,6 +18,34 @@ export function notifyExtension(id: string): void {
 }
 
 /**
+ * Reject a request, with the decision attributed. Used from both the admin
+ * queue and the owner escalation queue — a reject is terminal on either leg,
+ * and either way the requester needs to know who said no, not just why.
+ *
+ * Returns an error message, or null on success.
+ */
+export async function rejectRequest(
+  id: string,
+  reason: string,
+  rejectedBy: string | null,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("extension_requests")
+    .update({
+      status: "rejected",
+      rejected_reason: reason.trim(),
+      rejected_by: rejectedBy,
+      rejected_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select("id");
+  if (error) return error.message;
+  // supabase-js reports a no-op success when RLS filters every row out.
+  if (!data || data.length === 0) return "Not permitted to update this request";
+  return null;
+}
+
+/**
  * Bounce a request back to its requester with a question. Used from both the
  * admin queue and the owner escalation queue — the answer returns to whichever
  * leg still owes a decision (see respond-to-info-request).

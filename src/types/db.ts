@@ -1563,6 +1563,8 @@ export type Database = {
           parent_clickup_task_id: string
           parent_task_name: string
           reason: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           rejected_reason: string | null
           requested_due_date: string | null
           requester_id: string
@@ -1594,6 +1596,8 @@ export type Database = {
           parent_clickup_task_id: string
           parent_task_name: string
           reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           rejected_reason?: string | null
           requested_due_date?: string | null
           requester_id: string
@@ -1625,6 +1629,8 @@ export type Database = {
           parent_clickup_task_id?: string
           parent_task_name?: string
           reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           rejected_reason?: string | null
           requested_due_date?: string | null
           requester_id?: string
@@ -1633,6 +1639,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "extension_requests_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "extension_requests_admin_approver_id_fkey"
             columns: ["admin_approver_id"]

@@ -254,17 +254,37 @@ export function EscalationDetail({
           )}
         </Block>
 
+        {/* The audit trail, oldest first: who escalated it, then who closed it.
+            A reject carries a name now too, not just a reason. */}
         <Block label="Signed off">
-          {row.admin_approved_at ? (
+          {row.admin_approved_at && (
             <p>
               {row.admin_approver?.full_name ?? "An admin"} approved the admin leg on{" "}
               <span className="font-mono tabular-nums">{fmtWhen(row.admin_approved_at)}</span> and
-              escalated it to you.
+              escalated it.
             </p>
-          ) : (
+          )}
+          {row.approved_at && (
+            <p className={row.admin_approved_at ? "mt-1" : undefined}>
+              {row.approver?.full_name ?? "Someone"} approved it on{" "}
+              <span className="font-mono tabular-nums">{fmtWhen(row.approved_at)}</span>.
+            </p>
+          )}
+          {row.status === "rejected" && (
+            <p className={row.admin_approved_at ? "mt-1" : undefined}>
+              {row.rejecter?.full_name ?? "Someone"} rejected it
+              {row.rejected_at && (
+                <>
+                  {" on "}
+                  <span className="font-mono tabular-nums">{fmtWhen(row.rejected_at)}</span>
+                </>
+              )}
+              {row.rejected_reason ? `: ${row.rejected_reason}` : "."}
+            </p>
+          )}
+          {!row.admin_approved_at && !row.approved_at && row.status !== "rejected" && (
             <p className="text-m-on-surface-variant">
-              Raised {fmtWhen(row.created_at)}. No admin sign-off recorded — this predates the
-              two-stage flow.
+              Raised {fmtWhen(row.created_at)}. Nobody has signed it off yet.
             </p>
           )}
         </Block>

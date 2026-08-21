@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
 import { cn, errorMessage } from "@/lib/utils";
 import { useRetainers } from "@/hooks/useRetainers";
-import { askForInfo, notifyExtension } from "@/lib/extension-actions";
+import { askForInfo, notifyExtension, rejectRequest } from "@/lib/extension-actions";
 import { RequestContext } from "@/components/approvals/RequestContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -181,13 +181,8 @@ export function Approvals() {
     setBusyId(id);
     try {
       // Terminal by design: an admin reject never reaches the owner queue.
-      const { data, error } = await supabase
-        .from("extension_requests")
-        .update({ status: "rejected", rejected_reason: rejectReason.trim() })
-        .eq("id", id)
-        .select("id");
-      if (error) return toast.error(error.message);
-      if (!data || data.length === 0) return toast.error("Not permitted to update this request.");
+      const err = await rejectRequest(id, rejectReason, currentUserId);
+      if (err) return toast.error(err);
       toast.success("Rejected.");
       setRejectingId(null);
       setRejectReason("");

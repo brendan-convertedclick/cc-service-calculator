@@ -16,8 +16,9 @@ Deno.test("owner-tier requests stop at the admin leg first", () => {
   assertEquals(decideApprovalAction(row("owner", "pending_owner"), OWNER), { action: "execute" });
 });
 
-Deno.test("owner acting on the admin leg promotes rather than short-circuiting", () => {
-  assertEquals(decideApprovalAction(row("owner", "pending_admin"), OWNER), { action: "promote" });
+Deno.test("owner acting on the admin leg finalises it — nobody to promote to", () => {
+  assertEquals(decideApprovalAction(row("owner", "pending_admin"), OWNER), { action: "execute" });
+  assertEquals(decideApprovalAction(row("admin", "pending_admin"), OWNER), { action: "execute" });
 });
 
 Deno.test("admin-tier requests execute on admin approval", () => {

@@ -5,6 +5,8 @@
 // Every request that needs a human goes to the admin (Lisa) leg first.
 // An admin reject is terminal — it never reaches the owner. An admin approve
 // on an owner-tier row *promotes* it to the owner queue instead of executing.
+// The owner can also reach into the admin leg directly and finalise there;
+// promoting a row to yourself is a wasted click.
 //
 // `status` — not `tier` — is the single authority on who acts next. `tier`
 // only says whether an owner leg exists at all.
@@ -51,6 +53,9 @@ export function decideApprovalAction(
     if (caller.role !== "admin" && caller.role !== "owner") {
       return { action: "denied", reason: "Admin or owner role required" };
     }
+    // The owner is the end of the escalation, so there is nobody to promote to
+    // — an owner acting on the admin leg finalises it in one decision.
+    if (caller.role === "owner") return { action: "execute" };
     return row.tier === "owner" ? { action: "promote" } : { action: "execute" };
   }
 

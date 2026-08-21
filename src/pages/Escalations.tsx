@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
 import { errorMessage, toggleInSet } from "@/lib/utils";
-import { askForInfo } from "@/lib/extension-actions";
+import { askForInfo, rejectRequest } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   askedForPoints,
   holderOf,
   HOLDER_LABEL,
+  isOpen,
   type EscalationHolder,
   type EscalationRow,
   type ExtensionRequestRow,
@@ -36,8 +37,10 @@ const HOLDERS: EscalationHolder[] = ["owner", "admin", "requester", "done"];
  * invisible when the same rows are split across four status buckets. Who holds
  * a request is a filter and a badge instead.
  *
- * Only `status='pending_owner'` rows are actionable; nothing reaches this page
- * without passing the admin leg first.
+ * The owner sees every request that queued for a human — the admin leg
+ * included — and can decide any of them without waiting for the admin to hand
+ * it over. `holderOf` still says whose queue a row sits in by default; it no
+ * longer says who is allowed to answer it.
  */
 export function Escalations() {
   const { currentUserId } = useAuth();
@@ -56,9 +59,11 @@ export function Escalations() {
     const { data, error } = await supabase
       .from("extension_requests")
       .select(
-        "*, client:clients(id, name), requester:team_members!extension_requests_requester_id_fkey(id, full_name, email), admin_approver:team_members!extension_requests_admin_approver_id_fkey(id, full_name)",
+        "*, client:clients(id, name), requester:team_members!extension_requests_requester_id_fkey(id, full_name, email), admin_approver:team_members!extension_requests_admin_approver_id_fkey(id, full_name), approver:team_members!extension_requests_approver_id_fkey(id, full_name), rejecter:team_members!extension_requests_rejected_by_fkey(id, full_name)",
       )
-      .eq("tier", "owner")
+      // Everything that ever needed a person. tier='auto' is excluded because
+      // those never queued for anyone — they'd bury the real queue.
+      .neq("tier", "auto")
       .order("created_at", { ascending: false });
     if (error) {
       // Never fall through to an empty list — that renders the "all clear"
@@ -77,7 +82,7 @@ export function Escalations() {
   }, [load]);
 
   const all = useMemo(() => rows ?? [], [rows]);
-  const pending = useMemo(() => all.filter((r) => holderOf(r) === "owner"), [all]);
+  const pending = useMemo(() => all.filter(isOpen), [all]);
 
   /** Only clients that actually have an escalation — an empty filter is noise. */
   const clientOptions = useMemo(() => {
@@ -121,13 +126,16 @@ export function Escalations() {
       group.rows.push(r);
       by.set(clientId, group);
     }
-    const needsYou = (g: ClientGroup) => g.rows.filter((r) => holderOf(r) === "owner").length;
+    const needsYou = (g: ClientGroup) => g.rows.filter(isOpen).length;
     return [...by.values()]
       .map((g) => ({
         ...g,
-        // Within a client, whatever is waiting on the owner comes first.
+        // Within a client, undecided rows come first, the owner leg ahead of
+        // the admin leg.
         rows: [...g.rows].sort(
-          (a, b) => Number(holderOf(b) === "owner") - Number(holderOf(a) === "owner"),
+          (a, b) =>
+            Number(isOpen(b)) - Number(isOpen(a)) ||
+            Number(holderOf(b) === "owner") - Number(holderOf(a) === "owner"),
         ),
       }))
       .sort((a, b) => needsYou(b) - needsYou(a) || a.clientName.localeCompare(b.clientName));
@@ -195,13 +203,8 @@ export function Escalations() {
     if (!reason) return toast.error("A reason is required — the requester sees it.");
     setBusyId(id);
     try {
-      const { data, error } = await supabase
-        .from("extension_requests")
-        .update({ status: "rejected", rejected_reason: reason })
-        .eq("id", id)
-        .select("id");
-      if (error) return toast.error(error.message);
-      if (!data || data.length === 0) return toast.error("Not permitted to update this request.");
+      const err = await rejectRequest(id, reason, currentUserId);
+      if (err) return toast.error(err);
       toast.success("Rejected.");
       close();
       await load();
@@ -307,8 +310,8 @@ export function Escalations() {
           <h1 className="text-headline-medium text-m-on-surface">Escalations</h1>
           <p className="mt-1 text-body-medium text-m-on-surface-variant">
             {pending.length === 0
-              ? "Nothing is waiting on your decision."
-              : `${pending.length} ${pending.length === 1 ? "request needs" : "requests need"} your decision.`}
+              ? "Nothing is waiting on a decision."
+              : `${pending.length} ${pending.length === 1 ? "request is" : "requests are"} still open.`}
           </p>
         </div>
 
@@ -327,7 +330,7 @@ export function Escalations() {
           ) : all.length === 0 ? (
             <Empty
               title="Nothing needs you right now."
-              body="Requests land here only after an admin has approved them and the size of the ask needs an owner's call. Smaller ones never reach this page."
+              body="Every extension that queued for a person lands here, on either leg. Sub-25% bumps approve themselves and never reach this page."
             />
           ) : groups.length === 0 ? (
             <Empty
@@ -369,7 +372,7 @@ export function Escalations() {
                 row={selected}
                 priorOverrunsThisMonth={priorOverruns}
                 actions={
-                  selected.status !== "pending_owner" ? (
+                  !isOpen(selected) ? (
                     <p className="text-body-small text-m-on-surface-variant">
                       {statusNote(selected)}
                     </p>
@@ -498,9 +501,6 @@ function Empty({
 }
 
 function statusNote(r: ExtensionRequestRow): string {
-  if (r.status === "pending_admin") {
-    return "Still with the admin — it reaches you only if they approve it.";
-  }
   if (r.status === "needs_info") return "Waiting on the requester's answer.";
   if (r.status === "rejected") {
     return `Rejected${r.rejected_reason ? `: ${r.rejected_reason}` : "."}`;

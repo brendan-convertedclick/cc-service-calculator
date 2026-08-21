@@ -34,6 +34,8 @@ export type ExtensionRequestRow = {
   info_response: string | null;
   info_responded_at: string | null;
   rejected_reason: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
   clickup_subtask_id: string | null;
   clickup_subtask_url: string | null;
   created_at: string;
@@ -49,6 +51,8 @@ export type EscalationRow = ExtensionRequestRow & {
   client: { id: string; name: string } | null;
   requester: { id: string; full_name: string; email: string | null } | null;
   admin_approver: { id: string; full_name: string } | null;
+  approver: { id: string; full_name: string } | null;
+  rejecter: { id: string; full_name: string } | null;
 };
 
 /** Which of the four queues a request sits in — who is holding it right now. */
@@ -59,6 +63,15 @@ export function holderOf(row: { status: ExtensionStatus }): EscalationHolder {
   if (row.status === "pending_admin") return "admin";
   if (row.status === "needs_info") return "requester";
   return "done";
+}
+
+/**
+ * Whether a request is still open for a decision. The owner acts on either
+ * leg — an admin-leg row is Lisa's by default, not exclusively hers — so the
+ * escalations page uses this rather than testing for `pending_owner`.
+ */
+export function isOpen(row: { status: ExtensionStatus }): boolean {
+  return row.status === "pending_admin" || row.status === "pending_owner";
 }
 
 export const HOLDER_LABEL: Record<EscalationHolder, string> = {
