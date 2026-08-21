@@ -111,3 +111,23 @@ export function applyDraft<T extends { id: string }>(
     return patch ? { ...row, ...patch } : row;
   });
 }
+
+/**
+ * Drops staged edits whose row no longer exists.
+ *
+ * A step can be deleted while it has edits staged — from the task list, from
+ * the canvas, or as a child cascaded off its deleted task. The edit stays in
+ * the draft, so Save PATCHes a row that isn't there, PostgREST returns no row,
+ * `.single()` 406s ("Cannot coerce the result to a single JSON object"), and
+ * the draft can never drain: Save stays lit and leaving the page keeps warning.
+ *
+ * Returns the same Map when nothing is stale, so it can be fed straight to
+ * setState without re-rendering.
+ */
+export function pruneDraft<P>(draft: Map<string, P>, liveIds: Set<string>): Map<string, P> {
+  const stale = [...draft.keys()].filter((rowId) => !liveIds.has(rowId));
+  if (stale.length === 0) return draft;
+  const next = new Map(draft);
+  for (const rowId of stale) next.delete(rowId);
+  return next;
+}

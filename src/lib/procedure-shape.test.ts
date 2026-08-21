@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDraft, groupProcedure, taskBlockedReason, taskHours } from "./procedure-shape";
+import { applyDraft, groupProcedure, pruneDraft, taskBlockedReason, taskHours } from "./procedure-shape";
 
 const task = (id: string, ordinal: number) => ({ id, ordinal });
 const step = (id: string, parent_id: string | null, ordinal: number) => ({ id, parent_id, ordinal });
@@ -118,3 +118,15 @@ describe("applyDraft", () => {
     ]);
   });
 })
+
+describe("pruneDraft", () => {
+  it("drops an edit staged against a row that has been deleted", () => {
+    const draft = new Map([["gone", { title: "X" }], ["a", { title: "A" }]]);
+    expect([...pruneDraft(draft, new Set(["a"])).keys()]).toEqual(["a"]);
+  });
+
+  it("returns the same Map when every staged row is still there", () => {
+    const draft = new Map([["a", { title: "A" }]]);
+    expect(pruneDraft(draft, new Set(["a", "b"]))).toBe(draft);
+  });
+});

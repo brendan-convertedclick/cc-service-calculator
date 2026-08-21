@@ -83,7 +83,7 @@ import {
 import { cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { toLocalDateTimeInput } from "@/lib/dates";
 import { parseStepHours } from "@/lib/step-hours";
-import { applyDraft } from "@/lib/procedure-shape";
+import { applyDraft, pruneDraft } from "@/lib/procedure-shape";
 import { FieldHint } from "@/components/FieldHint";
 import { supabase } from "@/lib/supabase";
 // open_step_slot (0122) isn't in the generated Database types — same untyped
@@ -202,7 +202,8 @@ export function SystemDetail() {
   // A process's blocks are stages that carry procedures, not work that carries
   // hours — this flag is what splits the two behaviours on this page.
   const isProcess = system != null && systemLayer(system.kind) === "process";
-  const { data: steps = [] } = useSystemSteps(id);
+  const stepsQuery = useSystemSteps(id);
+  const { data: steps = [] } = stepsQuery;
   const addStep = useCreateStep();
   const updateStep = useUpdateStep();
   const reorder = useReorderStep();
@@ -221,7 +222,8 @@ export function SystemDetail() {
   // Both share a query key with the canvas, so on the Steps pane these are
   // cache reads, not extra round-trips. Needed here so the delete confirm can
   // name what it's about to take with the row.
-  const { data: subSteps = [] } = useSystemSubSteps(steps.map((s) => s.id));
+  const subStepsQuery = useSystemSubSteps(steps.map((s) => s.id));
+  const { data: subSteps = [] } = subStepsQuery;
   const { data: edgeRows = [] } = useSystemEdges(id);
   const [deleteTarget, setDeleteTarget] = useState<StepRow | null>(null);
   // Which rows have their signal/noise questions open. State rather than a
@@ -395,6 +397,23 @@ export function SystemDetail() {
   const [draft, setDraft] = useState<Map<string, StepUpdate>>(new Map());
   const dirty = draft.size > 0;
 
+  // A staged edit outlives its row: delete the task you were editing (or its
+  // parent, which cascades the children) and the patch is still in the draft,
+  // aimed at an id the DB no longer has. See pruneDraft for what that costs.
+  // Deletes fire from the task list, the canvas and the sub-step rows, so the
+  // pruning happens here — where the rows are read — rather than at each site.
+  // Skipped while either query is between fetches (data undefined): the
+  // sub-step key changes shape on every add/delete/promote, and a live edit
+  // must not be dropped in that gap. With no tasks there are no children, and
+  // the sub-step query is disabled and never resolves — so read that as empty.
+  useEffect(() => {
+    const tasks = stepsQuery.data;
+    const children = tasks?.length === 0 ? [] : subStepsQuery.data;
+    if (!tasks || !children) return;
+    const live = new Set([...tasks, ...children].map((s) => s.id));
+    setDraft((prev) => pruneDraft(prev, live));
+  }, [stepsQuery.data, subStepsQuery.data]);
+
   function patchStep(step: StepRow, patch: StepUpdate) {
     setDraft((prev) => {
       const next = new Map(prev);
@@ -413,6 +432,12 @@ export function SystemDetail() {
         await updateStep.mutateAsync({ id: rowId, patch });
         saved += 1;
       } catch (e) {
+        // PGRST116 on an update filtered by primary key means the row is gone
+        // (a peer deleted it, or a local delete the prune effect hasn't seen
+        // yet, since a failing save never invalidates the query). There is
+        // nothing to write and nothing to retry — drop it, or Save can never
+        // drain and the page warns about unsaved work forever.
+        if ((e as { code?: string })?.code === "PGRST116") continue;
         failed.set(rowId, patch);
         toast.error(`Could not save one of the changes: ${errorMessage(e)}`);
       }
@@ -421,7 +446,9 @@ export function SystemDetail() {
     // isn't silently dropped.
     setDraft(failed);
     if (failed.size === 0) {
-      toast.success(saved === 1 ? "Saved 1 change" : `Saved ${saved} changes`);
+      // saved can be 0 when every staged row turned out to be deleted — there
+      // is nothing to announce, but leaving the page is still safe.
+      if (saved > 0) toast.success(saved === 1 ? "Saved 1 change" : `Saved ${saved} changes`);
       return true;
     }
     return false;
