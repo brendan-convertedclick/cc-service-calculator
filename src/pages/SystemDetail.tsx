@@ -688,6 +688,20 @@ export function SystemDetail() {
   const duplicate = useDuplicateSystem();
   const { data: revisions = [], isLoading: revisionsLoading } = useSystemRevisions(id);
   const { data: approvals = [] } = useRevisionApprovals(id, revisions.map((r) => r.id));
+  // The same people usually review the same procedure, so the Send-for-review
+  // dialog opens pre-filled from the last revision that named anyone —
+  // walking back, since a revision can have been proposed before the dialog
+  // asked. The NAMES carry, never the sign-offs: an approved_at records an
+  // agreement about one snapshot, and the new revision is a different one.
+  const defaultApprovers = useMemo<ProposedApprover[]>(() => {
+    for (const rev of revisions) {
+      const named = approvals.filter((a) => a.revision_id === rev.id);
+      if (named.length) {
+        return named.map((a) => ({ teamMemberId: a.team_member_id, required: a.required }));
+      }
+    }
+    return [];
+  }, [revisions, approvals]);
   const { role } = useCurrentRole();
   // Anyone signed in can edit a procedure — that's the point of a shared
   // library. Approving a revision is the one admin/owner act (the
@@ -828,6 +842,7 @@ export function SystemDetail() {
     : null;
   // No revision yet means nobody has been asked to look at it — that's a draft.
   const stageBadge = REVISION_STATE_BADGE[latestRevision?.state ?? "draft"] ?? REVISION_STATE_BADGE.draft;
+
 
   return (
     <div className="flex h-full">
@@ -1323,6 +1338,7 @@ export function SystemDetail() {
         setReason={setProposeReason}
         team={team}
         teamById={teamById}
+        defaultApprovers={defaultApprovers}
       />
 
       {/* The exit interview. `beforeunload` covers the tab closing; this
@@ -1499,6 +1515,7 @@ function ProposeDialog({
   setReason,
   team,
   teamById,
+  defaultApprovers,
 }: {
   systemId: string;
   dirty: boolean;
@@ -1508,15 +1525,21 @@ function ProposeDialog({
   setReason: (reason: string) => void;
   team: TeamRow[];
   teamById: Map<string, TeamRow>;
+  defaultApprovers: ProposedApprover[];
 }) {
   const propose = useProposeRevision();
   // Who is being asked to look at it, named here rather than after the fact:
   // a review nobody is waiting on is how a revision used to sit in 'proposed'
   // indefinitely. No datetime — these people have not signed anything yet;
   // the sign-off date is recorded on the revision row when it happens.
-  const [approvers, setApprovers] = useState<ProposedApprover[]>([]);
+  const [approvers, setApprovers] = useState<ProposedApprover[]>(defaultApprovers);
   const [memberId, setMemberId] = useState("");
   const [required, setRequired] = useState(true);
+  // Seed on open, not on mount: the dialog stays mounted across the propose
+  // that changes what the last revision's reviewers are.
+  useEffect(() => {
+    if (open) setApprovers(defaultApprovers);
+  }, [open, defaultApprovers]);
   const named = new Set(approvers.map((a) => a.teamMemberId));
   const options = team.filter((t) => !named.has(t.id));
   const hasRequired = approvers.some((a) => a.required);
@@ -1531,7 +1554,7 @@ function ProposeDialog({
         setOpen(next);
         if (!next) {
           setReason("");
-          setApprovers([]);
+          setApprovers(defaultApprovers);
           setMemberId("");
           setRequired(true);
         }
@@ -1638,7 +1661,6 @@ function ProposeDialog({
                     toast.success("Sent for review");
                     setOpen(false);
                     setReason("");
-                    setApprovers([]);
                   },
                   onError: (e) => toast.error(`Could not send for review: ${errorMessage(e)}`),
                 }
