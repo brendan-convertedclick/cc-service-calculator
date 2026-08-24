@@ -4620,6 +4620,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["system_kind"]
           name: string
           owner_id: string | null
+          priority_at: string | null
           recurring_service_id: string | null
           review_due_at: string | null
           service_id: string | null
@@ -4642,6 +4643,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["system_kind"]
           name: string
           owner_id?: string | null
+          priority_at?: string | null
           recurring_service_id?: string | null
           review_due_at?: string | null
           service_id?: string | null
@@ -4664,6 +4666,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["system_kind"]
           name?: string
           owner_id?: string | null
+          priority_at?: string | null
           recurring_service_id?: string | null
           review_due_at?: string | null
           service_id?: string | null

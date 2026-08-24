@@ -58,7 +58,10 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
-types/
+
+# design-sync's generated token types at the repo root only — a bare `types/`
+# also swallowed src/types, where db.ts lives.
+/types/
 
 # design-sync scratch (component docs + previews cache, per-machine)
 .design-sync/

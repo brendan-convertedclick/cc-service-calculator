@@ -8,7 +8,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, StickyNote, Wand2 } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, Star, StickyNote, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +141,7 @@ type PersistedFilters = {
   dept: string | null;
   unmappedOnly: boolean;
   myNotesOnly: boolean;
+  priorityOnly: boolean;
   tab: SystemLayer;
   scroll: number;
 };
@@ -169,6 +170,10 @@ export function SystemsList() {
   const [kind, setKind] = useState<SystemKind | null>(() => loadFilters().kind ?? null);
   const [dept, setDept] = useState<string | null>(() => loadFilters().dept ?? null);
   const [unmappedOnly, setUnmappedOnly] = useState(() => loadFilters().unmappedOnly ?? false);
+  // The short list of what the team is working on next, out of 120-odd
+  // procedures. Shared, not per-person — the library is everyone's, and a
+  // per-user list would be dead on the shared team@ login.
+  const [priorityOnly, setPriorityOnly] = useState(() => loadFilters().priorityOnly ?? false);
   // Notes assigned to whoever is signed in, across the whole library — the
   // way a staff member finds the procedures somebody left work for them on.
   // Null on the shared team@ login (no team_members row), which is why the
@@ -203,11 +208,12 @@ export function SystemsList() {
         dept,
         unmappedOnly,
         myNotesOnly,
+        priorityOnly,
         tab,
         scroll: scrollTop.current,
       } satisfies PersistedFilters),
     );
-  }, [search, status, band, kind, dept, unmappedOnly, myNotesOnly, tab]);
+  }, [search, status, band, kind, dept, unmappedOnly, myNotesOnly, priorityOnly, tab]);
 
   // Scroll only lands in storage on the way out — writing it on every scroll
   // event would re-serialise the whole object 60×/s.
@@ -247,10 +253,11 @@ export function SystemsList() {
           return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
         if (myNotesOnly && !myNoteCounts?.has(s.id)) return false;
+        if (priorityOnly && !s.priority_at) return false;
         if (q && !haystack(s).includes(q)) return false;
         return true;
       }),
-    [scoped, band, kind, dept, unmappedOnly, myNotesOnly, myNoteCounts, q],
+    [scoped, band, kind, dept, unmappedOnly, myNotesOnly, priorityOnly, myNoteCounts, q],
   );
 
   // All three tabs always render, empty or not — the taxonomy is the point of
@@ -299,12 +306,27 @@ export function SystemsList() {
     return counts;
   }, [systems]);
 
-  const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly || myNotesOnly;
+  const anyFilterActive =
+    !!q || band !== null || kind !== null || dept !== null || unmappedOnly || myNotesOnly || priorityOnly;
 
   const unmappedCount = useMemo(
     () => scoped.filter((s) => s.goal_statement === PLACEHOLDER_GOAL).length,
     [scoped],
   );
+
+  const priorityCount = useMemo(() => scoped.filter((s) => s.priority_at).length, [scoped]);
+
+  // On or off the list. Stamped rather than flagged so the order things were
+  // added survives, if the list ever needs to be ordered.
+  const togglePriority = (s: SystemDefinitionWithJoins) =>
+    update.mutate(
+      { id: s.id, patch: { priority_at: s.priority_at ? null : new Date().toISOString() } },
+      {
+        onSuccess: () =>
+          toast.success(s.priority_at ? `${s.name} off the priority list` : `${s.name} on the priority list`),
+        onError: (e) => toast.error(`Could not change: ${errorMessage(e)}`),
+      },
+    );
 
   // Archive, not delete — a system that has run carries revisions, steps and
   // ClickUp history behind it. It drops out of every list (the query filters
@@ -398,6 +420,15 @@ export function SystemsList() {
               />
             ) : null}
           </ul>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-label-medium font-medium text-m-on-surface-variant">Priority</p>
+          <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-label-medium text-m-on-surface hover:bg-m-surface-container">
+            <Checkbox checked={priorityOnly} onCheckedChange={(v) => setPriorityOnly(!!v)} />
+            On the list
+            <span className="ml-auto tabular-nums text-label-small text-m-on-surface-variant">{priorityCount}</span>
+          </label>
         </div>
 
         <div>
@@ -504,6 +535,7 @@ export function SystemsList() {
                             onClick={() => navigate(`/systems/${s.id}`)}
                             onEdit={() => setEditing(s)}
                             onArchive={() => archive(s)}
+                            onTogglePriority={() => togglePriority(s)}
                             busy={duplicate.isPending || update.isPending}
                             ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
                             myNotes={myNoteCounts?.get(s.id)}
@@ -577,6 +609,7 @@ function SystemRow({
   onDuplicate,
   onEdit,
   onArchive,
+  onTogglePriority,
   busy,
   ownerColor,
   myNotes,
@@ -590,6 +623,7 @@ function SystemRow({
   onDuplicate: () => void;
   onEdit: () => void;
   onArchive: () => void;
+  onTogglePriority: () => void;
   busy: boolean;
   ownerColor: string | undefined;
   /** Open notes on this system assigned to whoever is signed in. */
@@ -630,6 +664,11 @@ function SystemRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            {/* Says the row is on the list wherever it shows up, not just
+                inside the filter. */}
+            {system.priority_at && (
+              <Star className="h-3.5 w-3.5 flex-none fill-m-primary text-m-primary" aria-label="On the priority list" />
+            )}
             <span className="truncate text-title-small text-m-on-surface">{system.name}</span>
             {layer === "procedure" && (
               <Badge variant="outline" className="flex-none text-label-small">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
@@ -732,6 +771,12 @@ function SystemRow({
         <PopoverContent align="end" className="w-52 p-1">
           <MenuItem icon={ArrowRight} label="Open" onClick={onClick} />
           <MenuItem icon={Pencil} label="Rename / area" onClick={onEdit} />
+          <MenuItem
+            icon={Star}
+            label={system.priority_at ? "Remove from priority" : "Add to priority"}
+            disabled={busy}
+            onClick={onTogglePriority}
+          />
           <MenuItem icon={Copy} label="Duplicate" disabled={busy} onClick={onDuplicate} />
           <MenuItem icon={Archive} label="Archive" destructive disabled={busy} onClick={onArchive} />
         </PopoverContent>
