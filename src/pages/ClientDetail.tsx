@@ -5,6 +5,7 @@ import { SenderRulesPanel } from "@/components/clients/SenderRulesPanel";
 import { ClickUpListsPanel } from "@/components/clients/ClickUpListsPanel";
 import { ChatChannelPanel } from "@/components/clients/ChatChannelPanel";
 import { XeroContactPanel } from "@/components/clients/XeroContactPanel";
+import { ClientReviewPanel } from "@/components/clients/ClientReviewPanel";
 import { Button } from "@/components/ui/button";
 
 export function ClientDetail() {
@@ -61,6 +62,8 @@ export function ClientDetail() {
         clientId={client.id}
         xeroContactName={client.xero_contact_name ?? null}
       />
+
+      <ClientReviewPanel clientId={client.id} clientName={client.name} />
     </div>
   );
 }

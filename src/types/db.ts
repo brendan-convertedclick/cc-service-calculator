@@ -1401,6 +1401,125 @@ export type Database = {
         }
         Relationships: []
       }
+      client_approvals: {
+        Row: {
+          ask: string
+          brief_id: string | null
+          client_id: string
+          client_note: string | null
+          client_title: string
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by_email: string | null
+          decided_by_name: string | null
+          detail: string | null
+          due_date: string | null
+          id: string
+          item_id: string | null
+          item_type: string
+          state: string
+          weighty: boolean
+        }
+        Insert: {
+          ask: string
+          brief_id?: string | null
+          client_id: string
+          client_note?: string | null
+          client_title: string
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by_email?: string | null
+          decided_by_name?: string | null
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          item_id?: string | null
+          item_type?: string
+          state?: string
+          weighty?: boolean
+        }
+        Update: {
+          ask?: string
+          brief_id?: string | null
+          client_id?: string
+          client_note?: string | null
+          client_title?: string
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by_email?: string | null
+          decided_by_name?: string | null
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          item_id?: string | null
+          item_type?: string
+          state?: string
+          weighty?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_approvals_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_review_tokens: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_review_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           client_id: string
