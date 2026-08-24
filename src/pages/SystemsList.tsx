@@ -50,7 +50,7 @@ import {
   type SystemLayer,
 } from "@/hooks/useSystemDefinitions";
 import { useDepartments } from "@/hooks/useDepartments";
-import { useMyOpenNoteCounts } from "@/hooks/useStepNotes";
+import { useMyOpenNoteCounts, useOpenNoteCounts } from "@/hooks/useStepNotes";
 import { useCurrentUserId } from "@/context/AuthContext";
 import { memberColors, useTeam } from "@/hooks/useTeam";
 import { useServices } from "@/hooks/useServices";
@@ -174,6 +174,7 @@ export function SystemsList() {
   // filter hides itself rather than sitting there reading 0 forever.
   const currentUserId = useCurrentUserId();
   const { data: myNoteCounts } = useMyOpenNoteCounts(currentUserId);
+  const { data: openNoteCounts } = useOpenNoteCounts();
   const [myNotesOnly, setMyNotesOnly] = useState(() => loadFilters().myNotesOnly ?? false);
   // ?new=<name> is how the wizard hands over: open the create dialog with the
   // candidate's name already in it, then drop the param so a refresh doesn't
@@ -502,6 +503,7 @@ export function SystemsList() {
                             busy={duplicate.isPending || update.isPending}
                             ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
                             myNotes={myNoteCounts?.get(s.id)}
+                            openNotes={openNoteCounts?.get(s.id)}
                             onDuplicate={() =>
                               duplicate.mutate(s.id, {
                                 onSuccess: (newId) => {
@@ -571,6 +573,7 @@ function SystemRow({
   busy,
   ownerColor,
   myNotes,
+  openNotes,
 }: {
   system: SystemDefinitionWithJoins;
   onClick: () => void;
@@ -581,6 +584,8 @@ function SystemRow({
   ownerColor: string | undefined;
   /** Open notes on this system assigned to whoever is signed in. */
   myNotes: number | undefined;
+  /** Every open note on this system, whoever it is for. */
+  openNotes: number | undefined;
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
@@ -628,16 +633,26 @@ function SystemRow({
             {subLine ?? "—"}
           </p>
         </div>
-        {/* Work somebody left for you on this procedure. Silent at zero — a
-            "0" on every row is noise, and the whole point is that a row with
-            something waiting stands out. */}
-        {myNotes ? (
+        {/* Everything still open on this procedure. Silent at zero — a "0" on
+            every row is noise, and the whole point is that a row with
+            something waiting stands out. One pill, not two: it lights up when
+            some of those notes are yours, and the tooltip says how many. */}
+        {openNotes ? (
           <span
-            title={`${myNotes} open note${myNotes === 1 ? "" : "s"} assigned to you`}
-            className="flex flex-none items-center gap-1 rounded-full bg-m-primary-container px-2 py-0.5 text-label-small text-m-on-primary-container"
+            title={
+              myNotes
+                ? `${openNotes} open note${openNotes === 1 ? "" : "s"} — ${myNotes} assigned to you`
+                : `${openNotes} open note${openNotes === 1 ? "" : "s"}`
+            }
+            className={cn(
+              "flex flex-none items-center gap-1 rounded-full px-2 py-0.5 text-label-small",
+              myNotes
+                ? "bg-m-primary-container text-m-on-primary-container"
+                : "bg-m-surface-container-high text-m-on-surface-variant",
+            )}
           >
             <StickyNote className="h-3 w-3" />
-            {myNotes}
+            {openNotes}
           </span>
         ) : null}
         {/* A policy is prose, not steps — a "0 steps" tag on one reads as a gap. */}

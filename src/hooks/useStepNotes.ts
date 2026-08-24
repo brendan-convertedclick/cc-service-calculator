@@ -109,16 +109,33 @@ export function useMyOpenNoteCounts(memberId: string | null) {
     enabled: !!memberId,
     queryKey: ["process_step_notes", "assigned", memberId] as const,
     queryFn: async (): Promise<Map<string, number>> => {
-      const counts = new Map<string, number>();
-      if (!memberId) return counts;
-      const { data, error } = await supabase
+      if (!memberId) return new Map<string, number>();
+      return tally(supabase
         .from("process_step_notes")
         .select("system_id")
         .eq("assigned_to", memberId)
-        .is("done_at", null);
-      if (error) throw error;
-      for (const r of data ?? []) counts.set(r.system_id, (counts.get(r.system_id) ?? 0) + 1);
-      return counts;
+        .is("done_at", null));
     },
   });
+}
+
+// The same count without the assignee filter: everything still open on a
+// procedure, whoever it is for. The list shows this on every row — an
+// unfinished note is unfinished whether or not it has your name on it — and
+// highlights the pill when some of them are yours.
+export function useOpenNoteCounts() {
+  return useQuery({
+    queryKey: ["process_step_notes", "open"] as const,
+    queryFn: () => tally(supabase.from("process_step_notes").select("system_id").is("done_at", null)),
+  });
+}
+
+async function tally(
+  query: PromiseLike<{ data: { system_id: string }[] | null; error: { message: string } | null }>,
+): Promise<Map<string, number>> {
+  const { data, error } = await query;
+  if (error) throw error;
+  const counts = new Map<string, number>();
+  for (const r of data ?? []) counts.set(r.system_id, (counts.get(r.system_id) ?? 0) + 1);
+  return counts;
 }
