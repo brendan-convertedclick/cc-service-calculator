@@ -29,6 +29,8 @@ function toDiffStep(s: StepRow): DiffStep {
     department_id: s.department_id,
     owner_id: s.owner_id,
     materialise_as: s.materialise_as,
+    description: s.description,
+    doc_links: s.doc_links,
   };
 }
 
@@ -94,24 +96,22 @@ export function useProposeRevision() {
       const { data: currentSteps, error: stepsErr } = await stepsQuery;
       if (stepsErr) throw stepsErr;
 
-      const { data: publishedRev, error: pubErr } = await supabase
-        .from("system_revisions")
-        .select("body")
-        .eq("system_id", systemId)
-        .eq("state", "published")
-        .maybeSingle();
-      if (pubErr) throw pubErr;
-
+      // The diff answers "what changed since the last time anyone looked at
+      // this", so the baseline is the newest PRIOR revision whatever its
+      // state — not the published one. A revision that was declined was still
+      // read, and baselining past it made the follow-up look like a brand new
+      // procedure: with nothing ever published, `before` was empty and every
+      // step reported as added.
       const { data: lastRev, error: lastErr } = await supabase
         .from("system_revisions")
-        .select("revision")
+        .select("revision,body")
         .eq("system_id", systemId)
         .order("revision", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (lastErr) throw lastErr;
 
-      const before = ((publishedRev?.body as StepRow[] | null) ?? []).map(toDiffStep);
+      const before = ((lastRev?.body as StepRow[] | null) ?? []).map(toDiffStep);
       const after = (currentSteps ?? []).map(toDiffStep);
 
       const { data, error } = await supabase

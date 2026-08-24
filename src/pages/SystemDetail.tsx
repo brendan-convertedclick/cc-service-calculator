@@ -63,6 +63,7 @@ import {
   useSetRevisionApproval,
 } from "@/hooks/useRevisionApprovals";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
+import { useCurrentUserId } from "@/context/AuthContext";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useDepartments } from "@/hooks/useDepartments";
 import { memberColors, useTeam } from "@/hooks/useTeam";
@@ -130,6 +131,99 @@ function publishBlockedReason(approvals: ApprovalRow[], teamById: Map<string, Te
     .join(", ")}.`;
 }
 
+// One button, three jobs, because "Approve" means different things to
+// different people looking at the same revision:
+//
+//  - you're a named approver who hasn't signed → it records YOUR sign-off.
+//    Nobody should have to sit and wait for a co-approver before they can
+//    click; the sign-offs are independent and the revision only flips to
+//    Approved once the last required one lands.
+//  - everyone required has signed and you may publish → it publishes.
+//  - otherwise → disabled, saying who is still outstanding.
+//
+// The staff/admin split matters here: a named approver of ANY role must be
+// able to record their own sign-off, but publishing stays admin/owner
+// (publish_system_revision raises otherwise). So when your signature is the
+// last one outstanding and you can publish, the same click does both.
+function ApproveButton({
+  systemId,
+  revisionId,
+  revisionLabel,
+  approvals,
+  teamById,
+  canApprove,
+}: {
+  systemId: string;
+  revisionId: string;
+  revisionLabel: string;
+  approvals: ApprovalRow[];
+  teamById: Map<string, TeamRow>;
+  canApprove: boolean;
+}) {
+  // Null on the shared team@ login (no team_members row) — then there is no
+  // "my" sign-off to record and this falls through to the publish branch.
+  const currentUserId = useCurrentUserId();
+  const setApproval = useSetRevisionApproval();
+  const publish = usePublishRevision();
+  const blockedReason = publishBlockedReason(approvals, teamById);
+  const mine = approvals.find((a) => a.team_member_id === currentUserId);
+
+  const doPublish = () =>
+    publish.mutate(
+      { revisionId, systemId },
+      {
+        onSuccess: () => toast.success(`${revisionLabel} approved`),
+        onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
+      }
+    );
+
+  if (mine && !mine.approved_at) {
+    // Would mine be the last required signature missing? Then the same click
+    // finishes the job — if this person is allowed to finish it.
+    const lastOutstanding =
+      approvals.filter((a) => a.required && !a.approved_at && a.id !== mine.id).length === 0;
+    return (
+      <Button
+        size="sm"
+        disabled={setApproval.isPending || publish.isPending}
+        title={`Record your sign-off on ${revisionLabel}`}
+        onClick={() =>
+          setApproval.mutate(
+            { systemId, approvalId: mine.id, approvedAt: new Date().toISOString() },
+            {
+              onSuccess: () => {
+                if (lastOutstanding && canApprove) return doPublish();
+                toast.success(
+                  lastOutstanding
+                    ? "Sign-off recorded — an admin can now approve it."
+                    : "Sign-off recorded."
+                );
+              },
+              onError: (e) => toast.error(`Could not record sign-off: ${errorMessage(e)}`),
+            }
+          )
+        }
+      >
+        {setApproval.isPending || publish.isPending ? "Approving…" : "Approve"}
+      </Button>
+    );
+  }
+
+  // Nothing left for a non-approver staff member to do here.
+  if (!canApprove) return null;
+
+  return (
+    <Button
+      size="sm"
+      disabled={publish.isPending || !!blockedReason}
+      title={blockedReason ?? `Approve ${revisionLabel}`}
+      onClick={doPublish}
+    >
+      {publish.isPending ? "Approving…" : "Approve"}
+    </Button>
+  );
+}
+
 // A procedure is in one of four states: Draft while it's being written, In
 // review once it's been sent out, then either Approved or Requested changes.
 // Those are system_revisions.state's draft/proposed/published/
@@ -155,6 +249,8 @@ const DIFF_FIELD_LABEL: Record<string, string> = {
   department_id: "Department",
   owner_id: "Owner",
   materialise_as: "Materialise as",
+  description: "Description",
+  doc_links: "Documents",
 };
 
 function formatDiffValue(
@@ -169,6 +265,8 @@ function formatDiffValue(
   if (field === "estimated_hours") return `${value}h`;
   if (field === "materialise_as")
     return MATERIALISE_LABEL[String(value) as keyof typeof MATERIALISE_LABEL] ?? String(value);
+  // doc_links is a URL array — one per line beats a bracketed JSON dump.
+  if (Array.isArray(value)) return value.length ? value.join("\n") : "—";
   return String(value);
 }
 
@@ -217,7 +315,6 @@ export function SystemDetail() {
   const connect = useConnectSteps(id ?? "");
   const disconnect = useDisconnectSteps(id ?? "");
   const reconnect = useReconnectEdge(id ?? "");
-  const publish = usePublishRevision();
   // The notes panel is docked beside the editor rather than laid over it, so
   // its open/closed state and the row it points at belong to the page, not to
   // the list that asks for it.
@@ -837,9 +934,6 @@ export function SystemDetail() {
   // sits in front of the published revision until someone approves it.
   const publishedRevision = revisions.find((r) => r.state === "published") ?? null;
   const pendingRevision = latestRevision?.state === "proposed" ? latestRevision : null;
-  const approveBlocked = pendingRevision
-    ? publishBlockedReason(approvals.filter((a) => a.revision_id === pendingRevision.id), teamById)
-    : null;
   // No revision yet means nobody has been asked to look at it — that's a draft.
   const stageBadge = REVISION_STATE_BADGE[latestRevision?.state ?? "draft"] ?? REVISION_STATE_BADGE.draft;
 
@@ -1157,23 +1251,15 @@ export function SystemDetail() {
                   <Button size="sm" variant="outline" onClick={() => setProposeOpen(true)}>
                     Send for review
                   </Button>
-                  {pendingRevision && canApprove && (
-                    <Button
-                      size="sm"
-                      disabled={publish.isPending || !!approveBlocked}
-                      title={approveBlocked ?? `Approve v${pendingRevision.revision}`}
-                      onClick={() =>
-                        publish.mutate(
-                          { revisionId: pendingRevision.id, systemId: system.id },
-                          {
-                            onSuccess: () => toast.success(`v${pendingRevision.revision} approved`),
-                            onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
-                          }
-                        )
-                      }
-                    >
-                      {publish.isPending ? "Approving…" : "Approve"}
-                    </Button>
+                  {pendingRevision && (
+                    <ApproveButton
+                      systemId={system.id}
+                      revisionId={pendingRevision.id}
+                      revisionLabel={`v${pendingRevision.revision}`}
+                      approvals={approvals.filter((a) => a.revision_id === pendingRevision.id)}
+                      teamById={teamById}
+                      canApprove={canApprove}
+                    />
                   )}
                   <Button
                     size="sm"
@@ -1701,7 +1787,6 @@ function RevisionsCard({
   // opens it from the Steps pane, where this card isn't mounted.
   onPropose: () => void;
 }) {
-  const publish = usePublishRevision();
   const requestChanges = useRequestChanges();
 
   return (
@@ -1729,17 +1814,7 @@ function RevisionsCard({
             deptById={deptById}
             team={team}
             teamById={teamById}
-            approvePending={publish.isPending}
             requestPending={requestChanges.isPending}
-            onApprove={(revisionId) =>
-              publish.mutate(
-                { revisionId, systemId },
-                {
-                  onSuccess: () => toast.success("Revision approved"),
-                  onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
-                }
-              )
-            }
             onRequestChanges={(revisionId) =>
               requestChanges.mutate(
                 { revisionId, systemId },
@@ -1764,9 +1839,7 @@ function RevisionRow({
   deptById,
   team,
   teamById,
-  approvePending,
   requestPending,
-  onApprove,
   onRequestChanges,
 }: {
   systemId: string;
@@ -1776,9 +1849,7 @@ function RevisionRow({
   deptById: Map<string, DeptRow>;
   team: TeamRow[];
   teamById: Map<string, TeamRow>;
-  approvePending: boolean;
   requestPending: boolean;
-  onApprove: (revisionId: string) => void;
   onRequestChanges: (revisionId: string) => void;
 }) {
   const badge = REVISION_STATE_BADGE[rev.state] ?? { variant: "muted" as const, label: rev.state };
@@ -1810,19 +1881,21 @@ function RevisionRow({
           <span className="font-mono text-label-medium text-m-on-surface-variant">Rev {rev.revision}</span>
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
-        {rev.state === "proposed" && canApprove && (
+        {rev.state === "proposed" && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
-              Request changes
-            </Button>
-            <Button
-              size="sm"
-              disabled={approvePending || !!blockedReason}
-              title={blockedReason ?? undefined}
-              onClick={() => onApprove(rev.id)}
-            >
-              {approvePending ? "Approving…" : "Approve"}
-            </Button>
+            {canApprove && (
+              <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
+                Request changes
+              </Button>
+            )}
+            <ApproveButton
+              systemId={systemId}
+              revisionId={rev.id}
+              revisionLabel={`v${rev.revision}`}
+              approvals={approvals}
+              teamById={teamById}
+              canApprove={canApprove}
+            />
           </div>
         )}
       </div>

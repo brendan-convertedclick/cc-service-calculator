@@ -7,6 +7,8 @@ const step = (overrides: Partial<DiffStep> & { id: string }): DiffStep => ({
   department_id: "dept-1",
   owner_id: "owner-1",
   materialise_as: "task",
+  description: null,
+  doc_links: [],
   ...overrides,
 });
 
@@ -160,4 +162,47 @@ Deno.test("added, removed and changed can all appear in one diff", () => {
   assertEquals(summary.changed, [
     { id: "s3", title: "Step", fields: [{ field: "estimated_hours", from: 2, to: 3 }] },
   ]);
+});
+
+// The bug these exist for: a revision whose only change was attaching a
+// checklist link reported "no step changes", because doc_links and
+// description weren't compared at all. Once they were, identity comparison
+// would have called every step with an array changed.
+Deno.test("changed field: doc_links, compared by value", () => {
+  const before = [step({ id: "s1", doc_links: [] })];
+  const after = [step({ id: "s1", doc_links: ["https://docs.example/x"] })];
+  assertEquals(diffSteps(before, after).changed, [
+    {
+      id: "s1",
+      title: "Step",
+      fields: [{ field: "doc_links", from: [], to: ["https://docs.example/x"] }],
+    },
+  ]);
+  // Same links, different array instance — not a change.
+  assertEquals(
+    diffSteps([step({ id: "s1", doc_links: ["a", "b"] })], [step({ id: "s1", doc_links: ["a", "b"] })])
+      .changed,
+    [],
+  );
+});
+
+Deno.test("no documents: null and [] are the same absence", () => {
+  const before = [step({ id: "s1", doc_links: null })];
+  const after = [step({ id: "s1", doc_links: [] })];
+  assertEquals(diffSteps(before, after).changed, []);
+});
+
+Deno.test("changed field: description", () => {
+  const before = [step({ id: "s1", description: null })];
+  const after = [step({ id: "s1", description: "now says this" })];
+  assertEquals(diffSteps(before, after).changed, [
+    { id: "s1", title: "Step", fields: [{ field: "description", from: null, to: "now says this" }] },
+  ]);
+});
+
+Deno.test("no description: null and empty string are the same absence", () => {
+  assertEquals(
+    diffSteps([step({ id: "s1", description: null })], [step({ id: "s1", description: "" })]).changed,
+    [],
+  );
 });
