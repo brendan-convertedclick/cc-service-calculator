@@ -52,7 +52,8 @@ import {
 import { useDepartments } from "@/hooks/useDepartments";
 import { useMyOpenNoteCounts, useOpenNoteCounts } from "@/hooks/useStepNotes";
 import { useCurrentUserId } from "@/context/AuthContext";
-import { memberColors, useTeam } from "@/hooks/useTeam";
+import { memberColors, useTeam, type TeamMember } from "@/hooks/useTeam";
+import { useAwaitingApprovers } from "@/hooks/useRevisionApprovals";
 import { useServices } from "@/hooks/useServices";
 import { useTimeCategories } from "@/hooks/useOngoingTasks";
 
@@ -175,6 +176,9 @@ export function SystemsList() {
   const currentUserId = useCurrentUserId();
   const { data: myNoteCounts } = useMyOpenNoteCounts(currentUserId);
   const { data: openNoteCounts } = useOpenNoteCounts();
+  // Who each in-review procedure is still held up by, so the row says whose
+  // desk it is on instead of just "In review".
+  const { data: awaiting } = useAwaitingApprovers();
   const [myNotesOnly, setMyNotesOnly] = useState(() => loadFilters().myNotesOnly ?? false);
   // ?new=<name> is how the wizard hands over: open the create dialog with the
   // candidate's name already in it, then drop the param so a refresh doesn't
@@ -504,6 +508,9 @@ export function SystemsList() {
                             ownerColor={s.owner_id ? colorById.get(s.owner_id) : undefined}
                             myNotes={myNoteCounts?.get(s.id)}
                             openNotes={openNoteCounts?.get(s.id)}
+                            awaiting={awaiting?.[s.id]}
+                            team={team}
+                            colorById={colorById}
                             onDuplicate={() =>
                               duplicate.mutate(s.id, {
                                 onSuccess: (newId) => {
@@ -574,6 +581,9 @@ function SystemRow({
   ownerColor,
   myNotes,
   openNotes,
+  awaiting,
+  team,
+  colorById,
 }: {
   system: SystemDefinitionWithJoins;
   onClick: () => void;
@@ -586,10 +596,17 @@ function SystemRow({
   myNotes: number | undefined;
   /** Every open note on this system, whoever it is for. */
   openNotes: number | undefined;
+  /** team_members ids of the required approvers who haven't signed yet. */
+  awaiting: string[] | undefined;
+  team: TeamMember[];
+  colorById: Map<string, string>;
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
   const rowStatus = statusOf(system);
+  const waitingOn = awaiting?.length
+    ? awaiting.flatMap((id) => team.filter((t) => t.id === id))
+    : team.filter((t) => t.role === "admin" || t.role === "owner");
   const linkLabel =
     system.kind === "service"
       ? system.service_name
@@ -633,6 +650,32 @@ function SystemRow({
             {subLine ?? "—"}
           </p>
         </div>
+        {/* Whose desk the review is sitting on. A revision proposed before
+            the Send-for-review dialog collected approvers named nobody — for
+            those, fall back to every admin and owner, which is exactly who
+            notify-system-revision pinged, so the faces match the ClickUp
+            message that actually went out. */}
+        {rowStatus === "in_review" && waitingOn.length > 0 ? (
+          <span className="flex flex-none items-center gap-1.5">
+            <span className="text-label-small text-m-on-surface-variant">Waiting on</span>
+            <span className="flex -space-x-1.5">
+              {waitingOn.map((member) => (
+                <span
+                  key={member.id}
+                  title={
+                    awaiting?.length
+                      ? member.full_name
+                      : `${member.full_name} — nobody was named on this revision, so it went to every admin and owner`
+                  }
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-label-small font-semibold text-white ring-2 ring-m-surface"
+                  style={{ background: colorById.get(member.id) }}
+                >
+                  {initials(member.full_name)}
+                </span>
+              ))}
+            </span>
+          </span>
+        ) : null}
         {/* Everything still open on this procedure. Silent at zero — a "0" on
             every row is noise, and the whole point is that a row with
             something waiting stands out. One pill, not two: it lights up when

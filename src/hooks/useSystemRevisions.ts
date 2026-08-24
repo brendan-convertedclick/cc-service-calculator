@@ -158,6 +158,9 @@ export function useProposeRevision() {
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
       qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // in_review drives the list's status pill
+      // The "waiting on" faces on the list hang off which revisions are
+      // still 'proposed'.
+      qc.invalidateQueries({ queryKey: ["system_revision_approvals"] });
       notify(data.id, "proposed");
     },
   });
@@ -175,6 +178,9 @@ export function usePublishRevision() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
       qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // current_revision_id moved
+      // The "waiting on" faces on the list hang off which revisions are
+      // still 'proposed'.
+      qc.invalidateQueries({ queryKey: ["system_revision_approvals"] });
       qc.invalidateQueries({ queryKey: SYSTEM_DETAIL_KEY(vars.systemId) });
       notify(vars.revisionId, "published");
     },
@@ -206,6 +212,9 @@ export function useRequestChanges() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
       qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // the list's status pill
+      // The "waiting on" faces on the list hang off which revisions are
+      // still 'proposed'.
+      qc.invalidateQueries({ queryKey: ["system_revision_approvals"] });
       notify(vars.revisionId, "changes_requested");
     },
   });
