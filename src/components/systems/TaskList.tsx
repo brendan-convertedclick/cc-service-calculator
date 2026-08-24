@@ -23,6 +23,7 @@ import {
   CornerLeftUp,
   Link2,
   Mail,
+  Paperclip,
   Plus,
   Settings,
   StickyNote,
@@ -83,14 +84,33 @@ function initials(fullName: string): string {
 const ICON_BTN =
   "relative rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface disabled:opacity-40";
 
-// How many notes on this row are still open. Silent when there are none —
-// a zero would make every row look annotated.
-function NoteCount({ n }: { n: number | undefined }) {
+// A small count riding on an icon button — open notes, attached documents.
+// Silent when there are none: a zero would make every row look annotated.
+function CountBadge({ n }: { n: number | undefined }) {
   if (!n) return null;
   return (
     <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-m-primary px-0.5 font-mono text-[9px] leading-none text-m-on-primary">
       {n}
     </span>
+  );
+}
+
+/** Says this row points somewhere without the strip having to be open, and
+ *  collapses/reopens it. Only appears once something is attached — the cog's
+ *  "Links and documents" is how you attach the first one. */
+function AttachmentButton({ n, label, onClick }: { n: number; label: string; onClick: () => void }) {
+  if (n === 0) return null;
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={`${n} link${n === 1 ? "" : "s"} or document${n === 1 ? "" : "s"} — click to show or hide`}
+      onClick={onClick}
+      className={ICON_BTN}
+    >
+      <Paperclip className="h-4 w-4" />
+      <CountBadge n={n} />
+    </button>
   );
 }
 
@@ -105,7 +125,7 @@ function RowMenu({ label, notes, children }: { label: string; notes?: number; ch
       <PopoverTrigger asChild>
         <button type="button" aria-label={label} title={label} className={ICON_BTN}>
           <Settings className="h-4 w-4" />
-          <NoteCount n={notes} />
+          <CountBadge n={notes} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 p-1">
@@ -277,14 +297,22 @@ export function TaskList(props: TaskListProps) {
   }
   // Same rule for links: a row that already points somewhere always shows it,
   // otherwise the chain is invisible until you happen to click the icon.
-  const [linkOpen, setLinkOpen] = useState<Set<string>>(new Set());
-  const toggleLink = (id: string) => setLinkOpen((prev) => toggleInSet(prev, id));
+  const [linkToggled, setLinkToggled] = useState<Set<string>>(new Set());
+  const toggleLink = (id: string) => setLinkToggled((prev) => toggleInSet(prev, id));
   const { data: attachedByStep } = useStepProcedures(props.systemId);
-  const linksShown = (row: StepRow) =>
-    linkOpen.has(row.id)
-    || row.email_template_id != null
-    || (row.doc_links?.length ?? 0) > 0
-    || (attachedByStep?.get(row.id)?.length ?? 0) > 0;
+  // Only count what the row's strip can actually show: documents are a task
+  // field (a ClickUp checklist item has nowhere to put one), so a step's count
+  // would otherwise promise a link that never appears.
+  const attachmentCount = (row: StepRow, withDocs: boolean) =>
+    (attachedByStep?.get(row.id)?.length ?? 0)
+    + (row.email_template_id != null ? 1 : 0)
+    + (withDocs ? (row.doc_links?.length ?? 0) : 0);
+  // A row that points somewhere still opens expanded — the chain should not be
+  // invisible. The toggle flips whichever way the row started, so a strip you
+  // have read can be folded away again; before, clicking it on a linked row
+  // did nothing because "has links" alone forced it open.
+  const linksShown = (row: StepRow, withDocs: boolean) =>
+    attachmentCount(row, withDocs) > 0 ? !linkToggled.has(row.id) : linkToggled.has(row.id);
   const { tasks, steps, depts, team, colorById, busy } = props;
   const groups = groupProcedure(tasks, steps);
   const deptName = new Map(depts.map((d) => [d.id, d.name]));
@@ -496,6 +524,11 @@ export function TaskList(props: TaskListProps) {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
+                <AttachmentButton
+                  n={attachmentCount(task, true)}
+                  label={`Links and documents on task "${task.title}"`}
+                  onClick={() => toggleLink(task.id)}
+                />
                 <RowMenu label={`Options for task "${task.title}"`} notes={openNotes.get(task.id)}>
                   <MenuItem icon={Plus} label="Add a step" disabled={busy} onClick={() => props.onAddStep(task)} />
                   <MenuItem icon={Link2} label="Links and documents" onClick={() => toggleLink(task.id)} />
@@ -520,7 +553,7 @@ export function TaskList(props: TaskListProps) {
               </div>
             </div>
 
-            {linksShown(task) && (
+            {linksShown(task, true) && (
               <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 pb-2">
                 <StepLinks row={task} systemId={props.systemId} showDocs />
               </div>
@@ -607,7 +640,7 @@ export function TaskList(props: TaskListProps) {
                           className="w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-body-medium leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                         />
                       </div>
-                      {linksShown(step) && <StepLinks row={step} systemId={props.systemId} />}
+                      {linksShown(step, false) && <StepLinks row={step} systemId={props.systemId} />}
                     </div>
 
                     <div className="mt-0.5 flex flex-none items-center gap-0.5">
@@ -632,6 +665,11 @@ export function TaskList(props: TaskListProps) {
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
+                      <AttachmentButton
+                        n={attachmentCount(step, false)}
+                        label={`Links on step ${number}`}
+                        onClick={() => toggleLink(step.id)}
+                      />
                       <RowMenu label={`Options for step ${number}`} notes={openNotes.get(step.id)}>
                         <MenuItem
                           icon={Plus}
