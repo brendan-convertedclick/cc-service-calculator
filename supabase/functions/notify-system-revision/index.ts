@@ -25,13 +25,6 @@ const EVENTS: Event[] = ["proposed", "published", "changes_requested"];
 
 type Member = { full_name: string; clickup_user_id: number | null };
 
-// system_kind → what the team calls it. Mirrors systemLayer() +
-// SYSTEM_LAYER_NOUN in src/hooks/useSystemDefinitions.ts; the four attachment
-// kinds are all procedures.
-function layerNoun(kind: string): string {
-  return kind === "policy" || kind === "process" ? kind : "procedure";
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -60,15 +53,17 @@ Deno.serve(async (req: Request) => {
 
     const { data: sysRaw, error: sysErr } = await sb
       .from("system_definitions")
-      .select("name, kind, owner_id")
+      .select("name, owner_id")
       .eq("id", rev.system_id)
       .single();
     if (sysErr || !sysRaw) return json({ error: sysErr?.message ?? "System not found" }, 404);
-    const sys = sysRaw as unknown as { name: string; kind: string; owner_id: string | null };
+    const sys = sysRaw as unknown as { name: string; owner_id: string | null };
 
-    const noun = layerNoun(sys.kind);
-    const what = `"${sys.name}" rev ${rev.revision}`;
-    const link = `${APP_URL}/systems/${rev.system_id}`;
+    // The name IS the link — a naked UUID URL on its own line was most of the
+    // bulk in the channel, and it told a reader nothing. The kind ("procedure"
+    // / "process" / "policy") is gone with it: every message here is a Systems
+    // one, so the noun only ever existed to give that URL a subject.
+    const what = `[${sys.name}](${APP_URL}/systems/${rev.system_id}) rev ${rev.revision}`;
 
     // proposed_by is nullable — the shared team@ login resolves currentUserId
     // to null, so both the mention and the "sent by" degrade to nothing.
@@ -106,9 +101,9 @@ Deno.serve(async (req: Request) => {
       const mentions = recipients
         .map((a) => mentionToken({ clickupUserId: a.clickup_user_id, name: a.full_name }))
         .join(" ");
-      const by = proposer ? ` by ${proposer.full_name}` : "";
+      const by = proposer ? ` · from ${proposer.full_name}` : "";
       const reason = rev.reason_for_change ? `\n> ${rev.reason_for_change}` : "";
-      content = `📋 ${mentions || "team"} — ${noun} review requested${by}: ${what}${reason}\n${link}`;
+      content = `📋 Review requested — ${what}\n${mentions || "team"}${by}${reason}`;
     } else {
       // Both the person who sent it and the person accountable for the
       // procedure (system_definitions.owner_id) — often not the same person,
@@ -127,10 +122,10 @@ Deno.serve(async (req: Request) => {
         ? await sb.from("team_members").select("full_name").eq("email", callerEmail).maybeSingle()
         : { data: null };
       const actor = (actorRaw as { full_name: string } | null)?.full_name;
-      const by = actor ? ` by ${actor}` : "";
+      const by = actor ? ` · by ${actor}` : "";
       content = event === "published"
-        ? `✅ ${mention} — ${noun} approved${by}: ${what}\n${link}`
-        : `↩️ ${mention} — changes requested${by} on ${what}. Read the notes; the fix goes out as the next revision.\n${link}`;
+        ? `✅ Approved — ${what}\n${mention}${by}`
+        : `↩️ Changes requested — ${what}\n${mention}${by} · notes are on the revision; the fix goes out as the next one`;
     }
 
     const { token: clickupPat } = await getOperatorClickupToken(req);
