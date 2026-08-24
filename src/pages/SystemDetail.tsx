@@ -182,11 +182,25 @@ function ApproveButton({
     // finishes the job — if this person is allowed to finish it.
     const lastOutstanding =
       approvals.filter((a) => a.required && !a.approved_at && a.id !== mine.id).length === 0;
+    // The label has to say which of the two acts this click performs. A
+    // button reading "Approve" that only records one signature of two is the
+    // whole confusion: the revision doesn't move, so it looks like it failed.
+    // "Approve" is reserved for the click that actually flips the revision.
+    const willApprove = lastOutstanding && canApprove;
+    const stillWaiting = approvals
+      .filter((a) => a.required && !a.approved_at && a.id !== mine.id)
+      .map((a) => teamById.get(a.team_member_id)?.full_name ?? "someone");
     return (
       <Button
         size="sm"
         disabled={setApproval.isPending || publish.isPending}
-        title={`Record your sign-off on ${revisionLabel}`}
+        title={
+          willApprove
+            ? `Sign off and approve ${revisionLabel} — you are the last one outstanding`
+            : stillWaiting.length > 0
+              ? `Record your sign-off on ${revisionLabel}. Still needs ${stillWaiting.join(", ")}.`
+              : `Record your sign-off on ${revisionLabel}`
+        }
         onClick={() =>
           setApproval.mutate(
             { systemId, approvalId: mine.id, approvedAt: new Date().toISOString() },
@@ -204,7 +218,13 @@ function ApproveButton({
           )
         }
       >
-        {setApproval.isPending || publish.isPending ? "Approving…" : "Approve"}
+        {setApproval.isPending || publish.isPending
+          ? willApprove
+            ? "Approving…"
+            : "Signing…"
+          : willApprove
+            ? "Approve"
+            : "Sign off"}
       </Button>
     );
   }
