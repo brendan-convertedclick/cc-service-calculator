@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { checklistFromSteps, NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
-import { useTeam } from "@/hooks/useTeam";
+import { memberColors, useTeam } from "@/hooks/useTeam";
+import { initials } from "@/components/systems/SystemBlockNode";
 import { supabase } from "@/lib/supabase";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useRetainers } from "@/hooks/useRetainers";
@@ -22,6 +23,7 @@ import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
 import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
+import { X } from "lucide-react";
 
 const NO_PROJECT = "__none__";
 const UNASSIGNED = "__unassigned__";
@@ -57,6 +59,7 @@ export interface QuickBriefSheetProps {
  */
 export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetProps) {
   const { data: team = [] } = useTeam();
+  const memberColor = useMemo(() => memberColors(team), [team]);
   const { data: departments = [] } = useDepartments();
   const createTask = useCreateQuickBriefTask();
   // Which retainer this work belongs to. Until now the sheet asked whether the
@@ -79,6 +82,15 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
   const [billingType, setBillingType] = useState<"retainer" | "adhoc">("retainer");
   const [checklistItems, setChecklistItems] = useState("");
+  // Rows are a view over the same newline string — an empty value is one
+  // empty row, which is the right starting state for a list you type into.
+  const checklistLines = checklistItems.split("\n");
+  const setChecklistLine = (i: number, value: string) =>
+    setChecklistItems(checklistLines.map((l, n) => (n === i ? value : l)).join("\n"));
+  const removeChecklistLine = (i: number) => {
+    const next = checklistLines.filter((_, n) => n !== i);
+    setChecklistItems(next.length ? next.join("\n") : "");
+  };
   const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
   const [attachments, setAttachments] = useState<File[]>([]);
   // <input type="file"> is uncontrolled — bump this to force a remount (and
@@ -314,15 +326,52 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
           <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} />
 
+          {/* One row per item rather than a textarea of lines: this becomes a
+              ClickUp checklist, so it should look like one while you write it
+              — a blob of wrapped text hides where one item ends and the next
+              begins. The boxes are for reading, not ticking; nothing is done
+              until it's done in ClickUp. State stays a newline string so the
+              submit and checklistFromSteps() are untouched. */}
           <div className="space-y-2">
-            <Label htmlFor="qb-checklist">Checklist items</Label>
-            <Textarea
-              id="qb-checklist"
-              rows={3}
-              value={checklistItems}
-              onChange={(e) => setChecklistItems(e.target.value)}
-              placeholder="One per line — optional. Creates a checklist on the ClickUp task."
-            />
+            <Label htmlFor="qb-checklist-0">Checklist items</Label>
+            <ul className="space-y-1.5">
+              {checklistLines.map((line, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-4 w-4 flex-none rounded-[4px] border border-m-outline bg-m-surface"
+                  />
+                  <Input
+                    id={`qb-checklist-${i}`}
+                    value={line}
+                    onChange={(e) => setChecklistLine(i, e.target.value)}
+                    placeholder="What has to be done?"
+                    className="h-9"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Remove checklist item ${i + 1}`}
+                    disabled={checklistLines.length === 1 && !line}
+                    onClick={() => removeChecklistLine(i)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setChecklistItems([...checklistLines, ""].join("\n"))}
+            >
+              Add item
+            </Button>
+            <p className="text-label-small text-m-on-surface-variant">
+              Optional — becomes the checklist on the ClickUp task.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -336,7 +385,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                   <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                   {team.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
-                      {m.full_name}
+                      <PersonOption name={m.full_name} color={memberColor.get(m.id)} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -352,7 +401,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                   <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                   {team.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
-                      {m.full_name}
+                      <PersonOption name={m.full_name} color={memberColor.get(m.id)} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -512,3 +561,23 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 }
 
 export default QuickBriefSheet;
+
+// A name with the same coloured initial-circle the systems list uses, so one
+// person reads the same wherever they appear. Rendered inside SelectItem, so
+// the trigger shows it too once something is picked.
+function PersonOption({ name, color }: { name: string; color: string | undefined }) {
+  return (
+    // min-w-0 + truncate on the name: the trigger renders this same markup,
+    // and a long name would otherwise wrap and make the field taller than the
+    // one beside it.
+    <span className="flex min-w-0 items-center gap-2">
+      <span
+        className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-semibold text-white"
+        style={{ background: color }}
+      >
+        {initials(name)}
+      </span>
+      <span className="truncate">{name}</span>
+    </span>
+  );
+}

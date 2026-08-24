@@ -42,6 +42,7 @@ vi.mock("@/hooks/useBriefActions", () => ({
 
 vi.mock("@/hooks/useTeam", () => ({
   useTeam: () => ({ data: [] }),
+  memberColors: () => new Map<string, string>(),
 }));
 
 vi.mock("@/hooks/useDepartments", () => ({
