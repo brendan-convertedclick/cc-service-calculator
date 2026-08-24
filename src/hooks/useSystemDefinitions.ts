@@ -89,6 +89,10 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
   time_category_label: string | null;
   owner_name: string | null;
   step_count: number;
+  /** A revision is sitting in 'proposed' — someone has sent it for review and
+   *  nobody has approved or rejected it yet. Independent of current_revision_id:
+   *  an approved system can have a later revision in review. */
+  in_review: boolean;
   /** Distinct departments across this system's top-level steps — a system has
    *  no department column of its own, its departments are whatever its steps
    *  are assigned to. Empty for a system whose steps are all unassigned. */
@@ -119,6 +123,7 @@ function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
     // doesn't need them — the detail page reads steps directly.
     step_count: 0,
     department_ids: [],
+    in_review: false,
   };
 }
 
@@ -130,16 +135,22 @@ export function useSystemDefinitions() {
   return useQuery({
     queryKey: SYSTEMS_KEY,
     queryFn: async (): Promise<SystemDefinitionWithJoins[]> => {
-      const [{ data: systems, error }, { data: stepRows, error: sErr }] = await Promise.all([
-        supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
-        supabase
-          .from("process_steps")
-          .select("system_id, department_id")
-          .is("parent_id", null)
-          .not("system_id", "is", null),
-      ]);
+      const [{ data: systems, error }, { data: stepRows, error: sErr }, { data: proposed, error: rErr }] =
+        await Promise.all([
+          supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
+          supabase
+            .from("process_steps")
+            .select("system_id, department_id")
+            .is("parent_id", null)
+            .not("system_id", "is", null),
+          // Only the pending ones — approved is already on the system row as
+          // current_revision_id, and everything else reads as a draft.
+          supabase.from("system_revisions").select("system_id").eq("state", "proposed"),
+        ]);
       if (error) throw error;
       if (sErr) throw sErr;
+      if (rErr) throw rErr;
+      const inReview = new Set((proposed ?? []).map((r) => r.system_id));
 
       const counts = new Map<string, number>();
       const deptsBySystem = new Map<string, Set<string>>();
@@ -156,6 +167,7 @@ export function useSystemDefinitions() {
         ...withJoins(s),
         step_count: counts.get(s.id) ?? 0,
         department_ids: [...(deptsBySystem.get(s.id) ?? [])],
+        in_review: inReview.has(s.id),
       }));
     },
   });

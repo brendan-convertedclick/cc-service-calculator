@@ -59,19 +59,24 @@ import { useTimeCategories } from "@/hooks/useOngoingTasks";
 const UNBANDED = "unbanded";
 const NO_DEPT = "none";
 
-// Active = a published revision, i.e. someone approved it. Everything else is
-// written up but not yet agreed, which is most of the library — so the page
-// opens on Active and you have to ask for the rest.
-const STATUSES = ["active", "unapproved", "all"] as const;
+// The team's three states, in the order work moves through them. A revision
+// sitting in review wins over an older approved one — the pending decision is
+// the thing you'd come to the list to find. Most of the library is Draft, so
+// the page opens on Approved and you ask for the rest.
+const STATUSES = ["approved", "in_review", "draft", "all"] as const;
 type Status = (typeof STATUSES)[number];
 const STATUS_LABEL: Record<Status, string> = {
-  active: "Active",
-  unapproved: "Not approved",
+  approved: "Approved",
+  in_review: "In review",
+  draft: "Draft",
   all: "All",
 };
+function statusOf(s: SystemDefinitionWithJoins): Exclude<Status, "all"> {
+  if (s.in_review) return "in_review";
+  return s.current_revision_id ? "approved" : "draft";
+}
 function matchesStatus(s: SystemDefinitionWithJoins, status: Status): boolean {
-  if (status === "all") return true;
-  return status === "active" ? !!s.current_revision_id : !s.current_revision_id;
+  return status === "all" || statusOf(s) === status;
 }
 
 function isBand(b: string | null): b is SystemBand {
@@ -120,7 +125,7 @@ export function SystemsList() {
   const duplicate = useDuplicateSystem();
   const update = useUpdateSystem();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<Status>("active");
+  const [status, setStatus] = useState<Status>("approved");
   const [editing, setEditing] = useState<SystemDefinitionWithJoins | null>(null);
   const [band, setBand] = useState<string | null>(null);
   const [kind, setKind] = useState<SystemKind | null>(null);
@@ -204,8 +209,9 @@ export function SystemsList() {
   }, [scoped]);
 
   const statusCounts = useMemo(() => {
-    const active = systems.filter((s) => s.current_revision_id).length;
-    return { active, unapproved: systems.length - active, all: systems.length };
+    const counts: Record<Status, number> = { approved: 0, in_review: 0, draft: 0, all: systems.length };
+    for (const s of systems) counts[statusOf(s)] += 1;
+    return counts;
   }, [systems]);
 
   const anyFilterActive = !!q || band !== null || kind !== null || dept !== null || unmappedOnly || myNotesOnly;
@@ -382,10 +388,10 @@ export function SystemsList() {
                   <CardContent className="p-0">
                     {g.items.length === 0 ? (
                       <p className="px-4 py-6 text-center text-body-small text-m-on-surface-variant">
-                        {status === "active" && !anyFilterActive ? (
+                        {status === "approved" && !anyFilterActive ? (
                           <>
                             No {SYSTEM_LAYER_LABEL[g.layer].toLowerCase()} approved yet — a system
-                            goes active when a revision is approved.{" "}
+                            is approved once a revision is signed off.{" "}
                             <button
                               type="button"
                               className="underline underline-offset-2"
