@@ -179,16 +179,28 @@ ESLint enforces the last two mechanically via `no-restricted-syntax`.
 
 ## Quality gates — run these, they are not decorative
 
-`npm run verify` = typecheck + lint + unit tests. CI runs that plus dead-code
-detection, build, and Playwright.
+**There is no CI. You are the gate.** `.github/workflows/ci.yml` was deleted on
+2026-08-24: it had failed on every push to main for two weeks straight, and
+because its `Dead code` step ran before `Unit tests` and `Build`, neither had
+executed in all that time — a red X that verified nothing. The e2e job had also
+been self-skipping since the repo secrets were never added. Nothing is checked
+on push any more, so run the gates locally before you claim anything works.
+
+`npm run verify` = typecheck + lint + unit tests. Run `npm run lint:dead` and
+`npm run build` alongside it — those two were CI's job and now belong to
+whoever is making the change.
 
 - **`npm run typecheck` is `tsc -b`, not `tsc --noEmit`.** The root tsconfig is
   references-only, so `--noEmit` type-checks *nothing* and exits 0. That false
   pass is how 63 type errors and a broken `npm run build` reached main unnoticed.
 - **ESLint runs on a ratchet.** Clean rules are `error`; the pre-existing backlog
-  is `warn` with a cap in CI that only ever goes down. Do not raise the cap.
+  is `warn`. The cap that enforced it lived in CI and went with it — the ratchet
+  is now a convention, so do not let the warning count climb.
 - **`npm run lint:dead` (knip)** fails on files nothing imports. Dead files went
-  11 → 0 in the audit; this keeps them there.
+  11 → 0 in the audit; this keeps them there. It currently reports one false
+  positive — `mcp-server/src/http.ts`, the pm2 entry point for the HTTP MCP
+  transport, which is launched by `ecosystem.config.cjs` and never imported. It
+  is not dead; add it to `knip.json`'s entries if you want a clean exit.
 - Optional local hook: `git config core.hooksPath .githooks` lints staged files.
 - Playwright specs live in `e2e/`. `systems.spec.ts` **writes to the live
   database** (prefixed rows, cleaned up in `afterAll`) — the others are
