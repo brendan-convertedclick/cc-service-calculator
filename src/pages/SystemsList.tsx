@@ -5,7 +5,7 @@
 // Layer is a tab; band demotes to a rail filter. Rail matches the
 // SowList/ServicesList standard.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlertTriangle, Archive, ArrowRight, Copy, Pencil, Plus, Search, Settings, StickyNote, Wand2 } from "lucide-react";
@@ -71,6 +71,13 @@ const STATUS_LABEL: Record<Status, string> = {
   draft: "Draft",
   all: "All",
 };
+// Same three colours the detail page's REVISION_STATE_BADGE uses, so a row and
+// the page it opens don't disagree about what "In review" looks like.
+const STATUS_VARIANT: Record<Exclude<Status, "all">, "muted" | "warning" | "success"> = {
+  approved: "success",
+  in_review: "warning",
+  draft: "muted",
+};
 function statusOf(s: SystemDefinitionWithJoins): Exclude<Status, "all"> {
   if (s.in_review) return "in_review";
   return s.current_revision_id ? "approved" : "draft";
@@ -114,6 +121,29 @@ function createSystemError(e: unknown, layer: SystemLayer): string {
   return err?.message || `Could not create ${SYSTEM_LAYER_NOUN[layer]}`;
 }
 
+// Rail filters, the layer tab and the scroll position survive opening a system
+// and coming back — the list unmounts, so plain state resets. Session-scoped on
+// purpose, same as Briefs: a fresh tab starts clean.
+const FILTERS_KEY = "systems-filters-v1";
+type PersistedFilters = {
+  search: string;
+  status: Status;
+  band: string | null;
+  kind: SystemKind | null;
+  dept: string | null;
+  unmappedOnly: boolean;
+  myNotesOnly: boolean;
+  tab: SystemLayer;
+  scroll: number;
+};
+function loadFilters(): Partial<PersistedFilters> {
+  try {
+    return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? "{}") as Partial<PersistedFilters>;
+  } catch {
+    return {};
+  }
+}
+
 export function SystemsList() {
   const navigate = useNavigate();
   const { data: systems = [], isLoading } = useSystemDefinitions();
@@ -124,20 +154,20 @@ export function SystemsList() {
   const colorById = useMemo(() => memberColors(team), [team]);
   const duplicate = useDuplicateSystem();
   const update = useUpdateSystem();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<Status>("approved");
+  const [search, setSearch] = useState(() => loadFilters().search ?? "");
+  const [status, setStatus] = useState<Status>(() => loadFilters().status ?? "approved");
   const [editing, setEditing] = useState<SystemDefinitionWithJoins | null>(null);
-  const [band, setBand] = useState<string | null>(null);
-  const [kind, setKind] = useState<SystemKind | null>(null);
-  const [dept, setDept] = useState<string | null>(null);
-  const [unmappedOnly, setUnmappedOnly] = useState(false);
+  const [band, setBand] = useState<string | null>(() => loadFilters().band ?? null);
+  const [kind, setKind] = useState<SystemKind | null>(() => loadFilters().kind ?? null);
+  const [dept, setDept] = useState<string | null>(() => loadFilters().dept ?? null);
+  const [unmappedOnly, setUnmappedOnly] = useState(() => loadFilters().unmappedOnly ?? false);
   // Notes assigned to whoever is signed in, across the whole library — the
   // way a staff member finds the procedures somebody left work for them on.
   // Null on the shared team@ login (no team_members row), which is why the
   // filter hides itself rather than sitting there reading 0 forever.
   const currentUserId = useCurrentUserId();
   const { data: myNoteCounts } = useMyOpenNoteCounts(currentUserId);
-  const [myNotesOnly, setMyNotesOnly] = useState(false);
+  const [myNotesOnly, setMyNotesOnly] = useState(() => loadFilters().myNotesOnly ?? false);
   // ?new=<name> is how the wizard hands over: open the create dialog with the
   // candidate's name already in it, then drop the param so a refresh doesn't
   // reopen it. The wizard only ever proposes procedures.
@@ -145,7 +175,48 @@ export function SystemsList() {
   const wizardName = params.get("new");
   const [creating, setCreating] = useState<SystemLayer | null>(wizardName != null ? "procedure" : null);
   // Procedures is where the volume is, and where the wizard hands over.
-  const [tab, setTab] = useState<SystemLayer>("procedure");
+  const [tab, setTab] = useState<SystemLayer>(() => loadFilters().tab ?? "procedure");
+
+  const mainRef = useRef<HTMLDivElement>(null);
+  const scrollTop = useRef(loadFilters().scroll ?? 0);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      FILTERS_KEY,
+      JSON.stringify({
+        search,
+        status,
+        band,
+        kind,
+        dept,
+        unmappedOnly,
+        myNotesOnly,
+        tab,
+        scroll: scrollTop.current,
+      } satisfies PersistedFilters),
+    );
+  }, [search, status, band, kind, dept, unmappedOnly, myNotesOnly, tab]);
+
+  // Scroll only lands in storage on the way out — writing it on every scroll
+  // event would re-serialise the whole object 60×/s.
+  useEffect(
+    () => () => {
+      sessionStorage.setItem(
+        FILTERS_KEY,
+        JSON.stringify({ ...loadFilters(), scroll: scrollTop.current }),
+      );
+    },
+    [],
+  );
+
+  // Restore it once the rows exist — while the pane is still a "Loading…" line
+  // there is nothing to scroll and any scrollTop clamps back to 0.
+  const pendingScroll = useRef(scrollTop.current);
+  useLayoutEffect(() => {
+    if (isLoading || !pendingScroll.current || !mainRef.current) return;
+    mainRef.current.scrollTop = pendingScroll.current;
+    pendingScroll.current = 0;
+  }, [isLoading]);
 
   const q = search.trim().toLowerCase();
 
@@ -338,7 +409,13 @@ export function SystemsList() {
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
-      <div className="min-w-0 flex-1 overflow-y-auto p-6">
+      <div
+        ref={mainRef}
+        onScroll={(e) => {
+          scrollTop.current = e.currentTarget.scrollTop;
+        }}
+        className="min-w-0 flex-1 overflow-y-auto p-6"
+      >
         <div className="mb-6">
           <h1 className="text-headline-medium">Systems</h1>
           <p className="mt-1 text-body-medium text-m-on-surface-variant">
@@ -498,6 +575,7 @@ function SystemRow({
 }) {
   const isUnmapped = system.goal_statement === PLACEHOLDER_GOAL;
   const layer = systemLayer(system.kind);
+  const rowStatus = statusOf(system);
   const linkLabel =
     system.kind === "service"
       ? system.service_name
@@ -525,9 +603,12 @@ function SystemRow({
             {layer === "procedure" && (
               <Badge variant="outline" className="flex-none text-label-small">{SYSTEM_KIND_LABEL[system.kind]}</Badge>
             )}
-            {system.current_revision_id && (
-              <Badge variant="success" className="flex-none text-label-small">Active</Badge>
-            )}
+            {/* Where the procedure stands, in the team's vocabulary. Replaces
+                the old "Active" tag — Approved says the same thing, and a row
+                in review needs to say so even when an older revision is live. */}
+            <Badge variant={STATUS_VARIANT[rowStatus]} className="flex-none text-label-small">
+              {STATUS_LABEL[rowStatus]}
+            </Badge>
             {isUnmapped && (
               <Badge variant="warning" className="flex-none gap-1 text-label-small">
                 <AlertTriangle className="h-3 w-3" /> No goal
