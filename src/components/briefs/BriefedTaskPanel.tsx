@@ -9,7 +9,7 @@
 // not touch ClickUp's own Client Name custom field). Billing stays read-only.
 
 import { useEffect, useState } from "react";
-import { CalendarClock, ExternalLink } from "lucide-react";
+import { CalendarClock, ExternalLink, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,9 @@ import {
 import { useBriefedTaskDetails, useUpdateBriefedTask, useFlagClientDelay, type BriefedTaskFields } from "@/hooks/useBriefedTask";
 import { useBriefExtensions, useResolveExtension, type BriefExtension } from "@/hooks/useBriefExtensions";
 import { useTaskExtensionRequests } from "@/hooks/useTaskExtensionRequests";
+import { useLatestClientApproval } from "@/hooks/useClientApprovals";
 import { ExtensionDialog } from "@/components/briefs/ExtensionDialog";
+import { ClientSignoffDialog } from "@/components/briefs/ClientSignoffDialog";
 import { useClients } from "@/hooks/useClients";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useTeam } from "@/hooks/useTeam";
@@ -62,6 +64,23 @@ function formatDue(due: string | null): string {
   return d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** ISO timestamp → "23 Aug 2026, 14:35" (or "" when unset/unparseable). */
+function formatDecidedAt(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const date = d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
+  return `${date}, ${time}`;
+}
+
+/** client_approvals.state → the badge shown in the status readout. */
+const SIGNOFF_BADGE = {
+  pending: { variant: "warning" as const, label: "Awaiting sign-off" },
+  approved: { variant: "success" as const, label: "Approved" },
+  changes_requested: { variant: "destructive" as const, label: "Changes requested" },
+};
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
@@ -79,7 +98,18 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   const { data: team = [] } = useTeam();
   const { data: extensions = [] } = useBriefExtensions(brief.id, true);
   const { data: extensionRequests = [] } = useTaskExtensionRequests(brief.clickup_task_id, true);
+  const signoff = useLatestClientApproval(brief.id);
   const [extensionOpen, setExtensionOpen] = useState(false);
+  const [signoffOpen, setSignoffOpen] = useState(false);
+  // Hidden while a sign-off is already out with the client, so a second click
+  // can't drop a duplicate item in their inbox. Once it's decided (including
+  // "changes requested"), the action comes back — that's how a revised ask
+  // goes out.
+  // `signoff.data` is undefined while loading, and `undefined !== "pending"` is
+// true — without the isPending guard the button flashes up on a brief that
+// already has a sign-off out, and a fast click double-sends it.
+  const canSendSignoff =
+    !!brief.client_id && !signoff.isPending && signoff.data?.state !== "pending";
 
   const clientName = clients.find((c) => c.id === brief.client_id)?.name ?? "—";
   const assigneeName = team.find((m) => m.id === brief.assignee_id)?.full_name ?? "Unassigned";
@@ -152,6 +182,12 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
           </span>
         </div>
         <div className="flex items-center gap-3">
+          {!editing && !details.isError && canSendSignoff && (
+            <Button variant="outline" size="sm" onClick={() => setSignoffOpen(true)}>
+              <Send className="mr-1.5 h-3.5 w-3.5" />
+              Send for client sign-off
+            </Button>
+          )}
           {!editing && !details.isError && (
             <Button variant="outline" size="sm" onClick={() => setExtensionOpen(true)}>
               <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
@@ -172,6 +208,21 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
         </div>
       </div>
 
+      {signoff.data && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-m-outline-variant py-3 text-body-small">
+          <span className="text-m-on-surface">Client sign-off</span>
+          <Badge variant={SIGNOFF_BADGE[signoff.data.state].variant} className="text-label-small">
+            {SIGNOFF_BADGE[signoff.data.state].label}
+          </Badge>
+          <span className="truncate text-m-on-surface-variant">“{signoff.data.client_title}”</span>
+          {signoff.data.decided_by_name && (
+            <span className="text-m-on-surface-variant">
+              by {signoff.data.decided_by_name} · {formatDecidedAt(signoff.data.decided_at)}
+            </span>
+          )}
+        </div>
+      )}
+
       <ExtensionDialog
         brief={{ id: brief.id }}
         currentDueDate={d?.due_date ?? null}
@@ -179,6 +230,15 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
         open={extensionOpen}
         onOpenChange={setExtensionOpen}
       />
+
+      {brief.client_id && (
+        <ClientSignoffDialog
+          briefId={brief.id}
+          clientId={brief.client_id}
+          open={signoffOpen}
+          onOpenChange={setSignoffOpen}
+        />
+      )}
 
       {details.isLoading ? (
         <div className="py-8 text-center text-body-small text-m-on-surface-variant">

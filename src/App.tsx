@@ -148,6 +148,9 @@ const SystemDetail = lazy(() =>
 const Profile = lazy(() =>
   import("@/pages/Profile").then((m) => ({ default: m.Profile })),
 );
+const ClientReview = lazy(() =>
+  import("@/pages/ClientReview").then((m) => ({ default: m.ClientReview })),
+);
 
 /**
  * Role gates. Everything an admin/owner-only route needs sits behind
@@ -182,6 +185,10 @@ export default function App() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Client-facing sign-off inbox. Sibling of /login on purpose:
+              outside <RequireAuth> (the token IS the auth) and outside
+              <AppShell> (no nav rail, no staff breadcrumbs). */}
+          <Route path="/review/:token" element={<ClientReview />} />
           <Route element={<RequireAuth />}>
             {/* The shell (nav rail + breadcrumbs) wraps everyone, staff
                 included — the rail filters itself by role (navEntriesFor), so
