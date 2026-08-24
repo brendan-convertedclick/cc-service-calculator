@@ -88,6 +88,39 @@ export function useDeleteStep() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }: { id: string; serviceId?: string }) => {
+      // Join what this row sat between before it goes. The system_edges FKs
+      // cascade, so deleting a task out of the middle of a run takes both its
+      // arrows with it: the numbered list still reads straight while the
+      // canvas forks from the start and runs two loose ends into the goal.
+      // Since 0131 those arrows are ClickUp blockers, so the gap is a wrong
+      // dependency chain, not only a wrong picture.
+      //
+      // A decision's arms are left alone — its edges carry a handle or a
+      // label, and which branch survives a delete is not ours to guess.
+      const { data: touching, error: readError } = await supabase
+        .from("system_edges")
+        .select("id, system_id, source_step_id, target_step_id, label, source_handle")
+        .or(`source_step_id.eq.${id},target_step_id.eq.${id}`);
+      if (readError) throw readError;
+      const edges = touching ?? [];
+      if (edges.every((e) => e.source_handle == null && e.label == null)) {
+        const before = edges.filter((e) => e.target_step_id === id);
+        const after = edges.filter((e) => e.source_step_id === id);
+        for (const b of before) {
+          for (const a of after) {
+            // Never bridge a run back onto itself.
+            if (a.target_step_id === b.source_step_id) continue;
+            const { error } = await supabase.from("system_edges").insert({
+              system_id: b.system_id,
+              source_step_id: b.source_step_id,
+              target_step_id: a.target_step_id,
+            });
+            // 23505 = the two were already joined. Same reading as
+            // useConnectSteps: a no-op, not a reason to fail the delete.
+            if (error && error.code !== "23505") throw error;
+          }
+        }
+      }
       const { error } = await supabase.from("process_steps").delete().eq("id", id);
       if (error) throw error;
     },

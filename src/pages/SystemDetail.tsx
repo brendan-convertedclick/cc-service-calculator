@@ -246,6 +246,37 @@ export function SystemDetail() {
     [edgeRows, reconnect]
   );
 
+  // The arrows between tasks are the numbered list, drawn. Swapping two tasks
+  // moves their ordinals and nothing else, so the arrows stay pointing at the
+  // old neighbours — that is how a procedure that reads straight in the list
+  // ends up forking, or looping backwards, on the canvas. Since 0131 those
+  // arrows become ClickUp blockers, so it also pushes a wrong dependency
+  // chain. Redraw the run in the order the list is in now.
+  //
+  // Not for a process — its blocks are a diagram somebody drew, not a view of
+  // a list — and not for anything carrying a decision: a handle or a label
+  // means branches, and which arm a task belongs on isn't ours to guess.
+  const rechainTasks = useCallback(
+    async (ordered: StepRow[]) => {
+      if (isProcess) return;
+      if (edgeRows.some((e) => e.source_handle != null || e.label != null)) return;
+      const keep = new Set<string>();
+      for (let i = 1; i < ordered.length; i++) {
+        const source = ordered[i - 1].id;
+        const target = ordered[i].id;
+        const existing = edgeRows.find(
+          (e) => e.source_step_id === source && e.target_step_id === target,
+        );
+        if (existing) keep.add(existing.id);
+        else await connect.mutateAsync({ source, target, sourceHandle: null });
+      }
+      for (const e of edgeRows) {
+        if (!keep.has(e.id)) await disconnect.mutateAsync(e.id);
+      }
+    },
+    [isProcess, edgeRows, connect, disconnect]
+  );
+
   // One creation path for both callers: the "Add step" button (no position, no
   // explicit source — chains off the last step) and the canvas dropping a
   // connection on empty space (its own position and source handle). For a
@@ -497,19 +528,28 @@ export function SystemDetail() {
   // is unique per (system, service, parent), so a step only ever competes with
   // its own siblings. The park ordinal has to be free in that bucket; max + 1
   // always is (see useReorderStep).
-  function moveRow(row: StepRow, siblings: StepRow[], direction: -1 | 1) {
+  async function moveRow(row: StepRow, siblings: StepRow[], direction: -1 | 1) {
     const ordered = [...siblings].sort((a, b) => a.ordinal - b.ordinal);
     const i = ordered.findIndex((s) => s.id === row.id);
     const b = ordered[i + direction];
     if (i === -1 || !b) return;
-    reorder.mutate(
-      {
+    try {
+      await reorder.mutateAsync({
         a: { id: row.id, ordinal: row.ordinal },
         b: { id: b.id, ordinal: b.ordinal },
         parkOrdinal: ordered.reduce((max, s) => Math.max(max, s.ordinal), 0) + 1,
-      },
-      { onError: (e) => toast.error(`Could not reorder: ${errorMessage(e)}`) }
-    );
+      });
+      // Only tasks carry the flow — steps live inside one card and have no
+      // arrows of their own, so there is nothing to redraw for them.
+      if (row.parent_id == null) {
+        const next = [...ordered];
+        next[i] = b;
+        next[i + direction] = row;
+        await rechainTasks(next);
+      }
+    } catch (e) {
+      toast.error(`Could not reorder: ${errorMessage(e)}`);
+    }
   }
 
   // ── steps ────────────────────────────────────────────────────────────────
