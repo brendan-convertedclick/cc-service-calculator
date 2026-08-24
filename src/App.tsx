@@ -183,11 +183,6 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
-            {/* Full-screen surfaces that deliberately sit outside the shell. */}
-            <Route element={<RequireAdmin />}>
-              <Route path="approvals" element={<Approvals />} />
-            </Route>
-
             {/* The shell (nav rail + breadcrumbs) wraps everyone, staff
                 included — the rail filters itself by role (navEntriesFor), so
                 a staff session gets navigation instead of a dead-end page. */}
@@ -220,6 +215,10 @@ export default function App() {
                     else — and being here makes the route agree with the nav,
                     which is admin/owner because sending refuses anyone else. */}
                 <Route path="comms/new" element={<ComposeEmail />} />
+                {/* Same story as Compose: a daily decision queue, so it keeps
+                    the rail. It was outside the shell and in no nav section,
+                    which left it reachable only by typing the URL. */}
+                <Route path="approvals" element={<Approvals />} />
                 <Route path="time" element={<ClientTimeView />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
