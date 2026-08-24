@@ -59,28 +59,35 @@ import { useTimeCategories } from "@/hooks/useOngoingTasks";
 const UNBANDED = "unbanded";
 const NO_DEPT = "none";
 
-// The team's three states, in the order work moves through them. A revision
+// The team's four states, in the order work moves through them. A revision
 // sitting in review wins over an older approved one — the pending decision is
 // the thing you'd come to the list to find. Most of the library is Draft, so
 // the page opens on Approved and you ask for the rest.
-const STATUSES = ["approved", "in_review", "draft", "all"] as const;
+const STATUSES = ["approved", "in_review", "changes_requested", "draft", "all"] as const;
 type Status = (typeof STATUSES)[number];
 const STATUS_LABEL: Record<Status, string> = {
   approved: "Approved",
   in_review: "In review",
+  changes_requested: "Requested changes",
   draft: "Draft",
   all: "All",
 };
-// Same three colours the detail page's REVISION_STATE_BADGE uses, so a row and
-// the page it opens don't disagree about what "In review" looks like.
-const STATUS_VARIANT: Record<Exclude<Status, "all">, "muted" | "warning" | "success"> = {
+// Same colours the detail page's REVISION_STATE_BADGE uses, so a row and the
+// page it opens don't disagree about what "In review" looks like.
+const STATUS_VARIANT: Record<Exclude<Status, "all">, "muted" | "warning" | "success" | "destructive"> = {
   approved: "success",
   in_review: "warning",
+  changes_requested: "destructive",
   draft: "muted",
 };
+// Approved beats a declined revision on purpose: a system with a live
+// published revision IS approved, and the decline only closed a later
+// proposal. "Requested changes" is for the system whose only revision was
+// sent back — which used to read as an untouched Draft.
 function statusOf(s: SystemDefinitionWithJoins): Exclude<Status, "all"> {
   if (s.in_review) return "in_review";
-  return s.current_revision_id ? "approved" : "draft";
+  if (s.current_revision_id) return "approved";
+  return s.changes_requested ? "changes_requested" : "draft";
 }
 function matchesStatus(s: SystemDefinitionWithJoins, status: Status): boolean {
   return status === "all" || statusOf(s) === status;
@@ -280,7 +287,9 @@ export function SystemsList() {
   }, [scoped]);
 
   const statusCounts = useMemo(() => {
-    const counts: Record<Status, number> = { approved: 0, in_review: 0, draft: 0, all: systems.length };
+    const counts: Record<Status, number> = {
+      approved: 0, in_review: 0, changes_requested: 0, draft: 0, all: systems.length,
+    };
     for (const s of systems) counts[statusOf(s)] += 1;
     return counts;
   }, [systems]);

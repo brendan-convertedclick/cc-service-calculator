@@ -93,6 +93,10 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
    *  nobody has approved or rejected it yet. Independent of current_revision_id:
    *  an approved system can have a later revision in review. */
   in_review: boolean;
+  /** A revision was reviewed and declined (0137) — there are notes waiting on
+   *  it. Also independent of current_revision_id: an approved system can carry
+   *  a later declined revision. */
+  changes_requested: boolean;
   /** Distinct departments across this system's top-level steps — a system has
    *  no department column of its own, its departments are whatever its steps
    *  are assigned to. Empty for a system whose steps are all unassigned. */
@@ -124,6 +128,7 @@ function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
     step_count: 0,
     department_ids: [],
     in_review: false,
+    changes_requested: false,
   };
 }
 
@@ -135,7 +140,7 @@ export function useSystemDefinitions() {
   return useQuery({
     queryKey: SYSTEMS_KEY,
     queryFn: async (): Promise<SystemDefinitionWithJoins[]> => {
-      const [{ data: systems, error }, { data: stepRows, error: sErr }, { data: proposed, error: rErr }] =
+      const [{ data: systems, error }, { data: stepRows, error: sErr }, { data: openRevisions, error: rErr }] =
         await Promise.all([
           supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
           supabase
@@ -143,14 +148,18 @@ export function useSystemDefinitions() {
             .select("system_id, department_id")
             .is("parent_id", null)
             .not("system_id", "is", null),
-          // Only the pending ones — approved is already on the system row as
+          // Only the states the system row can't already tell us — approved is
           // current_revision_id, and everything else reads as a draft.
-          supabase.from("system_revisions").select("system_id").eq("state", "proposed"),
+          supabase.from("system_revisions").select("system_id, state").in("state", ["proposed", "changes_requested"]),
         ]);
       if (error) throw error;
       if (sErr) throw sErr;
       if (rErr) throw rErr;
-      const inReview = new Set((proposed ?? []).map((r) => r.system_id));
+      const openRevs = (openRevisions ?? []) as { system_id: string; state: string }[];
+      const inReview = new Set(openRevs.filter((r) => r.state === "proposed").map((r) => r.system_id));
+      const changesRequested = new Set(
+        openRevs.filter((r) => r.state === "changes_requested").map((r) => r.system_id),
+      );
 
       const counts = new Map<string, number>();
       const deptsBySystem = new Map<string, Set<string>>();
@@ -168,6 +177,7 @@ export function useSystemDefinitions() {
         step_count: counts.get(s.id) ?? 0,
         department_ids: [...(deptsBySystem.get(s.id) ?? [])],
         in_review: inReview.has(s.id),
+        changes_requested: changesRequested.has(s.id),
       }));
     },
   });

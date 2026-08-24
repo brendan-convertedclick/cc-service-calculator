@@ -49,6 +49,14 @@ export const MEETINGS_CHANNEL_ID = "13kp3g-34852";
 // degrade instead of vanishing if the channel is ever removed.
 export const APPROVALS_CHANNEL_ID = "13kp3g-35052";
 
+// The fourth ops channel (2026-08-24): the Systems library's own approval
+// traffic — a procedure/process/policy revision sent for review, and the
+// approve or decline that answers it. Separate from ✅ Approval Requests,
+// which is client-work capacity (extensions, revisions, staff briefs); this
+// is the internal documentation that governs how the work is done, and it
+// has a different audience.
+export const SYSTEMS_CHANNEL_ID = "13kp3g-35252";
+
 /**
  * Where an approval-queue message goes: the Approvals channel when one is
  * configured, else whatever the caller would have used before (the client's

@@ -6,11 +6,20 @@ import { SYSTEMS_KEY, SYSTEM_DETAIL_KEY } from "@/hooks/useSystemDefinitions";
 // Reused as-is from the edge function's shared lib — pure TS, no Deno APIs,
 // same cross-import pattern already used by src/lib/scope-disposition.test.ts.
 import { diffSteps, type DiffStep } from "../../supabase/functions/_shared/system-diff";
+import { callEdgeFn } from "@/lib/edge";
 
 type SystemRevision = Database["public"]["Tables"]["system_revisions"]["Row"];
 type StepRow = Database["public"]["Tables"]["process_steps"]["Row"];
 
 export const SYSTEM_REVISIONS_KEY = (systemId: string) => ["system_revisions", systemId] as const;
+
+/** Tell the ⚙️ Systems ClickUp channel a revision moved. Best-effort and
+ *  fire-and-forget: it lives in onSuccess, never in the mutation, so a chat
+ *  outage can't fail a publish. Lives here rather than at the call sites so
+ *  every caller of these hooks is covered. */
+function notify(revisionId: string, event: "proposed" | "published" | "changes_requested") {
+  callEdgeFn("notify-system-revision", { revision_id: revisionId, event }).catch(() => {});
+}
 
 function toDiffStep(s: StepRow): DiffStep {
   return {
@@ -113,7 +122,11 @@ export function useProposeRevision() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) }),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
+      qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // in_review drives the list's status pill
+      notify(data.id, "proposed");
+    },
   });
 }
 
@@ -130,12 +143,16 @@ export function usePublishRevision() {
       qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
       qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // current_revision_id moved
       qc.invalidateQueries({ queryKey: SYSTEM_DETAIL_KEY(vars.systemId) });
+      notify(vars.revisionId, "published");
     },
   });
 }
 
-// "Request changes": send a proposed revision back to draft. Plain update,
-// not the RPC — no publish-state invariant to protect here.
+// "Request changes": decline a proposed revision. Plain update, not the RPC —
+// no publish-state invariant to protect here. Terminal for the row, same as
+// the 'draft' it used to be dropped back to; 'changes_requested' (0137) just
+// says that someone reviewed it and left notes, rather than leaving it
+// looking like a draft nobody has read.
 export function useRequestChanges() {
   const qc = useQueryClient();
   return useMutation({
@@ -144,15 +161,19 @@ export function useRequestChanges() {
       // surfaces as a real error instead of a silent no-op success.
       const { data, error } = await supabase
         .from("system_revisions")
-        .update({ state: "draft" })
+        .update({ state: "changes_requested" })
         .eq("id", revisionId)
         .eq("state", "proposed")
         .select("id");
       if (error) throw error;
       if (!data || data.length === 0) {
-        throw new Error("Revision is no longer in 'proposed' state — nothing to send back to draft.");
+        throw new Error("Revision is no longer in 'proposed' state — nothing to send back.");
       }
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
+      qc.invalidateQueries({ queryKey: SYSTEMS_KEY }); // the list's status pill
+      notify(vars.revisionId, "changes_requested");
+    },
   });
 }

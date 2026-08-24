@@ -129,13 +129,20 @@ function publishBlockedReason(approvals: ApprovalRow[], teamById: Map<string, Te
     .join(", ")}.`;
 }
 
-// A procedure is in one of three states: Draft while it's being written,
-// In review once it's been sent out, Approved once someone signed it off.
-// Those are system_revisions.state's draft/proposed/published under the names
-// the team actually uses; superseded is a previously-approved revision.
-const REVISION_STATE_BADGE: Record<string, { variant: "muted" | "warning" | "success" | "outline"; label: string }> = {
+// A procedure is in one of four states: Draft while it's being written, In
+// review once it's been sent out, then either Approved or Requested changes.
+// Those are system_revisions.state's draft/proposed/published/
+// changes_requested under the names the team actually uses; superseded is a
+// previously-approved revision.
+//
+// Requested changes is terminal for its row, same as the draft it used to be
+// dropped back to — the fix goes out as the next revision. It is a separate
+// state only so a revision someone reviewed and left notes on doesn't read
+// as one nobody has looked at yet.
+const REVISION_STATE_BADGE: Record<string, { variant: "muted" | "warning" | "success" | "outline" | "destructive"; label: string }> = {
   draft: { variant: "muted", label: "Draft" },
   proposed: { variant: "warning", label: "In review" },
+  changes_requested: { variant: "destructive", label: "Requested changes" },
   published: { variant: "success", label: "Approved" },
   superseded: { variant: "outline", label: "Replaced" },
 };
@@ -873,7 +880,9 @@ export function SystemDetail() {
                   {isUnmapped && <Badge variant="warning">No goal set</Badge>}
                   {latestRevision && (
                     <span className="text-label-small text-m-on-surface-variant/70">
-                      — {latestRevision.state} rev {latestRevision.revision}
+                      {/* The team's word for it, not the column value —
+                          otherwise this reads "changes_requested rev 1". */}
+                      — {stageBadge.label.toLowerCase()} rev {latestRevision.revision}
                     </span>
                   )}
                 </div>
@@ -1625,7 +1634,7 @@ function RevisionsCard({
               requestChanges.mutate(
                 { revisionId, systemId },
                 {
-                  onSuccess: () => toast.success("Sent back to draft"),
+                  onSuccess: () => toast.success("Changes requested"),
                   onError: (e) => toast.error(`Could not update revision: ${errorMessage(e)}`),
                 }
               )
