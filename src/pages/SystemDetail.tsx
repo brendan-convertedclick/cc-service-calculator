@@ -18,6 +18,7 @@ import {
   Plus,
   Save,
   Settings2,
+  Trash2,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -234,16 +235,16 @@ function ApproveButton({
     );
   }
 
-  // Nothing left for a non-approver staff member to do here.
-  if (!canApprove) return null;
+  // A revision approves itself: the click that records the last required
+  // sign-off publishes it. So this button is not the normal way through — it
+  // only appears when a complete set of sign-offs somehow didn't publish,
+  // which happens when the person who completed it was staff and couldn't.
+  // While anyone is still outstanding there is nothing here to press, and
+  // the badge plus the panel's own line already say what's being waited on.
+  if (!canApprove || blockedReason) return null;
 
   return (
-    <Button
-      size="sm"
-      disabled={publish.isPending || !!blockedReason}
-      title={blockedReason ?? `Approve ${revisionLabel}`}
-      onClick={doPublish}
-    >
+    <Button size="sm" disabled={publish.isPending} title={`Approve ${revisionLabel}`} onClick={doPublish}>
       {publish.isPending ? "Approving…" : "Approve"}
     </Button>
   );
@@ -2174,7 +2175,10 @@ function ApprovalLine({
         <Button
           size="sm"
           variant="ghost"
+          className="h-8 w-8 p-0 text-m-on-surface-variant hover:text-m-error"
           disabled={removeApproval.isPending}
+          aria-label={`Remove ${name} as an approver`}
+          title={`Remove ${name} as an approver`}
           onClick={() =>
             removeApproval.mutate(
               { systemId, approvalId: approval.id },
@@ -2182,7 +2186,7 @@ function ApprovalLine({
             )
           }
         >
-          Remove
+          <Trash2 className="h-4 w-4" />
         </Button>
       )}
     </li>
