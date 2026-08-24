@@ -79,19 +79,36 @@ Deno.serve(async (req: Request) => {
 
     let content: string;
     if (event === "proposed") {
-      // Publishing is gated on admin-or-owner (publish_system_revision), so
-      // both roles are pinged — not admin alone.
-      const { data: approversRaw } = await sb
-        .from("team_members")
-        .select("full_name, clickup_user_id")
-        .in("role", ["admin", "owner"])
-        .is("archived_at", null);
-      const mentions = ((approversRaw ?? []) as Member[])
+      // The people actually being asked, named in the Send-for-review dialog.
+      const { data: approvalRows } = await sb
+        .from("system_revision_approvals")
+        .select("team_member_id")
+        .eq("revision_id", revision_id)
+        .eq("required", true);
+      const memberIds = ((approvalRows ?? []) as { team_member_id: string }[]).map((r) => r.team_member_id);
+      const { data: namedRaw } = memberIds.length
+        ? await sb.from("team_members").select("full_name, clickup_user_id").in("id", memberIds)
+        : { data: null };
+      const named = (namedRaw ?? []) as Member[];
+
+      // Revisions proposed before the dialog required a reviewer have no rows
+      // at all — fall back to everyone who could approve. Publishing is gated
+      // on admin-or-owner (publish_system_revision), so both roles, not admin
+      // alone.
+      const { data: fallbackRaw } = named.length
+        ? { data: null }
+        : await sb
+          .from("team_members")
+          .select("full_name, clickup_user_id")
+          .in("role", ["admin", "owner"])
+          .is("archived_at", null);
+      const recipients = named.length ? named : ((fallbackRaw ?? []) as Member[]);
+      const mentions = recipients
         .map((a) => mentionToken({ clickupUserId: a.clickup_user_id, name: a.full_name }))
         .join(" ");
-      const by = proposer ? ` from ${proposer.full_name}` : "";
+      const by = proposer ? ` by ${proposer.full_name}` : "";
       const reason = rev.reason_for_change ? `\n> ${rev.reason_for_change}` : "";
-      content = `📋 ${mentions || "team"} — ${noun} ready for approval${by}: ${what}${reason}\n${link}`;
+      content = `📋 ${mentions || "team"} — ${noun} review requested${by}: ${what}${reason}\n${link}`;
     } else {
       // Both the person who sent it and the person accountable for the
       // procedure (system_definitions.owner_id) — often not the same person,

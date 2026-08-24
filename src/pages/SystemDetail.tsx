@@ -51,6 +51,7 @@ import { useStepNotes } from "@/hooks/useStepNotes";
 import { DocLinksField } from "@/components/systems/DocLinksField";
 import {
   useProposeRevision,
+  type ProposedApprover,
   usePublishRevision,
   useRequestChanges,
   useSystemRevisions,
@@ -1320,6 +1321,8 @@ export function SystemDetail() {
         setOpen={setProposeOpen}
         reason={proposeReason}
         setReason={setProposeReason}
+        team={team}
+        teamById={teamById}
       />
 
       {/* The exit interview. `beforeunload` covers the tab closing; this
@@ -1494,6 +1497,8 @@ function ProposeDialog({
   setOpen,
   reason,
   setReason,
+  team,
+  teamById,
 }: {
   systemId: string;
   dirty: boolean;
@@ -1501,8 +1506,20 @@ function ProposeDialog({
   setOpen: (open: boolean) => void;
   reason: string;
   setReason: (reason: string) => void;
+  team: TeamRow[];
+  teamById: Map<string, TeamRow>;
 }) {
   const propose = useProposeRevision();
+  // Who is being asked to look at it, named here rather than after the fact:
+  // a review nobody is waiting on is how a revision used to sit in 'proposed'
+  // indefinitely. No datetime — these people have not signed anything yet;
+  // the sign-off date is recorded on the revision row when it happens.
+  const [approvers, setApprovers] = useState<ProposedApprover[]>([]);
+  const [memberId, setMemberId] = useState("");
+  const [required, setRequired] = useState(true);
+  const named = new Set(approvers.map((a) => a.teamMemberId));
+  const options = team.filter((t) => !named.has(t.id));
+  const hasRequired = approvers.some((a) => a.required);
   // A revision snapshots what is IN THE DATABASE, so staged edits must land
   // first — otherwise the snapshot silently omits them, and the gate above
   // reads the saved rows and keeps complaining about answers already on screen.
@@ -1512,7 +1529,12 @@ function ProposeDialog({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setReason("");
+        if (!next) {
+          setReason("");
+          setApprovers([]);
+          setMemberId("");
+          setRequired(true);
+        }
       }}
     >
       <DialogContent>
@@ -1533,6 +1555,71 @@ function ProposeDialog({
             placeholder="Why is this procedure changing?"
           />
         </div>
+        <div className="space-y-1.5">
+          <Label>Who needs to review it</Label>
+          {approvers.length > 0 && (
+            <ul className="space-y-1.5">
+              {approvers.map((a) => (
+                <li key={a.teamMemberId} className="flex items-center gap-2">
+                  <span className="text-body-small text-m-on-surface">
+                    {teamById.get(a.teamMemberId)?.full_name ?? "Unknown"}
+                  </span>
+                  <Badge variant={a.required ? "outline" : "muted"}>
+                    {a.required ? "Required" : "Optional"}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setApprovers((prev) => prev.filter((x) => x.teamMemberId !== a.teamMemberId))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Reviewer"
+              value={memberId}
+              onChange={(e) => setMemberId(e.target.value)}
+              className="h-9 rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+            >
+              <option value="">— choose a person</option>
+              {options.map((t) => (
+                <option key={t.id} value={t.id}>{t.full_name}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Review requirement"
+              value={required ? "required" : "optional"}
+              onChange={(e) => setRequired(e.target.value === "required")}
+              className="h-9 rounded-md border border-m-outline bg-m-surface px-2 text-body-small text-m-on-surface"
+            >
+              <option value="required">Required</option>
+              <option value="optional">Optional</option>
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!memberId}
+              onClick={() => {
+                setApprovers((prev) => [...prev, { teamMemberId: memberId, required }]);
+                setMemberId("");
+              }}
+            >
+              Add reviewer
+            </Button>
+          </div>
+        </div>
+        {!hasRequired && (
+          <p className="rounded-lg bg-m-surface-container px-3 py-2 text-label-medium text-m-on-surface-variant">
+            Name at least one required reviewer — they get pinged in ClickUp, and publishing
+            waits for them.
+          </p>
+        )}
         {dirty && (
           <p className="rounded-lg bg-m-error-container px-3 py-2 text-label-medium text-m-on-error-container">
             Save your changes first — a revision snapshots the saved procedure, so anything
@@ -1542,15 +1629,16 @@ function ProposeDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
-            disabled={!reason.trim() || dirty || propose.isPending}
+            disabled={!reason.trim() || !hasRequired || dirty || propose.isPending}
             onClick={() => {
               propose.mutate(
-                { systemId, reasonForChange: reason.trim() },
+                { systemId, reasonForChange: reason.trim(), approvers },
                 {
                   onSuccess: () => {
                     toast.success("Sent for review");
                     setOpen(false);
                     setReason("");
+                    setApprovers([]);
                   },
                   onError: (e) => toast.error(`Could not send for review: ${errorMessage(e)}`),
                 }

@@ -54,11 +54,24 @@ export function useSystemRevisions(systemId: string | undefined) {
 // diffed against whatever is currently 'published' (or against nothing, for
 // a system's first-ever revision — diffSteps([], after) reports every step
 // as added).
+export type ProposedApprover = { teamMemberId: string; required: boolean };
+
 export function useProposeRevision() {
   const qc = useQueryClient();
   const { currentUserId } = useAuth();
   return useMutation({
-    mutationFn: async ({ systemId, reasonForChange }: { systemId: string; reasonForChange: string }) => {
+    mutationFn: async ({
+      systemId,
+      reasonForChange,
+      approvers,
+    }: {
+      systemId: string;
+      reasonForChange: string;
+      /** Who has to look at this, named in the Send-for-review dialog. At
+       *  least one required — a review with nobody waiting on it is how a
+       *  revision used to sit in 'proposed' forever. */
+      approvers: ProposedApprover[];
+    }) => {
       // A kind='service' system's steps aren't reliably reachable by
       // system_id alone: useSetServiceChecklist/useReplaceSteps (the
       // service-editor mutations) write `service_id` only, with no
@@ -120,6 +133,26 @@ export function useProposeRevision() {
         .select()
         .single();
       if (error) throw error;
+
+      // Written here rather than in onSuccess so the rows exist before the
+      // notification reads them — the ping names the required approvers.
+      const { error: approverErr } = await supabase.from("system_revision_approvals").insert(
+        approvers.map((a) => ({
+          revision_id: data.id,
+          team_member_id: a.teamMemberId,
+          required: a.required,
+          approved_at: null, // named, not signed
+        })),
+      );
+      if (approverErr) {
+        // Roll the proposal back so it can't sit in review with nobody
+        // waiting on it. Best-effort only: system_revisions_delete is
+        // admin/owner-only (0118), so for a staff proposer this no-ops
+        // silently and leaves the revision behind — benign, and the panel on
+        // the revision row can still name approvers after the fact.
+        await supabase.from("system_revisions").delete().eq("id", data.id);
+        throw approverErr;
+      }
       return data;
     },
     onSuccess: (data, vars) => {
