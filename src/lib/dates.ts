@@ -18,14 +18,3 @@ export function toISODate(d: Date): string {
 export function todayISO(): string {
   return toISODate(new Date());
 }
-
-/**
- * `YYYY-MM-DDTHH:mm` for `<input type="datetime-local">`, in the local
- * timezone — the input has no zone of its own, so an ISO string sliced to 16
- * chars would display a UTC wall-clock time as if it were local.
- */
-export function toLocalDateTimeInput(d: Date): string {
-  const h = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${toISODate(d)}T${h}:${min}`;
-}

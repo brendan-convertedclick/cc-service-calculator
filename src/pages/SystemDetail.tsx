@@ -82,7 +82,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, errorMessage } from "@/lib/utils";
-import { toLocalDateTimeInput } from "@/lib/dates";
 import { parseStepHours } from "@/lib/step-hours";
 import { applyDraft, pruneDraft } from "@/lib/procedure-shape";
 import { FieldHint } from "@/components/FieldHint";
@@ -152,6 +151,7 @@ function ApproveButton({
   approvals,
   teamById,
   canApprove,
+  publishOnly,
 }: {
   systemId: string;
   revisionId: string;
@@ -159,6 +159,11 @@ function ApproveButton({
   approvals: ApprovalRow[];
   teamById: Map<string, TeamRow>;
   canApprove: boolean;
+  /** Set where each approver already has their own Approve button beside
+   *  their name (the revision card) — there the sign-off leg would be a
+   *  second control for the same act. The Steps-pane header has no such
+   *  list, so it keeps both legs. */
+  publishOnly?: boolean;
 }) {
   // Null on the shared team@ login (no team_members row) — then there is no
   // "my" sign-off to record and this falls through to the publish branch.
@@ -177,7 +182,7 @@ function ApproveButton({
       }
     );
 
-  if (mine && !mine.approved_at) {
+  if (mine && !mine.approved_at && !publishOnly) {
     // Would mine be the last required signature missing? Then the same click
     // finishes the job — if this person is allowed to finish it.
     const lastOutstanding =
@@ -1881,6 +1886,10 @@ function RevisionRow({
   // `approver`/`proposer` can be null while the date is still real; a bare
   // unlabelled date reads as ambiguous, so the action verb always shows.
   const blockedReason = publishBlockedReason(approvals, teamById);
+  // Null on the shared team@ login, which has no team_members row — nobody's
+  // sign-off is "mine" there.
+  const currentUserId = useCurrentUserId();
+  const myApproval = approvals.find((a) => a.team_member_id === currentUserId) ?? null;
   const meta = [
     rev.proposed_at &&
       `Sent for review${proposer ? ` by ${proposer}` : ""} ${new Date(rev.proposed_at).toLocaleDateString()}`,
@@ -1903,7 +1912,10 @@ function RevisionRow({
         </div>
         {rev.state === "proposed" && (
           <div className="flex gap-2">
-            {canApprove && (
+            {/* Each named approver acts on their own line below. This pair is
+                what's left for someone who isn't named: an admin declining
+                the revision, or publishing it once everyone has signed. */}
+            {canApprove && !myApproval && (
               <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
                 Request changes
               </Button>
@@ -1915,6 +1927,7 @@ function RevisionRow({
               approvals={approvals}
               teamById={teamById}
               canApprove={canApprove}
+              publishOnly
             />
           </div>
         )}
@@ -1929,6 +1942,10 @@ function RevisionRow({
         teamById={teamById}
         editable={rev.state === "proposed" || rev.state === "draft"}
         blockedReason={rev.state === "proposed" ? blockedReason : null}
+        myApprovalId={rev.state === "proposed" ? (myApproval?.id ?? null) : null}
+        canApprove={canApprove}
+        requestPending={requestPending}
+        onRequestChanges={() => onRequestChanges(rev.id)}
       />
       {diff && (
         <details open={rev.state === "proposed"} className="mt-2 rounded-lg border border-m-outline-variant">
@@ -1945,10 +1962,11 @@ function RevisionRow({
 }
 
 // Who signed this revision off, and when (0126). A `required` approver blocks
-// publishing until their datetime is recorded; an optional one is a log entry
-// nobody waits on. Sign-offs are entered, not self-served — the person filling
-// this in is recording an agreement that already happened, which is why the
-// datetime is editable rather than stamped.
+// publishing until they sign; an optional one is a log entry nobody waits on.
+// Each person acts on their own line: you sign your row, nobody signs anyone
+// else's, and the date is stamped at the click rather than typed — it records
+// when the approval actually happened, so it can't be back-dated or entered
+// on someone's behalf.
 function RevisionApprovals({
   systemId,
   revisionId,
@@ -1957,6 +1975,10 @@ function RevisionApprovals({
   teamById,
   editable,
   blockedReason,
+  myApprovalId,
+  canApprove,
+  requestPending,
+  onRequestChanges,
 }: {
   systemId: string;
   revisionId: string;
@@ -1965,11 +1987,17 @@ function RevisionApprovals({
   teamById: Map<string, TeamRow>;
   editable: boolean;
   blockedReason: string | null;
+  /** The signed-in person's own row on a revision still in review — the only
+   *  one that gets Approve / Request changes. Null on the shared team@ login,
+   *  and on a revision that has already been decided. */
+  myApprovalId: string | null;
+  canApprove: boolean;
+  requestPending: boolean;
+  onRequestChanges: () => void;
 }) {
   const add = useAddRevisionApproval();
   const [memberId, setMemberId] = useState("");
   const [required, setRequired] = useState(true);
-  const [signedAt, setSignedAt] = useState(() => toLocalDateTimeInput(new Date()));
 
   const named = new Set(approvals.map((a) => a.team_member_id));
   const options = team.filter((t) => !named.has(t.id));
@@ -1990,6 +2018,13 @@ function RevisionApprovals({
               approval={a}
               name={teamById.get(a.team_member_id)?.full_name ?? "Unknown"}
               editable={editable}
+              isMine={a.id === myApprovalId}
+              lastOutstanding={
+                approvals.filter((o) => o.required && !o.approved_at && o.id !== a.id).length === 0
+              }
+              canApprove={canApprove}
+              requestPending={requestPending}
+              onRequestChanges={onRequestChanges}
             />
           ))}
         </ul>
@@ -2016,13 +2051,6 @@ function RevisionApprovals({
             <option value="required">Required</option>
             <option value="optional">Optional</option>
           </select>
-          <Input
-            type="datetime-local"
-            aria-label="Approved at"
-            value={signedAt}
-            onChange={(e) => setSignedAt(e.target.value)}
-            className="h-9 w-auto"
-          />
           <Button
             size="sm"
             variant="outline"
@@ -2034,9 +2062,9 @@ function RevisionApprovals({
                   revisionId,
                   teamMemberId: memberId,
                   required,
-                  // Blank means named but not signed yet — the required ones
-                  // then hold up the publish until someone fills it in.
-                  approvedAt: signedAt ? new Date(signedAt).toISOString() : null,
+                  // Naming someone is not signing for them — they sign on
+                  // their own line, from their own login.
+                  approvedAt: null,
                 },
                 {
                   onSuccess: () => setMemberId(""),
@@ -2061,17 +2089,31 @@ function ApprovalLine({
   approval,
   name,
   editable,
+  isMine,
+  lastOutstanding,
+  canApprove,
+  requestPending,
+  onRequestChanges,
 }: {
   systemId: string;
   approval: ApprovalRow;
   name: string;
   editable: boolean;
+  /** This is the signed-in person's own row, on a revision still in review. */
+  isMine: boolean;
+  /** Signing this row would leave nothing required outstanding. */
+  lastOutstanding: boolean;
+  canApprove: boolean;
+  requestPending: boolean;
+  onRequestChanges: () => void;
 }) {
   const setApproval = useSetRevisionApproval();
   const removeApproval = useRemoveRevisionApproval();
-  const stored = approval.approved_at ? toLocalDateTimeInput(new Date(approval.approved_at)) : "";
-  const [draft, setDraft] = useState(stored);
-  const dirty = draft !== stored;
+  const publish = usePublishRevision();
+  const busy = setApproval.isPending || publish.isPending;
+  // Signing the last required row IS approving the revision, so the same
+  // click does both — when the person clicking is allowed to publish.
+  const willApprove = lastOutstanding && canApprove;
 
   return (
     <li className="flex flex-wrap items-center gap-2">
@@ -2079,54 +2121,69 @@ function ApprovalLine({
       <Badge variant={approval.required ? "outline" : "muted"}>
         {approval.required ? "Required" : "Optional"}
       </Badge>
-      {editable ? (
+      <span className="text-label-small text-m-on-surface-variant">
+        {approval.approved_at ? new Date(approval.approved_at).toLocaleString() : "not signed off"}
+      </span>
+      {/* Only your own row is actionable. Request changes is a decision about
+          the revision, not about you — one reviewer's objection sends the
+          whole thing back, which is why it reads the same here as it does in
+          the card header. */}
+      {isMine && !approval.approved_at && (
         <>
-          <Input
-            type="datetime-local"
-            aria-label={`${name} approved at`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="h-9 w-auto"
-          />
-          {dirty && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={setApproval.isPending}
-              onClick={() =>
-                setApproval.mutate(
-                  {
-                    systemId,
-                    approvalId: approval.id,
-                    approvedAt: draft ? new Date(draft).toISOString() : null,
-                  },
-                  { onError: (e) => toast.error(`Could not save sign-off: ${errorMessage(e)}`) }
-                )
-              }
-            >
-              Save
-            </Button>
-          )}
           <Button
             size="sm"
-            variant="ghost"
-            disabled={removeApproval.isPending}
+            disabled={busy}
+            title={
+              willApprove
+                ? "Sign off and approve this revision — you are the last one outstanding"
+                : "Record your sign-off"
+            }
             onClick={() =>
-              removeApproval.mutate(
-                { systemId, approvalId: approval.id },
-                { onError: (e) => toast.error(`Could not remove approver: ${errorMessage(e)}`) }
+              setApproval.mutate(
+                { systemId, approvalId: approval.id, approvedAt: new Date().toISOString() },
+                {
+                  onSuccess: () => {
+                    if (willApprove) {
+                      return publish.mutate(
+                        { revisionId: approval.revision_id, systemId },
+                        {
+                          onSuccess: () => toast.success("Revision approved"),
+                          onError: (e) => toast.error(`Could not approve revision: ${errorMessage(e)}`),
+                        }
+                      );
+                    }
+                    toast.success(
+                      lastOutstanding
+                        ? "Sign-off recorded — an admin can now approve it."
+                        : "Sign-off recorded."
+                    );
+                  },
+                  onError: (e) => toast.error(`Could not record sign-off: ${errorMessage(e)}`),
+                }
               )
             }
           >
-            Remove
+            {busy ? (willApprove ? "Approving…" : "Signing…") : willApprove ? "Approve" : "Sign off"}
+          </Button>
+          <Button size="sm" variant="outline" disabled={requestPending} onClick={onRequestChanges}>
+            Request changes
           </Button>
         </>
-      ) : (
-        <span className="text-label-small text-m-on-surface-variant">
-          {approval.approved_at
-            ? new Date(approval.approved_at).toLocaleString()
-            : "not signed off"}
-        </span>
+      )}
+      {editable && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={removeApproval.isPending}
+          onClick={() =>
+            removeApproval.mutate(
+              { systemId, approvalId: approval.id },
+              { onError: (e) => toast.error(`Could not remove approver: ${errorMessage(e)}`) }
+            )
+          }
+        >
+          Remove
+        </Button>
       )}
     </li>
   );
