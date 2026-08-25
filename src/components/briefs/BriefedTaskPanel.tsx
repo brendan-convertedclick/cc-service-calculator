@@ -9,7 +9,7 @@
 // not touch ClickUp's own Client Name custom field). Billing stays read-only.
 
 import { useEffect, useState } from "react";
-import { CalendarClock, ExternalLink, Send } from "lucide-react";
+import { CalendarClock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -105,11 +105,6 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   // can't drop a duplicate item in their inbox. Once it's decided (including
   // "changes requested"), the action comes back — that's how a revised ask
   // goes out.
-  // `signoff.data` is undefined while loading, and `undefined !== "pending"` is
-// true — without the isPending guard the button flashes up on a brief that
-// already has a sign-off out, and a fast click double-sends it.
-  const canSendSignoff =
-    !!brief.client_id && !signoff.isPending && signoff.data?.state !== "pending";
 
   const clientName = clients.find((c) => c.id === brief.client_id)?.name ?? "—";
   const assigneeName = team.find((m) => m.id === brief.assignee_id)?.full_name ?? "Unassigned";
@@ -182,12 +177,6 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {!editing && !details.isError && canSendSignoff && (
-            <Button variant="outline" size="sm" onClick={() => setSignoffOpen(true)}>
-              <Send className="mr-1.5 h-3.5 w-3.5" />
-              Send for client sign-off
-            </Button>
-          )}
           {!editing && !details.isError && (
             <Button variant="outline" size="sm" onClick={() => setExtensionOpen(true)}>
               <CalendarClock className="mr-1.5 h-3.5 w-3.5" />

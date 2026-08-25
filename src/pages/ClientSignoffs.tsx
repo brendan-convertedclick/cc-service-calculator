@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ExternalLink, Link2Off } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ExternalLink, Link2Off, Wand2 } from "lucide-react";
+import { DraftSignoffsDialog } from "@/components/signoffs/DraftSignoffsDialog";
+import { useSignoffCandidates } from "@/hooks/useSignoffCandidates";
 import { ClientReview } from "@/pages/ClientReview";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +49,8 @@ export function ClientSignoffs() {
   const { data: linkCounts = {} } = useLiveLinkCounts();
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const { data: candidates = [] } = useSignoffCandidates();
 
   // One entry per client that has ever been asked to sign something off.
   const clients = useMemo(() => {
@@ -119,7 +124,15 @@ export function ClientSignoffs() {
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="border-b border-m-outline-variant px-6 py-4">
-          <h1 className="text-headline-small text-m-on-surface">Client sign-offs</h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-headline-small text-m-on-surface">Client sign-offs</h1>
+            {candidates.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setDraftOpen(true)}>
+                <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                Draft from ClickUp ({candidates.length})
+              </Button>
+            )}
+          </div>
           <p className="mt-1 text-body-medium text-m-on-surface-variant">
             {waiting.length === 0
               ? "Nothing is waiting on a client right now."
@@ -189,7 +202,7 @@ export function ClientSignoffs() {
 
             {visible.length === 0 ? (
               <p className="p-6 text-body-medium text-m-on-surface-variant">
-                No sign-offs yet. Send one from a brief&apos;s scope page.
+                No sign-offs yet. Draft them from the briefs ClickUp already has waiting on a client, or send one from a brief&apos;s scope page.
               </p>
             ) : (
               <table className="w-full text-body-medium">
@@ -246,6 +259,8 @@ export function ClientSignoffs() {
           </>
         )}
       </div>
+
+      <DraftSignoffsDialog open={draftOpen} onOpenChange={setDraftOpen} />
     </div>
   );
 }
