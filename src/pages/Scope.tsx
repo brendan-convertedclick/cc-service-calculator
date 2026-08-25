@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Link2, Pencil, Unlink } from "lucide-react";
+import { ArrowLeft, Copy, Link2, Pencil, Send, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,8 @@ import { BriefIntelligenceView } from "@/components/BriefIntelligenceView";
 import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
 import { DuplicateBriefDialog } from "@/components/briefs/DuplicateBriefDialog";
 import { BriefedTaskPanel } from "@/components/briefs/BriefedTaskPanel";
+import { ClientSignoffDialog } from "@/components/briefs/ClientSignoffDialog";
+import { useLatestClientApproval } from "@/hooks/useClientApprovals";
 import { InboxAssignModal } from "@/components/scope/InboxAssignModal";
 import { useBrief, useUpdateBrief, useConfirmScope } from "@/hooks/useBriefs";
 import { useAssignBriefToProject } from "@/hooks/useAssignBriefToProject";
@@ -121,6 +123,7 @@ export function Scope() {
   const [quickBriefOpen, setQuickBriefOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(false);
+  const [signoffOpen, setSignoffOpen] = useState(false);
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
 
@@ -197,6 +200,8 @@ export function Scope() {
   // advances (quoted → briefed), but scopes.locked_at records that the staged
   // flow locked a scope at some point. Quick-briefed ("as-is") briefs never do.
   const scopeLocked = brief?.status === "scoped" || !!scope?.locked_at;
+
+  const latestSignoff = useLatestClientApproval(brief?.id);
 
   const briefed = brief?.status === "briefed";
   // Quick-briefed ("Brief as-is") without ever locking a scope: the staged
@@ -345,6 +350,12 @@ export function Scope() {
             Edit task
           </Button>
         )}
+        {brief.client_id && latestSignoff.data?.state !== "pending" && !latestSignoff.isPending && (
+          <Button variant="outline" size="sm" onClick={() => setSignoffOpen(true)}>
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            Send for client sign-off
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
           <Copy className="mr-1.5 h-3.5 w-3.5" />
           Duplicate
@@ -387,6 +398,23 @@ export function Scope() {
           </Button>
         )}
       </div>
+
+      {brief.client_id && (
+
+        <ClientSignoffDialog
+
+          briefId={brief.id}
+
+          clientId={brief.client_id}
+
+          open={signoffOpen}
+
+          onOpenChange={setSignoffOpen}
+
+        />
+
+      )}
+
 
       <DuplicateBriefDialog
         brief={brief}
