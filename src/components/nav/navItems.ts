@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  Stamp,
   BookOpen,
   Bug,
   Building2,
@@ -85,6 +86,7 @@ const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundatio
 const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoice preview", icon: Receipt, end: false }
 
 const approvals: NavItem      = { to: "/approvals",     label: "Approvals",     icon: BadgeCheck,        end: false }
+const clientSignoffs: NavItem = { to: "/client-signoffs", label: "Client sign-offs", icon: Stamp,        end: false }
 const escalations: NavItem    = { to: "/escalations",   label: "Escalations",   icon: ShieldAlert,       end: false, roles: ["owner"] }
 
 const clients: NavItem        = { to: "/clients",       label: "Clients",       icon: Building2,         end: false }
@@ -102,7 +104,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

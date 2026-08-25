@@ -9,6 +9,7 @@ import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReviewDecision, useReviewList, useRememberedApprover } from "@/hooks/useClientReview";
+import { useClientReviewPreview } from "@/hooks/useClientSignoffs";
 import { bucketCounts, bucketOf, formatAsAt, isOverdue, REVIEW_REPLY_TO, sortForQueue } from "@/lib/client-review";
 import { cn, errorMessage } from "@/lib/utils";
 import {
@@ -78,10 +79,19 @@ function CenteredCard({ children }: { children: React.ReactNode }) {
  * The client-facing sign-off inbox. No login (the token in the URL is the
  * auth), no staff identity anywhere on the page — the only two parties are
  * the client's own contacts and "Converted Click".
+ *
+ * `previewClientId` switches the data source to a staff session (see
+ * /client-signoffs) while leaving every pixel of the rendering alone. That is
+ * the whole point: staff review the real screen, not a lookalike that can
+ * drift from it. Decisions are intercepted rather than hidden — the buttons
+ * must still look exactly as the client sees them.
  */
-export function ClientReview() {
+export function ClientReview({ previewClientId }: { previewClientId?: string } = {}) {
   const { token = "" } = useParams<{ token: string }>();
-  const listQuery = useReviewList(token);
+  const preview = !!previewClientId;
+  const tokenQuery = useReviewList(preview ? "" : token);
+  const previewQuery = useClientReviewPreview(previewClientId);
+  const listQuery = preview ? previewQuery : tokenQuery;
   const decisionMutation = useReviewDecision(token);
   const [approver, setApprover] = useRememberedApprover(token);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -164,6 +174,15 @@ export function ClientReview() {
 
   function beginDecision(itemId: string, decision: ReviewDecision, comment?: string) {
     setDecisionError(null);
+    if (preview) {
+      // Staff are looking at the client's screen. The controls are left
+      // looking exactly as the client sees them — disabling them would make
+      // this a different screen — so the action is caught here instead.
+      setDecisionError(
+        "Preview only — nothing was recorded. This is the screen the client sees.",
+      );
+      return;
+    }
     if (approver) {
       fireDecision(itemId, decision, comment, approver);
     } else {
