@@ -115,6 +115,9 @@ const ProductivityPage = lazy(() =>
 const Approvals = lazy(() =>
   import("@/pages/Approvals").then((m) => ({ default: m.Approvals })),
 );
+const ClientSignoffs = lazy(() =>
+  import("@/pages/ClientSignoffs").then((m) => ({ default: m.ClientSignoffs })),
+);
 const Escalations = lazy(() =>
   import("@/pages/Escalations").then((m) => ({ default: m.Escalations })),
 );
@@ -226,6 +229,7 @@ export default function App() {
                     the rail. It was outside the shell and in no nav section,
                     which left it reachable only by typing the URL. */}
                 <Route path="approvals" element={<Approvals />} />
+                <Route path="client-signoffs" element={<ClientSignoffs />} />
                 <Route path="time" element={<ClientTimeView />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
