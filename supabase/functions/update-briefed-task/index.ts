@@ -20,6 +20,8 @@ import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 const POINT_TO_MIN = 15; // keep in sync with _shared/clickup.ts
+/** Keep in sync with WAITING_STATUSES in src/hooks/useSignoffCandidates.ts. */
+const WAITING_STATUSES = ["waiting on client", "send to client"];
 
 /** ms epoch → "YYYY-MM-DD" (UTC), or null. */
 function msToDateStr(ms: number | null | undefined): string | null {
@@ -52,6 +54,7 @@ Deno.serve(async (req: Request) => {
       sprint_points?: number;
       due_date?: string | null;
       assignee_member_id?: string | null;
+      with_client?: boolean;
     } = {};
     if (req.method === "GET") {
       briefId = new URL(req.url).searchParams.get("brief_id") ?? undefined;
@@ -151,6 +154,30 @@ Deno.serve(async (req: Request) => {
       if (ms !== null) update.due_date_time = false;
     }
 
+    // "With the client": nobody here owns it, so the task carries the list's
+    // waiting-on-client status — the signal the sign-off inbox already reads
+    // (useSignoffCandidates.WAITING_STATUSES). The status name is resolved from
+    // the task's own list rather than hardcoded, because lists spell it
+    // differently ("waiting on client" / "send to client") and a name the list
+    // doesn't have makes ClickUp reject the whole update.
+    let waitingStatus: string | null = null;
+    if (body.with_client) {
+      const cur = await fetch(taskApi, CU);
+      if (!cur.ok) return json({ error: `ClickUp get ${cur.status}: ${await cur.text()}` }, 502);
+      const listId = ((await cur.json()) as { list?: { id?: string } }).list?.id;
+      if (!listId) return json({ error: "Could not read the task's ClickUp list." }, 502);
+      const listRes = await fetch(`https://api.clickup.com/api/v2/list/${listId}`, CU);
+      if (!listRes.ok) return json({ error: `ClickUp list ${listRes.status}: ${await listRes.text()}` }, 502);
+      const statuses = ((await listRes.json()) as { statuses?: Array<{ status?: string }> }).statuses ?? [];
+      waitingStatus = statuses
+        .map((s) => s.status ?? "")
+        .find((s) => WAITING_STATUSES.includes(s.toLowerCase())) ?? null;
+      if (!waitingStatus) {
+        return json({ error: "This task's ClickUp list has no waiting-on-client status." }, 400);
+      }
+      update.status = waitingStatus;
+    }
+
     // Reassignment: resolve the new member → ClickUp user, then swap the task's
     // assignees (rem the current ones, add the new one). null clears assignees.
     let newAssigneeMemberId: string | null | undefined;
@@ -213,6 +240,9 @@ Deno.serve(async (req: Request) => {
     if (newAssigneeMemberId !== undefined && newAssigneeMemberId !== brief.assignee_id) {
       briefPatch.assignee_id = newAssigneeMemberId;
     }
+    // Mirror the status so the sign-off candidate query sees it now rather than
+    // at the next sync-clickup-actuals tick.
+    if (waitingStatus) briefPatch.clickup_task_status = waitingStatus;
     if (Object.keys(briefPatch).length > 0) {
       briefPatch.updated_at = new Date().toISOString();
       await sb.from("briefs").update(briefPatch).eq("id", briefId);

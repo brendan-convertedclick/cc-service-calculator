@@ -212,6 +212,11 @@ Deno.serve(async (req: Request) => {
       // Mirror the task's assignee onto the brief so the drawer/list don't
       // read "Unassigned" for work that was briefed to someone.
       ...(b.assignee_member_id ? { assignee_id: b.assignee_member_id } : {}),
+      // Mirror the status we actually set on the task (same condition as the
+      // create body above). sync-clickup-actuals owns this column from then on,
+      // but without this a task created as "waiting on client" is invisible to
+      // the sign-off candidate query until the next cron tick.
+      ...(b.status && requestedList ? { clickup_task_status: b.status } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", brief.id);
     if (upErr) {

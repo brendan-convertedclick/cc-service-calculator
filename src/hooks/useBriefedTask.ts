@@ -71,11 +71,14 @@ export function useUpdateBriefedTask() {
       sprint_points?: number;
       due_date?: string | null;
       assignee_member_id?: string | null;
+      /** Hand the task to the client: unassigned + the list's waiting status. */
+      with_client?: boolean;
     }) => invokeBriefedTask({ ...args, mode: "write" }),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["briefed-task", vars.brief_id] });
       qc.invalidateQueries({ queryKey: ["briefs"] });
       qc.invalidateQueries({ queryKey: ["briefs", "inbox"] });
+      qc.invalidateQueries({ queryKey: ["signoff-candidates"] });
     },
   });
 }

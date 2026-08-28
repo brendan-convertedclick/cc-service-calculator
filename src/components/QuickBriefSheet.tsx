@@ -20,6 +20,7 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useRetainers } from "@/hooks/useRetainers";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
+import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
 import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
@@ -27,6 +28,10 @@ import { X } from "lucide-react";
 
 const NO_PROJECT = "__none__";
 const UNASSIGNED = "__unassigned__";
+// "With the client" is not a person: the ClickUp task stays unassigned and
+// carries the list's waiting-on-client status, which is the signal the client
+// sign-off inbox already reads (useSignoffCandidates).
+const CLIENT = "__client__";
 const STATUS_DEFAULT = "__default__";
 
 type QuickBriefListStatus = { status: string; color: string | null; type: string; orderindex: number };
@@ -175,6 +180,16 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   }, [systemId, systemSteps]);
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
+  const waitingStatus = useMemo(
+    () =>
+      (selectedList?.statuses ?? []).find((s) =>
+        (WAITING_STATUSES as readonly string[]).includes(s.status.toLowerCase()),
+      )?.status ?? null,
+    [selectedList],
+  );
+  // Picking Client forces the status rather than quietly diverging from it —
+  // both fields on screen say the same thing.
+  const effectiveStatus = assignee === CLIENT && waitingStatus ? waitingStatus : status;
 
   // The status set is scoped to whichever list is selected — reset to the
   // list default whenever the selected list changes.
@@ -212,12 +227,12 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         brief_id: brief.id,
         task_name: taskName.trim() || "Untitled task",
         description: composedDescription || undefined,
-        assignee_member_id: assignee === UNASSIGNED ? null : assignee,
+        assignee_member_id: assignee === UNASSIGNED || assignee === CLIENT ? null : assignee,
         sprint_points: Math.max(1, Math.round(sprintPoints)),
         work_stream: workStream,
         due_date: dueDate || null,
         list_id: listId || undefined,
-        status: status === STATUS_DEFAULT ? undefined : status,
+        status: effectiveStatus === STATUS_DEFAULT ? undefined : effectiveStatus,
         briefed_by_member_id: briefedBy === UNASSIGNED ? null : briefedBy,
         billing_type: billingType,
         checklist_items: checklistItems.split("\n").filter((i) => i.trim()),
@@ -383,6 +398,9 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  <SelectItem value={CLIENT} disabled={!waitingStatus}>
+                    Client
+                  </SelectItem>
                   {team.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       <PersonOption name={m.full_name} color={memberColor.get(m.id)} />
@@ -390,6 +408,16 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                   ))}
                 </SelectContent>
               </Select>
+              {assignee === CLIENT && waitingStatus && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  Unassigned in ClickUp, status “{waitingStatus}” — it shows up in Client sign-offs.
+                </p>
+              )}
+              {selectedList && !waitingStatus && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  “Client” needs a waiting-on-client status on the selected list.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="qb-briefed-by">Briefed by</Label>
@@ -530,7 +558,11 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             </div>
             <div className="space-y-2">
               <Label htmlFor="qb-status">Status</Label>
-              <Select value={status} onValueChange={setStatus} disabled={!selectedList}>
+              <Select
+                value={effectiveStatus}
+                onValueChange={setStatus}
+                disabled={!selectedList || assignee === CLIENT}
+              >
                 <SelectTrigger id="qb-status">
                   <SelectValue placeholder="— List default —" />
                 </SelectTrigger>

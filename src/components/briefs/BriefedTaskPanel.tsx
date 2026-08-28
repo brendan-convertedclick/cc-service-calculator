@@ -31,6 +31,7 @@ import { ClientSignoffDialog } from "@/components/briefs/ClientSignoffDialog";
 import { useClients } from "@/hooks/useClients";
 import { useUpdateBrief } from "@/hooks/useBriefs";
 import { useTeam } from "@/hooks/useTeam";
+import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
 import { errorMessage } from "@/lib/utils";
 import type { ExtensionRequestRow } from "@/types/extension-requests";
@@ -111,6 +112,16 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
   const billingLabel = BILLING_LABEL[(brief.billing_type as BillingType) ?? "retainer"] ?? "Retainer";
 
   const UNASSIGNED = "__unassigned__";
+  // Not a person: the task goes unassigned and carries the list's
+  // waiting-on-client status, which is what the sign-off inbox reads.
+  const CLIENT = "__client__";
+  // "With the client" is the task's live ClickUp status, not a stored flag —
+  // and only while nobody here owns it.
+  const withClient =
+    !brief.assignee_id &&
+    (WAITING_STATUSES as readonly string[]).includes(
+      (details.data?.status_label ?? "").toLowerCase(),
+    );
   const [name, setName] = useState("");
   const [points, setPoints] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -125,9 +136,9 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
     setName(details.data.task_name ?? "");
     setPoints(details.data.sprint_points != null ? String(details.data.sprint_points) : "");
     setDueDate(details.data.due_date ?? "");
-    setAssigneeId(brief.assignee_id ?? UNASSIGNED);
+    setAssigneeId(withClient ? CLIENT : brief.assignee_id ?? UNASSIGNED);
     setClientId(brief.client_id ?? "");
-  }, [editing, details.data, brief.assignee_id, brief.client_id]);
+  }, [editing, details.data, brief.assignee_id, brief.client_id, withClient]);
 
   const handleSave = async () => {
     const trimmedName = name.trim();
@@ -140,7 +151,8 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
       toast.error("Sprint points must be a positive number");
       return;
     }
-    const selectedAssignee = assigneeId === UNASSIGNED ? null : assigneeId;
+    const toClient = assigneeId === CLIENT;
+    const selectedAssignee = assigneeId === UNASSIGNED || toClient ? null : assigneeId;
     const assigneeChanged = selectedAssignee !== (brief.assignee_id ?? null);
     const clientChanged = clientId !== (brief.client_id ?? "");
     try {
@@ -155,7 +167,12 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
         sprint_points: parsedPoints,
         due_date: dueDate.trim() === "" ? null : dueDate,
         // Only send the assignee when it changed — reassigning hits ClickUp.
-        ...(assigneeChanged ? { assignee_member_id: selectedAssignee } : {}),
+        // Always clear assignees when handing it to the client — the ClickUp
+        // task can have one even when the brief doesn't.
+        ...(assigneeChanged || toClient ? { assignee_member_id: selectedAssignee } : {}),
+        // Only on the transition — re-saving an already-waiting task shouldn't
+        // re-write the status.
+        ...(toClient && !withClient ? { with_client: true } : {}),
       });
       toast.success("ClickUp task updated");
       onExitEdit();
@@ -266,6 +283,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  <SelectItem value={CLIENT}>Client</SelectItem>
                   {team.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.full_name}
@@ -273,6 +291,11 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
                   ))}
                 </SelectContent>
               </Select>
+              {assigneeId === CLIENT && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  Unassigned in ClickUp, moved to waiting-on-client — it shows up in Client sign-offs.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Client</Label>
@@ -309,7 +332,7 @@ export function BriefedTaskPanel({ brief, howBriefed, editing, onExitEdit }: Bri
             </div>
             <Field label="Sprint points">{d?.sprint_points != null ? `${d.sprint_points} pts` : "—"}</Field>
             <Field label="Due date">{formatDue(d?.due_date ?? null)}</Field>
-            <Field label="Assignee">{assigneeName}</Field>
+            <Field label="Assignee">{withClient ? "Client" : assigneeName}</Field>
             <Field label="Client">{clientName}</Field>
             <Field label="Billing">{billingLabel}</Field>
           </div>
