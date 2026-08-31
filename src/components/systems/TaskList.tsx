@@ -300,19 +300,20 @@ export function TaskList(props: TaskListProps) {
   const [linkToggled, setLinkToggled] = useState<Set<string>>(new Set());
   const toggleLink = (id: string) => setLinkToggled((prev) => toggleInSet(prev, id));
   const { data: attachedByStep } = useStepProcedures(props.systemId);
-  // Only count what the row's strip can actually show: documents are a task
-  // field (a ClickUp checklist item has nowhere to put one), so a step's count
-  // would otherwise promise a link that never appears.
-  const attachmentCount = (row: StepRow, withDocs: boolean) =>
+  // Documents count on every row. A ClickUp checklist item still has nowhere to
+  // hang a link, so a step's documents ride into the parent task's description
+  // under that step's heading — the same route its instructions already take
+  // (renderHowTo). The link is therefore real on both sides, not a promise.
+  const attachmentCount = (row: StepRow) =>
     (attachedByStep?.get(row.id)?.length ?? 0)
     + (row.email_template_id != null ? 1 : 0)
-    + (withDocs ? (row.doc_links?.length ?? 0) : 0);
+    + (row.doc_links?.length ?? 0);
   // A row that points somewhere still opens expanded — the chain should not be
   // invisible. The toggle flips whichever way the row started, so a strip you
   // have read can be folded away again; before, clicking it on a linked row
   // did nothing because "has links" alone forced it open.
-  const linksShown = (row: StepRow, withDocs: boolean) =>
-    attachmentCount(row, withDocs) > 0 ? !linkToggled.has(row.id) : linkToggled.has(row.id);
+  const linksShown = (row: StepRow) =>
+    attachmentCount(row) > 0 ? !linkToggled.has(row.id) : linkToggled.has(row.id);
   const { tasks, steps, depts, team, colorById, busy } = props;
   const groups = groupProcedure(tasks, steps);
   const deptName = new Map(depts.map((d) => [d.id, d.name]));
@@ -525,7 +526,7 @@ export function TaskList(props: TaskListProps) {
                   </button>
                 </div>
                 <AttachmentButton
-                  n={attachmentCount(task, true)}
+                  n={attachmentCount(task)}
                   label={`Links and documents on task "${task.title}"`}
                   onClick={() => toggleLink(task.id)}
                 />
@@ -553,7 +554,7 @@ export function TaskList(props: TaskListProps) {
               </div>
             </div>
 
-            {linksShown(task, true) && (
+            {linksShown(task) && (
               <div className="border-t border-m-outline-variant bg-m-surface-container-low px-5 pb-2">
                 <StepLinks row={task} systemId={props.systemId} showDocs />
               </div>
@@ -640,7 +641,7 @@ export function TaskList(props: TaskListProps) {
                           className="w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-0.5 text-body-medium leading-snug text-m-on-surface outline-none hover:bg-m-surface-container-high focus:bg-m-surface focus:ring-1 focus:ring-m-primary"
                         />
                       </div>
-                      {linksShown(step, false) && <StepLinks row={step} systemId={props.systemId} />}
+                      {linksShown(step) && <StepLinks row={step} systemId={props.systemId} showDocs />}
                     </div>
 
                     <div className="mt-0.5 flex flex-none items-center gap-0.5">
@@ -666,7 +667,7 @@ export function TaskList(props: TaskListProps) {
                         </button>
                       </div>
                       <AttachmentButton
-                        n={attachmentCount(step, false)}
+                        n={attachmentCount(step)}
                         label={`Links on step ${number}`}
                         onClick={() => toggleLink(step.id)}
                       />

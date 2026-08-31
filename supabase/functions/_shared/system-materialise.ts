@@ -27,10 +27,16 @@ export type MaterialiseStep = {
   title: string;
   description?: string | null;
   materialise_as: "task" | "checklist_item" | "none";
+  doc_links?: string[] | null;
 };
 
-/** One line on a ClickUp checklist, plus the prose that belongs to it. */
-export type ChecklistEntry = { title: string; description: string | null };
+/** One line on a ClickUp checklist, plus the prose and documents that belong
+ *  to it. Both travel in the task's description — see renderHowTo. */
+export type ChecklistEntry = {
+  title: string;
+  description: string | null;
+  doc_links?: string[] | null;
+};
 
 export type MaterialisePlan = {
   tasks: Array<{
@@ -44,7 +50,14 @@ export type MaterialisePlan = {
 };
 
 function entry(step: MaterialiseStep): ChecklistEntry {
-  return { title: step.title, description: step.description ?? null };
+  // The key is omitted rather than nulled when a step has no documents — most
+  // steps have none, and the entry is a payload other code compares by shape.
+  const docs = (step.doc_links ?? []).filter((l) => l.trim());
+  return {
+    title: step.title,
+    description: step.description ?? null,
+    ...(docs.length > 0 ? { doc_links: docs } : {}),
+  };
 }
 
 /**
@@ -127,9 +140,9 @@ export function planMaterialisation(steps: MaterialiseStep[]): MaterialisePlan {
  * The working instructions for one ClickUp task, as markdown.
  *
  * A checklist item is a name and a tick — there is nowhere on it to say how the
- * thing is actually done. So everything written against the task and its steps
- * is rendered into the task's description, in step order, and the checklist
- * stays the tick list. Returns null when there is nothing to say, so the caller
+ * thing is actually done, and nowhere to hang a document. So everything written
+ * against the task and its steps, prose and links alike, is rendered into the
+ * task's description, in step order, and the checklist stays the tick list. Returns null when there is nothing to say, so the caller
  * can skip the update call entirely rather than stamping an empty description.
  *
  * Steps are NOT numbered here: Conductor numbers them across the whole
@@ -145,8 +158,14 @@ export function renderHowTo(
   if (task.description?.trim()) parts.push(task.description.trim());
 
   for (const item of task.checklist) {
-    if (!item.description?.trim()) continue;
-    parts.push(`## ${item.title}\n\n${item.description.trim()}`);
+    // A step earns a heading for its prose OR its documents. Requiring prose
+    // dropped the links of any step nobody had written instructions for —
+    // which is most of them, and is exactly the "a link that never appears"
+    // failure this whole path exists to avoid.
+    const itemDocs = renderDocLinks(item.doc_links);
+    if (!item.description?.trim() && !itemDocs) continue;
+    const body = [item.description?.trim(), itemDocs].filter(Boolean).join("\n\n");
+    parts.push(`## ${item.title}\n\n${body}`);
   }
 
   // After the instructions, before the origin footer: the docs are reference

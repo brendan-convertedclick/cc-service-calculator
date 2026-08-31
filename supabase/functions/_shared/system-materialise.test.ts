@@ -185,3 +185,33 @@ Deno.test("renderHowTo is unchanged when a system has no doc links", () => {
   );
   assertEquals(renderHowTo({ title: "T", description: null, checklist: [] }, null, []), null);
 });
+
+// A step's own documents. The trap this guards: renderHowTo skipped any step
+// with no prose, so a link saved on a sub-step nobody had written instructions
+// for reached ClickUp nowhere at all.
+Deno.test("renderHowTo carries a step's own documents under that step's heading", () => {
+  assertEquals(
+    renderHowTo({
+      title: "T",
+      description: null,
+      checklist: [
+        { title: "Send it back", description: null, doc_links: ["https://docs.example/brief"] },
+        { title: "Re-review", description: "Check the fixes.", doc_links: ["https://docs.example/qa"] },
+        { title: "Nothing here", description: null, doc_links: [] },
+      ],
+    }),
+    "## Send it back\n\n**Reference docs**\n\n- https://docs.example/brief\n\n" +
+      "## Re-review\n\nCheck the fixes.\n\n**Reference docs**\n\n- https://docs.example/qa",
+  );
+});
+
+Deno.test("planMaterialisation carries each step's documents onto its checklist entry", () => {
+  const plan = planMaterialisation([
+    { id: "t1", parent_id: null, ordinal: 1, title: "Task", materialise_as: "task", description: null },
+    {
+      id: "s1", parent_id: "t1", ordinal: 2, title: "Step", materialise_as: "checklist_item",
+      description: null, doc_links: ["https://docs.example/a"],
+    },
+  ]);
+  assertEquals(plan.tasks[0].checklist[0].doc_links, ["https://docs.example/a"]);
+});

@@ -616,7 +616,7 @@ Deno.serve(async (req: Request) => {
         system_id: string | null;
         doc_links: string[] | null;
       };
-      type SubStepRow = { id: string; parent_id: string | null; title: string; description: string | null; ordinal: number; materialise_as: "task" | "checklist_item" | "none" };
+      type SubStepRow = { id: string; parent_id: string | null; title: string; description: string | null; ordinal: number; materialise_as: "task" | "checklist_item" | "none"; doc_links: string[] | null };
       // Shape of a row inside system_revisions.body: a full process_steps
       // snapshot (top-level AND sub-steps — parent_id tells them apart).
       type BodyStep = TemplateStep & { parent_id: string | null };
@@ -682,7 +682,7 @@ Deno.serve(async (req: Request) => {
       const { data: rawSubSteps } = rawTopLevelIds.length > 0
         ? await supabase
             .from("process_steps")
-            .select("id,parent_id,title,description,ordinal,materialise_as")
+            .select("id,parent_id,title,description,ordinal,materialise_as,doc_links")
             .in("parent_id", rawTopLevelIds)
             .order("ordinal")
         : { data: [] as SubStepRow[] };
@@ -697,7 +697,7 @@ Deno.serve(async (req: Request) => {
       for (const [serviceId, steps] of publishedBodyByServiceId) {
         for (const s of steps) {
           if (s.parent_id) {
-            bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, description: s.description ?? null, ordinal: s.ordinal, materialise_as: s.materialise_as });
+            bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, description: s.description ?? null, ordinal: s.ordinal, materialise_as: s.materialise_as, doc_links: s.doc_links ?? null });
           } else {
             bodyTopLevel.push({
               id: s.id,
@@ -806,7 +806,13 @@ Deno.serve(async (req: Request) => {
         if (!parentStep) continue; // scoped to topLevelIds above — shouldn't happen
         if (internalStepIds.has(parentStep.id)) continue; // internal-system guard, see above
         const arr = stepsByService.get(parentStep.service_id) ?? [];
-        arr.push({ id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title, description: sub.description, materialise_as: sub.materialise_as });
+        // Same live-over-snapshot rule as the task's own documents (line ~923):
+        // a document that moves reaches every future task without republishing.
+        arr.push({
+          id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title,
+          description: sub.description, materialise_as: sub.materialise_as,
+          doc_links: liveDocLinksByStepId.get(sub.id) ?? sub.doc_links ?? null,
+        });
         stepsByService.set(parentStep.service_id, arr);
       }
       const materialisePlanByService = new Map(
