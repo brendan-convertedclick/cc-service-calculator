@@ -113,10 +113,6 @@ Deno.serve(async (req: Request) => {
     );
     if (fieldsRes.ok) cuFields = ((await fieldsRes.json()).fields ?? []) as CuField[];
 
-    // Closed status for this list — used to end prior-period recurring tasks
-    // once a new period starts (see closePriorPeriodTasks below).
-    const closedStatusName = await resolveClosedStatus(clickupPat, project.clickup_list_id!);
-
     // Service name + dominant department (the service's "Work Stream"), keyed by
     // service_id. Dominant = the allocation with the highest pct.
     const serviceIds = [...new Set((services as Array<{ service_id: string }>).map((s) => s.service_id))];
@@ -252,24 +248,12 @@ Deno.serve(async (req: Request) => {
             ? "live"
             : "manual";
 
-        // End any still-open tasks from periods before this one — a recurring
-        // task (e.g. Daily Stand Up) shouldn't stay open once its month has
-        // rolled over. Live tasks are perpetual by design and are skipped.
-        if (mode !== "live" && closedStatusName) {
-          const { data: priorPeriods } = await sb
-            .from("provisioned_tasks")
-            .select("clickup_task_ids")
-            .eq("recurring_service_id", svc.id)
-            .eq("assignee_id", assigneeId)
-            .neq("mode", "live")
-            .lt("period_end", isoDate(periodStart));
-          const staleIds = (priorPeriods ?? []).flatMap(
-            (r) => (r as { clickup_task_ids: string[] | null }).clickup_task_ids ?? [],
-          );
-          for (const tid of staleIds) {
-            await closeClickupTask(clickupPat, tid, closedStatusName);
-          }
-        }
+        // A month rolling over is NOT evidence the work was done. This used to
+        // close every prior-period task here, which erased the one thing the
+        // start of a month is for: seeing what did and did not get finished.
+        // On 2026-09-01 it closed 77 genuinely-open tasks and they had to be
+        // restored by hand from ClickUp's status history. Removed at Lisa's
+        // request — a task is closed by the person who did it, or not at all.
 
         // Idempotency check: existing row?
         const { data: existing } = await sb
@@ -629,36 +613,6 @@ async function patchClickupTask(
     else console.error(`patch task ${taskId} field ${cf.id} failed: ${fr.status}`);
   }
   return { renameOk: true, fieldsSet, fieldsTotal: args.customFields.length };
-}
-
-// The list's closed (or done, as a fallback) status name — used to end
-// prior-period recurring tasks once a new period is provisioned. Null if the
-// list has neither, so the caller can skip closing rather than guess.
-async function resolveClosedStatus(pat: string, listId: string): Promise<string | null> {
-  const res = await fetch(`https://api.clickup.com/api/v2/list/${listId}`, {
-    headers: { Authorization: pat, "Content-Type": "application/json" },
-  });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { statuses?: Array<{ status: string; type: string }> };
-  const closed = body.statuses?.find((s) => s.type === "closed") ??
-    body.statuses?.find((s) => s.type === "done");
-  return closed?.status ?? null;
-}
-
-// Best-effort: move a task to the list's closed status. Skips tasks already
-// there (idempotent) and never throws — a failure here shouldn't block
-// provisioning the new period's tasks.
-async function closeClickupTask(pat: string, taskId: string, closedStatus: string): Promise<void> {
-  try {
-    const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
-      method: "PUT",
-      headers: { Authorization: pat, "Content-Type": "application/json" },
-      body: JSON.stringify({ status: closedStatus }),
-    });
-    if (!res.ok) console.error(`close task ${taskId} failed: ${res.status}`);
-  } catch (e) {
-    console.error(`close task ${taskId} threw:`, e);
-  }
 }
 
 // Trash a ClickUp task (recoverable in ClickUp for ~30 days). Used when
