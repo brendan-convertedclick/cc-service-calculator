@@ -16,6 +16,8 @@ import type {
   ListRequest,
   ListResponse,
   RememberedApprover,
+  ReplyRequest,
+  ReplyResponse,
   ReviewDecisionInput,
 } from "@/types/client-review";
 
@@ -63,6 +65,28 @@ export function useReviewDecision(
       if (data.status === "ok" || data.status === "already_decided") {
         qc.invalidateQueries({ queryKey: reviewKey(token) });
       }
+    },
+  });
+}
+
+/**
+ * A client writes back on an item. Deliberately separate from the decision
+ * mutation: replying leaves the item pending, so nothing about the state
+ * machine moves and the invalidation is only there to show the new message.
+ */
+export function useReviewReply(
+  token: string,
+): UseMutationResult<ReplyResponse, Error, { item_id: string; body: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { item_id: string; body: string }) =>
+      callEdgeFn<ReplyResponse>("client-review", {
+        action: "reply",
+        token,
+        ...input,
+      } satisfies ReplyRequest),
+    onSuccess: (data) => {
+      if (data.status === "ok") qc.invalidateQueries({ queryKey: reviewKey(token) });
     },
   });
 }

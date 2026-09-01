@@ -115,6 +115,7 @@ const brief: Brief = {
   over_budget: null,
   client_delay_manual: false,
   client_wait_ms: null,
+  internal_wait_ms: null,
   updated_at: "2026-05-01T10:00:00Z",
   created_at: "2026-05-01T10:00:00Z",
 };

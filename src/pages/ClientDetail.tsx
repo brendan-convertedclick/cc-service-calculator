@@ -5,6 +5,7 @@ import { SenderRulesPanel } from "@/components/clients/SenderRulesPanel";
 import { ClickUpListsPanel } from "@/components/clients/ClickUpListsPanel";
 import { ChatChannelPanel } from "@/components/clients/ChatChannelPanel";
 import { XeroContactPanel } from "@/components/clients/XeroContactPanel";
+import { ContactsPanel } from "@/components/clients/ContactsPanel";
 import { ClientReviewPanel } from "@/components/clients/ClientReviewPanel";
 import { Button } from "@/components/ui/button";
 
@@ -62,6 +63,10 @@ export function ClientDetail() {
         clientId={client.id}
         xeroContactName={client.xero_contact_name ?? null}
       />
+
+      {/* Contacts first: a personal sign-off link is minted FOR a contact,
+          so there is nothing to pick in the panel below until this has rows. */}
+      <ContactsPanel clientId={client.id} clientName={client.name} />
 
       <ClientReviewPanel clientId={client.id} clientName={client.name} />
     </div>

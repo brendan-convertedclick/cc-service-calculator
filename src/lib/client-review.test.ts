@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { toISODate } from "./dates";
 import {
+  agreedLine,
   bucketOf,
   bucketCounts,
   daysOverdue,
+  dueStatus,
   formatAsAt,
   isOverdue,
   sortForQueue,
+  typeLabelFor,
 } from "./client-review";
 import type { ReviewItem, ReviewItemState } from "@/types/client-review";
 
@@ -19,6 +22,7 @@ function daysFromToday(n: number): string {
 
 function item(over: Partial<ReviewItem> & { id: string }): ReviewItem {
   return {
+    item_type: "brief",
     client_title: `Item ${over.id}`,
     ask: "Sign this off",
     detail: null,
@@ -27,6 +31,13 @@ function item(over: Partial<ReviewItem> & { id: string }): ReviewItem {
     state: "pending" as ReviewItemState,
     decided_at: null,
     decided_by_name: null,
+    agreed_at: null,
+    agreed_via: null,
+    owed_by: "client",
+    waiting_ms: null,
+    messages: [],
+    created_at: "2026-08-01T08:00:00Z",
+    client_note: null,
     ...over,
   };
 }
@@ -115,5 +126,108 @@ describe("formatAsAt", () => {
 
   it("renders nothing rather than 'Invalid Date'", () => {
     expect(formatAsAt("not a timestamp")).toBe("");
+  });
+});
+
+describe("dueStatus", () => {
+  it("counts the days on an overdue item — the number the queue is sorted by", () => {
+    expect(dueStatus(item({ id: "a", due_date: daysFromToday(-32) }))).toEqual({
+      kind: "overdue",
+      days: 32,
+    });
+  });
+
+  it("says today rather than 'due in 0d'", () => {
+    expect(dueStatus(item({ id: "a", due_date: daysFromToday(0) }))).toEqual({ kind: "today" });
+  });
+
+  it("counts forward on something not yet due", () => {
+    expect(dueStatus(item({ id: "a", due_date: daysFromToday(20) }))).toEqual({
+      kind: "upcoming",
+      days: 20,
+    });
+  });
+
+  it("is silent when there is no deadline — a blank date is not a deadline of zero", () => {
+    expect(dueStatus(item({ id: "a", due_date: null }))).toBeNull();
+  });
+
+  it("is silent once decided — how late it was is our record, not a reproach", () => {
+    expect(
+      dueStatus(item({ id: "a", due_date: daysFromToday(-9), state: "approved" })),
+    ).toBeNull();
+  });
+});
+
+describe("dueStatus — the undated ask", () => {
+  it("counts how long it has sat with the client when no date was ever set", () => {
+    expect(dueStatus(item({ id: "a", due_date: null, waiting_ms: 3 * 86_400_000 }))).toEqual({
+      kind: "waiting",
+      days: 3,
+    });
+  });
+
+  it("stays silent for the first day — 'Waiting 0d' says nothing", () => {
+    expect(dueStatus(item({ id: "a", due_date: null, waiting_ms: 3_600_000 }))).toBeNull();
+    expect(dueStatus(item({ id: "a", due_date: null, waiting_ms: null }))).toBeNull();
+  });
+
+  it("prefers the real date when there is one, ignoring the clock", () => {
+    expect(
+      dueStatus(item({ id: "a", due_date: daysFromToday(-32), waiting_ms: 3 * 86_400_000 })),
+    ).toEqual({ kind: "overdue", days: 32 });
+  });
+});
+
+describe("sortForQueue — pressure, not raw due date", () => {
+  it("ranks a long-untouched undated ask above a barely-late dated one", () => {
+    const order = sortForQueue([
+      item({ id: "late-2d", due_date: daysFromToday(-2) }),
+      item({ id: "sat-30d", due_date: null, waiting_ms: 30 * 86_400_000 }),
+      item({ id: "due-soon", due_date: daysFromToday(5) }),
+    ]).map((i) => i.id);
+    expect(order).toEqual(["sat-30d", "late-2d", "due-soon"]);
+  });
+
+  it("still puts everything undecided ahead of anything decided", () => {
+    const order = sortForQueue([
+      item({ id: "done", state: "approved", decided_at: new Date().toISOString() }),
+      item({ id: "fresh", due_date: null }),
+    ]).map((i) => i.id);
+    expect(order).toEqual(["fresh", "done"]);
+  });
+});
+
+describe("an agreement we made", () => {
+  const ours = (over = {}) =>
+    item({ id: "ours", item_type: "agreement", owed_by: "us", ...over });
+
+  it("sits under 'With us', never in their move pile", () => {
+    expect(bucketOf(ours())).toBe("with-us");
+    // theirs still behaves as before
+    expect(bucketOf(item({ id: "theirs", item_type: "agreement" }))).toBe("your-move");
+  });
+
+  it("is never shown to the client as overdue — ours to fix, not to nag them with", () => {
+    expect(isOverdue(ours({ due_date: daysFromToday(-9) }))).toBe(false);
+    expect(dueStatus(ours({ due_date: daysFromToday(-9) }))).toBeNull();
+  });
+
+  it("still reads as done once closed", () => {
+    expect(bucketOf(ours({ state: "approved", decided_at: new Date().toISOString() }))).toBe(
+      "signed-off",
+    );
+  });
+
+  it("labels the promise by who made it", () => {
+    expect(typeLabelFor(ours())).toBe("We agreed");
+    expect(typeLabelFor(item({ id: "t", item_type: "agreement" }))).toBe("You agreed");
+    expect(typeLabelFor(item({ id: "b" }))).toBe("Sign-off");
+  });
+
+  it("says so in the agreed line", () => {
+    expect(agreedLine(ours({ agreed_at: "2026-08-04", agreed_via: "meeting" }))).toBe(
+      "We agreed on 4 August, in a meeting.",
+    );
   });
 });

@@ -15,6 +15,7 @@ import { errorMessage } from "@/lib/utils";
 export type ClientReviewLink = {
   id: string;
   label: string | null;
+  contact_id: string | null;
   expires_at: string | null;
   revoked_at: string | null;
   last_used_at: string | null;
@@ -28,7 +29,7 @@ const KEY = (clientId: string) => ["client-review-links", clientId] as const;
  * supabase/functions/_shared/hmac.ts — the edge function hashes what arrives
  * in the URL, so both sides must agree on the alphabet, not the generator.
  */
-function newPlaintextToken(): string {
+export function newPlaintextToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let bin = "";
@@ -37,7 +38,7 @@ function newPlaintextToken(): string {
 }
 
 /** Hex sha256, identical to what the edge function computes on lookup. */
-async function sha256Hex(value: string): Promise<string> {
+export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -56,7 +57,7 @@ export function useClientReviewLinks(clientId: string | undefined) {
     queryFn: async (): Promise<ClientReviewLink[]> => {
       const { data, error } = await supabase
         .from("client_review_tokens")
-        .select("id, label, expires_at, revoked_at, last_used_at, created_at")
+        .select("id, label, contact_id, expires_at, revoked_at, last_used_at, created_at")
         .eq("client_id", clientId!)
         .order("created_at", { ascending: false });
       if (error) throw new Error(errorMessage(error));
@@ -69,11 +70,22 @@ export function useClientReviewLinks(clientId: string | undefined) {
  * Mint a link. Returns the plaintext URL — show it to the person now, because
  * it cannot be recovered. Rows are never updated in place: revoking and
  * minting again is the rotation story.
+ *
+ * PASS A contactId WHENEVER YOU CAN (0142). A link scoped to one person IS
+ * that person's identity: the review page greets them by name, never asks
+ * "And you are?", and the server records the signer from the token rather than
+ * from anything the browser claims. A link with no contact is company-wide —
+ * anyone holding it can sign as any of that client's contacts — and exists
+ * only for the case where you genuinely do not know who will open it.
  */
 export function useMintClientReviewLink(clientId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { label?: string; expiresAt?: string | null }) => {
+    mutationFn: async (input: {
+      label?: string;
+      expiresAt?: string | null;
+      contactId?: string | null;
+    }) => {
       if (!clientId) throw new Error("No client selected");
       const token = newPlaintextToken();
       const { error } = await supabase.from("client_review_tokens").insert({
@@ -81,6 +93,7 @@ export function useMintClientReviewLink(clientId: string | undefined) {
         token_hash: await sha256Hex(token),
         label: input.label?.trim() || null,
         expires_at: input.expiresAt ?? null,
+        contact_id: input.contactId ?? null,
       });
       if (error) throw new Error(errorMessage(error));
       return { token, url: reviewUrlFor(token) };

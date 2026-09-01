@@ -17,6 +17,14 @@
 // every read and write here runs on the service role and hand-picks the
 // columns a client may see. `select('*')` is banned in this file.
 //
+// Identity: a token may be scoped to ONE contact (client_review_tokens.
+// contact_id, 0142). When it is, the signer is resolved from the token and
+// any `identity` in the request body is IGNORED outright — the link is the
+// identity, and whoever holds it cannot nominate someone else to have signed.
+// A legacy company-wide token (contact_id null) still falls back to the
+// client-supplied "And you are?" identity, resolved against that client's
+// contacts. New links should always be personal.
+//
 // Token handling: the token in the URL is never stored — token_hash (hex
 // sha256) is looked up instead, so a leak of client_review_tokens does not
 // hand anyone a working link. The plaintext token is never logged. The row
@@ -34,8 +42,13 @@
 //
 // Two hard rules baked into the column lists below:
 //   1. No staff identity ever leaves this function — no assignee, no staff
-//      name/email, no team_members join, no points/hours/cost. `briefs` is
-//      never selected at all; client_title lives on client_approvals only.
+//      name/email, no team_members join, no points/hours/cost. Exactly ONE
+//      column is ever read from `briefs`, by name: client_wait_ms, the ms the
+//      linked task has sat in a waiting-on-client status. It is the client's
+//      own elapsed time and carries no staff or internal information. Nothing
+//      else from that table may be added — raw_subject in particular, which
+//      is the reason this rule exists: real subjects read "DFT V1.1", "(QC)".
+//      client_title lives on client_approvals only.
 //   2. Every 500 body is a fixed generic string — a Postgres error message
 //      is console.error'd, never interpolated into the response a client
 //      can read.
@@ -62,8 +75,19 @@ const DECISIONS: ReviewDecision[] = ["approved", "changes_requested"];
 
 type ReviewContact = { id: string; full_name: string };
 
+/**
+ * What kind of thing the client is looking at. They are three different asks
+ * and the portal renders three different controls:
+ *   brief     — a deliverable awaiting APPROVAL     (Approve / Request changes)
+ *   question  — something we asked, awaiting an ANSWER (answer box + Send)
+ *   agreement — something they committed to, awaiting DOING (Done / Not yet)
+ * 'brief' is the historical value for a task and is not renamed.
+ */
+type ReviewItemType = "brief" | "question" | "agreement";
+
 type ReviewItem = {
   id: string; // client_approvals.id — NOT briefs.id
+  item_type: ReviewItemType;
   client_title: string;
   ask: string;
   detail: string | null;
@@ -72,11 +96,44 @@ type ReviewItem = {
   state: ReviewItemState;
   decided_at: string | null; // ISO timestamp
   decided_by_name: string | null;
+  /** agreement only: when they committed, and where. Null on other types. */
+  agreed_at: string | null; // "YYYY-MM-DD"
+  agreed_via: string | null;
+  owed_by: "client" | "us";
+  /** ms this has sat with the client, from the linked task's ClickUp clock. */
+  waiting_ms: number | null;
+  /** The two-way thread, oldest first. Never contains internal notes. */
+  messages: ReviewMessage[];
+  /** When we asked. Dates the opening message of the thread. */
+  created_at: string;
+  /** What they wrote when they decided — their own words, shown as their message. */
+  client_note: string | null;
+};
+
+/**
+ * One message on an item's thread. `from` is deliberately coarse: a client
+ * sees "Converted Click", never which of us typed it — the only two parties on
+ * this page are their company and ours. Internal notes are filtered out
+ * server-side and have no representation here at all.
+ */
+type ReviewMessage = {
+  id: string;
+  from: "us" | "them";
+  author: string | null; // their own colleague's name; null for our side
+  body: string;
+  at: string;
 };
 
 type ReviewIdentity = { contact_id: string } | { name: string; email?: string };
 
 type ListRequest = { action: "list"; token: string };
+
+type ReplyRequest = {
+  action: "reply";
+  token: string;
+  item_id: string;
+  body: string;
+};
 
 type DecideRequest = {
   action: "decide";
@@ -87,7 +144,7 @@ type DecideRequest = {
   identity: ReviewIdentity;
 };
 
-type ClientReviewRequest = ListRequest | DecideRequest;
+type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest;
 
 type TokenFailure = { status: "expired" | "revoked" | "unknown" };
 
@@ -98,7 +155,19 @@ type ListResponse =
       as_at: string;
       contacts: ReviewContact[];
       items: ReviewItem[];
+      /**
+       * Who this link belongs to, when it belongs to somebody. The page shows
+       * it back to them and skips the "And you are?" step entirely. Null on a
+       * legacy company-wide link, where the picker is still the only way to
+       * know who is acting.
+       */
+      signed_in_as: ReviewContact | null;
     }
+  | TokenFailure;
+
+type ReplyResponse =
+  | { status: "ok"; message: ReviewMessage }
+  | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
   | TokenFailure;
 
 type DecideResponse =
@@ -115,10 +184,13 @@ type TokenRow = {
   token_hash: string;
   expires_at: string | null;
   revoked_at: string | null;
+  /** Set on a personal link. Null on a legacy company-wide one. */
+  contact_id: string | null;
 };
 
 type ApprovalRow = {
   id: string;
+  item_type: string;
   client_title: string;
   ask: string;
   detail: string | null;
@@ -127,11 +199,35 @@ type ApprovalRow = {
   state: string;
   decided_at: string | null;
   decided_by_name: string | null;
+  agreed_at: string | null;
+  agreed_via: string | null;
+  owed_by: string;
+  created_at: string;
+  client_note: string | null;
+  // The joined brief, one named column. See rule 1 at the top of this file.
+  // PostgREST returns a to-one embed as an object at runtime but types it as
+  // an array, so both shapes are accepted and normalised in toReviewItem.
+  briefs?: BriefWait | BriefWait[] | null;
 };
 
-function toReviewItem(row: ApprovalRow): ReviewItem {
+type BriefWait = { client_wait_ms: number | null };
+
+const ITEM_TYPES: ReviewItemType[] = ["brief", "question", "agreement"];
+
+function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
+  if (!briefs) return null;
+  const row = Array.isArray(briefs) ? briefs[0] : briefs;
+  return row?.client_wait_ms ?? null;
+}
+
+function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewItem {
   return {
     id: row.id,
+    // An unrecognised type degrades to the approval controls rather than
+    // rendering nothing — a client must never meet an item with no way to act.
+    item_type: (ITEM_TYPES as string[]).includes(row.item_type)
+      ? (row.item_type as ReviewItemType)
+      : "brief",
     client_title: row.client_title,
     ask: row.ask,
     detail: row.detail,
@@ -140,11 +236,18 @@ function toReviewItem(row: ApprovalRow): ReviewItem {
     state: row.state as ReviewItemState,
     decided_at: row.decided_at,
     decided_by_name: row.decided_by_name,
+    agreed_at: row.agreed_at,
+    agreed_via: row.agreed_via,
+    owed_by: row.owed_by === "us" ? "us" : "client",
+    created_at: row.created_at,
+    client_note: row.client_note,
+    waiting_ms: waitingMsOf(row.briefs),
+    messages,
   };
 }
 
 const APPROVAL_COLUMNS =
-  "id, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name";
+  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, created_at, client_note, briefs(client_wait_ms)";
 
 // --- token hashing + verification (pure, no I/O) ------------------------
 
@@ -166,7 +269,11 @@ function tokenFailure(row: TokenRow | null, candidateHash: string): TokenFailure
 
 // --- action handlers -----------------------------------------------------
 
-async function handleList(sb: SupabaseClient, clientId: string): Promise<Response> {
+async function handleList(
+  sb: SupabaseClient,
+  clientId: string,
+  contactId: string | null,
+): Promise<Response> {
   const asAt = new Date().toISOString();
 
   const { data: clientRaw, error: clientErr } = await sb
@@ -201,41 +308,112 @@ async function handleList(sb: SupabaseClient, clientId: string): Promise<Respons
     return json({ error: "Something went wrong on our side" }, 500);
   }
 
+  // The thread. kind='note' is EXCLUDED here and must stay excluded — an
+  // internal note reaching a client is the one unrecoverable failure on this
+  // page. Filtered in the query rather than in JS so a later refactor of the
+  // mapping cannot leak one.
+  const items = (itemsRaw ?? []) as unknown as ApprovalRow[];
+  const { data: threadRaw, error: threadErr } = await sb
+    .from("client_activity")
+    .select("id, approval_id, kind, body, author_name, created_at")
+    .eq("client_id", clientId)
+    .in("kind", ["message", "client_message"])
+    .order("created_at");
+  if (threadErr) {
+    console.error("[client-review] thread lookup failed:", threadErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+
+  const byApproval = new Map<string, ReviewMessage[]>();
+  for (const row of (threadRaw ?? []) as Array<{
+    id: string;
+    approval_id: string;
+    kind: string;
+    body: string;
+    author_name: string | null;
+    created_at: string;
+  }>) {
+    const from: "us" | "them" = row.kind === "client_message" ? "them" : "us";
+    const list = byApproval.get(row.approval_id) ?? [];
+    list.push({
+      id: row.id,
+      from,
+      // Our side is always "Converted Click" and never a staff name.
+      author: from === "them" ? row.author_name : null,
+      body: row.body,
+      at: row.created_at,
+    });
+    byApproval.set(row.approval_id, list);
+  }
+
+  const contacts = (contactsRaw ?? []) as ReviewContact[];
   const resp: ListResponse = {
     status: "ok",
     company_name: (clientRaw as { name: string } | null)?.name ?? "",
     as_at: asAt,
-    contacts: (contactsRaw ?? []) as ReviewContact[],
-    items: ((itemsRaw ?? []) as ApprovalRow[]).map(toReviewItem),
+    contacts,
+    items: items.map((row) => toReviewItem(row, byApproval.get(row.id) ?? [])),
+    // Resolved from the contacts already fetched — a personal token whose
+    // contact has since been deleted or had its name cleared falls back to
+    // null, which puts the picker back rather than signing as nobody.
+    signed_in_as: contactId ? (contacts.find((c) => c.id === contactId) ?? null) : null,
   };
   return json(resp);
 }
 
-/** Resolves who is deciding, server-side — a client is never trusted to say
- * its own name for a known contact; only the free-typed "Someone else" path
- * stores what was typed, and even then bounded and non-empty. */
+type ResolvedSigner = { name: string; email: string | null; contact_id: string | null };
+
+/** One contact, scoped to its client. Used by both identity paths. */
+async function loadContact(
+  sb: SupabaseClient,
+  clientId: string,
+  contactId: string,
+): Promise<ResolvedSigner | null> {
+  const { data, error } = await sb
+    .from("contacts")
+    .select("id, full_name, email")
+    .eq("id", contactId)
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (error) throw error;
+  const contact = data as { id: string; full_name: string | null; email: string } | null;
+  const name = contact?.full_name?.trim();
+  if (!contact || !name) return null;
+  return { name, email: contact.email, contact_id: contact.id };
+}
+
+/**
+ * Resolves who is deciding, server-side.
+ *
+ * A PERSONAL TOKEN SHORT-CIRCUITS EVERYTHING. When the link belongs to one
+ * contact, that contact is the signer and `identity` from the request body is
+ * never read — otherwise the whole point of the personal link is lost, because
+ * the body is written by whoever is holding it.
+ *
+ * On a legacy company-wide token the old behaviour stands: a client is never
+ * trusted to say its own name for a known contact (the id is looked up here);
+ * only the free-typed "Someone else" path stores what was typed, and even then
+ * bounded and non-empty.
+ */
 async function resolveIdentity(
   sb: SupabaseClient,
   clientId: string,
   identity: ReviewIdentity,
-): Promise<{ name: string; email: string | null } | { reason: "unknown_contact" }> {
+  tokenContactId: string | null,
+): Promise<ResolvedSigner | { reason: "unknown_contact" }> {
+  if (tokenContactId) {
+    const signer = await loadContact(sb, clientId, tokenContactId);
+    return signer ?? { reason: "unknown_contact" };
+  }
   if (identity && "contact_id" in identity && identity.contact_id) {
-    const { data: contactRaw, error: contactErr } = await sb
-      .from("contacts")
-      .select("id, full_name, email")
-      .eq("id", identity.contact_id)
-      .eq("client_id", clientId)
-      .maybeSingle();
-    if (contactErr) throw contactErr;
-    const contact = contactRaw as { full_name: string | null; email: string } | null;
-    const name = contact?.full_name?.trim();
-    if (!contact || !name) return { reason: "unknown_contact" };
-    return { name, email: contact.email };
+    const signer = await loadContact(sb, clientId, identity.contact_id);
+    return signer ?? { reason: "unknown_contact" };
   }
   if (identity && "name" in identity && identity.name?.trim()) {
     return {
       name: identity.name.trim().slice(0, 120),
       email: identity.email?.trim() ? identity.email.trim().slice(0, 120) : null,
+      contact_id: null,
     };
   }
   return { reason: "unknown_contact" };
@@ -251,6 +429,14 @@ async function notifyDecision(
   deciderName: string,
   comment: string,
 ): Promise<void> {
+  // Three item types, three sentences — "approved" is the wrong word for an
+  // answered question, and an ops channel that says it teaches people to
+  // ignore the channel.
+  const approvedLine = item.item_type === "question"
+    ? `💬 ${deciderName} at {company} answered: "${item.client_title}"\n> ${comment}`
+    : item.item_type === "agreement"
+    ? `🤝 ${deciderName} at {company} marked their agreement done: "${item.client_title}"`
+    : `✅ ${deciderName} at {company} approved: "${item.client_title}"`;
   const { data: clientRaw } = await sb.from("clients").select("name").eq("id", clientId).maybeSingle();
   const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
   const { token: pat } = await getOperatorClickupToken(req);
@@ -258,25 +444,159 @@ async function notifyDecision(
     pat,
     APPROVALS_CHANNEL_ID,
     decision === "approved"
-      ? `✅ ${deciderName} at ${companyName} approved: "${item.client_title}"`
-      : `🔁 ${deciderName} at ${companyName} requested changes on: "${item.client_title}"\n> ${comment}`,
+      ? approvedLine.replace("{company}", companyName)
+      : `🔁 ${deciderName} at ${companyName} came back on: "${item.client_title}"\n> ${comment}`,
   ).catch(() => {});
 }
 
-async function handleDecide(req: Request, sb: SupabaseClient, clientId: string, body: DecideRequest): Promise<Response> {
+/**
+ * First hop of x-forwarded-for. Evidence only: an IP is trivially shared and
+ * must never be used to recognise anyone. Bounded because the header is
+ * attacker-controlled and this string lands in a column someone will read.
+ */
+function clientIpOf(req: Request): string | null {
+  const raw = req.headers.get("x-forwarded-for") ?? "";
+  const first = raw.split(",")[0]?.trim();
+  return first ? first.slice(0, 64) : null;
+}
+
+/**
+ * A client writes back on an item.
+ *
+ * Deliberately NOT a decision: replying leaves the item pending, because "here
+ * is the info you asked for" and "I approve this" are different acts and
+ * conflating them would sign things off nobody signed off. The staff side is
+ * pinged, since a reply nobody sees is worse than no reply box at all.
+ *
+ * Identity comes from the token on a personal link (0142) exactly as it does
+ * for a decision. On a legacy shared link there is nobody to name, so the
+ * message is recorded without an author rather than refused — a client with an
+ * old link must still be able to answer us.
+ */
+async function handleReply(
+  req: Request,
+  sb: SupabaseClient,
+  clientId: string,
+  body: ReplyRequest,
+  tokenContactId: string | null,
+): Promise<Response> {
+  const text = body.body?.trim() ?? "";
+  if (!body.item_id) return json({ error: "item_id required" }, 400);
+  if (!text) return json({ status: "invalid", reason: "missing_comment" } satisfies ReplyResponse);
+
+  const { data: itemRaw, error: itemErr } = await sb
+    .from("client_approvals")
+    .select("id, client_title")
+    .eq("id", body.item_id)
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (itemErr) {
+    console.error("[client-review] reply item lookup failed:", itemErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+  if (!itemRaw) return json({ status: "invalid", reason: "unknown_item" } satisfies ReplyResponse);
+  const item = itemRaw as { id: string; client_title: string };
+
+  let authorName: string | null = null;
+  if (tokenContactId) {
+    try {
+      const signer = await loadContact(sb, clientId, tokenContactId);
+      authorName = signer?.name ?? null;
+    } catch (e) {
+      console.error("[client-review] reply identity lookup failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const { data: insertedRaw, error: insertErr } = await sb
+    .from("client_activity")
+    .insert({
+      client_id: clientId,
+      approval_id: item.id,
+      kind: "client_message",
+      body: text.slice(0, 4000),
+      contact_id: tokenContactId,
+      author_name: authorName,
+    })
+    .select("id, body, author_name, created_at")
+    .single();
+  if (insertErr) {
+    console.error("[client-review] reply insert failed:", insertErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+  const inserted = insertedRaw as {
+    id: string;
+    body: string;
+    author_name: string | null;
+    created_at: string;
+  };
+
+  // Fire and forget, wrapped: a chat outage must never lose a client's message.
+  (async () => {
+    const { data: clientRaw } = await sb
+      .from("clients").select("name").eq("id", clientId).maybeSingle();
+    const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
+    const { token: pat } = await getOperatorClickupToken(req);
+    await postChatMessage(
+      pat,
+      APPROVALS_CHANNEL_ID,
+      `💬 ${authorName ?? "Someone"} at ${companyName} replied on: "${item.client_title}"\n> ${text}`,
+    ).catch(() => {});
+  })().then(() => {}, () => {});
+
+  return json({
+    status: "ok",
+    message: {
+      id: inserted.id,
+      from: "them",
+      author: inserted.author_name,
+      body: inserted.body,
+      at: inserted.created_at,
+    },
+  } satisfies ReplyResponse);
+}
+
+async function handleDecide(
+  req: Request,
+  sb: SupabaseClient,
+  clientId: string,
+  body: DecideRequest,
+  tokenContactId: string | null,
+): Promise<Response> {
   const { item_id, decision, comment, identity } = body;
   if (!item_id || !decision || !DECISIONS.includes(decision)) {
     return json({ error: "item_id and a valid decision are required" }, 400);
   }
 
   const trimmedComment = comment?.trim() ?? "";
-  if (decision === "changes_requested" && !trimmedComment) {
+
+  // What kind of item this is decides what a decision must carry. Read it
+  // from the row rather than the request — the client is never trusted to
+  // tell us which validation applies to it.
+  const { data: typeRaw, error: typeErr } = await sb
+    .from("client_approvals")
+    .select("item_type, client_title, ask")
+    .eq("id", item_id)
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (typeErr) {
+    console.error("[client-review] item type lookup failed:", typeErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+  if (!typeRaw) return json({ status: "invalid", reason: "unknown_item" } satisfies DecideResponse);
+  const current = typeRaw as { item_type: string; client_title: string; ask: string };
+  const itemType = current.item_type;
+
+  // A question's whole point is the answer, so an empty one is not a decision.
+  // Changes requested without a note is the same failure in the other
+  // direction: it sends work back saying nothing about what to change.
+  const commentRequired = decision === "changes_requested" || itemType === "question";
+  if (commentRequired && !trimmedComment) {
     return json({ status: "invalid", reason: "missing_comment" } satisfies DecideResponse);
   }
 
-  let resolved: { name: string; email: string | null };
+  let resolved: ResolvedSigner;
   try {
-    const outcome = await resolveIdentity(sb, clientId, identity);
+    const outcome = await resolveIdentity(sb, clientId, identity, tokenContactId);
     if ("reason" in outcome) return json({ status: "invalid", reason: outcome.reason } satisfies DecideResponse);
     resolved = outcome;
   } catch (e) {
@@ -291,7 +611,16 @@ async function handleDecide(req: Request, sb: SupabaseClient, clientId: string, 
       decided_at: new Date().toISOString(), // server-stamped, never accepted from the body
       decided_by_name: resolved.name,
       decided_by_email: resolved.email,
-      client_note: decision === "changes_requested" ? trimmedComment : null,
+      decided_by_contact_id: resolved.contact_id,
+      // The text AS IT READ when they clicked. Frozen here and never updated
+      // again, so editing the item afterwards cannot rewrite what was agreed.
+      decided_title: current.client_title,
+      decided_ask: current.ask,
+      decided_ip: clientIpOf(req),
+      decided_user_agent: (req.headers.get("user-agent") ?? "").slice(0, 300) || null,
+      // Kept on every type, not just changes_requested: for a question this
+      // column IS the answer, and for an agreement it is how they closed it.
+      client_note: trimmedComment || null,
     })
     .eq("id", item_id)
     .eq("client_id", clientId)
@@ -304,7 +633,7 @@ async function handleDecide(req: Request, sb: SupabaseClient, clientId: string, 
   }
 
   if (updatedRaw) {
-    const item = toReviewItem(updatedRaw as ApprovalRow);
+    const item = toReviewItem(updatedRaw as unknown as ApprovalRow);
     // Fired after the update succeeds, wrapped so it can never sink this
     // response — awaited only so it actually runs before the isolate is
     // recycled, never so its outcome is reported back to the client.
@@ -329,7 +658,10 @@ async function handleDecide(req: Request, sb: SupabaseClient, clientId: string, 
     return json({ error: "Something went wrong on our side" }, 500);
   }
   if (existingRaw) {
-    return json({ status: "already_decided", item: toReviewItem(existingRaw as ApprovalRow) } satisfies DecideResponse);
+    return json({
+      status: "already_decided",
+      item: toReviewItem(existingRaw as unknown as ApprovalRow),
+    } satisfies DecideResponse);
   }
   return json({ status: "invalid", reason: "unknown_item" } satisfies DecideResponse);
 }
@@ -352,7 +684,7 @@ Deno.serve(async (req: Request) => {
     const candidateHash = await sha256Hex(body.token);
     const { data: tokenRowRaw, error: tokenErr } = await sb
       .from("client_review_tokens")
-      .select("id, client_id, token_hash, expires_at, revoked_at")
+      .select("id, client_id, token_hash, expires_at, revoked_at, contact_id")
       .eq("token_hash", candidateHash)
       .maybeSingle();
     // A genuine DB fault here is NOT "no such token" — collapsing it to
@@ -381,11 +713,13 @@ Deno.serve(async (req: Request) => {
 
     switch (body.action) {
       case "list":
-        return await handleList(sb, clientId);
+        return await handleList(sb, clientId, tokenRow.contact_id);
       case "decide":
-        return await handleDecide(req, sb, clientId, body);
+        return await handleDecide(req, sb, clientId, body, tokenRow.contact_id);
+      case "reply":
+        return await handleReply(req, sb, clientId, body, tokenRow.contact_id);
       default:
-        return json({ error: "action must be 'list' or 'decide'" }, 400);
+        return json({ error: "action must be 'list', 'decide' or 'reply'" }, 400);
     }
   } catch (e) {
     // Never interpolate the underlying message into a client-facing body —

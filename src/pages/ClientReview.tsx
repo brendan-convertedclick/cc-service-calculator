@@ -8,7 +8,12 @@ import { ItemDetail } from "@/components/review/ItemDetail";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { useReviewDecision, useReviewList, useRememberedApprover } from "@/hooks/useClientReview";
+import {
+  useRememberedApprover,
+  useReviewDecision,
+  useReviewList,
+  useReviewReply,
+} from "@/hooks/useClientReview";
 import { useClientReviewPreview } from "@/hooks/useClientSignoffs";
 import { bucketCounts, bucketOf, formatAsAt, isOverdue, REVIEW_REPLY_TO, sortForQueue } from "@/lib/client-review";
 import { cn, errorMessage } from "@/lib/utils";
@@ -86,14 +91,27 @@ function CenteredCard({ children }: { children: React.ReactNode }) {
  * drift from it. Decisions are intercepted rather than hidden — the buttons
  * must still look exactly as the client sees them.
  */
-export function ClientReview({ previewClientId }: { previewClientId?: string } = {}) {
+export function ClientReview({
+  previewClientId,
+  onSelectedItemChange,
+}: {
+  previewClientId?: string;
+  /**
+   * Preview only. Reports which item the queue has selected so the STAFF page
+   * can show its activity beside this one. The client-facing route never
+   * passes it, and nothing about the rendering changes either way — this is a
+   * read-only tap on the selection, not a second behaviour.
+   */
+  onSelectedItemChange?: (id: string | null) => void;
+} = {}) {
   const { token = "" } = useParams<{ token: string }>();
   const preview = !!previewClientId;
   const tokenQuery = useReviewList(preview ? "" : token);
   const previewQuery = useClientReviewPreview(previewClientId);
   const listQuery = preview ? previewQuery : tokenQuery;
   const decisionMutation = useReviewDecision(token);
-  const [approver, setApprover] = useRememberedApprover(token);
+  const replyMutation = useReviewReply(token);
+  const [remembered, setRemembered] = useRememberedApprover(token);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const [bucket, setBucket] = useState<ReviewBucket>("your-move");
@@ -104,9 +122,19 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
     comment?: string;
   } | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<string | null>(null);
 
   const data = listQuery.data;
   const ok = data?.status === "ok" ? data : null;
+
+  // Who is acting. A personal link (0142) answers this outright and outranks
+  // anything remembered from a picker earlier in the session — the server
+  // resolves the signer from the token regardless, so showing a different name
+  // back to them would be a lie about what gets recorded.
+  const signedIn = ok?.signed_in_as ?? null;
+  const approver: RememberedApprover | null = signedIn
+    ? { contact_id: signedIn.id, name: signedIn.full_name, email: null }
+    : remembered;
   const items = ok?.items ?? [];
   const sorted = sortForQueue(items);
   const counts = bucketCounts(items);
@@ -117,6 +145,13 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
   // loads — once only, so a decision later on never yanks the client away
   // from the item they just acted on (that item simply leaves the bucket
   // filter; selection is untouched until the client picks something else).
+  // Report the selection outward whenever it moves. An effect rather than a
+  // call inside each setSelectedId, so the auto-open on first load is reported
+  // too — that is the item staff will be looking at.
+  useEffect(() => {
+    onSelectedItemChange?.(selectedId);
+  }, [selectedId, onSelectedItemChange]);
+
   const didInit = useRef(false);
   useEffect(() => {
     if (didInit.current || !ok) return;
@@ -140,6 +175,7 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
 
   function handleSelect(id: string) {
     setDecisionError(null);
+    setReplyError(null);
     setSelectedId(id);
   }
 
@@ -190,6 +226,34 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
     }
   }
 
+  function sendReply(itemId: string, body: string) {
+    setReplyError(null);
+    if (preview) {
+      // Same rule as the decision buttons: staff are looking at the client's
+      // screen, so the control keeps its real appearance and the action is
+      // caught here rather than disabled.
+      setReplyError("Preview only — nothing was sent. This is the screen the client sees.");
+      return;
+    }
+    replyMutation.mutate(
+      { item_id: itemId, body },
+      {
+        onSuccess: (res) => {
+          if (res.status === "invalid") {
+            setReplyError(
+              res.reason === "missing_comment"
+                ? "Write something first."
+                : "That item isn't on your list any more.",
+            );
+          } else if (isTokenFailure(res)) {
+            void listQuery.refetch();
+          }
+        },
+        onError: () => setReplyError("That didn't send. Try again?"),
+      },
+    );
+  }
+
   function handleQuickApprove(id: string) {
     setDecisionError(null);
     setSelectedId(id);
@@ -233,19 +297,32 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
   const detailNode = selectedItem ? (
     <ItemDetail
       item={selectedItem}
-      approverName={approver?.name ?? null}
+      // On a personal link the name is already in the page header, and
+      // repeating it over every item reads as nagging. The picker path has no
+      // header line, so it keeps showing it here.
+      approverName={signedIn ? null : (approver?.name ?? null)}
       busy={decisionMutation.isPending && decisionMutation.variables?.item_id === selectedItem.id}
       error={decisionError}
       overdue={isOverdue(selectedItem)}
       onDecide={(decision, comment) => beginDecision(selectedItem.id, decision, comment)}
+      onReply={(body) => sendReply(selectedItem.id, body)}
+      replyBusy={replyMutation.isPending}
+      replyError={replyError}
     />
   ) : null;
 
   return (
     <div className="flex h-screen flex-col bg-m-background">
       <header className="flex items-center justify-between gap-4 border-b border-m-outline-variant px-4 py-3 lg:px-6">
-        <div className="text-title-small text-m-on-surface">
-          {ok ? ok.company_name : <Skeleton className="h-5 w-40" />}
+        <div className="min-w-0">
+          <div className="text-title-small text-m-on-surface">
+            {ok ? ok.company_name : <Skeleton className="h-5 w-40" />}
+          </div>
+          {signedIn ? (
+            <p className="truncate text-label-small text-m-on-surface-variant">
+              Signed in as {signedIn.full_name}
+            </p>
+          ) : null}
         </div>
         {asAt ? <p className="text-label-small text-m-on-surface-variant">As at {asAt}</p> : null}
       </header>
@@ -297,7 +374,6 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
                 item={item}
                 selected={item.id === selectedId}
                 busy={decisionMutation.isPending && decisionMutation.variables?.item_id === item.id}
-                overdue={isOverdue(item)}
                 onSelect={handleSelect}
                 onQuickApprove={handleQuickApprove}
               />
@@ -305,7 +381,15 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
           )}
         </div>
 
-        <main className="hidden min-w-0 flex-1 overflow-y-auto p-8 lg:block">{detailNode}</main>
+        {/* Capped, not full-bleed. The pane is whatever is left of a monitor
+            after the rail and the queue, which on a wide screen stretched the
+            answer box and every message bubble across two feet of glass. 46rem
+            keeps the ask, the textarea and the thread at a readable measure;
+            the column itself still grows, so the content sits in it rather
+            than being pinned to the edge. */}
+        <main className="hidden min-w-0 flex-1 overflow-y-auto p-8 lg:block">
+          <div className="w-full max-w-[46rem]">{detailNode}</div>
+        </main>
 
         <Sheet
           open={!isDesktop && selectedItem !== null}
@@ -328,7 +412,7 @@ export function ClientReview({ previewClientId }: { previewClientId?: string } =
         open={pendingDecision !== null}
         contacts={ok?.contacts ?? []}
         onPick={(picked) => {
-          setApprover(picked);
+          setRemembered(picked);
           const pd = pendingDecision;
           setPendingDecision(null);
           if (pd) fireDecision(pd.itemId, pd.decision, pd.comment, picked);

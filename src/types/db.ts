@@ -616,6 +616,7 @@ export type Database = {
           client_delay_manual: boolean
           client_id: string | null
           client_wait_ms: number | null
+          internal_wait_ms: number | null
           closed_late: boolean | null
           completed_at: string | null
           created_at: string
@@ -659,6 +660,7 @@ export type Database = {
           client_delay_manual?: boolean
           client_id?: string | null
           client_wait_ms?: number | null
+          internal_wait_ms?: number | null
           closed_late?: boolean | null
           completed_at?: string | null
           created_at?: string
@@ -702,6 +704,7 @@ export type Database = {
           client_delay_manual?: boolean
           client_id?: string | null
           client_wait_ms?: number | null
+          internal_wait_ms?: number | null
           closed_late?: boolean | null
           completed_at?: string | null
           created_at?: string
@@ -1074,6 +1077,196 @@ export type Database = {
           },
         ]
       }
+      client_activity: {
+        Row: {
+          approval_id: string
+          author_name: string | null
+          body: string | null
+          client_id: string
+          contact_id: string | null
+          created_at: string
+          from_state: string | null
+          created_by: string | null
+          id: string
+          kind: string
+          outbound_email_id: string | null
+          to_state: string | null
+        }
+        Insert: {
+          approval_id: string
+          author_name?: string | null
+          body?: string | null
+          client_id: string
+          contact_id?: string | null
+          created_at?: string
+          from_state?: string | null
+          created_by?: string | null
+          id?: string
+          kind?: string
+          outbound_email_id?: string | null
+          to_state?: string | null
+        }
+        Update: {
+          approval_id?: string
+          author_name?: string | null
+          body?: string | null
+          client_id?: string
+          contact_id?: string | null
+          created_at?: string
+          from_state?: string | null
+          created_by?: string | null
+          id?: string
+          kind?: string
+          outbound_email_id?: string | null
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_activity_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: false
+            referencedRelation: "client_approvals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_activity_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_activity_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_activity_outbound_email_id_fkey"
+            columns: ["outbound_email_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_approvals: {
+        Row: {
+          agreed_at: string | null
+          agreed_via: string | null
+          ask: string
+          brief_id: string | null
+          client_id: string
+          client_note: string | null
+          client_title: string
+          created_at: string
+          created_by: string | null
+          decided_ask: string | null
+          decided_at: string | null
+          decided_by_contact_id: string | null
+          decided_by_email: string | null
+          decided_by_name: string | null
+          decided_ip: string | null
+          decided_title: string | null
+          decided_user_agent: string | null
+          detail: string | null
+          due_date: string | null
+          id: string
+          item_id: string | null
+          item_type: string
+          outbound_email_id: string | null
+          owed_by: string
+          state: string
+          weighty: boolean
+        }
+        Insert: {
+          agreed_at?: string | null
+          agreed_via?: string | null
+          ask: string
+          brief_id?: string | null
+          client_id: string
+          client_note?: string | null
+          client_title: string
+          created_at?: string
+          created_by?: string | null
+          decided_ask?: string | null
+          decided_at?: string | null
+          decided_by_contact_id?: string | null
+          decided_by_email?: string | null
+          decided_by_name?: string | null
+          decided_ip?: string | null
+          decided_title?: string | null
+          decided_user_agent?: string | null
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          item_id?: string | null
+          item_type?: string
+          outbound_email_id?: string | null
+          owed_by?: string
+          state?: string
+          weighty?: boolean
+        }
+        Update: {
+          agreed_at?: string | null
+          agreed_via?: string | null
+          ask?: string
+          brief_id?: string | null
+          client_id?: string
+          client_note?: string | null
+          client_title?: string
+          created_at?: string
+          created_by?: string | null
+          decided_ask?: string | null
+          decided_at?: string | null
+          decided_by_contact_id?: string | null
+          decided_by_email?: string | null
+          decided_by_name?: string | null
+          decided_ip?: string | null
+          decided_title?: string | null
+          decided_user_agent?: string | null
+          detail?: string | null
+          due_date?: string | null
+          id?: string
+          item_id?: string | null
+          item_type?: string
+          outbound_email_id?: string | null
+          owed_by?: string
+          state?: string
+          weighty?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_approvals_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approvals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_approvals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_baseline_tasks_log: {
         Row: {
           baseline_task_id: string
@@ -1210,6 +1403,67 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "task_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_review_tokens: {
+        Row: {
+          client_id: string
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          client_id: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          client_id?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_review_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_review_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_review_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]
@@ -1400,125 +1654,6 @@ export type Database = {
           xero_contact_name?: string | null
         }
         Relationships: []
-      }
-      client_approvals: {
-        Row: {
-          ask: string
-          brief_id: string | null
-          client_id: string
-          client_note: string | null
-          client_title: string
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by_email: string | null
-          decided_by_name: string | null
-          detail: string | null
-          due_date: string | null
-          id: string
-          item_id: string | null
-          item_type: string
-          state: string
-          weighty: boolean
-        }
-        Insert: {
-          ask: string
-          brief_id?: string | null
-          client_id: string
-          client_note?: string | null
-          client_title: string
-          created_at?: string
-          created_by?: string | null
-          decided_at?: string | null
-          decided_by_email?: string | null
-          decided_by_name?: string | null
-          detail?: string | null
-          due_date?: string | null
-          id?: string
-          item_id?: string | null
-          item_type?: string
-          state?: string
-          weighty?: boolean
-        }
-        Update: {
-          ask?: string
-          brief_id?: string | null
-          client_id?: string
-          client_note?: string | null
-          client_title?: string
-          created_at?: string
-          created_by?: string | null
-          decided_at?: string | null
-          decided_by_email?: string | null
-          decided_by_name?: string | null
-          detail?: string | null
-          due_date?: string | null
-          id?: string
-          item_id?: string | null
-          item_type?: string
-          state?: string
-          weighty?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_approvals_brief_id_fkey"
-            columns: ["brief_id"]
-            isOneToOne: false
-            referencedRelation: "briefs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "client_approvals_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      client_review_tokens: {
-        Row: {
-          client_id: string
-          created_at: string
-          created_by: string | null
-          expires_at: string | null
-          id: string
-          label: string | null
-          last_used_at: string | null
-          revoked_at: string | null
-          token_hash: string
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          created_by?: string | null
-          expires_at?: string | null
-          id?: string
-          label?: string | null
-          last_used_at?: string | null
-          revoked_at?: string | null
-          token_hash: string
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          created_by?: string | null
-          expires_at?: string | null
-          id?: string
-          label?: string | null
-          last_used_at?: string | null
-          revoked_at?: string | null
-          token_hash?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_review_tokens_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       contacts: {
         Row: {
@@ -1759,13 +1894,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "extension_requests_rejected_by_fkey"
-            columns: ["rejected_by"]
-            isOneToOne: false
-            referencedRelation: "team_members"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "extension_requests_admin_approver_id_fkey"
             columns: ["admin_approver_id"]
             isOneToOne: false
@@ -1796,6 +1924,13 @@ export type Database = {
           {
             foreignKeyName: "extension_requests_info_requested_by_fkey"
             columns: ["info_requested_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extension_requests_rejected_by_fkey"
+            columns: ["rejected_by"]
             isOneToOne: false
             referencedRelation: "team_members"
             referencedColumns: ["id"]
@@ -1919,16 +2054,19 @@ export type Database = {
         Row: {
           id: string
           meeting_id: string
+          response_status: string
           team_member_id: string
         }
         Insert: {
           id?: string
           meeting_id: string
+          response_status?: string
           team_member_id: string
         }
         Update: {
           id?: string
           meeting_id?: string
+          response_status?: string
           team_member_id?: string
         }
         Relationships: [
@@ -1999,6 +2137,7 @@ export type Database = {
       internal_meetings: {
         Row: {
           agenda: string | null
+          calendar_synced_at: string | null
           clickup_status_override: string | null
           clickup_sync_error: string | null
           clickup_task_id: string | null
@@ -2006,14 +2145,19 @@ export type Database = {
           client_id: string
           created_at: string
           ends_at: string
+          external_emails: Json
           google_calendar_email: string | null
           google_event_id: string | null
           google_html_link: string | null
           google_meet_url: string | null
           google_sync_error: string | null
           id: string
+          matched_domain: string | null
+          meeting_type: string
+          organiser_email: string | null
           organiser_id: string
           project_id: string | null
+          source: string
           starts_at: string
           status: string
           title: string
@@ -2022,6 +2166,7 @@ export type Database = {
         }
         Insert: {
           agenda?: string | null
+          calendar_synced_at?: string | null
           clickup_status_override?: string | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
@@ -2029,14 +2174,19 @@ export type Database = {
           client_id: string
           created_at?: string
           ends_at: string
+          external_emails?: Json
           google_calendar_email?: string | null
           google_event_id?: string | null
           google_html_link?: string | null
           google_meet_url?: string | null
           google_sync_error?: string | null
           id?: string
+          matched_domain?: string | null
+          meeting_type?: string
+          organiser_email?: string | null
           organiser_id: string
           project_id?: string | null
+          source?: string
           starts_at: string
           status?: string
           title: string
@@ -2045,6 +2195,7 @@ export type Database = {
         }
         Update: {
           agenda?: string | null
+          calendar_synced_at?: string | null
           clickup_status_override?: string | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
@@ -2052,14 +2203,19 @@ export type Database = {
           client_id?: string
           created_at?: string
           ends_at?: string
+          external_emails?: Json
           google_calendar_email?: string | null
           google_event_id?: string | null
           google_html_link?: string | null
           google_meet_url?: string | null
           google_sync_error?: string | null
           id?: string
+          matched_domain?: string | null
+          meeting_type?: string
+          organiser_email?: string | null
           organiser_id?: string
           project_id?: string | null
+          source?: string
           starts_at?: string
           status?: string
           title?: string
@@ -2426,6 +2582,42 @@ export type Database = {
           sample_sender?: string | null
           sample_subject?: string | null
           seen_count?: number
+        }
+        Relationships: []
+      }
+      pending_meeting_domains: {
+        Row: {
+          domain: string
+          first_seen_at: string
+          id: string
+          ignored_at: string | null
+          last_seen_at: string
+          sample_organiser_email: string | null
+          sample_title: string | null
+          seen_count: number
+          unattributed_hours: number
+        }
+        Insert: {
+          domain: string
+          first_seen_at?: string
+          id?: string
+          ignored_at?: string | null
+          last_seen_at?: string
+          sample_organiser_email?: string | null
+          sample_title?: string | null
+          seen_count?: number
+          unattributed_hours?: number
+        }
+        Update: {
+          domain?: string
+          first_seen_at?: string
+          id?: string
+          ignored_at?: string | null
+          last_seen_at?: string
+          sample_organiser_email?: string | null
+          sample_title?: string | null
+          seen_count?: number
+          unattributed_hours?: number
         }
         Relationships: []
       }
@@ -4192,6 +4384,7 @@ export type Database = {
           trigger_to_start: string | null
           unit_of_sale: string | null
           updated_at: string
+          xero_item_code: string | null
         }
         Insert: {
           checklist_items?: string[]
@@ -4217,6 +4410,7 @@ export type Database = {
           trigger_to_start?: string | null
           unit_of_sale?: string | null
           updated_at?: string
+          xero_item_code?: string | null
         }
         Update: {
           checklist_items?: string[]
@@ -4242,6 +4436,7 @@ export type Database = {
           trigger_to_start?: string | null
           unit_of_sale?: string | null
           updated_at?: string
+          xero_item_code?: string | null
         }
         Relationships: [
           {
@@ -4257,6 +4452,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rules"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_xero_item_code_fkey"
+            columns: ["xero_item_code"]
+            isOneToOne: false
+            referencedRelation: "xero_items"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -5360,6 +5562,33 @@ export type Database = {
           },
         ]
       }
+      xero_items: {
+        Row: {
+          code: string
+          created_at: string
+          name: string
+          sales_unit_price_cents: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          name: string
+          sales_unit_price_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          name?: string
+          sales_unit_price_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       actuals_intervals: {
@@ -5378,6 +5607,41 @@ export type Database = {
           team_member_id: string | null
         }
         Relationships: []
+      }
+      client_meeting_hours: {
+        Row: {
+          client_id: string | null
+          meeting_type: string | null
+          meetings: number | null
+          month: string | null
+          participant_slots: number | null
+          person_hours: number | null
+          project_id: string | null
+          source: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_meetings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_meetings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "internal_meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       live_actuals_by_period: {
         Row: {
@@ -5407,6 +5671,14 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meeting_participants: {
+        Row: {
+          meeting_id: string | null
+          response_status: string | null
+          team_member_id: string | null
+        }
+        Relationships: []
       }
       ongoing_actuals_current: {
         Row: {

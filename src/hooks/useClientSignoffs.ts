@@ -20,15 +20,76 @@ import { errorMessage } from "@/lib/utils";
 import { todayISO } from "@/lib/dates";
 import type { ListResponse, ReviewContact, ReviewItem } from "@/types/client-review";
 
+/**
+ * PostgREST returns a to-one embed as an object at runtime but types it as an
+ * array. Accept both rather than casting the whole row through `unknown`.
+ */
+type BriefWait = { client_wait_ms: number | null };
+function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
+  if (!briefs) return null;
+  const row = Array.isArray(briefs) ? briefs[0] : briefs;
+  return row?.client_wait_ms ?? null;
+}
+
 /** One row of the cross-client queue, for the aggregate table and rail counts. */
 export type SignoffRow = ReviewItem & {
   client_id: string;
   client_name: string;
   created_at: string;
+  /** Staff-side only. For an agreement of ours: the task it became. */
+  brief_id: string | null;
 };
 
+// briefs(client_wait_ms) is the ONE column read from briefs, mirroring the
+// edge function's rule 1 — see the header of supabase/functions/client-review.
 const ITEM_COLUMNS =
-  "id, client_id, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, created_at";
+  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, created_at, client_note, briefs(client_wait_ms)";
+
+/**
+ * The evidence behind one decision (0142). Staff-only — none of it crosses to
+ * the client, and decided_title/decided_ask are the FROZEN text, which is the
+ * whole reason to read them rather than the live columns: they say what the
+ * person actually agreed to, not what the item says today.
+ */
+export type SignoffEvidence = {
+  decided_at: string | null;
+  decided_by_name: string | null;
+  decided_by_email: string | null;
+  decided_by_contact_id: string | null;
+  decided_title: string | null;
+  decided_ask: string | null;
+  decided_ip: string | null;
+  decided_user_agent: string | null;
+  client_note: string | null;
+  client_title: string;
+  ask: string;
+};
+
+export function useSignoffEvidence(approvalId: string | undefined) {
+  return useQuery({
+    queryKey: ["signoff-evidence", approvalId ?? ""],
+    enabled: !!approvalId,
+    queryFn: async (): Promise<SignoffEvidence> => {
+      const { data, error } = await supabase
+        .from("client_approvals")
+        .select(
+          "decided_at, decided_by_name, decided_by_email, decided_by_contact_id, decided_title, decided_ask, decided_ip, decided_user_agent, client_note, client_title, ask",
+        )
+        .eq("id", approvalId!)
+        .single();
+      if (error) throw new Error(errorMessage(error));
+      return data as SignoffEvidence;
+    },
+  });
+}
+
+/**
+ * Staff-only additions to the mirrored list above. brief_id is a Conductor id
+ * with no meaning to a client and deliberately never enters ITEM_COLUMNS —
+ * that constant's value is that it cannot quietly gain a field the edge
+ * function does not also have.
+ */
+const STAFF_ONLY_COLUMNS = "brief_id";
 
 /** Whole days an undecided item has been past its due date. 0 when not late. */
 export function daysWaiting(row: SignoffRow): number {
@@ -49,15 +110,19 @@ export function useClientSignoffs() {
     queryFn: async (): Promise<SignoffRow[]> => {
       const { data, error } = await supabase
         .from("client_approvals")
-        .select(`${ITEM_COLUMNS}, clients!inner(name)`)
+        .select(`${ITEM_COLUMNS}, ${STAFF_ONLY_COLUMNS}, clients!inner(name)`)
         .order("created_at", { ascending: false });
       if (error) throw new Error(errorMessage(error));
 
       return (data ?? []).map((r) => {
-        const { clients, ...rest } = r as typeof r & { clients: { name: string } | null };
+        const { clients, briefs, ...rest } = r as typeof r & {
+          clients: { name: string } | null;
+          briefs: BriefWait | BriefWait[] | null;
+        };
         return {
-          ...(rest as Omit<SignoffRow, "client_name">),
+          ...(rest as Omit<SignoffRow, "client_name" | "waiting_ms">),
           client_name: clients?.name ?? "Unknown client",
+          waiting_ms: waitingMsOf(briefs),
         };
       });
     },
@@ -79,7 +144,7 @@ export function useClientReviewPreview(clientId: string | undefined) {
     queryFn: async (): Promise<ListResponse> => {
       if (!clientId) throw new Error("No client selected");
 
-      const [clientRes, contactRes, itemRes] = await Promise.all([
+      const [clientRes, contactRes, itemRes, threadRes] = await Promise.all([
         supabase.from("clients").select("name").eq("id", clientId).single(),
         supabase
           .from("contacts")
@@ -92,11 +157,21 @@ export function useClientReviewPreview(clientId: string | undefined) {
           .select(ITEM_COLUMNS)
           .eq("client_id", clientId)
           .order("created_at", { ascending: false }),
+        // kind='note' EXCLUDED, exactly as the edge function excludes it. An
+        // internal note appearing in the preview would be a staff-only leak in
+        // the one place whose job is to show what the client sees.
+        supabase
+          .from("client_activity")
+          .select("id, approval_id, kind, body, author_name, created_at")
+          .eq("client_id", clientId)
+          .in("kind", ["message", "client_message"])
+          .order("created_at"),
       ]);
 
       if (clientRes.error) throw new Error(errorMessage(clientRes.error));
       if (contactRes.error) throw new Error(errorMessage(contactRes.error));
       if (itemRes.error) throw new Error(errorMessage(itemRes.error));
+      if (threadRes.error) throw new Error(errorMessage(threadRes.error));
 
       const contacts: ReviewContact[] = (contactRes.data ?? [])
         .filter((c): c is { id: string; full_name: string } => !!c.full_name)
@@ -104,6 +179,7 @@ export function useClientReviewPreview(clientId: string | undefined) {
 
       const items: ReviewItem[] = (itemRes.data ?? []).map((r) => ({
         id: r.id,
+        item_type: r.item_type as ReviewItem["item_type"],
         client_title: r.client_title,
         ask: r.ask,
         detail: r.detail,
@@ -112,6 +188,23 @@ export function useClientReviewPreview(clientId: string | undefined) {
         state: r.state as ReviewItem["state"],
         decided_at: r.decided_at,
         decided_by_name: r.decided_by_name,
+        agreed_at: r.agreed_at,
+        agreed_via: r.agreed_via,
+        owed_by: r.owed_by === "us" ? ("us" as const) : ("client" as const),
+        created_at: r.created_at,
+        client_note: r.client_note,
+        waiting_ms: waitingMsOf(r.briefs),
+        // The preview is a faithful render of the client's screen, so the
+        // thread has to be on it too — see the thread query below.
+        messages: (threadRes.data ?? [])
+          .filter((m) => m.approval_id === r.id)
+          .map((m) => ({
+            id: m.id,
+            from: m.kind === "client_message" ? ("them" as const) : ("us" as const),
+            author: m.kind === "client_message" ? m.author_name : null,
+            body: m.body ?? "",
+            at: m.created_at,
+          })),
       }));
 
       return {
@@ -120,6 +213,11 @@ export function useClientReviewPreview(clientId: string | undefined) {
         as_at: new Date().toISOString(),
         contacts,
         items,
+        // Staff reach the preview by client id, not by anyone's link, so there
+        // is nobody to be signed in as. The preview therefore shows the
+        // company-wide shape — which is the honest thing: it cannot know which
+        // person's link a given client will open.
+        signed_in_as: null,
       };
     },
   });

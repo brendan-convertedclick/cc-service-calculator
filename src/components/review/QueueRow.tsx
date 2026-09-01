@@ -1,6 +1,8 @@
 import { Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { typeLabelFor } from "@/lib/client-review";
+import { DueBadge } from "@/components/review/DueBadge";
 import type { ReviewItem } from "@/types/client-review";
 
 export interface QueueRowProps {
@@ -9,18 +11,18 @@ export interface QueueRowProps {
   selected: boolean;
   /** True while this row's decision is in flight — disables the ✓, shows a spinner. */
   busy: boolean;
-  /** True when pending, dated, and past due — renders the Overdue badge. */
-  overdue: boolean;
   onSelect: (id: string) => void;
   /**
-   * The hover ✓. Only rendered when item.state === "pending".
+   * The hover ✓. Only rendered when item.state === "pending" AND the item can
+   * be settled in one click — a question cannot, because its answer has to be
+   * typed, and a ✓ that opens a textarea is a lie about what the click does.
    * The page routes this through the same identity resolution as the detail
    * pane buttons — it is NOT a shortcut past "And you are?".
    */
   onQuickApprove: (id: string) => void;
 }
 
-export function QueueRow({ item, selected, busy, overdue, onSelect, onQuickApprove }: QueueRowProps) {
+export function QueueRow({ item, selected, busy, onSelect, onQuickApprove }: QueueRowProps) {
   return (
     <div
       role="button"
@@ -45,22 +47,17 @@ export function QueueRow({ item, selected, busy, overdue, onSelect, onQuickAppro
       <div className="min-w-0 flex-1">
         <p className="truncate text-title-small text-m-on-surface">{item.client_title}</p>
         <p className="mt-0.5 truncate text-body-medium text-m-on-surface-variant">{item.ask}</p>
-        {overdue || item.weighty ? (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {overdue ? (
-              <Badge className="border-transparent bg-m-error-container text-m-on-error-container">
-                Overdue
-              </Badge>
-            ) : null}
-            {item.weighty ? <Badge variant="outline">Needs a formal sign-off</Badge> : null}
-          </div>
-        ) : null}
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          <Badge variant="outline">{typeLabelFor(item)}</Badge>
+          <DueBadge item={item} />
+          {item.weighty ? <Badge variant="outline">Needs a formal sign-off</Badge> : null}
+        </div>
       </div>
 
-      {item.state === "pending" ? (
+      {item.state === "pending" && item.item_type !== "question" ? (
         <button
           type="button"
-          aria-label="Quick approve"
+          aria-label={item.item_type === "agreement" ? "Mark done" : "Quick approve"}
           disabled={busy}
           onClick={(e) => {
             e.stopPropagation();

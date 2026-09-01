@@ -35,9 +35,23 @@ export type ReviewContact = {
   full_name: string;
 };
 
+/**
+ * What kind of thing the client is looking at. Three asks, three controls:
+ *   brief     — a deliverable awaiting APPROVAL       (Approve / Request changes)
+ *   question  — something we asked, awaiting an ANSWER (answer box + Send)
+ *   agreement — something they committed to, awaiting DOING (Done / Not yet)
+ *
+ * 'brief' is the value a task has carried since 0139 and is deliberately not
+ * renamed to 'task' — the ClickUp candidates flow, the existing rows and
+ * client_approvals_brief_ref_chk all key off it. "Task" is the label the UI
+ * puts on it, nothing more.
+ */
+export type ReviewItemType = "brief" | "question" | "agreement";
+
 /** One row in the queue. `id` is client_approvals.id — never briefs.id. */
 export type ReviewItem = {
   id: string;
+  item_type: ReviewItemType;
   client_title: string;
   ask: string;
   detail: string | null;
@@ -50,6 +64,59 @@ export type ReviewItem = {
   decided_at: string | null;
   /** A CLIENT contact's name. The only person-name field in this file. */
   decided_by_name: string | null;
+  /**
+   * agreement only, null otherwise: when they committed and how. Shown back to
+   * them verbatim — "you agreed on 4 Aug, in a meeting" is the whole point of
+   * the type, and a date we cannot name is not accountability.
+   */
+  agreed_at: string | null;
+  agreed_via: string | null;
+  /**
+   * Whose move this is. Only an agreement is ever "us" — a sign-off or a
+   * question is the client's by definition. An agreement of ours shows on
+   * their page under "With us" with no buttons: it is ours to close, and
+   * offering them a Done button on our own commitment would be absurd.
+   */
+  owed_by: "client" | "us";
+  /**
+   * How long this has actually been sitting with the client, in ms, from the
+   * linked task's ClickUp "waiting on client" clock.
+   *
+   * It exists because plenty of asks have no due date, and an ask with no date
+   * still has an age. `created_at` cannot stand in for it: rows drafted from
+   * ClickUp are written in a batch long after the client first got the work,
+   * so it records when WE wrote it down, not when they were handed it.
+   * Null when there is no linked task or the sync has not reached it yet.
+   */
+  waiting_ms: number | null;
+  /** The two-way thread, oldest first. Never contains internal notes. */
+  messages: ReviewMessage[];
+  /** When we asked. Dates the opening message of the thread. */
+  created_at: string;
+  /**
+   * What they wrote when they decided — the answer to a question, or the note
+   * that came with requesting changes. Their own words, so it belongs in the
+   * thread as their message rather than disappearing into a confirmation
+   * banner, which is where it used to go.
+   */
+  client_note: string | null;
+};
+
+/**
+ * One message on an item's thread.
+ *
+ * `from` is deliberately coarse. A client sees "Converted Click", never which
+ * of us typed it — the only two parties on that page are their company and
+ * ours. `author` names their own colleague on their side so a thread with two
+ * people from one company still reads. Internal notes are excluded server-side
+ * and have no representation in this file at all.
+ */
+export type ReviewMessage = {
+  id: string;
+  from: "us" | "them";
+  author: string | null;
+  body: string;
+  at: string;
 };
 
 /** Who is deciding. Either a known contact, or a free-typed "Someone else". */
@@ -74,7 +141,11 @@ export type RememberedApprover = {
 export type ReviewDecisionInput = {
   item_id: string;
   decision: ReviewDecision;
-  /** Required, non-empty, when decision === "changes_requested". */
+  /**
+   * Required, non-empty, when decision === "changes_requested" OR the item is
+   * a question (where the comment IS the answer). The server re-checks both
+   * from the stored item_type — this type only documents it.
+   */
   comment?: string;
   identity: ReviewIdentity;
 };
@@ -88,7 +159,14 @@ export type DecideRequest = {
   token: string;
 } & ReviewDecisionInput;
 
-export type ClientReviewRequest = ListRequest | DecideRequest;
+export type ReplyRequest = {
+  action: "reply";
+  token: string;
+  item_id: string;
+  body: string;
+};
+
+export type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest;
 
 // --- responses ------------------------------------------------------------
 //
@@ -108,9 +186,24 @@ export type ListOk = {
   as_at: string;
   contacts: ReviewContact[];
   items: ReviewItem[];
+  /**
+   * Who this link belongs to, when it belongs to somebody (0142).
+   *
+   * Non-null means the token is personal: the page shows the name back to them
+   * and never opens "And you are?", because the server resolves the signer
+   * from the token and ignores whatever the body claims. Null is a legacy
+   * company-wide link, where the picker is still the only way to know who
+   * acted.
+   */
+  signed_in_as: ReviewContact | null;
 };
 
 export type ListResponse = ListOk | TokenFailure;
+
+export type ReplyResponse =
+  | { status: "ok"; message: ReviewMessage }
+  | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
+  | TokenFailure;
 
 export type DecideResponse =
   | { status: "ok"; item: ReviewItem }
@@ -119,9 +212,9 @@ export type DecideResponse =
   | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
   | TokenFailure;
 
-/** Narrowing helper — both the page and the components use it. */
+/** Narrowing helper — every response type this API returns goes through it. */
 export function isTokenFailure(
-  r: ListResponse | DecideResponse,
+  r: ListResponse | DecideResponse | ReplyResponse,
 ): r is TokenFailure {
   return r.status === "expired" || r.status === "revoked" || r.status === "unknown";
 }
