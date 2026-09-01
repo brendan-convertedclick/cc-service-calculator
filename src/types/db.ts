@@ -5895,6 +5895,10 @@ export type Database = {
         Args: { p_revision_id: string }
         Returns: undefined
       }
+      system_revision_back_to_draft: {
+        Args: { p_revision_id: string }
+        Returns: undefined
+      }
       queue_pending_client: {
         Args: { p_domain: string; p_sender: string; p_subject: string }
         Returns: {

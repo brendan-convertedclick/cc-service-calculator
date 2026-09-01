@@ -192,6 +192,41 @@ export function usePublishRevision() {
 // the 'draft' it used to be dropped back to; 'changes_requested' (0137) just
 // says that someone reviewed it and left notes, rather than leaving it
 // looking like a draft nobody has read.
+// "Back to draft": the one door that goes backwards, and the only one open to
+// every role.
+//
+// It is an RPC rather than a plain update for the reason 0147 spells out — a
+// staff member has no UPDATE on a published row and must not be given one,
+// because that would also let published *content* be rewritten in place. The
+// function grants this single transition and clears every `approved_at` on
+// the way, so a reopened revision can never carry sign-offs recorded against
+// the content someone actually read.
+//
+// No ClickUp ping. The three transitions that post to the ⚙️ Systems channel
+// are the ones another person is waiting on; taking your own work back to be
+// finished is not news, and a channel that reports every direction becomes a
+// channel nobody reads.
+export function useBackToDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ revisionId }: { revisionId: string; systemId: string }) => {
+      const { error } = await supabase.rpc("system_revision_back_to_draft", {
+        p_revision_id: revisionId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: SYSTEM_REVISIONS_KEY(vars.systemId) });
+      // Un-publishing clears current_revision_id, so the list's status pill
+      // and the detail header both move.
+      qc.invalidateQueries({ queryKey: SYSTEMS_KEY });
+      qc.invalidateQueries({ queryKey: SYSTEM_DETAIL_KEY(vars.systemId) });
+      // Every approved_at just went null; the approval line renders from these.
+      qc.invalidateQueries({ queryKey: ["system_revision_approvals"] });
+    },
+  });
+}
+
 export function useRequestChanges() {
   const qc = useQueryClient();
   return useMutation({

@@ -50,6 +50,7 @@ import { TaskList } from "@/components/systems/TaskList";
 import { StepNotesPanel } from "@/components/systems/StepNotesPanel";
 import { useStepNotes } from "@/hooks/useStepNotes";
 import { DocLinksField } from "@/components/systems/DocLinksField";
+import { BackToDraftButton } from "@/components/systems/BackToDraftButton";
 import {
   useProposeRevision,
   type ProposedApprover,
@@ -1287,6 +1288,19 @@ export function SystemDetail() {
                       canApprove={canApprove}
                     />
                   )}
+                  {/* The way back, from wherever the latest revision has got
+                      to. Any role: the person who finds a procedure wrong is
+                      the person running it, not the person allowed to sign
+                      it. Sits beside "Send for review" because it is the same
+                      decision in reverse, taken from the same screen. */}
+                  {latestRevision && (
+                    <BackToDraftButton
+                      systemId={system.id}
+                      revisionId={latestRevision.id}
+                      state={latestRevision.state}
+                      revisionLabel={`Rev ${latestRevision.revision}`}
+                    />
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -1911,27 +1925,38 @@ function RevisionRow({
           <span className="font-mono text-label-medium text-m-on-surface-variant">Rev {rev.revision}</span>
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
-        {rev.state === "proposed" && (
-          <div className="flex gap-2">
-            {/* Each named approver acts on their own line below. This pair is
-                what's left for someone who isn't named: an admin declining
-                the revision, or publishing it once everyone has signed. */}
-            {canApprove && !myApproval && (
-              <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
-                Request changes
-              </Button>
-            )}
-            <ApproveButton
-              systemId={systemId}
-              revisionId={rev.id}
-              revisionLabel={`v${rev.revision}`}
-              approvals={approvals}
-              teamById={teamById}
-              canApprove={canApprove}
-              publishOnly
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {rev.state === "proposed" && (
+            <>
+              {/* Each named approver acts on their own line below. This pair is
+                  what's left for someone who isn't named: an admin declining
+                  the revision, or publishing it once everyone has signed. */}
+              {canApprove && !myApproval && (
+                <Button size="sm" variant="outline" disabled={requestPending} onClick={() => onRequestChanges(rev.id)}>
+                  Request changes
+                </Button>
+              )}
+              <ApproveButton
+                systemId={systemId}
+                revisionId={rev.id}
+                revisionLabel={`v${rev.revision}`}
+                approvals={approvals}
+                teamById={teamById}
+                canApprove={canApprove}
+                publishOnly
+              />
+            </>
+          )}
+          {/* Every row that can come back offers it, including the approved
+              one — this is the only per-revision control that is not gated on
+              role. */}
+          <BackToDraftButton
+            systemId={systemId}
+            revisionId={rev.id}
+            state={rev.state}
+            revisionLabel={`Rev ${rev.revision}`}
+          />
+        </div>
       </div>
       <p className="mt-1.5 text-body-small text-m-on-surface">{rev.reason_for_change}</p>
       {meta && <p className="mt-1 text-label-small text-m-on-surface-variant">{meta}</p>}
