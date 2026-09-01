@@ -51,9 +51,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { staff_brief_id, project_id } = (await req.json()) as {
+    const { staff_brief_id, project_id, billing } = (await req.json()) as {
       staff_brief_id?: string;
       project_id?: string | null;
+      billing?: "retainer" | "adhoc" | "internal";
     };
     if (!staff_brief_id) return json({ error: "staff_brief_id required" }, 400);
 
@@ -95,13 +96,24 @@ Deno.serve(async (req: Request) => {
 
     // Allocation is enforced here rather than on the staff form: the submitter
     // is rarely the person who knows whether this is retainer work or something
-    // to invoice. Internal work is the one case with nothing to allocate to.
+    // to invoice.
+    //
+    // Work has three honest destinations, not one. Requiring a retainer meant a
+    // client with none — an internal one, or a client whose extra work is
+    // deliberately billed ad hoc — had briefs that could never be approved.
     const allocatedProjectId = project_id ?? brief.project_id ?? null;
-    if (!brief.is_internal && !allocatedProjectId) {
+    const destination = billing ?? (brief.is_internal ? "internal" : allocatedProjectId ? "retainer" : null);
+    if (!destination) {
       return json({
-        error: "Pick the retainer or project this is delivered against before approving.",
+        error: "Say where this belongs — a retainer, adhoc to invoice, or internal.",
       }, 400);
     }
+    if (destination === "retainer" && !allocatedProjectId) {
+      return json({ error: "Pick the retainer this is delivered against." }, 400);
+    }
+    // Only retainer work carries a project; the other two are deliberately
+    // unattached, which is what makes them visible as off-retainer work.
+    const projectForBrief = destination === "retainer" ? allocatedProjectId : null;
 
     const { data: submitter, error: subErr } = await supabase
       .from("team_members")
@@ -268,7 +280,7 @@ Deno.serve(async (req: Request) => {
         approved_at: new Date().toISOString(),
         clickup_task_id: created.id,
         clickup_task_url: created.url,
-        project_id: allocatedProjectId,
+        project_id: projectForBrief,
       })
       .eq("id", brief.id);
     if (updateErr) {
@@ -285,13 +297,14 @@ Deno.serve(async (req: Request) => {
     // actual points automatically, exactly as for a normal brief.
     const { error: mirrorErr } = await supabase.from("briefs").insert({
       client_id: brief.client_id,
-      parent_project_id: allocatedProjectId,
+      parent_project_id: projectForBrief,
       source: "manual",
       status: "briefed",
       raw_subject: brief.task_name,
       raw_body: brief.goal,
       original_points: brief.sprint_points,
-      billing_type: brief.is_internal ? "adhoc" : "retainer",
+      // internal is billed to nobody, but adhoc is what the invoice run reads.
+      billing_type: destination === "retainer" ? "retainer" : "adhoc",
       clickup_task_id: created.id,
     });
     if (mirrorErr) {

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useXeroItems } from "@/hooks/useXeroItems";
+import { useServiceProcedures, useSetServiceProcedure } from "@/hooks/useServiceProcedure";
 import {
   useCreateService,
   useDeleteService,
@@ -18,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { formatZar } from "@/lib/utils";
+import { formatZar, errorMessage } from "@/lib/utils";
 import type { ClaudePrompt } from "@/types/claude";
 
 interface Props {
@@ -31,6 +33,17 @@ export function ServiceDetail({ mode }: Props) {
   const { data: rules = [] } = useRules();
   const { data: team = [] } = useTeam();
   const { data: detail } = useService(mode === "edit" ? id : undefined);
+  const { data: xeroItems = [] } = useXeroItems();
+  const { data: allProcedures = [] } = useServiceProcedures();
+  const setProcedure = useSetServiceProcedure();
+  // Approved and free, plus whatever this service already has — an existing
+  // link may predate approval, and hiding it would make the box read as empty
+  // when it is not.
+  const currentProcedureId =
+    allProcedures.find((pr) => pr.serviceId && pr.serviceId === id)?.id ?? null;
+  const procedureChoices = allProcedures.filter(
+    (pr) => (pr.approved && !pr.serviceId) || pr.id === currentProcedureId,
+  );
   const create = useCreateService();
   const update = useUpdateService();
   const remove = useDeleteService();
@@ -53,6 +66,11 @@ export function ServiceDetail({ mode }: Props) {
     notes: "",
     default_due_days: null as number | null,
     checklist_items: "",
+    // Xero is the source of truth for quoting and invoicing, so a new service
+    // has to say which line it bills as before it can exist. Several services
+    // may share a line — that is normal, not a clash.
+    xero_item_code: null as string | null,
+    procedure_id: null as string | null,
   });
 
   useEffect(() => {
@@ -76,6 +94,8 @@ export function ServiceDetail({ mode }: Props) {
         notes: s.notes ?? "",
         default_due_days: s.default_due_days,
         checklist_items: (s.checklist_items ?? []).join("\n"),
+        xero_item_code: s.xero_item_code ?? null,
+        procedure_id: null,
       });
     }
     // Only re-seed the form when the underlying service identity changes.
@@ -104,11 +124,15 @@ export function ServiceDetail({ mode }: Props) {
       notes: form.notes || null,
       default_due_days: form.default_due_days,
       checklist_items: form.checklist_items.split("\n").filter((i) => i.trim()),
+      xero_item_code: form.xero_item_code,
     };
 
     if (mode === "new") {
       create.mutate(payload, {
-        onSuccess: (s) => {
+        onSuccess: async (s) => {
+          if (form.procedure_id) {
+            await setProcedure.mutateAsync({ serviceId: s.id, procedureId: form.procedure_id });
+          }
           toast.success("Service created");
           navigate(`/services/${s.id}`, { replace: true });
         },
@@ -196,7 +220,15 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                   <Trash2 className="h-4 w-4" /> Delete
                 </Button>
               )}
-              <Button onClick={onSave} disabled={!form.name.trim()}>
+              <Button
+                onClick={onSave}
+                disabled={!form.name.trim() || (mode === "new" && !form.xero_item_code)}
+                title={
+                  mode === "new" && !form.xero_item_code
+                    ? "Pick the Xero line this is invoiced as"
+                    : undefined
+                }
+              >
                 <Save className="h-4 w-4" /> Save
               </Button>
             </div>
@@ -310,6 +342,55 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                       </p>
                     </div>
                   )}
+                  <div className="space-y-2">
+                    <Label>Invoice line (Xero){mode === "new" ? " *" : ""}</Label>
+                    <select
+                      value={form.xero_item_code ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, xero_item_code: e.target.value || null })
+                      }
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                    >
+                      <option value="">— pick the Xero line</option>
+                      {xeroItems.map((x) => (
+                        <option key={x.code} value={x.code}>{x.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-label-small text-m-on-surface-variant">
+                      What the client sees on the invoice. Several services can share
+                      one line.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Procedure</Label>
+                    <select
+                      value={form.procedure_id ?? currentProcedureId ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value || null;
+                        setForm({ ...form, procedure_id: v });
+                        if (mode === "edit" && id) {
+                          setProcedure.mutate(
+                            { serviceId: id, procedureId: v },
+                            { onError: (err) => toast.error(errorMessage(err)) },
+                          );
+                        }
+                      }}
+                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                    >
+                      <option value="">— none yet</option>
+                      {procedureChoices.map((pr) => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.name}{pr.approved ? "" : " (not approved)"}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-label-small text-m-on-surface-variant">
+                      How the work actually gets done. Only approved procedures are
+                      offered.
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Rule</Label>
                     <select

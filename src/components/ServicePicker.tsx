@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useServices, useCreateService } from "@/hooks/useServices";
+import { useXeroItems } from "@/hooks/useXeroItems";
 import { useRules } from "@/hooks/useRules";
 import { errorMessage } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,12 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
   const { data: services = [], isLoading } = useServices();
   const { data: rules = [] } = useRules();
   const createService = useCreateService();
+  // A service created here is sold like any other, so it needs the Xero line it
+  // will be invoiced as — otherwise this quiet path around the Services form
+  // would keep reintroducing exactly the unmapped services we are working
+  // through.
+  const { data: xeroItems = [] } = useXeroItems();
+  const [newXeroCode, setNewXeroCode] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -53,7 +60,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
   }
   function handleCreate() {
     const name = newName.trim();
-    if (!name || !newRuleId || createService.isPending) return;
+    if (!name || !newRuleId || !newXeroCode || createService.isPending) return;
     createService.mutate(
       {
         name,
@@ -61,11 +68,13 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
         sell_price_cents: Math.round((Number(newPrice) || 0) * 100),
         rule_id: newRuleId,
         status: "active",
+        xero_item_code: newXeroCode,
       },
       {
         onSuccess: (created) => {
           onPick(created.id);
           setAdding(false);
+          setNewXeroCode("");
           setQuery("");
           setOpen(false);
           toast.success(`Added "${created.name}"`);
@@ -171,6 +180,20 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
               </select>
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-label-small text-m-on-surface-variant">Invoice line (Xero)</Label>
+            <select
+              value={newXeroCode}
+              onChange={(e) => setNewXeroCode(e.target.value)}
+              className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">Select…</option>
+              {xeroItems.map((x) => (
+                <option key={x.code} value={x.code}>{x.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" onClick={cancelAdding} disabled={createService.isPending}>
               Cancel
@@ -178,7 +201,7 @@ export function ServicePicker({ excludeIds, onPick, placeholder }: Props) {
             <Button
               size="sm"
               onClick={handleCreate}
-              disabled={!newName.trim() || !newRuleId || createService.isPending}
+              disabled={!newName.trim() || !newRuleId || !newXeroCode || createService.isPending}
             >
               {createService.isPending ? "Adding…" : "Add & select"}
             </Button>

@@ -247,10 +247,8 @@ export function SystemsList() {
       scoped.filter((s) => {
         if (band && (isBand(s.band) ? s.band : UNBANDED) !== band) return false;
         if (kind && s.kind !== kind) return false;
-        // A system sits in every department its steps do, so a cross-team
-        // procedure shows under each of them rather than one arbitrary owner.
-        if (dept && !(dept === NO_DEPT ? s.department_ids.length === 0 : s.department_ids.includes(dept)))
-          return false;
+        // One department per system — whichever its owner sits in.
+        if (dept && (s.department_id ?? NO_DEPT) !== dept) return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
         if (myNotesOnly && !myNoteCounts?.has(s.id)) return false;
         if (priorityOnly && !s.priority_at) return false;
@@ -292,8 +290,8 @@ export function SystemsList() {
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of scoped) {
-      if (s.department_ids.length === 0) counts[NO_DEPT] = (counts[NO_DEPT] ?? 0) + 1;
-      for (const d of s.department_ids) counts[d] = (counts[d] ?? 0) + 1;
+      const key = s.department_id ?? NO_DEPT;
+      counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
   }, [scoped]);

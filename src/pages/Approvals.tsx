@@ -19,6 +19,11 @@ import type { StaffBriefRow } from "@/types/staff-briefs";
 import { askedForPoints, type ExtensionRequestRow } from "@/types/extension-requests";
 import type { RevisionRequestRow } from "@/types/revision-requests";
 
+/** Destinations that are not a retainer. Kept as sentinels rather than nulls so
+ *  "no retainer" is something the approver states, not something they omit. */
+const ADHOC = "__adhoc__";
+const INTERNAL = "__internal__";
+
 type BriefJoined = StaffBriefRow & {
   client: { id: string; name: string } | null;
   submitter: { id: string; full_name: string; email: string | null } | null;
@@ -97,10 +102,19 @@ export function Approvals() {
     loadRevs();
   }, []);
 
-  const approveBrief = async (id: string, projectId: string | null) => {
+  const approveBrief = async (id: string, choice: string | null) => {
     setBusyId(id);
     try {
-      await callEdgeFn("approve-staff-brief", { staff_brief_id: id, project_id: projectId });
+      await callEdgeFn("approve-staff-brief", {
+        staff_brief_id: id,
+        project_id: choice === ADHOC || choice === INTERNAL ? null : choice,
+        // No choice is not a choice of "retainer": an internal brief renders no
+        // picker at all, so it always arrives here with choice === null and
+        // would otherwise claim to be retainer work with no retainer — which
+        // the server rejects, leaving the brief unapprovable by any route.
+        // undefined lets the server fall back to the brief's own is_internal.
+        billing: choice === ADHOC ? "adhoc" : choice === INTERNAL ? "internal" : choice ? "retainer" : undefined,
+      });
       toast.success("Approved — ClickUp task created.");
       await loadBriefs();
     } catch (e) {
@@ -418,6 +432,10 @@ function BriefCard({
   onRejectCancel: () => void;
   onRejectConfirm: () => void;
 }) {
+  const clientRetainers = retainers.filter(
+    (r) => r.status === "in_progress" && r.client_id === row.client?.id,
+  );
+
   return (
     <Card className="shadow-elev-1">
       <CardHeader className="pb-2">
@@ -477,24 +495,33 @@ function BriefCard({
                     projectId ? "border-m-outline" : "border-m-error text-m-error",
                   )}
                 >
-                  <option value="">— pick a retainer</option>
-                  {retainers
-                    .filter((r) => r.status === "in_progress" && r.client_id === row.client?.id)
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
+                  <option value="">— where does this belong?</option>
+                  {clientRetainers.length > 0 && (
+                    <optgroup label="Retainer">
+                      {clientRetainers.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="No retainer">
+                    <option value={ADHOC}>Adhoc — bill separately</option>
+                    <option value={INTERNAL}>Internal — our own work</option>
+                  </optgroup>
                 </select>
               </div>
             )}
             {!row.is_internal && !projectId && (
               <p className="text-right text-label-small text-m-error">
-                Approving without one puts this work in no budget and on no invoice.
+                {clientRetainers.length === 0
+                  ? "This client has no live retainer — mark it adhoc to invoice it, or internal if it is our own work."
+                  : "Approving without a choice puts this work in no budget and on no invoice."}
               </p>
             )}
             <ActionRow
               onReject={onRejectStart}
               onApprove={onApprove}
-              busy={busy || (!row.is_internal && !projectId)}
+              busy={busy}
+              approveDisabled={!row.is_internal && !projectId}
               approveLabel="Approve & push to ClickUp"
             />
           </div>
@@ -761,17 +788,23 @@ function AskBox({
   );
 }
 
-function ActionRow({
+export function ActionRow({
   onReject,
   onApprove,
   onAsk,
   busy,
+  /** Approve is not available yet — a precondition is unmet. Distinct from
+   *  `busy`, which means a request is genuinely in flight. Only `busy` may
+   *  relabel the button or block Reject: refusing a brief never requires the
+   *  precondition to be satisfied first. */
+  approveDisabled = false,
   approveLabel,
 }: {
   onReject: () => void;
   onApprove: () => void;
   onAsk?: () => void;
   busy: boolean;
+  approveDisabled?: boolean;
   approveLabel: string;
 }) {
   return (
@@ -786,7 +819,7 @@ function ActionRow({
         <XCircle className="h-4 w-4" />
         Reject
       </Button>
-      <Button onClick={onApprove} disabled={busy} className="gap-2">
+      <Button onClick={onApprove} disabled={busy || approveDisabled} className="gap-2">
         <CheckCircle2 className="h-4 w-4" />
         {busy ? "Approving…" : approveLabel}
       </Button>

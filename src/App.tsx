@@ -91,6 +91,9 @@ const SettingsConnectGmail = lazy(() =>
 const ClientTimeView = lazy(() =>
   import("@/pages/ClientTimeView").then((m) => ({ default: m.ClientTimeView })),
 );
+const XeroMapping = lazy(() =>
+  import("@/pages/XeroMapping").then((m) => ({ default: m.XeroMapping })),
+);
 const SettingsEmailTemplates = lazy(() =>
   import("@/pages/SettingsEmailTemplates").then((m) => ({ default: m.SettingsEmailTemplates })),
 );
@@ -225,6 +228,7 @@ export default function App() {
                     else — and being here makes the route agree with the nav,
                     which is admin/owner because sending refuses anyone else. */}
                 <Route path="comms/new" element={<ComposeEmail />} />
+                <Route path="services/xero" element={<XeroMapping />} />
                 {/* Same story as Compose: a daily decision queue, so it keeps
                     the rail. It was outside the shell and in no nav section,
                     which left it reachable only by typing the URL. */}

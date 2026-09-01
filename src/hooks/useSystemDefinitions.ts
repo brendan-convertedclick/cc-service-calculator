@@ -97,24 +97,26 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
    *  it. Also independent of current_revision_id: an approved system can carry
    *  a later declined revision. */
   changes_requested: boolean;
-  /** Distinct departments across this system's top-level steps — a system has
-   *  no department column of its own, its departments are whatever its steps
-   *  are assigned to. Empty for a system whose steps are all unassigned. */
-  department_ids: string[];
+  /** The owning department — its owner's primary department. A system has no
+   *  department column of its own, and rolling up every department its steps
+   *  touch listed a cross-team procedure under all of them, so the rail's
+   *  counts overlapped. Null when there's no owner, or the owner has no
+   *  primary department. */
+  department_id: string | null;
 };
 
 // expert_id is still a column (0106) but nothing reads it any more — one
 // accountable person per system, set to whoever created it and changed by
 // hand. The column stays so no data is thrown away.
 type JoinedRow = SystemDefinition & {
-  owner: { full_name: string } | null;
+  owner: { full_name: string; primary_department_id: string | null } | null;
   service: { name: string } | null;
   recurring_service: { service: { name: string } | null } | null;
   time_category: { label: string } | null;
 };
 
 const JOIN_SELECT =
-  "*, owner:team_members!system_definitions_owner_id_fkey(full_name), service:services(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
+  "*, owner:team_members!system_definitions_owner_id_fkey(full_name,primary_department_id), service:services(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
 
 function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
   return {
@@ -123,10 +125,10 @@ function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
     recurring_service_name: s.recurring_service?.service?.name ?? null,
     time_category_label: s.time_category?.label ?? null,
     owner_name: s.owner?.full_name ?? null,
+    department_id: s.owner?.primary_department_id ?? null,
     // Both filled in by useSystemDefinitions (the list); useSystemDefinition
     // doesn't need them — the detail page reads steps directly.
     step_count: 0,
-    department_ids: [],
     in_review: false,
     changes_requested: false,
   };
@@ -145,7 +147,7 @@ export function useSystemDefinitions() {
           supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
           supabase
             .from("process_steps")
-            .select("system_id, department_id")
+            .select("system_id")
             .is("parent_id", null)
             .not("system_id", "is", null),
           // Only the states the system row can't already tell us — approved is
@@ -162,20 +164,13 @@ export function useSystemDefinitions() {
       );
 
       const counts = new Map<string, number>();
-      const deptsBySystem = new Map<string, Set<string>>();
-      for (const r of (stepRows ?? []) as { system_id: string; department_id: string | null }[]) {
+      for (const r of (stepRows ?? []) as { system_id: string }[]) {
         counts.set(r.system_id, (counts.get(r.system_id) ?? 0) + 1);
-        if (r.department_id) {
-          const set = deptsBySystem.get(r.system_id) ?? new Set<string>();
-          set.add(r.department_id);
-          deptsBySystem.set(r.system_id, set);
-        }
       }
 
       return ((systems ?? []) as unknown as JoinedRow[]).map((s) => ({
         ...withJoins(s),
         step_count: counts.get(s.id) ?? 0,
-        department_ids: [...(deptsBySystem.get(s.id) ?? [])],
         in_review: inReview.has(s.id),
         changes_requested: changesRequested.has(s.id),
       }));

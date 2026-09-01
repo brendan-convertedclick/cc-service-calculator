@@ -1,23 +1,26 @@
-import { memo, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Plus, Search, RotateCcw, X, ArrowRight } from "lucide-react";
+import { memo, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, Search, X, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useServices, type ServiceWithTotals } from "@/hooks/useServices";
-import { useSetServiceChecklist } from "@/hooks/useProcessSteps";
+import { useServices, useDeleteService, type ServiceWithTotals } from "@/hooks/useServices";
 import { useAllocationMatrix, type AllocationMatrix } from "@/hooks/useAllocationMatrix";
 import { useRules } from "@/hooks/useRules";
 import { useDepartments } from "@/hooks/useDepartments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useSetServiceXeroItem, useXeroItems } from "@/hooks/useXeroItems";
+import {
+  useServiceProcedures,
+  useSetServiceProcedure,
+  type ProcedureOption,
+} from "@/hooks/useServiceProcedure";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn, formatZar, toggleInSet } from "@/lib/utils";
+import { cn, formatZar, toggleInSet, errorMessage } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Department = Database["public"]["Tables"]["departments"]["Row"];
 
-type ChecklistMutate = ReturnType<typeof useSetServiceChecklist>["mutate"];
 
 // Fallback ramp for the allocation bar when a department has no `color` of its
 // own. Tuned to read distinctly against the light surface while staying in the
@@ -46,34 +49,21 @@ const STATUS_FILTERS = [
   { value: "archived", label: "Archived" },
 ] as const;
 
-function roundToQuarter(h: number): number {
-  if (h <= 0) return 0;
-  const rounded = Math.round(h / 0.25) * 0.25;
-  return rounded === 0 ? 0.25 : rounded;
-}
-
-/** Compact hours: drops a trailing ".00" so the narrow cell reads "12 h" not "12.00 hr". */
-function formatHoursShort(h: number): string {
-  const n = Math.round(h * 100) / 100;
-  const s = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, "");
-  return `${s} h`;
-}
-
 export function ServicesList() {
   const { data: services = [], isLoading } = useServices();
   const { data: rules = [] } = useRules();
   const { data: depts = [] } = useDepartments();
   const { data: matrix } = useAllocationMatrix();
-  const ruleMap = useMemo(() => new Map(rules.map((r) => [r.id, r])), [rules]);
+  const [q, setQ] = useState("");
+  const [ruleFilter, setRuleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const deptMap = useMemo(() => new Map(depts.map((d) => [d.id, d])), [depts]);
   const deptColorById = useMemo(() => {
     const m = new Map<string, string>();
     depts.forEach((d, i) => m.set(d.id, deptColor(d, i)));
     return m;
   }, [depts]);
-  const [q, setQ] = useState("");
-  const [ruleFilter, setRuleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [procedureFilter, setProcedureFilter] = useState<"" | "none" | "linked">("");
   const [groupFilter, setGroupFilter] = useState<Set<string>>(new Set());
 
   // Each service's "group" is the department carrying its largest allocation.
@@ -108,16 +98,42 @@ export function ServicesList() {
     return { counts, uncategorized };
   }, [services, primaryDeptByService]);
 
-  // Lifted: a single mutation handle drives every row's save/revert. mutate() is
-  // a stable reference across renders, so the per-row React.memo stays effective.
-  const setChecklist = useSetServiceChecklist();
-  const setChecklistMutate = setChecklist.mutate;
-  const setChecklistPending = setChecklist.isPending;
+  const deleteService = useDeleteService();
+  const { data: xeroItems = [] } = useXeroItems();
+  const setXero = useSetServiceXeroItem();
+  const xeroByService = useMemo(() => {
+    const m = new Map<string, { code: string; name: string }>();
+    for (const x of xeroItems) for (const sv of x.services) m.set(sv.id, { code: x.code, name: x.name });
+    return m;
+  }, [xeroItems]);
+  // Every line is offered to every service: several services legitimately bill
+  // as the same one, so nothing is ever "taken".
+  const allXero = useMemo(
+    () => xeroItems.map((x) => ({ code: x.code, name: x.name })),
+    [xeroItems],
+  );
+
+  const { data: procedures = [] } = useServiceProcedures();
+  const setProcedure = useSetServiceProcedure();
+  const procedureByService = useMemo(() => {
+    const m = new Map<string, ProcedureOption>();
+    for (const p of procedures) if (p.serviceId) m.set(p.serviceId, p);
+    return m;
+  }, [procedures]);
+  // Only approved procedures are offered, and only ones not already spoken for.
+  const freeApproved = useMemo(
+    () => procedures.filter((p) => p.approved && !p.serviceId),
+    [procedures],
+  );
+
+  const startsWithDigit = (name: string) => /^\d/.test(name.trim());
 
   const filtered = useMemo(() => {
     return services.filter((s) => {
       if (ruleFilter && s.rule_id !== ruleFilter) return false;
       if (statusFilter && s.status !== statusFilter) return false;
+      if (procedureFilter === "none" && procedureByService.has(s.id)) return false;
+      if (procedureFilter === "linked" && !procedureByService.has(s.id)) return false;
       if (groupFilter.size > 0) {
         const g = primaryDeptByService[s.id];
         const key = g ?? "__none__";
@@ -128,8 +144,20 @@ export function ServicesList() {
         if (!hay.includes(q.toLowerCase())) return false;
       }
       return true;
+    }).sort((a, b) => {
+      const da = startsWithDigit(a.name);
+      const db = startsWithDigit(b.name);
+      if (da !== db) return da ? 1 : -1;
+      return a.name.localeCompare(b.name, "en", { numeric: true });
     });
-  }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService]);
+  }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService, procedureFilter, procedureByService]);
+
+  // Counted across every service, not the filtered view — it is the size of the
+  // backlog, and it should not shrink because a search box is filled in.
+  const withoutProcedureCount = useMemo(
+    () => services.filter((s) => !procedureByService.has(s.id)).length,
+    [services, procedureByService],
+  );
 
   const groupOptions = useMemo(() => {
     const opts = depts
@@ -211,6 +239,23 @@ export function ServicesList() {
           </ul>
         </div>
 
+        <div className="space-y-2">
+          <h4 className="text-label-medium text-m-on-surface-variant">Procedure</h4>
+          <ul className="space-y-0.5">
+            <FilterRow label="All" active={procedureFilter === ""} onClick={() => setProcedureFilter("")} />
+            <FilterRow
+              label={`No procedure yet${withoutProcedureCount ? ` · ${withoutProcedureCount}` : ""}`}
+              active={procedureFilter === "none"}
+              onClick={() => setProcedureFilter("none")}
+            />
+            <FilterRow
+              label="Has a procedure"
+              active={procedureFilter === "linked"}
+              onClick={() => setProcedureFilter("linked")}
+            />
+          </ul>
+        </div>
+
         {rules.length > 0 && (
           <div className="space-y-2">
             <h4 className="text-label-medium text-m-on-surface-variant">Rule</h4>
@@ -281,13 +326,16 @@ export function ServicesList() {
                   <span className="font-medium text-m-on-surface">{filtered.length}</span> of {services.length} services
                 </>
               )}
-              {" · "}Click any allocation to edit hours by department — changes save as an override.
+              {" · "}Click a row to open the service.
             </p>
           </div>
           <Button asChild>
             <Link to="/services/new">
               <Plus className="h-4 w-4" /> New service
             </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/services/xero">Xero products</Link>
           </Button>
         </div>
 
@@ -301,33 +349,59 @@ export function ServicesList() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-              <table className="w-full min-w-[1076px] border-separate border-spacing-0 text-sm">
+              <table className="w-full min-w-[820px] border-separate border-spacing-0 text-xs">
                 <thead>
                   <tr className="text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-4 py-2.5 w-[150px] border-b">Group</th>
-                    <th className="px-3 py-2.5 w-20 border-b">Code</th>
-                    <th className="px-3 py-2.5 min-w-[220px] border-b">Name</th>
-                    <th className="px-3 py-2.5 w-[150px] border-b">Rule</th>
+                    <th className="px-3 py-2.5 w-12 border-b text-right">#</th>
+                    <th className="px-3 py-2.5 min-w-[200px] border-b">Name</th>
+                    <th className="px-3 py-2.5 w-[320px] border-b" title="The Xero product this is invoiced as">Invoice line</th>
+                    <th className="px-3 py-2.5 w-[280px] border-b">Procedure</th>
                     <th className="px-3 py-2.5 text-right w-24 border-b">Price</th>
-                    <th className="px-3 py-2.5 w-[260px] border-b">Allocation</th>
-                    <th className="px-3 py-2.5 w-[120px] border-b">Status</th>
+                    {/* No heading: edit/delete, revealed on hover. */}
+                    <th className="px-3 py-2.5 w-[90px] border-b" />
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((s) => {
+                  {filtered.map((s, i) => {
                     const groupId = primaryDeptByService[s.id];
                     return (
                       <ServiceRow
                         key={s.id}
+                        index={i + 1}
                         service={s}
-                        departments={depts}
-                        deptColorById={deptColorById}
-                        ruleName={s.rule_id ? ruleMap.get(s.rule_id)?.name ?? "—" : null}
                         groupName={groupId ? deptMap.get(groupId)?.name ?? null : null}
                         groupColor={groupId ? deptColorById.get(groupId) ?? null : null}
                         matrix={matrix}
-                        setChecklistMutate={setChecklistMutate}
-                        setChecklistPending={setChecklistPending}
+                        procedure={procedureByService.get(s.id) ?? null}
+                        procedureOptions={freeApproved}
+                        xero={xeroByService.get(s.id) ?? null}
+                        xeroOptions={allXero}
+                        onXeroChange={(code) =>
+                          setXero.mutate(
+                            { serviceId: s.id, code },
+                            { onError: (e) => toast.error(`Could not link the Xero line: ${errorMessage(e)}`) },
+                          )
+                        }
+                        onProcedureChange={(procedureId) =>
+                          setProcedure.mutate(
+                            { serviceId: s.id, procedureId },
+                            { onError: (e) => toast.error(`Could not link the procedure: ${errorMessage(e)}`) },
+                          )
+                        }
+                        onDelete={() =>
+                          deleteService.mutate(s.id, {
+                            onSuccess: () => toast.success(`Deleted "${s.name}"`),
+                            onError: (e) => {
+                              const msg = errorMessage(e);
+                              toast.error(
+                                /foreign key|violates/i.test(msg)
+                                  ? `"${s.name}" is in use — a retainer, quote or estimate still refers to it. Remove those first, or set it to Archived instead.`
+                                  : `Could not delete: ${msg}`,
+                              );
+                            },
+                          })
+                        }
+                        deletePending={deleteService.isPending}
                       />
                     );
                   })}
@@ -344,171 +418,77 @@ export function ServicesList() {
 
 type ServiceRowProps = {
   service: ServiceWithTotals;
-  departments: Department[];
-  deptColorById: Map<string, string>;
-  ruleName: string | null;
   groupName: string | null;
   groupColor: string | null;
   matrix: AllocationMatrix | undefined;
-  setChecklistMutate: ChecklistMutate;
-  setChecklistPending: boolean;
+  /** The procedure this service is delivered by, if one is attached. */
+  procedure: ProcedureOption | null;
+  /** Approved procedures not already attached to another service. */
+  procedureOptions: ProcedureOption[];
+  onProcedureChange: (procedureId: string | null) => void;
+  /** The Xero product this service is invoiced as. Xero is the source of truth
+   *  for quoting and invoicing; this says which line the work belongs to. */
+  xero: { code: string; name: string } | null;
+  xeroOptions: { code: string; name: string }[];
+  onXeroChange: (code: string | null) => void;
+  /** Position in the list as filtered — 1, 2, 3 — not a stored code. */
+  index: number;
+  onDelete: () => void;
+  deletePending: boolean;
 };
 
 const ServiceRow = memo(function ServiceRow({
   service,
-  departments,
-  deptColorById,
-  ruleName,
+  procedure,
+  procedureOptions,
+  onProcedureChange,
+  xero,
+  xeroOptions,
+  onXeroChange,
+  index,
+  onDelete,
+  deletePending,
   groupName,
   groupColor,
   matrix,
-  setChecklistMutate,
-  setChecklistPending,
 }: ServiceRowProps) {
   // Look up our own slice of the matrix here so the parent passes a single
-  // stable `matrix` reference instead of three derived props that would each
-  // be a fresh value on every parent render and defeat React.memo.
-  const resolvedByDept = matrix?.resolved[service.id];
-  const hasChecklist = matrix?.hasChecklist[service.id] ?? false;
+  // stable `matrix` reference rather than a derived prop that would be a fresh
+  // value on every parent render and defeat React.memo.
+  // Deleting a service is not undoable and the row carries no warning of its
+  // own, so it asks first — in place, rather than a dialog over the table.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const navigate = useNavigate();
   const childCount = matrix?.childCounts[service.id] ?? 0;
 
   const isPercentage = service.pricing_model === "percentage";
   const isCompound = childCount > 0;
-  const isDerived = isCompound && !hasChecklist;
-  const readOnly = hasChecklist || isCompound;
-
-  const initialHours = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const d of departments) {
-      out[d.id] = roundToQuarter(resolvedByDept?.[d.id]?.hours ?? 0);
-    }
-    return out;
-  }, [departments, resolvedByDept]);
-
-  const [hours, setHours] = useState<Record<string, number>>(initialHours);
-  const [touched, setTouched] = useState<Set<string>>(new Set());
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setHours(initialHours);
-    setTouched(new Set());
-  }, [initialHours]);
-
-  const dirty = touched.size > 0;
-
-  function updateCell(deptId: string, value: string) {
-    const n = Number(value);
-    setHours((h) => ({ ...h, [deptId]: Number.isFinite(n) && n > 0 ? n : 0 }));
-    setTouched((t) => {
-      const next = new Set(t);
-      next.add(deptId);
-      return next;
-    });
-  }
-
-  function step(deptId: string, dir: 1 | -1) {
-    const cur = hours[deptId] ?? 0;
-    const next = Math.max(0, Math.round((cur + dir * 0.25) * 4) / 4);
-    if (next === cur) return; // clamped at 0 (decrementing an empty dept) — no-op, don't dirty the row
-    setHours((h) => ({ ...h, [deptId]: next }));
-    setTouched((t) => {
-      const nt = new Set(t);
-      nt.add(deptId);
-      return nt;
-    });
-  }
-
-  function reset() {
-    setHours(initialHours);
-    setTouched(new Set());
-    setOpen(false);
-  }
-
-  // Convert hours → cost/pct for the popover footer. pct = cost / price * 100.
-  const price = service.sell_price_cents;
-  const sumHours = departments.reduce((acc, d) => acc + (hours[d.id] ?? 0), 0);
-  const sumCost = departments.reduce((acc, d) => acc + (hours[d.id] ?? 0) * d.hourly_rate_cents, 0);
-  const sumPct = price > 0 ? Math.round((sumCost / price) * 100) : 0;
-
-  function save() {
-    const hoursByDept: Record<string, number> = {};
-    for (const d of departments) {
-      // Snap to the quarter-hour grid the steppers/load path use, so a directly
-      // typed value (e.g. 1.3) never persists off-grid.
-      const h = Math.round((hours[d.id] ?? 0) * 4) / 4;
-      if (h >= 0.25) hoursByDept[d.id] = h;
-    }
-    if (Object.keys(hoursByDept).length === 0) {
-      toast.error("Enter at least 0.25 hours on one department");
-      return;
-    }
-    setChecklistMutate(
-      {
-        kind: "hours",
-        serviceId: service.id,
-        hoursByDept,
-        departmentOrder: departments.map((d) => d.id),
-      },
-      {
-        onSuccess: () => {
-          setTouched(new Set());
-          setOpen(false);
-          toast.success(`Saved as checklist for ${service.name}. Edit steps on detail page.`);
-        },
-        onError: (e: Error) => toast.error(e.message),
-      }
-    );
-  }
-
-  function revert() {
-    if (!confirm(`Delete the checklist for ${service.name} and fall back to its rule's allocation?`)) return;
-    setChecklistMutate(
-      { kind: "clear", serviceId: service.id },
-      {
-        onSuccess: () => {
-          setOpen(false);
-          toast.success(`Reverted ${service.name} to rule`);
-        },
-        onError: (e: Error) => toast.error(e.message),
-      }
-    );
-  }
-
-  // Build the per-department view model once for this render.
-  const deptRows = departments.map((d) => {
-    const h = hours[d.id] ?? 0;
-    const inherited = !hasChecklist && !touched.has(d.id);
-    return {
-      dept: d,
-      color: deptColorById.get(d.id) ?? "#7C3AED",
-      hours: h,
-      inherited,
-      cost: h * d.hourly_rate_cents,
-    };
-  });
 
   const priceLabel = isPercentage ? `${service.percentage_value ?? 0}%` : formatZar(service.sell_price_cents);
 
   return (
-    <tr className={cn("group", dirty && "bg-amber-50/40")}>
-      <td className="px-4 py-2 border-b">
-        {groupName ? (
+    <tr
+      className="group cursor-pointer"
+      onClick={(e) => {
+        // The row is full of selects, links and buttons — a bare onClick would
+        // fire while someone was picking a procedure.
+        const el = e.target as HTMLElement;
+        if (el.closest("button, a, select, input, textarea")) return;
+        navigate(`/services/${service.id}`);
+      }}
+    >
+      <td
+        className="px-3 py-2 text-right font-mono text-xs text-muted-foreground border-b"
+        title={groupName ?? "Uncategorized"}
+      >
+        <span className="flex items-center justify-end gap-1.5">
           <span
-            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-m-outline-variant bg-m-surface-container px-2.5 py-0.5 text-[11px] text-m-on-surface-variant"
-            title={groupName}
-          >
-            <span className="h-2 w-2 flex-none rounded-full" style={{ background: groupColor ?? "var(--mcolor-outline)" }} />
-            <span className="truncate">{groupName}</span>
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-m-outline px-2.5 py-0.5 text-[11px] text-muted-foreground" title="Uncategorized">
-            <span className="h-2 w-2 flex-none rounded-full border border-m-outline" />
-            <span className="truncate">Uncategorized</span>
-          </span>
-        )}
+            className="h-2 w-2 flex-none rounded-full"
+            style={{ background: groupColor ?? "var(--mcolor-outline)" }}
+          />
+          {index}
+        </span>
       </td>
-
-      <td className="px-3 py-2 font-mono text-xs text-muted-foreground border-b">{service.code ?? "—"}</td>
 
       <td className="px-3 py-2 border-b">
         <div className="flex items-center gap-2">
@@ -518,265 +498,112 @@ const ServiceRow = memo(function ServiceRow({
           {isCompound && (
             <Badge variant="secondary" className="flex-none text-[10px]">bundle · {childCount}</Badge>
           )}
-          {hasChecklist && !dirty && (
-            <Badge variant="outline" className="flex-none text-[10px]">checklist</Badge>
-          )}
         </div>
       </td>
 
-      <td
-        className={cn(
-          "px-3 py-2 max-w-[150px] truncate text-xs border-b",
-          readOnly ? "text-muted-foreground/60" : "text-muted-foreground"
-        )}
-        title={
-          isDerived
-            ? "Derived from included services"
-            : ruleName
-              ? hasChecklist
-                ? `${ruleName} (fallback — checklist is driving allocation)`
-                : ruleName
-              : undefined
-        }
-      >
-        {isDerived ? (
-          <span className="text-muted-foreground/60">—</span>
-        ) : ruleName ? (
-          <>
-            {ruleName}
-            {hasChecklist && <span className="ml-1 text-[10px] italic">(fallback)</span>}
-          </>
-        ) : (
-          <Badge variant="outline" className="text-[10px]">custom</Badge>
-        )}
+      {/* What the client actually sees on the invoice. Xero owns this list —
+          renaming a service here never changes an invoice line. */}
+      <td className="px-3 py-2 border-b">
+        <select
+          aria-label={`Xero invoice line for ${service.name}`}
+          value={xero?.code ?? ""}
+          onChange={(e) => onXeroChange(e.target.value || null)}
+          className={cn(
+            "h-8 w-full rounded-md border bg-m-surface px-1.5 text-label-small",
+            xero ? "border-m-outline-variant text-m-on-surface" : "border-dashed border-m-outline-variant text-m-on-surface-variant",
+          )}
+        >
+          <option value="">— not sold separately</option>
+          {xeroOptions.map((o) => (
+            <option key={o.code} value={o.code}>{o.name}</option>
+          ))}
+        </select>
       </td>
+
+      {/* Which documented procedure delivers this service. Only approved ones
+          are offered — pointing a sold service at a draft would be telling
+          someone to follow something nobody has signed off. */}
+      <td className="px-3 py-2 border-b">
+        <select
+          aria-label={`Procedure for ${service.name}`}
+          value={procedure?.id ?? ""}
+          onChange={(e) => onProcedureChange(e.target.value || null)}
+          className={cn(
+            "h-8 w-full rounded-md border bg-m-surface px-1.5 text-label-small",
+            procedure ? "border-m-outline-variant text-m-on-surface" : "border-dashed border-m-outline-variant text-m-on-surface-variant",
+          )}
+        >
+          <option value="">— none</option>
+          {/* The attached one may not be approved any more, or may never have
+              been; keep it listed so selecting something else is a choice
+              rather than the only way to make the box show the truth. */}
+          {procedure && !procedureOptions.some((o) => o.id === procedure.id) && (
+            <option value={procedure.id}>
+              {procedure.name}
+              {procedure.approved ? "" : " (not approved)"}
+            </option>
+          )}
+          {procedureOptions.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+      </td>
+
 
       <td className="px-3 py-2 text-right font-mono tabular-nums border-b">{priceLabel}</td>
 
+
+
       <td className="px-3 py-2 border-b">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
+        {confirmDelete ? (
+          <div className="flex items-center justify-end gap-1">
             <button
               type="button"
-              className={cn(
-                "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left transition-colors",
-                "hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                dirty && "bg-amber-50 ring-1 ring-inset ring-amber-300 hover:bg-amber-50",
-                open && !dirty && "bg-m-surface-container-high"
-              )}
-              aria-label={`Edit hour allocation for ${service.name}`}
+              disabled={deletePending}
+              onClick={() => {
+                setConfirmDelete(false);
+                onDelete();
+              }}
+              className="rounded-md bg-m-error px-2 py-1 text-label-small text-m-on-error disabled:opacity-40"
             >
-              <AllocationBar
-                deptRows={deptRows}
-                totalHours={sumHours}
-                inherited={!hasChecklist && !dirty}
-                readOnly={readOnly}
-              />
+              Delete
             </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-[360px] p-3" onOpenAutoFocus={(e) => readOnly && e.preventDefault()}>
-            <div className="mb-2 flex items-baseline justify-between gap-2 border-b pb-2">
-              <div className="flex min-w-0 items-baseline gap-2">
-                <span className="flex-none font-mono text-[11px] text-muted-foreground">{service.code ?? "—"}</span>
-                <strong className="truncate text-[13px] font-semibold" title={service.name}>{service.name}</strong>
-              </div>
-              <Link
-                to={`/services/${service.id}`}
-                className="flex flex-none items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
-              >
-                detail <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-
-            {isCompound && (
-              <div className="mb-2 rounded-lg bg-m-tertiary-container px-2.5 py-1.5 text-[11px] leading-snug text-m-on-tertiary-container">
-                Derived from {childCount} included service{childCount === 1 ? "" : "s"} — edit hours in the service detail.
-              </div>
-            )}
-
-            <div className="space-y-0.5">
-              {deptRows.map(({ dept, color, hours: h, inherited, cost }) => (
-                <div key={dept.id} className="flex items-center gap-2 py-0.5">
-                  <span
-                    className="h-2 w-2 flex-none rounded-full"
-                    style={{ background: h > 0 ? color : "var(--mcolor-outline-variant)" }}
-                  />
-                  <span className="w-[96px] flex-none truncate text-[12px] font-medium" title={dept.name}>
-                    {dept.name}
-                  </span>
-                  <span className="w-[60px] flex-none font-mono text-[10px] text-muted-foreground">
-                    {formatZar(dept.hourly_rate_cents)}/h
-                  </span>
-                  {readOnly ? (
-                    <span className={cn("flex-none font-mono text-[12px]", h > 0 ? "" : "text-m-outline")}>
-                      {h > 0 ? formatHoursShort(h) : "—"}
-                    </span>
-                  ) : (
-                    <div className="flex h-6 flex-none items-center overflow-hidden rounded-md border border-m-outline-variant">
-                      <button
-                        type="button"
-                        onClick={() => step(dept.id, -1)}
-                        className="flex h-full w-5 items-center justify-center bg-m-surface-container text-muted-foreground hover:bg-m-surface-container-high hover:text-foreground"
-                        aria-label={`Decrease ${dept.name}`}
-                        tabIndex={-1}
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        step="0.25"
-                        min={0}
-                        value={h}
-                        onChange={(e) => updateCell(dept.id, e.target.value)}
-                        className={cn(
-                          "h-full w-11 border-0 bg-background text-center font-mono text-[12px] tabular-nums outline-none focus:bg-primary/5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-                          inherited ? "italic text-muted-foreground" : "font-medium text-foreground"
-                        )}
-                        aria-label={`${dept.name} hours`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => step(dept.id, 1)}
-                        className="flex h-full w-5 items-center justify-center bg-m-surface-container text-muted-foreground hover:bg-m-surface-container-high hover:text-foreground"
-                        aria-label={`Increase ${dept.name}`}
-                        tabIndex={-1}
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
-                  <span className={cn("ml-auto flex-none font-mono text-[11px] text-muted-foreground", h > 0 ? "" : "text-m-outline")}>
-                    {h > 0 ? formatZar(cost) : "—"}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2.5">
-              <div className="text-[11px] text-muted-foreground">
-                Total <b className="font-semibold text-foreground font-mono tabular-nums">{formatHoursShort(sumHours)}</b>
-                {isPercentage ? (
-                  <> · <b className="font-semibold text-foreground font-mono tabular-nums">{formatZar(sumCost)}</b></>
-                ) : (
-                  <> · <b className="font-semibold text-foreground font-mono tabular-nums">{sumPct}%</b> of price</>
-                )}
-              </div>
-              {readOnly ? (
-                hasChecklist ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={revert}
-                    disabled={setChecklistPending}
-                    className="h-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Revert to rule
-                  </Button>
-                ) : (
-                  <span className="text-[11px] italic text-muted-foreground">read-only</span>
-                )
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <Button size="sm" variant="ghost" onClick={reset} disabled={!dirty || setChecklistPending} className="h-7">
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={save} disabled={!dirty || setChecklistPending} className="h-7">
-                    Save
-                  </Button>
-                </div>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </td>
-
-      <td className="px-3 py-2 border-b">
-        {dirty && !open ? (
-          <div className="flex items-center gap-1">
-            <Button size="sm" onClick={save} disabled={setChecklistPending} className="h-7">
-              Save
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={reset}
-              disabled={setChecklistPending}
-              className="h-7 w-7 p-0"
-              aria-label="Discard changes"
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              aria-label="Keep this service"
+              className="rounded-md p-1 text-m-on-surface-variant hover:bg-m-surface-container-high"
             >
               <X className="h-3.5 w-3.5" />
-            </Button>
+            </button>
           </div>
         ) : (
-          <Badge variant={service.status === "active" ? "success" : "secondary"}>{service.status}</Badge>
+          <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            <Link
+              to={`/services/${service.id}`}
+              aria-label={`Edit ${service.name}`}
+              title="Edit this service"
+              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-surface-container-high hover:text-m-on-surface"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Link>
+            <button
+              type="button"
+              aria-label={`Delete ${service.name}`}
+              title="Delete this service"
+              disabled={deletePending}
+              onClick={() => setConfirmDelete(true)}
+              className="rounded-md p-1.5 text-m-on-surface-variant hover:bg-m-error-container hover:text-m-on-error-container disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
       </td>
     </tr>
   );
 });
 
-type DeptRow = {
-  dept: Department;
-  color: string;
-  hours: number;
-  inherited: boolean;
-  cost: number;
-};
-
-/**
- * The single calm allocation cell: total hours + a tiny stacked segment bar,
- * one colored slice per department carrying hours. Replaces the old wall of
- * eight columns of grey zeros. Zero-hour editable rows get a "Set hours" ghost.
- */
-function AllocationBar({
-  deptRows,
-  totalHours,
-  inherited,
-  readOnly,
-}: {
-  deptRows: DeptRow[];
-  totalHours: number;
-  inherited: boolean;
-  readOnly: boolean;
-}) {
-  const active = deptRows.filter((r) => r.hours > 0);
-
-  if (totalHours <= 0) {
-    if (readOnly) {
-      return <span className="text-[12px] text-muted-foreground">—</span>;
-    }
-    return (
-      <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-        <Plus className="h-3.5 w-3.5" /> Set hours
-      </span>
-    );
-  }
-
-  return (
-    <>
-      <span
-        className={cn(
-          "w-[52px] flex-none text-right font-mono text-[11px] tabular-nums",
-          inherited ? "italic font-normal text-muted-foreground" : "font-medium text-foreground"
-        )}
-      >
-        {formatHoursShort(totalHours)}
-      </span>
-      <span className="flex h-1.5 min-w-0 flex-1 gap-px">
-        {active.map((r) => (
-          <span
-            key={r.dept.id}
-            className="block min-w-[3px] rounded-sm first:rounded-l-sm last:rounded-r-sm"
-            style={{ flex: `${r.hours} 1 0%`, background: r.color }}
-            title={`${r.dept.name} · ${formatHoursShort(r.hours)}`}
-          />
-        ))}
-      </span>
-    </>
-  );
-}
-
-/** Single-select filter row for the rail (Status, Rule). Matches SowList. */
 function FilterRow({
   label,
   active,
