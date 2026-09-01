@@ -154,6 +154,19 @@ test.describe("Systems", () => {
     await test.step("propose rev 1 through the UI", async () => {
       const proposeDialog = page.getByRole("dialog");
       await proposeDialog.getByLabel("Reason for change").fill(`${E2E_PREFIX}initial process definition`);
+      // A reason alone is not enough: since 0126 the dialog will not submit
+      // until somebody is named as a REQUIRED reviewer, because a revision
+      // that can publish with nobody named can publish unsigned. This step
+      // had been clicking a button it asserted was disabled two lines
+      // earlier, so the whole lifecycle spec had been red since that gate
+      // shipped.
+      const reviewer = proposeDialog.getByLabel("Reviewer");
+      await reviewer.selectOption({ index: 1 });
+      await proposeDialog.getByLabel("Review requirement").selectOption("required");
+      await proposeDialog.getByRole("button", { name: "Add reviewer" }).click();
+      await expect(
+        proposeDialog.getByRole("button", { name: "Send for review", exact: true }),
+      ).toBeEnabled();
       await proposeDialog.getByRole("button", { name: "Send for review", exact: true }).click();
       await expect(page.getByText("Sent for review")).toBeVisible();
       await expect(page.getByText("Rev 1", { exact: true })).toBeVisible();
