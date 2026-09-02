@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RetainerBurnRow } from "@/types/pulse";
 
@@ -94,13 +94,14 @@ beforeEach(() => {
 describe("RetainersList sync controls", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("rolls a client up to sold, committed and delivered before any drilldown", () => {
+  it("rolls a client up to planned, scheduled and completed before any drilldown", () => {
     render(<RetainersList />);
-    // The rollup is the default view: the client's numbers are on screen and
-    // its retainers are not.
-    expect(screen.getByText("10h")).toBeInTheDocument();
-    expect(screen.getByText("8h")).toBeInTheDocument();
-    expect(screen.getByText("6h")).toBeInTheDocument();
+    // The rollup is the default view: the client's numbers are on its own row
+    // and its retainers are not on screen at all.
+    const row = screen.getByLabelText("Show retainers for Test Conductor").textContent!;
+    expect(row).toContain("10h");
+    expect(row).toContain("8h");
+    expect(row).toContain("6h");
     expect(screen.queryByLabelText("Sync Test Conductor retainer")).not.toBeInTheDocument();
   });
 
@@ -159,33 +160,38 @@ describe("RetainersList sub-items", () => {
 describe("RetainersList client vs internal", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows one table with no section headings when it is all client work", () => {
+  const GRANITE = {
+    ...CLIENT_RETAINER,
+    id: "p2",
+    name: "Granite retainer",
+    client_name: "Granite",
+    client_is_internal: true,
+    retainer_monthly_fee_cents: 250000,
+  };
+
+  it("opens on client work, with our own brands not on the page", () => {
+    retainers.rows = [CLIENT_RETAINER, GRANITE];
     render(<RetainersList />);
-    expect(screen.queryByText("Client work")).not.toBeInTheDocument();
-    expect(screen.queryByText("Internal work")).not.toBeInTheDocument();
+    // Scoped to the table: the filter rail lists every client name too.
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Test Conductor")).toBeInTheDocument();
+    expect(table.queryByText("Granite")).not.toBeInTheDocument();
   });
 
-  it("splits our own brands out of the client book, fee and all", () => {
-    retainers.rows = [
-      CLIENT_RETAINER,
-      {
-        ...CLIENT_RETAINER,
-        id: "p2",
-        name: "Granite retainer",
-        client_name: "Granite",
-        client_is_internal: true,
-        retainer_monthly_fee_cents: 250000,
-      },
-    ];
+  it("switches to our own brands, and shows them no monthly fee", async () => {
+    retainers.rows = [CLIENT_RETAINER, GRANITE];
     render(<RetainersList />);
-    expect(screen.getByText("Client work")).toBeInTheDocument();
-    expect(screen.getByText("Internal work")).toBeInTheDocument();
-    // The internal fee is kept and totalled on its own row, not folded into
-    // the client book — Lisa wants to see what our own work is worth.
     // formatZar uses non-breaking spaces as the thousands separator.
-    const rowText = (label: string) =>
-      screen.getByText(label).closest("tr")!.textContent!.replace(/\s/g, " ");
-    expect(rowText("Internal work")).toContain("R 2 500");
-    expect(rowText("Client work")).toContain("R 10 000");
+    const clientTotals = screen.getByRole("row", { name: /client work/i });
+    expect(clientTotals.textContent!.replace(/\s/g, " ")).toContain("R 10 000");
+
+    await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Granite")).toBeInTheDocument();
+    expect(table.queryByText("Test Conductor")).not.toBeInTheDocument();
+    // The notional fee is kept in the data and deliberately not printed: it is
+    // not revenue, and a money column invites the two books being added up.
+    const internalTotals = screen.getByRole("row", { name: /internal/i });
+    expect(internalTotals.textContent).not.toContain("2 500");
   });
 });

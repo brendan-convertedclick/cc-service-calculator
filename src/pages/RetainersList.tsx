@@ -1,12 +1,11 @@
 import { Fragment, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ChevronRight, Plus, Trash2, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, Plus, Trash2, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
 import {
   Table,
   TableBody,
@@ -20,7 +19,7 @@ import { currentMonthKey } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { useRetainerAllocation, type AllocationRow } from "@/hooks/useRetainerAllocation";
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
-import { formatZar, cn, errorMessage, toggleInSet } from "@/lib/utils";
+import { formatZar, cn, errorMessage } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
@@ -97,23 +96,6 @@ export function RetainersList() {
   const [month, setMonth] = useState(() => currentMonthKey());
   const sync = useSyncActuals();
 
-  const [search, setSearch] = useState("");
-  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const q = search.trim().toLowerCase();
-
-  const clientOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of retainers) set.add(r.client_name ?? "—");
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [retainers]);
-
-  const statusOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of retainers) set.add(r.status);
-    return [...set].sort();
-  }, [retainers]);
-
   // Group by client (alphabetical), then by retainer name within each client.
   const sortedRetainers = useMemo(
     () =>
@@ -123,21 +105,6 @@ export function RetainersList() {
           (a.name ?? "").localeCompare(b.name ?? ""),
       ),
     [retainers],
-  );
-
-  const filteredRetainers = useMemo(
-    () =>
-      sortedRetainers.filter((r) => {
-        const clientName = r.client_name ?? "—";
-        if (selectedClients.size > 0 && !selectedClients.has(clientName)) return false;
-        if (selectedStatuses.size > 0 && !selectedStatuses.has(r.status)) return false;
-        if (q) {
-          const hay = `${r.name ?? ""} ${r.client_name ?? ""}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      }),
-    [sortedRetainers, selectedClients, selectedStatuses, q],
   );
 
   // Collapse the repeated Client column into real per-client groups, each with a
@@ -169,34 +136,48 @@ export function RetainersList() {
   }, [allocMonths, month, retainers]);
 
   const clientGroups = useMemo(() => {
-    const map = new Map<string, typeof filteredRetainers>();
-    for (const r of filteredRetainers) {
+    const map = new Map<string, typeof sortedRetainers>();
+    for (const r of sortedRetainers) {
       const key = r.client_name ?? "—";
       (map.get(key) ?? map.set(key, []).get(key)!).push(r);
     }
     // A client with only ad hoc work has no retainer to seed a group, and
     // dropping them is how ad hoc work disappears from the page entirely.
     for (const clientName of extrasByClient.keys()) {
-      if (map.has(clientName)) continue;
-      if (selectedClients.size > 0 && !selectedClients.has(clientName)) continue;
-      if (q && !clientName.toLowerCase().includes(q)) continue;
-      map.set(clientName, []);
+      if (!map.has(clientName)) map.set(clientName, []);
     }
-    return [...map.entries()].map(([clientName, rows]) => {
+    return [...map.entries()].map(([clientName, allRows]) => {
       const extras = extrasByClient.get(clientName) ?? [];
+      // A retainer with neither a fee nor an hours target is the open shape —
+      // Trellidor's ad hoc one. Its work is already counted on the client's Ad
+      // hoc line, so showing the project too would print it twice.
+      const rows = allRows.filter(
+        (r) => r.retainer_monthly_fee_cents != null || r.retainer_hours_target != null,
+      );
+      // Real recurring work that no invoice covers: plugin updates carried by
+      // the hosting fee, meetings we do not charge for. Kept visible, with
+      // what pays for it, but out of the retainer book — 10 planned hours a
+      // month against zero revenue is exactly what distorted the numbers.
+      const billed = rows.filter((r) => (r.retainer_monthly_fee_cents ?? 0) > 0);
+      const unbilled = rows.filter((r) => (r.retainer_monthly_fee_cents ?? 0) === 0);
       return {
       clientName,
       // Every retainer in a group belongs to the same client, so the flag is
       // the client's (0152) — read off the first row.
       isInternal: rows[0]?.client_is_internal ?? extras[0]?.isInternal ?? false,
-      rows,
+      rows: billed,
+      unbilled,
       extras,
-      totalFeeCents: rows.reduce(
+      totalFeeCents: billed.reduce(
         (sum, r) => sum + (r.retainer_monthly_fee_cents ?? 0),
         0,
       ),
-      sold: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.soldHours ?? 0), 0),
-      committed: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.committedHours ?? 0), 0),
+      // Planned and Scheduled are the retainer book: what a fee bought and what
+      // is set up to repeat for it. Unbilled work has hours but no fee, so it
+      // belongs in neither total.
+      sold: billed.reduce((sum, r) => sum + (alloc.get(r.id)?.soldHours ?? 0), 0),
+      committed: billed.reduce((sum, r) => sum + (alloc.get(r.id)?.committedHours ?? 0), 0),
+      // Completed counts everything: work done is work done, whoever paid.
       delivered:
         rows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0) +
         extras.reduce((sum, r) => sum + r.deliveredHours, 0),
@@ -205,7 +186,7 @@ export function RetainersList() {
         extras.reduce((sum, r) => sum + r.openPoints * 0.25, 0),
       };
     });
-  }, [filteredRetainers, alloc, extrasByClient, selectedClients, q]);
+  }, [sortedRetainers, alloc, extrasByClient]);
 
   // Our own brands are shown apart from the client book. They keep their fee —
   // Lisa: "internal, you can keep the revenue - worth having a view of it for
@@ -221,12 +202,18 @@ export function RetainersList() {
     const client = clientGroups.filter((g) => !g.isInternal);
     const internal = clientGroups.filter((g) => g.isInternal);
     return [
-      { label: "Client work", groups: client, ...totals(client) },
-      { label: "Internal work", groups: internal, ...totals(internal) },
-    ].filter((s) => s.groups.length > 0);
+      { key: "client" as const, label: "Client work", groups: client, ...totals(client) },
+      { key: "internal" as const, label: "Internal", groups: internal, ...totals(internal) },
+    ];
   }, [clientGroups]);
 
-  const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
+  const [tab, setTab] = useState<"client" | "internal">("client");
+  const section = sections.find((s) => s.key === tab) ?? sections[0];
+  // Our own brands carry a notional fee so we can see what the work would be
+  // worth, but it is not revenue and printing it in a money column next to the
+  // client book invites the two being added up.
+  const showFee = tab === "client";
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Clients start closed: the point of the page is the rollup, with the
   // retainers behind it a click away rather than a wall on arrival.
@@ -234,14 +221,6 @@ export function RetainersList() {
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
-
-  function toggleClient(name: string) {
-    setSelectedClients((prev) => toggleInSet(prev, name));
-  }
-
-  function toggleStatus(status: string) {
-    setSelectedStatuses((prev) => toggleInSet(prev, status));
   }
 
   function handleSync(projectId?: string, label?: string) {
@@ -253,62 +232,6 @@ export function RetainersList() {
 
   return (
     <div className="flex h-full">
-      {/* ── Left filter rail: search on top → divider → filter groups below ── */}
-      <aside className="w-56 shrink-0 space-y-5 overflow-y-auto border-r border-m-outline-variant p-4">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-m-on-surface-variant" />
-          <Input
-            aria-label="Search retainers"
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-10 pl-8"
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <h3 className="text-label-large text-m-on-surface">Filters</h3>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedClients(new Set());
-                setSelectedStatuses(new Set());
-              }}
-              className="text-label-small text-m-primary hover:underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {clientOptions.length > 0 && (
-          <FilterGroup label="Client">
-            {clientOptions.map((name) => (
-              <FilterOption
-                key={name}
-                label={name}
-                active={selectedClients.has(name)}
-                onToggle={() => toggleClient(name)}
-              />
-            ))}
-          </FilterGroup>
-        )}
-
-        {statusOptions.length > 0 && (
-          <FilterGroup label="Status">
-            {statusOptions.map((status) => (
-              <FilterOption
-                key={status}
-                label={statusLabel(status)}
-                active={selectedStatuses.has(status)}
-                onToggle={() => toggleStatus(status)}
-              />
-            ))}
-          </FilterGroup>
-        )}
-      </aside>
-
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         <div className="mb-6 flex items-center justify-between gap-4">
@@ -338,6 +261,25 @@ export function RetainersList() {
           </div>
         </div>
 
+        {/* Client work and our own brands are two different books. A tab keeps
+            the page answering one question at a time. */}
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "client" | "internal")}
+          className="mb-4"
+        >
+          <TabsList>
+            {sections.map((sec) => (
+              <TabsTrigger key={sec.key} value={sec.key}>
+                {sec.label}
+                <span className="ml-2 text-label-small text-m-on-surface-variant">
+                  {fmtHours(sec.delivered)}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
         {retainers.length === 0 ? (
           <div className="text-body-medium text-m-on-surface-variant">
             No retainers yet. Create one with the “New retainer” button to set up monthly hours,
@@ -360,18 +302,16 @@ export function RetainersList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sections.map((section) => (
-                    <Fragment key={section.label}>
-                    {/* A divider is only worth a row when there is something on
-                        both sides of it — one section is just the table. */}
-                    {sections.length > 1 && (
+                    <Fragment key={section.key}>
+                    {/* The tab's own totals, on the row above its clients. */}
+                    {(
                       <TableRow className="hover:bg-transparent">
                         <TableCell className="w-px bg-m-surface-container pb-1 pt-4" />
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-label-large uppercase tracking-wide text-m-on-surface-variant">
                           {section.label}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                          {section.fee > 0 ? formatZar(section.fee) : "—"}
+                          {showFee && section.fee > 0 ? formatZar(section.fee) : "—"}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                           {fmtHours(section.sold)}
@@ -421,7 +361,7 @@ export function RetainersList() {
                           </span>
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                          {group.totalFeeCents > 0 ? formatZar(group.totalFeeCents) : "—"}
+                          {showFee && group.totalFeeCents > 0 ? formatZar(group.totalFeeCents) : "—"}
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                           {fmtHours(group.sold)}
@@ -474,7 +414,7 @@ export function RetainersList() {
                               {displayRetainerName(r.name, r.client_name)}
                             </TableCell>
                             <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
-                              {r.retainer_monthly_fee_cents != null
+                              {showFee && r.retainer_monthly_fee_cents != null
                                 ? formatZar(r.retainer_monthly_fee_cents)
                                 : "—"}
                             </TableCell>
@@ -550,6 +490,43 @@ export function RetainersList() {
                           )}
                         </Fragment>
                       ))}
+                      {/* Recurring work with no invoice behind it. It keeps its
+                          hours — the work is real and someone has to do it —
+                          but they are not in the Planned and Scheduled totals
+                          above, because no fee bought them. */}
+                      {openClients[group.clientName] && group.unbilled.map((r) => (
+                        <TableRow
+                          key={r.id}
+                          onClick={() => navigate(`/projects/${r.id}`)}
+                          className="cursor-pointer [&>td]:py-2"
+                        >
+                          <TableCell className="w-px" />
+                          <TableCell className="text-body-medium text-m-on-surface">
+                            {displayRetainerName(r.name, r.client_name)}
+                            <Badge variant="secondary" className="ml-2 whitespace-nowrap">
+                              {r.revenue_source ?? "No fee — source not set"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            —
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {fmtHours(alloc.get(r.id)?.soldHours ?? 0)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
+                            {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">
+                              {statusLabel(r.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      ))}
                       {/* The other categories. No Planned or Scheduled: nobody
                           budgeted an hour of ad hoc work in advance, and
                           printing a 0 there would read as a target missed. */}
@@ -588,14 +565,13 @@ export function RetainersList() {
                     </Fragment>
                     ))}
                     </Fragment>
-                  ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         ) : (
           <div className="text-body-medium text-m-on-surface-variant">
-            No retainers match the current filters.
+            Nothing on this tab for the month you picked.
           </div>
         )}
       </div>

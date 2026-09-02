@@ -3562,6 +3562,7 @@ export type Database = {
           recurrence_start: string | null
           retainer_hours_target: number | null
           retainer_monthly_fee_cents: number | null
+          revenue_source: string | null
           scope_status: string
           started_at: string
           status: Database["public"]["Enums"]["project_status"]
@@ -3595,6 +3596,7 @@ export type Database = {
           recurrence_start?: string | null
           retainer_hours_target?: number | null
           retainer_monthly_fee_cents?: number | null
+          revenue_source?: string | null
           scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
@@ -3628,6 +3630,7 @@ export type Database = {
           recurrence_start?: string | null
           retainer_hours_target?: number | null
           retainer_monthly_fee_cents?: number | null
+          revenue_source?: string | null
           scope_status?: string
           started_at?: string
           status?: Database["public"]["Enums"]["project_status"]
