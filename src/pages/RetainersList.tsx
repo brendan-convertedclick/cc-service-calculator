@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRetainers, useDeleteRetainer } from "@/hooks/useRetainers";
+import { useRetainers, useDeleteRetainer, type RetainerListRow } from "@/hooks/useRetainers";
 import { currentMonthKey } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { useRetainerAllocation, type AllocationRow } from "@/hooks/useRetainerAllocation";
@@ -193,69 +193,91 @@ export function RetainersList() {
     });
   }, [sortedRetainers, alloc, extrasByClient]);
 
-  // Our own brands are shown apart from the client book. They keep their fee —
-  // Lisa: "internal, you can keep the revenue - worth having a view of it for
-  // management" — but a month is judged on the client half, so summing the two
-  // together would flatter every ratio on the page.
-  // The standing monthly tasks, regrouped as their own book. Same shape as a
-  // client group so the table renders it without a second code path.
-  const recurringGroups = useMemo(
-    () =>
-      clientGroups
-        .filter((g) => g.recurring.length > 0)
-        .map((g) => ({
-          ...g,
-          rows: g.recurring,
-          unbilled: [],
-          recurring: [],
-          extras: [],
-          // Recomputed, never spread: the totals on g are the client's RETAINER
-          // book, and carrying them onto a standing-task row would print
-          // Trellidor's R59,637 over four tasks worth nothing.
-          totalFeeCents: g.recurring.reduce((n, r) => n + (r.retainer_monthly_fee_cents ?? 0), 0),
-          sold: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.soldHours ?? 0), 0),
-          committed: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.committedHours ?? 0), 0),
-          delivered: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.deliveredHours ?? 0), 0),
-          open: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0),
-        })),
-    [clientGroups, alloc],
-  );
+  // One shape, four books. Every tab takes the same client groups and keeps a
+  // different slice of their rows — and recomputes the totals from that slice
+  // rather than carrying the client group's, which is how the Recurring tab
+  // came to print Trellidor's R59,637 above four standing tasks worth nothing.
+  const asSection = useMemo(() => {
+    const hours = (rows: RetainerListRow[], pick: (a: AllocationRow) => number) =>
+      rows.reduce((n, r) => {
+        const a = alloc.get(r.id);
+        return n + (a ? pick(a) : 0);
+      }, 0);
+    return (
+      g: (typeof clientGroups)[number],
+      part: { rows?: RetainerListRow[]; unbilled?: RetainerListRow[]; extras?: AllocationRow[] },
+    ) => {
+      const rows = part.rows ?? [];
+      const unbilled = part.unbilled ?? [];
+      const extras = part.extras ?? [];
+      return {
+        clientName: g.clientName,
+        isInternal: g.isInternal,
+        rows,
+        unbilled,
+        recurring: [] as RetainerListRow[],
+        extras,
+        totalFeeCents: rows.reduce((n, r) => n + (r.retainer_monthly_fee_cents ?? 0), 0),
+        // Planned and Scheduled are what a fee bought and what repeats for it.
+        // Unbilled work has hours and no fee, so it is in neither.
+        sold: hours(rows, (a) => a.soldHours),
+        committed: hours(rows, (a) => a.committedHours),
+        // Completed counts everything on the tab: work done is work done.
+        delivered:
+          hours([...rows, ...unbilled], (a) => a.deliveredHours) +
+          extras.reduce((n, x) => n + x.deliveredHours, 0),
+        open:
+          hours([...rows, ...unbilled], (a) => a.openPoints * 0.25) +
+          extras.reduce((n, x) => n + x.openPoints * 0.25, 0),
+      };
+    };
+  }, [alloc]);
 
   const sections = useMemo(() => {
-    const totals = (groups: typeof clientGroups) => ({
+    const totals = (groups: ReturnType<typeof asSection>[]) => ({
       fee: groups.reduce((n, g) => n + g.totalFeeCents, 0),
       sold: groups.reduce((n, g) => n + g.sold, 0),
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
     });
-    // A client belongs on this tab only if they hold a retainer. Ad hoc work
-    // alone does not put them here — OracleMed's plugin line became a standing
-    // task, so their ad hoc briefs would otherwise have walked them straight
-    // back onto the page Lisa had just taken them off.
-    const client = clientGroups.filter(
-      (g) => !g.isInternal && g.rows.length + g.unbilled.length > 0,
-    );
-    const internal = clientGroups.filter((g) => g.isInternal);
+    // A client belongs on the retainer tab only if they hold a retainer. Ad hoc
+    // work alone does not put them there — OracleMed's plugin line became a
+    // standing task, so their ad hoc briefs would otherwise have walked them
+    // straight back onto the page Lisa had just taken them off.
+    const clientRetainers = clientGroups
+      .filter((g) => !g.isInternal && g.rows.length + g.unbilled.length > 0)
+      .map((g) => asSection(g, { rows: g.rows, unbilled: g.unbilled }));
+    // Everything a client had that no retainer covers. Each row carries its own
+    // category badge, so a fixed-price project and retainer work with no
+    // retainer sit here too rather than having a tab each.
+    const adhoc = clientGroups
+      .filter((g) => !g.isInternal && g.extras.length > 0)
+      .map((g) => asSection(g, { extras: g.extras }));
+    // Our own brands, apart from the client book — a month is judged on the
+    // client half, and summing the two flatters every ratio on the page.
+    const internal = clientGroups
+      .filter((g) => g.isInternal)
+      .map((g) => asSection(g, { rows: g.rows, unbilled: g.unbilled, extras: g.extras }));
+    // Standing monthly tasks. Their fee is a real monthly invoice: out of the
+    // retainer book, not out of the accounts.
+    const recurring = clientGroups
+      .filter((g) => g.recurring.length > 0)
+      .map((g) => asSection(g, { rows: g.recurring }));
     return [
-      { key: "client" as const, label: "Client work", groups: client, ...totals(client) },
+      { key: "client" as const, label: "Client Retainers", groups: clientRetainers, ...totals(clientRetainers) },
+      { key: "adhoc" as const, label: "Ad Hoc", groups: adhoc, ...totals(adhoc) },
       { key: "internal" as const, label: "Internal", groups: internal, ...totals(internal) },
-      {
-        key: "recurring" as const,
-        label: "Recurring tasks",
-        groups: recurringGroups,
-        // A recurring task's fee is a real monthly invoice: out of the retainer
-        // book, not out of the accounts.
-        ...totals(recurringGroups),
-      },
+      { key: "recurring" as const, label: "Recurring", groups: recurring, ...totals(recurring) },
     ];
-  }, [clientGroups, recurringGroups]);
+  }, [clientGroups, asSection]);
 
-  const [tab, setTab] = useState<"client" | "internal" | "recurring">("client");
+  const [tab, setTab] = useState<"client" | "adhoc" | "internal" | "recurring">("client");
   const section = sections.find((s) => s.key === tab) ?? sections[0];
   // Our own brands carry a notional fee so we can see what the work would be
   // worth, but it is not revenue and printing it in a money column next to the
   // client book invites the two being added up.
   const showFee = tab !== "internal";
+
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Clients start closed: the point of the page is the rollup, with the
@@ -308,7 +330,7 @@ export function RetainersList() {
             the page answering one question at a time. */}
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as "client" | "internal" | "recurring")}
+          onValueChange={(v) => setTab(v as "client" | "adhoc" | "internal" | "recurring")}
           className="mb-4"
         >
           <TabsList>
@@ -400,7 +422,14 @@ export function RetainersList() {
                             {group.clientName}
                           </span>
                           <span className="ml-2 text-label-small text-m-on-surface-variant">
-                            {group.rows.length} retainer{group.rows.length !== 1 ? "s" : ""}
+                            {(() => {
+                              // Count what is actually on this tab, and only
+                              // call them retainers where they are retainers.
+                              const n =
+                                group.rows.length + group.unbilled.length + group.extras.length;
+                              const noun = tab === "client" ? "retainer" : "line";
+                              return `${n} ${noun}${n !== 1 ? "s" : ""}`;
+                            })()}
                           </span>
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">

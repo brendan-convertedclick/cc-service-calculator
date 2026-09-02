@@ -5,8 +5,8 @@ test("retainers page renders both tabs and expands a client", async ({ page }) =
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/retainers");
   await expect(page.getByRole("heading", { name: "Retainers" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /client work/i })).toBeVisible();
-  await expect(page.getByRole("row", { name: /client work/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /client retainers/i })).toBeVisible();
+  await expect(page.getByRole("row", { name: /client retainers/i })).toBeVisible();
 
   const firstClient = page.getByRole("button", { name: /^Show retainers for / }).first();
   await firstClient.click();
@@ -19,9 +19,9 @@ test("retainers page renders both tabs and expands a client", async ({ page }) =
 
 test("recurring tasks are their own book, not part of the retainer one", async ({ page }) => {
   await page.goto("/retainers");
-  const clientTotals = await page.getByRole("row", { name: /client work/i }).textContent();
-  await page.getByRole("tab", { name: /recurring tasks/i }).click();
-  const recurringTotals = await page.getByRole("row", { name: /recurring tasks/i }).textContent();
+  const clientTotals = await page.getByRole("row", { name: /client retainers/i }).textContent();
+  await page.getByRole("tab", { name: /^Recurring/i }).click();
+  const recurringTotals = await page.getByRole("row", { name: /^Recurring/i }).textContent();
   // Two different books: the totals rows cannot be the same string.
   expect(recurringTotals).not.toEqual(clientTotals);
 
@@ -40,6 +40,15 @@ test("a client with no retainer of their own is not on the client tab", async ({
   // work, which is what used to walk them back on.
   await expect(table.getByText("OracleMed")).toHaveCount(0);
   await expect(table.getByText("Little Flock School")).toHaveCount(0);
-  await page.getByRole("tab", { name: /recurring tasks/i }).click();
+  await page.getByRole("tab", { name: /^Recurring/i }).click();
   await expect(table.getByText("OracleMed")).toBeVisible();
+});
+
+test("ad hoc work has its own tab and is not counted on the retainer one", async ({ page }) => {
+  await page.goto("/retainers");
+  await page.getByRole("tab", { name: /^Ad Hoc/i }).click();
+  const table = page.getByRole("table");
+  await expect(table.getByText("Ad hoc").first()).toBeVisible();
+  // No retainer rows here: the tab is what no retainer covers.
+  await expect(table.getByRole("row", { name: /^Ad Hoc/i })).toBeVisible();
 });

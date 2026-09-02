@@ -182,7 +182,7 @@ describe("RetainersList client vs internal", () => {
     retainers.rows = [CLIENT_RETAINER, GRANITE];
     render(<RetainersList />);
     // formatZar uses non-breaking spaces as the thousands separator.
-    const clientTotals = screen.getByRole("row", { name: /client work/i });
+    const clientTotals = screen.getByRole("row", { name: /client retainers/i });
     expect(clientTotals.textContent!.replace(/\s/g, " ")).toContain("R 10 000");
 
     await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
