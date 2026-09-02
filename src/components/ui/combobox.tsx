@@ -63,6 +63,12 @@ export function Combobox({
                 <CommandItem
                   key={opt.value}
                   value={opt.value}
+                  // cmdk filters on `value`, and every caller here passes an id
+                  // as the value — so without this, typing a name scored 0
+                  // against a UUID and the list fell through to the empty state.
+                  // `keywords` adds the label to what search matches while
+                  // leaving `value` (and therefore onSelect) untouched.
+                  keywords={[opt.label]}
                   onSelect={(currentValue) => {
                     onChange(currentValue === value ? "" : currentValue);
                     setOpen(false);
