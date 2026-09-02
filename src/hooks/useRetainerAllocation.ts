@@ -39,6 +39,8 @@ export interface AllocationRow {
   deliveredHours: number;
   deliveredPoints: number;
   briefCount: number;
+  /** Our own work rather than a paying client's (clients.is_internal, 0152). */
+  isInternal: boolean;
   /** Points raised against this row and not yet closed. A "now" figure, so it
    *  is only meaningful on the current month. */
   openPoints: number;
@@ -69,16 +71,6 @@ interface BriefRow {
   completed_at: string | null;
 }
 
-/** Clients whose work is our own — no budget, but the time still counts. */
-const INTERNAL_CLIENTS = new Set([
-  "The Converted Click",
-  "The Conductor",
-  "Granite",
-  "Quartz",
-  "Slate",
-  "Flint",
-]);
-
 export function monthKey(iso: string): string {
   return iso.slice(0, 7);
 }
@@ -91,7 +83,7 @@ export function useRetainerAllocation(monthsBack = 6) {
       since.setMonth(since.getMonth() - monthsBack);
       const sinceIso = since.toISOString();
 
-      const [projectsRes, servicesRes, briefsRes] = await Promise.all([
+      const [projectsRes, servicesRes, briefsRes, clientsRes] = await Promise.all([
         supabase
           .from("projects")
           .select("id, name, client_id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)")
@@ -105,10 +97,16 @@ export function useRetainerAllocation(monthsBack = 6) {
           .select("parent_project_id, client_id, billing_type, original_points, created_at, completed_at")
           .or(`completed_at.gte.${sinceIso},completed_at.is.null`)
           .in("status", ["briefed", "accepted", "quoted", "scoped"]),
+        // Read from the clients table, not from the projects join: a client
+        // with adhoc work and no project of their own would otherwise resolve
+        // to "Unknown client". is_internal (0152) replaced a hardcoded list of
+        // six names that was missing two of our own brands.
+        supabase.from("clients").select("id, name, is_internal"),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (servicesRes.error) throw servicesRes.error;
       if (briefsRes.error) throw briefsRes.error;
+      if (clientsRes.error) throw clientsRes.error;
 
       const projects = (projectsRes.data ?? []) as unknown as ProjectRow[];
       const briefs = (briefsRes.data ?? []) as unknown as BriefRow[];
@@ -123,8 +121,9 @@ export function useRetainerAllocation(monthsBack = 6) {
         committedPoints.set(s.project_id, (committedPoints.get(s.project_id) ?? 0) + pts);
       }
 
-      const clientNameById = new Map<string, string>();
-      for (const p of projects) if (p.clients?.name) clientNameById.set(p.client_id, p.clients.name);
+      const clientRows = (clientsRes.data ?? []) as Array<{ id: string; name: string; is_internal: boolean }>;
+      const clientNameById = new Map(clientRows.map((c) => [c.id, c.name]));
+      const internalClientIds = new Set(clientRows.filter((c) => c.is_internal).map((c) => c.id));
 
       // Months are the months work CLOSED in, newest first.
       const closed = briefs.filter((b) => b.completed_at != null);
@@ -181,6 +180,7 @@ export function useRetainerAllocation(monthsBack = 6) {
               deliveredHours: d.points * HOURS_PER_POINT,
               deliveredPoints: d.points,
               briefCount: d.count,
+              isInternal: internalClientIds.has(p.client_id),
               openPoints: isCurrent ? openByProject.get(p.id) ?? 0 : 0,
             };
           });
@@ -195,7 +195,8 @@ export function useRetainerAllocation(monthsBack = 6) {
 
         for (const [clientId, v] of otherByKey) {
           const clientName = clientNameById.get(clientId) ?? "Unknown client";
-          const kind: AllocationKind = INTERNAL_CLIENTS.has(clientName) ? "internal" : "adhoc";
+          const isInternal = internalClientIds.has(clientId);
+          const kind: AllocationKind = isInternal ? "internal" : "adhoc";
           rows.push({
             key: `${kind}:${clientId}`,
             kind,
@@ -208,6 +209,7 @@ export function useRetainerAllocation(monthsBack = 6) {
             deliveredHours: v.points * HOURS_PER_POINT,
             deliveredPoints: v.points,
             briefCount: v.count,
+            isInternal,
             openPoints: isCurrent ? openByClient.get(clientId) ?? 0 : 0,
           });
         }

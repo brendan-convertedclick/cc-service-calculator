@@ -15,6 +15,8 @@ export type RetainerListRow = Pick<
   | "started_at"
 > & {
   client_name: string;
+  /** Our own work rather than a paying client's (clients.is_internal, 0152). */
+  client_is_internal: boolean;
 };
 
 export function useRetainers() {
@@ -24,7 +26,7 @@ export function useRetainers() {
       const { data, error } = await supabase
         .from("projects")
         .select(
-          "id, name, status, client_id, retainer_hours_target, retainer_monthly_fee_cents, started_at, clients(name)",
+          "id, name, status, client_id, retainer_hours_target, retainer_monthly_fee_cents, started_at, clients(name, is_internal)",
         )
         .eq("engagement_type", "retainer")
         .order("created_at", { ascending: false });
@@ -40,6 +42,7 @@ export function useRetainers() {
         retainer_monthly_fee_cents: p.retainer_monthly_fee_cents,
         started_at: p.started_at,
         client_name: (p.clients as { name: string } | null)?.name ?? "Unknown",
+        client_is_internal: (p.clients as { is_internal: boolean } | null)?.is_internal ?? false,
       }));
     },
   });

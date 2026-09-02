@@ -161,6 +161,9 @@ export function RetainersList() {
     }
     return [...map.entries()].map(([clientName, rows]) => ({
       clientName,
+      // Every retainer in a group belongs to the same client, so the flag is
+      // the client's (0152) — read off the first row.
+      isInternal: rows[0]?.client_is_internal ?? false,
       rows,
       totalFeeCents: rows.reduce(
         (sum, r) => sum + (r.retainer_monthly_fee_cents ?? 0),
@@ -172,6 +175,25 @@ export function RetainersList() {
       open: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0),
     }));
   }, [filteredRetainers, alloc]);
+
+  // Our own brands are shown apart from the client book. They keep their fee —
+  // Lisa: "internal, you can keep the revenue - worth having a view of it for
+  // management" — but a month is judged on the client half, so summing the two
+  // together would flatter every ratio on the page.
+  const sections = useMemo(() => {
+    const totals = (groups: typeof clientGroups) => ({
+      fee: groups.reduce((n, g) => n + g.totalFeeCents, 0),
+      sold: groups.reduce((n, g) => n + g.sold, 0),
+      committed: groups.reduce((n, g) => n + g.committed, 0),
+      delivered: groups.reduce((n, g) => n + g.delivered, 0),
+    });
+    const client = clientGroups.filter((g) => !g.isInternal);
+    const internal = clientGroups.filter((g) => g.isInternal);
+    return [
+      { label: "Client work", groups: client, ...totals(client) },
+      { label: "Internal work", groups: internal, ...totals(internal) },
+    ].filter((s) => s.groups.length > 0);
+  }, [clientGroups]);
 
   const hasFilters = selectedClients.size > 0 || selectedStatuses.size > 0;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -307,7 +329,33 @@ export function RetainersList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clientGroups.map((group) => (
+                  {sections.map((section) => (
+                    <Fragment key={section.label}>
+                    {/* A divider is only worth a row when there is something on
+                        both sides of it — one section is just the table. */}
+                    {sections.length > 1 && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell className="w-px bg-m-surface-container pb-1 pt-4" />
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-label-large uppercase tracking-wide text-m-on-surface-variant">
+                          {section.label}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
+                          {section.fee > 0 ? formatZar(section.fee) : "—"}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(section.sold)}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(section.committed)}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
+                          {fmtHours(section.delivered)}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4" />
+                        <TableCell className="bg-m-surface-container pb-1 pt-4" />
+                      </TableRow>
+                    )}
+                    {section.groups.map((group) => (
                     <Fragment key={group.clientName}>
                       <TableRow
                         role="button"
@@ -479,6 +527,8 @@ export function RetainersList() {
                           )}
                         </Fragment>
                       ))}
+                    </Fragment>
+                    ))}
                     </Fragment>
                   ))}
                 </TableBody>

@@ -1647,6 +1647,7 @@ export type Database = {
           clickup_folder_id: string | null
           created_at: string
           id: string
+          is_internal: boolean
           is_school: boolean
           margin_target_pct: number | null
           name: string
@@ -1667,6 +1668,7 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          is_internal?: boolean
           is_school?: boolean
           margin_target_pct?: number | null
           name: string
@@ -1687,6 +1689,7 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          is_internal?: boolean
           is_school?: boolean
           margin_target_pct?: number | null
           name?: string

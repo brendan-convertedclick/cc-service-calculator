@@ -11,20 +11,21 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return { ...actual, useNavigate: () => mockNavigate };
 });
+const CLIENT_RETAINER = {
+  id: "p1",
+  name: "Test Conductor retainer",
+  status: "in_progress",
+  retainer_hours_target: 10,
+  retainer_monthly_fee_cents: 1000000,
+  started_at: null,
+  client_name: "Test Conductor",
+  client_is_internal: false,
+};
+// Mutable so one test can add an internal client without moving the numbers
+// every other test asserts on.
+const retainers = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[] }));
 vi.mock("@/hooks/useRetainers", () => ({
-  useRetainers: () => ({
-    data: [
-      {
-        id: "p1",
-        name: "Test Conductor retainer",
-        status: "in_progress",
-        retainer_hours_target: 10,
-        retainer_monthly_fee_cents: 1000000,
-        started_at: null,
-        client_name: "Test Conductor",
-      },
-    ],
-  }),
+  useRetainers: () => ({ data: retainers.rows }),
   useDeleteRetainer: () => ({ mutate: mockDeleteMutate, isPending: false }),
 }));
 const burnRow: RetainerBurnRow = {
@@ -85,6 +86,10 @@ vi.mock("@/hooks/useRetainerSubItems", () => ({
 }));
 
 import { RetainersList } from "./RetainersList";
+
+beforeEach(() => {
+  retainers.rows = [CLIENT_RETAINER];
+});
 
 describe("RetainersList sync controls", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -148,5 +153,39 @@ describe("RetainersList sub-items", () => {
       screen.getByLabelText("Hide tasks for Test Conductor retainer"),
     );
     expect(screen.queryByText("Local SEO Pack")).not.toBeInTheDocument();
+  });
+});
+
+describe("RetainersList client vs internal", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows one table with no section headings when it is all client work", () => {
+    render(<RetainersList />);
+    expect(screen.queryByText("Client work")).not.toBeInTheDocument();
+    expect(screen.queryByText("Internal work")).not.toBeInTheDocument();
+  });
+
+  it("splits our own brands out of the client book, fee and all", () => {
+    retainers.rows = [
+      CLIENT_RETAINER,
+      {
+        ...CLIENT_RETAINER,
+        id: "p2",
+        name: "Granite retainer",
+        client_name: "Granite",
+        client_is_internal: true,
+        retainer_monthly_fee_cents: 250000,
+      },
+    ];
+    render(<RetainersList />);
+    expect(screen.getByText("Client work")).toBeInTheDocument();
+    expect(screen.getByText("Internal work")).toBeInTheDocument();
+    // The internal fee is kept and totalled on its own row, not folded into
+    // the client book — Lisa wants to see what our own work is worth.
+    // formatZar uses non-breaking spaces as the thousands separator.
+    const rowText = (label: string) =>
+      screen.getByText(label).closest("tr")!.textContent!.replace(/\s/g, " ");
+    expect(rowText("Internal work")).toContain("R 2 500");
+    expect(rowText("Client work")).toContain("R 10 000");
   });
 });
