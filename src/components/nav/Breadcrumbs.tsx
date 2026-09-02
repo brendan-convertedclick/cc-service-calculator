@@ -27,6 +27,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   feedback: "Feedback",
   approvals: "Approvals",
   systems: "Systems",
+  pipeline: "Pipeline",
   staff: "My work",
   profile: "Profile",
   google: "Connect Google Calendar",
@@ -42,6 +43,7 @@ const ID_LABELS: Record<string, string> = {
   inbox: "Brief",
   sow: "Family",
   systems: "System",
+  pipeline: "School year",
 };
 
 function labelFor(segment: string, prev: string | undefined): string {

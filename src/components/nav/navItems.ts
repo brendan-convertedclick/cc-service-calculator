@@ -10,6 +10,7 @@ import {
   FileBarChart2,
   FileText,
   FolderKanban,
+  GitBranch,
   LayoutDashboard,
   LayoutTemplate,
   Inbox as InboxIcon,
@@ -74,6 +75,7 @@ const productivity: NavItem = { to: "/productivity",  label: "Productivity",  ic
 const myWork: NavItem       = { to: "/staff",         label: "My work",       icon: ClipboardList,     end: false, roles: ALL_ROLES }
 const profile: NavItem      = { to: "/profile",       label: "Profile",       icon: UserCircle2,       end: false, roles: ALL_ROLES }
 
+const pipeline: NavItem       = { to: "/pipeline",      label: "Pipeline",      icon: GitBranch,         end: false }
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false }
 const systems: NavItem        = { to: "/systems",       label: "Systems",       icon: Waypoints,         end: false, roles: ALL_ROLES }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false }
@@ -104,7 +106,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, pipeline, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",
