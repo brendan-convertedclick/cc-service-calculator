@@ -3550,6 +3550,7 @@ export type Database = {
           invoiced_at: string | null
           invoiced_by: string | null
           is_recurring: boolean
+          is_recurring_task: boolean
           last_recurring_cycle_at: string | null
           name: string
           project_code: string
@@ -3584,6 +3585,7 @@ export type Database = {
           invoiced_at?: string | null
           invoiced_by?: string | null
           is_recurring?: boolean
+          is_recurring_task?: boolean
           last_recurring_cycle_at?: string | null
           name: string
           project_code: string
@@ -3618,6 +3620,7 @@ export type Database = {
           invoiced_at?: string | null
           invoiced_by?: string | null
           is_recurring?: boolean
+          is_recurring_task?: boolean
           last_recurring_cycle_at?: string | null
           name?: string
           project_code?: string
