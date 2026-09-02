@@ -248,7 +248,7 @@ export function RetainersList() {
         ...totals(recurringGroups),
       },
     ];
-  }, [clientGroups, recurringGroups, alloc]);
+  }, [clientGroups, recurringGroups]);
 
   const [tab, setTab] = useState<"client" | "internal" | "recurring">("client");
   const section = sections.find((s) => s.key === tab) ?? sections[0];
