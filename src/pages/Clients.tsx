@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { cn, cellField } from "@/lib/utils";
 import { DetectedInboxButton } from "@/components/clients/DetectedInboxButton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { NewClientDialog, UNLINKED } from "@/components/clients/NewClientDialog";
 
 export function Clients() {
@@ -104,13 +105,14 @@ export function Clients() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-            <table className="table-fixed text-sm" style={{ width: "1396px" }}>
+            <table className="table-fixed text-sm" style={{ width: "1476px" }}>
               <colgroup>
                 <col style={{ width: "240px" }} />
                 <col style={{ width: "160px" }} />
                 <col style={{ width: "240px" }} />
                 <col style={{ width: "260px" }} />
                 <col style={{ width: "100px" }} />
+                <col style={{ width: "80px" }} />
                 <col style={{ width: "180px" }} />
                 <col style={{ width: "160px" }} />
                 <col style={{ width: "56px" }} />
@@ -122,6 +124,9 @@ export function Clients() {
                   <th className="border-b px-3 py-2.5">ClickUp folder</th>
                   <th className="border-b px-3 py-2.5">Wiki path</th>
                   <th className="border-b px-3 py-2.5 text-right">Margin target</th>
+                  {/* Our own brands. Reporting keeps their fee but totals them
+                      apart from the client book — see the Retainers page. */}
+                  <th className="border-b px-3 py-2.5 text-center" title="Our own work, not a paying client">Internal</th>
                   <th className="border-b px-3 py-2.5">Xero Contact ID</th>
                   <th className="border-b px-3 py-2.5">Status</th>
                   <th className="border-b px-3 py-2.5"></th>
@@ -250,6 +255,18 @@ function ClientRow({
               update.mutate({ id: c.id, patch: { margin_target_pct: v as any } });
             }
           }}
+        />
+      </td>
+      <td className="px-1 py-1.5 text-center">
+        <Checkbox
+          aria-label={`${c.name} is internal work`}
+          checked={c.is_internal ?? false}
+          onCheckedChange={(v) =>
+            update.mutate(
+              { id: c.id, patch: { is_internal: v === true } },
+              { onSuccess: () => toast.success("Saved") },
+            )
+          }
         />
       </td>
       <td className="px-1 py-1.5">
