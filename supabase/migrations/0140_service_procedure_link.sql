@@ -1,6 +1,5 @@
 -- 0140_service_procedure_link.sql
--- NOT YET APPLIED — awaiting sign-off. Apply via mcp__cc-supabase__apply_migration
--- (name: service_procedure_link).
+-- Applied 2026-09-02 (name: service_procedure_link). Backfilled 28 links.
 --
 -- One procedure, many services.
 --

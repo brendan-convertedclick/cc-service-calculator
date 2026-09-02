@@ -874,9 +874,11 @@ function NewSystemDialog({
   const { data: timeCategories = [] } = useTimeCategories();
   const { data: recurringOptions = [] } = useRecurringServiceOptions();
 
-  // A service backs exactly one live system — system_definitions_one_per_service_idx
-  // (0107), kept because push-to-clickup resolves service -> system when it
-  // materialises a quote line. Time categories and recurring services take as
+  // A service is the HOME service of exactly one live system —
+  // system_definitions_one_per_service_idx (0107), kept because push-to-clickup
+  // resolves service -> system when it materialises a quote line. Attaching an
+  // existing procedure to further services is done on the service page and
+  // writes services.procedure_id (0140); this dialog only ever sets the home. Time categories and recurring services take as
   // many as you like (0119): "Client Meetings" is a pre-, in- and post-meeting
   // procedure. Taken services stay visible but disabled: silently omitting them
   // just raises "where did my service go?", and picking one is a 23505 on submit.

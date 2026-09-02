@@ -115,14 +115,17 @@ export function ServicesList() {
 
   const { data: procedures = [] } = useServiceProcedures();
   const setProcedure = useSetServiceProcedure();
-  const procedureByService = useMemo(() => {
-    const m = new Map<string, ProcedureOption>();
-    for (const p of procedures) if (p.serviceId) m.set(p.serviceId, p);
-    return m;
-  }, [procedures]);
-  // Only approved procedures are offered, and only ones not already spoken for.
-  const freeApproved = useMemo(
-    () => procedures.filter((p) => p.approved && !p.serviceId),
+  // services.procedure_id (0140) is the link — a procedure may be named by
+  // several services, so it cannot be read off the procedure's own row.
+  const procedureById = useMemo(
+    () => new Map(procedures.map((p) => [p.id, p])),
+    [procedures],
+  );
+  const procedureOf = (s: { id: string; procedure_id: string | null }) =>
+    (s.procedure_id ? procedureById.get(s.procedure_id) : null) ?? null;
+  // Only approved procedures are offered; being attached elsewhere is fine.
+  const approvedProcedures = useMemo(
+    () => procedures.filter((p) => p.approved),
     [procedures],
   );
 
@@ -132,8 +135,8 @@ export function ServicesList() {
     return services.filter((s) => {
       if (ruleFilter && s.rule_id !== ruleFilter) return false;
       if (statusFilter && s.status !== statusFilter) return false;
-      if (procedureFilter === "none" && procedureByService.has(s.id)) return false;
-      if (procedureFilter === "linked" && !procedureByService.has(s.id)) return false;
+      if (procedureFilter === "none" && s.procedure_id) return false;
+      if (procedureFilter === "linked" && !s.procedure_id) return false;
       if (groupFilter.size > 0) {
         const g = primaryDeptByService[s.id];
         const key = g ?? "__none__";
@@ -150,13 +153,13 @@ export function ServicesList() {
       if (da !== db) return da ? 1 : -1;
       return a.name.localeCompare(b.name, "en", { numeric: true });
     });
-  }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService, procedureFilter, procedureByService]);
+  }, [services, q, ruleFilter, statusFilter, groupFilter, primaryDeptByService, procedureFilter]);
 
   // Counted across every service, not the filtered view — it is the size of the
   // backlog, and it should not shrink because a search box is filled in.
   const withoutProcedureCount = useMemo(
-    () => services.filter((s) => !procedureByService.has(s.id)).length,
-    [services, procedureByService],
+    () => services.filter((s) => !s.procedure_id).length,
+    [services],
   );
 
   const groupOptions = useMemo(() => {
@@ -372,8 +375,8 @@ export function ServicesList() {
                         groupName={groupId ? deptMap.get(groupId)?.name ?? null : null}
                         groupColor={groupId ? deptColorById.get(groupId) ?? null : null}
                         matrix={matrix}
-                        procedure={procedureByService.get(s.id) ?? null}
-                        procedureOptions={freeApproved}
+                        procedure={procedureOf(s)}
+                        procedureOptions={approvedProcedures}
                         xero={xeroByService.get(s.id) ?? null}
                         xeroOptions={allXero}
                         onXeroChange={(code) =>
@@ -423,7 +426,7 @@ type ServiceRowProps = {
   matrix: AllocationMatrix | undefined;
   /** The procedure this service is delivered by, if one is attached. */
   procedure: ProcedureOption | null;
-  /** Approved procedures not already attached to another service. */
+  /** Every approved procedure — one can deliver several services. */
   procedureOptions: ProcedureOption[];
   onProcedureChange: (procedureId: string | null) => void;
   /** The Xero product this service is invoiced as. Xero is the source of truth

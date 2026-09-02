@@ -4806,6 +4806,7 @@ export type Database = {
           percentage_value: number | null
           pricing_model: string
           primary_team_member_id: string | null
+          procedure_id: string | null
           rule_id: string | null
           scope_definition: string | null
           sell_price_cents: number
@@ -4832,6 +4833,7 @@ export type Database = {
           percentage_value?: number | null
           pricing_model: string
           primary_team_member_id?: string | null
+          procedure_id?: string | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number
@@ -4858,6 +4860,7 @@ export type Database = {
           percentage_value?: number | null
           pricing_model?: string
           primary_team_member_id?: string | null
+          procedure_id?: string | null
           rule_id?: string | null
           scope_definition?: string | null
           sell_price_cents?: number

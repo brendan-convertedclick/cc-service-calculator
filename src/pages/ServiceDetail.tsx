@@ -36,13 +36,13 @@ export function ServiceDetail({ mode }: Props) {
   const { data: xeroItems = [] } = useXeroItems();
   const { data: allProcedures = [] } = useServiceProcedures();
   const setProcedure = useSetServiceProcedure();
-  // Approved and free, plus whatever this service already has — an existing
-  // link may predate approval, and hiding it would make the box read as empty
-  // when it is not.
-  const currentProcedureId =
-    allProcedures.find((pr) => pr.serviceId && pr.serviceId === id)?.id ?? null;
+  // Every approved procedure, whether or not another service already names it
+  // — one procedure serves many services (0140) — plus whatever this service
+  // already has: an existing link may predate approval, and hiding it would
+  // make the box read as empty when it is not.
+  const currentProcedureId = detail?.service.procedure_id ?? null;
   const procedureChoices = allProcedures.filter(
-    (pr) => (pr.approved && !pr.serviceId) || pr.id === currentProcedureId,
+    (pr) => pr.approved || pr.id === currentProcedureId,
   );
   const create = useCreateService();
   const update = useUpdateService();
@@ -387,7 +387,7 @@ Output: A numbered markdown list of process steps, suitable for pasting into the
                     </select>
                     <p className="text-label-small text-m-on-surface-variant">
                       How the work actually gets done. Only approved procedures are
-                      offered.
+                      offered, and one procedure can deliver several services.
                     </p>
                   </div>
 
