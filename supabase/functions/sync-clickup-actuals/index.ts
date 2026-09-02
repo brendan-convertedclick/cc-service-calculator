@@ -525,11 +525,25 @@ Deno.serve(async (req: Request) => {
         clickup_status_synced_at: new Date().toISOString(),
         // Only when the task itself came back — a failed fetch reports 0 time
         // spent, and writing that would wipe real actuals.
-        ...(task ? { actual_hours: actualHours, actual_points: actualPoints } : {}),
-        // Flags only apply once complete; clear them if a task is reopened.
-        over_budget: isComplete ? overBudget : false,
-        closed_late: isComplete ? closedLate : false,
-        completed_at: isComplete && completedMs ? new Date(Number(completedMs)).toISOString() : null,
+        //
+        // completed_at belongs to the same guard, and did not have it. The date
+        // lives ONLY on the per-task fetch (date_done/date_closed); the bulk
+        // fallback carries a status but no dates. So a rate-limited tick would
+        // read "closed" from the fallback, find no date, and write
+        // completed_at = null — marking finished work as never finished. On
+        // 2026-09-02 that had happened to 167 briefs in 24 hours, which is why
+        // August reported 56 of 278 briefs complete instead of 167.
+        ...(task
+          ? {
+            actual_hours: actualHours,
+            actual_points: actualPoints,
+            over_budget: isComplete ? overBudget : false,
+            closed_late: isComplete ? closedLate : false,
+            completed_at: isComplete && completedMs
+              ? new Date(Number(completedMs)).toISOString()
+              : null,
+          }
+          : {}),
       };
       if (b.original_points == null && originalPoints != null) patch.original_points = originalPoints;
       if (b.original_due_date == null && originalDue != null) patch.original_due_date = originalDue;
