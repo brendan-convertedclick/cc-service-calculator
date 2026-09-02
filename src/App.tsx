@@ -106,6 +106,9 @@ const Guides = lazy(() =>
 const ProjectScopeView = lazy(() =>
   import("@/pages/ProjectScopeView").then((m) => ({ default: m.ProjectScopeView })),
 );
+const DataHealth = lazy(() =>
+  import("@/pages/DataHealth").then((m) => ({ default: m.DataHealth })),
+);
 const ReconciliationView = lazy(() =>
   import("@/pages/ReconciliationView").then((m) => ({ default: m.ReconciliationView })),
 );
@@ -294,6 +297,7 @@ export default function App() {
               <Route path="scaffold/invoice-preview" element={<LiveTasksInvoicePreview />} />
               <Route path="pulse" element={<PulseView />} />
               <Route path="reconciliation" element={<ReconciliationView />} />
+              <Route path="data-health" element={<DataHealth />} />
               <Route path="productivity" element={<ProductivityPage />} />
               <Route path="guides" element={<Guides />} />
               </Route>

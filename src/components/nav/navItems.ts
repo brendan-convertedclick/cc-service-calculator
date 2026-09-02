@@ -33,6 +33,7 @@ import {
   Wrench,
   Workflow,
   Zap,
+  HeartPulse,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { TeamMemberRole } from "@/types/staff-briefs"
@@ -96,6 +97,7 @@ const departments: NavItem    = { to: "/departments",   label: "Departments",   
 const team: NavItem           = { to: "/team",          label: "Team",          icon: Users,             end: false }
 
 const reconciliation: NavItem = { to: "/reconciliation",label: "Reconciliation",icon: FileBarChart2,     end: false }
+const dataHealth: NavItem     = { to: "/data-health",   label: "Data health",   icon: HeartPulse,        end: false }
 const rules: NavItem          = { to: "/rules",         label: "Rules",         icon: SlidersHorizontal, end: false }
 const guides: NavItem         = { to: "/guides",        label: "Guides",        icon: BookOpen,          end: false }
 const feedback: NavItem       = { to: "/feedback",      label: "Feedback",      icon: Bug,               end: false }
@@ -121,7 +123,7 @@ const organizationSection: NavSection = {
 const operationsSection: NavSection = {
   label: "Operations",
   icon: Wrench,
-  items: [reconciliation, rules, guides, feedback],
+  items: [dataHealth, reconciliation, rules, guides, feedback],
 }
 
 // A single ordered nav list so standalone items and section groups can be
