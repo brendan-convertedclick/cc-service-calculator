@@ -24,5 +24,22 @@ test("recurring tasks are their own book, not part of the retainer one", async (
   const recurringTotals = await page.getByRole("row", { name: /recurring tasks/i }).textContent();
   // Two different books: the totals rows cannot be the same string.
   expect(recurringTotals).not.toEqual(clientTotals);
-  await expect(page.getByRole("button", { name: /^Show retainers for / }).first()).toBeVisible();
+
+  // A client's header row on this tab must total ITS STANDING TASKS, not the
+  // retainer book it also has — the two were one spread apart.
+  const kings = page.getByRole("button", { name: /^Show retainers for Kings College/ });
+  await expect(kings).toBeVisible();
+  expect((await kings.textContent())!.replace(/\s/g, " ")).toContain("R 1 150");
+});
+
+test("a client with no retainer of their own is not on the client tab", async ({ page }) => {
+  await page.goto("/retainers");
+  const table = page.getByRole("table");
+  // Their plugin line is a standing task now and they hold nothing else, so
+  // neither client is a retainer client — even in a month they closed ad hoc
+  // work, which is what used to walk them back on.
+  await expect(table.getByText("OracleMed")).toHaveCount(0);
+  await expect(table.getByText("Little Flock School")).toHaveCount(0);
+  await page.getByRole("tab", { name: /recurring tasks/i }).click();
+  await expect(table.getByText("OracleMed")).toBeVisible();
 });

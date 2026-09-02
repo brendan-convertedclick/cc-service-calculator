@@ -203,8 +203,22 @@ export function RetainersList() {
     () =>
       clientGroups
         .filter((g) => g.recurring.length > 0)
-        .map((g) => ({ ...g, rows: g.recurring, unbilled: [], recurring: [], extras: [] })),
-    [clientGroups],
+        .map((g) => ({
+          ...g,
+          rows: g.recurring,
+          unbilled: [],
+          recurring: [],
+          extras: [],
+          // Recomputed, never spread: the totals on g are the client's RETAINER
+          // book, and carrying them onto a standing-task row would print
+          // Trellidor's R59,637 over four tasks worth nothing.
+          totalFeeCents: g.recurring.reduce((n, r) => n + (r.retainer_monthly_fee_cents ?? 0), 0),
+          sold: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.soldHours ?? 0), 0),
+          committed: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.committedHours ?? 0), 0),
+          delivered: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.deliveredHours ?? 0), 0),
+          open: g.recurring.reduce((n, r) => n + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0),
+        })),
+    [clientGroups, alloc],
   );
 
   const sections = useMemo(() => {
@@ -214,29 +228,14 @@ export function RetainersList() {
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
     });
-    const client = clientGroups.filter((g) => !g.isInternal && g.rows.length + g.unbilled.length + g.extras.length > 0);
+    // A client belongs on this tab only if they hold a retainer. Ad hoc work
+    // alone does not put them here — OracleMed's plugin line became a standing
+    // task, so their ad hoc briefs would otherwise have walked them straight
+    // back onto the page Lisa had just taken them off.
+    const client = clientGroups.filter(
+      (g) => !g.isInternal && g.rows.length + g.unbilled.length > 0,
+    );
     const internal = clientGroups.filter((g) => g.isInternal);
-    const recurringTotals = {
-      ...totals(recurringGroups),
-      // A recurring task's fee is a real monthly invoice; it is out of the
-      // retainer book, not out of the accounts.
-      fee: recurringGroups.reduce(
-        (n, g) => n + g.rows.reduce((m, r) => m + (r.retainer_monthly_fee_cents ?? 0), 0),
-        0,
-      ),
-      sold: recurringGroups.reduce(
-        (n, g) => n + g.rows.reduce((m, r) => m + (alloc.get(r.id)?.soldHours ?? 0), 0),
-        0,
-      ),
-      committed: recurringGroups.reduce(
-        (n, g) => n + g.rows.reduce((m, r) => m + (alloc.get(r.id)?.committedHours ?? 0), 0),
-        0,
-      ),
-      delivered: recurringGroups.reduce(
-        (n, g) => n + g.rows.reduce((m, r) => m + (alloc.get(r.id)?.deliveredHours ?? 0), 0),
-        0,
-      ),
-    };
     return [
       { key: "client" as const, label: "Client work", groups: client, ...totals(client) },
       { key: "internal" as const, label: "Internal", groups: internal, ...totals(internal) },
@@ -244,7 +243,9 @@ export function RetainersList() {
         key: "recurring" as const,
         label: "Recurring tasks",
         groups: recurringGroups,
-        ...recurringTotals,
+        // A recurring task's fee is a real monthly invoice: out of the retainer
+        // book, not out of the accounts.
+        ...totals(recurringGroups),
       },
     ];
   }, [clientGroups, recurringGroups, alloc]);
