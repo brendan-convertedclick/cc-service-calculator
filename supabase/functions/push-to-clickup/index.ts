@@ -630,39 +630,60 @@ Deno.serve(async (req: Request) => {
       // outside the (new) Systems approval UI — so on the live DB every
       // service currently takes the fallback branch below. Wired, not yet
       // exercised.
-      const { data: serviceSystems } = await supabase
-        .from("system_definitions")
-        .select("id,service_id,current_revision_id")
-        .in("service_id", serviceIdsOrdered)
-        .eq("kind", "service")
-        // system_definitions_one_per_service_idx (0107) only guarantees one
-        // service-kind system per service *while archived_at is null* — so an
-        // archived system that still carries a current_revision_id would
-        // otherwise win publishedBodyByServiceId below and materialise a
-        // retired snapshot over the live one.
-        .is("archived_at", null);
-      type ServiceSystem = { id: string; service_id: string; current_revision_id: string | null };
+      // Which procedure delivers each quoted service. services.procedure_id
+      // (0140) is the link, and it is the only one that answers the question:
+      // one procedure serves many services, so system_definitions.service_id —
+      // the procedure's HOME service — names just one of them and would leave
+      // every other service on the quote materialising nothing.
+      const { data: svcRows } = await supabase
+        .from("services")
+        .select("id,procedure_id")
+        .in("id", serviceIdsOrdered);
+      const procedureByServiceId = new Map(
+        ((svcRows ?? []) as { id: string; procedure_id: string | null }[])
+          .filter((r) => r.procedure_id)
+          .map((r) => [r.id, r.procedure_id!]),
+      );
+      const procedureIds = [...new Set(procedureByServiceId.values())];
+
+      type ServiceSystem = { id: string; current_revision_id: string | null };
+      const { data: serviceSystems } = procedureIds.length > 0
+        ? await supabase
+            .from("system_definitions")
+            .select("id,current_revision_id")
+            .in("id", procedureIds)
+            // Both kinds count: a procedure keeps kind='reference' while no
+            // service holds its home link, and a shared one often has none. A
+            // policy or business-process map can never appear here — the
+            // service page only offers these two kinds.
+            .in("kind", ["service", "reference"])
+            // An archived procedure that still carries a current_revision_id
+            // would otherwise win publishedBodyByServiceId below and
+            // materialise a retired snapshot over the live one.
+            .is("archived_at", null)
+        : { data: [] as ServiceSystem[] };
       const revisionIds = ((serviceSystems ?? []) as ServiceSystem[])
         .map((s) => s.current_revision_id)
         .filter((id): id is string => !!id);
       const { data: publishedRevs } = revisionIds.length > 0
         ? await supabase.from("system_revisions").select("system_id,body").in("id", revisionIds).eq("state", "published")
         : { data: [] as { system_id: string; body: unknown }[] };
-      const serviceIdBySystemId = new Map(
-        ((serviceSystems ?? []) as ServiceSystem[]).map((s) => [s.id, s.service_id]),
-      );
       // Defensive backstop: a published body with zero TOP-LEVEL steps is
       // treated as "no published revision" rather than "materialise
       // nothing" — protects against any snapshot source (present or
       // future) that fails to stamp system_id on every step and so
       // silently captures an empty/partial body. Falls through to the raw
       // process_steps query + warning below instead of vanishing.
-      const publishedBodyByServiceId = new Map<string, BodyStep[]>();
+      const bodyBySystemId = new Map<string, BodyStep[]>();
       for (const rev of (publishedRevs ?? []) as { system_id: string; body: unknown }[]) {
-        const svcId = serviceIdBySystemId.get(rev.system_id);
-        if (!svcId) continue;
         const body = (rev.body as BodyStep[] | null) ?? [];
-        if (body.some((s) => !s.parent_id)) publishedBodyByServiceId.set(svcId, body);
+        if (body.some((s) => !s.parent_id)) bodyBySystemId.set(rev.system_id, body);
+      }
+      // Same snapshot, once per service that names the procedure.
+      const publishedBodyByServiceId = new Map<string, BodyStep[]>();
+      for (const [svcId, procId] of procedureByServiceId) {
+        const body = bodyBySystemId.get(procId);
+        if (body) publishedBodyByServiceId.set(svcId, body);
       }
 
       const servicesNeedingRaw = serviceIdsOrdered.filter((id) => !publishedBodyByServiceId.has(id));
@@ -670,15 +691,42 @@ Deno.serve(async (req: Request) => {
         console.warn(`[push-to-clickup] service ${id} has no published system revision — materialising from live process_steps`);
       }
 
-      const { data: rawTopLevel } = servicesNeedingRaw.length > 0
-        ? await supabase
-            .from("process_steps")
-            .select("id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id,doc_links")
-            .in("service_id", servicesNeedingRaw)
-            .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
-            .order("service_id,ordinal")
-        : { data: [] as TemplateStep[] };
-      const rawTopLevelIds = ((rawTopLevel ?? []) as TemplateStep[]).map((s) => s.id);
+      // Steps come from the procedure (system_id) whenever the service names
+      // one. process_steps.service_id is the HOME service's id — null for a
+      // procedure that never had a home, and the wrong service for one that is
+      // shared — so it is only the right key for a legacy service that has no
+      // procedure row at all (pre-Phase-4).
+      const stepCols = "id,service_id,ordinal,title,description,department_id,estimated_hours,materialise_as,owner_id,system_id,doc_links";
+      const rawProcedureIds = [...new Set(
+        servicesNeedingRaw.map((id) => procedureByServiceId.get(id)).filter((id): id is string => !!id),
+      )];
+      const legacyServiceIds = servicesNeedingRaw.filter((id) => !procedureByServiceId.has(id));
+      const [{ data: procSteps }, { data: legacySteps }] = await Promise.all([
+        rawProcedureIds.length > 0
+          ? supabase.from("process_steps").select(stepCols)
+              .in("system_id", rawProcedureIds)
+              .is("parent_id", null) // top-level only — sub-steps become a checklist item, not their own task
+              .order("ordinal")
+          : Promise.resolve({ data: [] as TemplateStep[] }),
+        legacyServiceIds.length > 0
+          ? supabase.from("process_steps").select(stepCols)
+              .in("service_id", legacyServiceIds)
+              .is("parent_id", null)
+              .order("service_id,ordinal")
+          : Promise.resolve({ data: [] as TemplateStep[] }),
+      ]);
+      // One copy per service, stamped with the service that is buying it —
+      // everything downstream groups by service_id, and two services sharing a
+      // procedure share its step ids.
+      const rawTopLevel: TemplateStep[] = [];
+      for (const svcId of servicesNeedingRaw) {
+        const procId = procedureByServiceId.get(svcId);
+        const source = procId
+          ? ((procSteps ?? []) as TemplateStep[]).filter((r) => r.system_id === procId)
+          : ((legacySteps ?? []) as TemplateStep[]).filter((r) => r.service_id === svcId);
+        for (const r of source) rawTopLevel.push({ ...r, service_id: svcId });
+      }
+      const rawTopLevelIds = [...new Set(rawTopLevel.map((s) => s.id))];
       const { data: rawSubSteps } = rawTopLevelIds.length > 0
         ? await supabase
             .from("process_steps")
@@ -694,9 +742,14 @@ Deno.serve(async (req: Request) => {
       // exists in process_steps would 23503 the whole batch insert below.
       const bodyTopLevel: TemplateStep[] = [];
       const bodySubSteps: SubStepRow[] = [];
+      const seenBodySubStep = new Set<string>();
       for (const [serviceId, steps] of publishedBodyByServiceId) {
         for (const s of steps) {
           if (s.parent_id) {
+            // Sub-steps are fanned out to every service by servicesByStepId
+            // below, so the snapshot's copies collapse to one row here.
+            if (seenBodySubStep.has(s.id)) continue;
+            seenBodySubStep.add(s.id);
             bodySubSteps.push({ id: s.id, parent_id: s.parent_id, title: s.title, description: s.description ?? null, ordinal: s.ordinal, materialise_as: s.materialise_as, doc_links: s.doc_links ?? null });
           } else {
             bodyTopLevel.push({
@@ -732,7 +785,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const templateSteps: TemplateStep[] = [
-        ...((rawTopLevel ?? []) as TemplateStep[]),
+        ...rawTopLevel,
         ...bodyTopLevel.filter((s) => liveIds.has(s.id)),
       ];
       const subStepRows: SubStepRow[] = [
@@ -794,6 +847,15 @@ Deno.serve(async (req: Request) => {
       // — a sibling item on the service × department task instead.
       // planMaterialisation (pure, tested separately) makes that call; here we
       // just group steps by service and feed it.
+      // A step id is no longer unique across services — two services sharing a
+      // procedure share its steps — so a sub-step's parent has to fan out to
+      // every service that raised it, not to templateStepsById's last winner.
+      const servicesByStepId = new Map<string, string[]>();
+      for (const s of templateSteps) {
+        const arr = servicesByStepId.get(s.id) ?? [];
+        arr.push(s.service_id);
+        servicesByStepId.set(s.id, arr);
+      }
       const stepsByService = new Map<string, MaterialiseStep[]>();
       for (const s of (templateSteps ?? []) as TemplateStep[]) {
         if (internalStepIds.has(s.id)) continue; // internal-system guard, see above
@@ -805,15 +867,17 @@ Deno.serve(async (req: Request) => {
         const parentStep = sub.parent_id ? templateStepsById.get(sub.parent_id) : undefined;
         if (!parentStep) continue; // scoped to topLevelIds above — shouldn't happen
         if (internalStepIds.has(parentStep.id)) continue; // internal-system guard, see above
-        const arr = stepsByService.get(parentStep.service_id) ?? [];
-        // Same live-over-snapshot rule as the task's own documents (line ~923):
-        // a document that moves reaches every future task without republishing.
-        arr.push({
-          id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title,
-          description: sub.description, materialise_as: sub.materialise_as,
-          doc_links: liveDocLinksByStepId.get(sub.id) ?? sub.doc_links ?? null,
-        });
-        stepsByService.set(parentStep.service_id, arr);
+        for (const svcId of servicesByStepId.get(parentStep.id) ?? []) {
+          const arr = stepsByService.get(svcId) ?? [];
+          // Same live-over-snapshot rule as the task's own documents (line ~923):
+          // a document that moves reaches every future task without republishing.
+          arr.push({
+            id: sub.id, parent_id: sub.parent_id, ordinal: sub.ordinal, title: sub.title,
+            description: sub.description, materialise_as: sub.materialise_as,
+            doc_links: liveDocLinksByStepId.get(sub.id) ?? sub.doc_links ?? null,
+          });
+          stepsByService.set(svcId, arr);
+        }
       }
       const materialisePlanByService = new Map(
         [...stepsByService.entries()].map(([serviceId, steps]) => [serviceId, planMaterialisation(steps)]),
@@ -822,9 +886,11 @@ Deno.serve(async (req: Request) => {
       // (only populated for materialise_as='task' steps). Carries the checklist
       // and the prose, because the working instructions have to be rendered
       // into the task's description — a checklist item has nowhere to put them.
+      // Keyed `${serviceId}:${stepId}` for the same reason as servicesByStepId:
+      // the plans of two services sharing a procedure carry the same step ids.
       const planByStepId = new Map<string, MaterialisePlan["tasks"][number]>();
-      for (const plan of materialisePlanByService.values()) {
-        for (const t of plan.tasks) planByStepId.set(t.stepId, t);
+      for (const [serviceId, plan] of materialisePlanByService) {
+        for (const t of plan.tasks) planByStepId.set(`${serviceId}:${t.stepId}`, t);
       }
       const serviceNameById = new Map(items.map((i) => [i.service_id, i.service_name]));
       // Filled as each materialise_as='task' step's ClickUp task is created;
@@ -918,7 +984,7 @@ Deno.serve(async (req: Request) => {
               // Stream field and it already picks the list), and not "[Step N]"
               // — a task is not a step, and Conductor's step numbers count
               // across the whole procedure, so they mean nothing on one task.
-              const plannedTask = planByStepId.get(instance.template_step_id);
+              const plannedTask = planByStepId.get(`${instance.service_id}:${instance.template_step_id}`);
               const serviceName = serviceNameById.get(instance.service_id);
               const templateStep = templateStepsById.get(instance.template_step_id);
               const stepSystemId = templateStep?.system_id ?? null;
@@ -981,7 +1047,7 @@ Deno.serve(async (req: Request) => {
                 // Keyed by TEMPLATE step id, not instance id: system_edges is
                 // drawn between template steps, so that's the id the handover
                 // chain below has to match on.
-                clickupTaskByTemplateStepId.set(instance.template_step_id, stepTask.id);
+                clickupTaskByTemplateStepId.set(`${instance.service_id}:${instance.template_step_id}`, stepTask.id);
                 await supabase
                   .from("process_step_instances")
                   .update({ clickup_task_id: stepTask.id })
@@ -1033,17 +1099,22 @@ Deno.serve(async (req: Request) => {
           console.error(`[push-to-clickup] system_edges lookup failed: ${edgeErr.message}`);
         } else {
           let linked = 0;
+          // Per service: the same procedure quoted for two services raises two
+          // sets of tasks, and each set is chained within itself.
+          const quotedServiceIds = [...new Set(serviceIdsOrdered)];
           for (const e of (edges ?? []) as { source_step_id: string; target_step_id: string }[]) {
-            const from = clickupTaskByTemplateStepId.get(e.source_step_id);
-            const to = clickupTaskByTemplateStepId.get(e.target_step_id);
-            // An edge touching a checklist_item/none step has no task on one
-            // end; skip rather than guess which neighbour it meant.
-            if (!from || !to || from === to) continue;
-            try {
-              await addClickupDependency(clickupPat, to, from);
-              linked++;
-            } catch (err) {
-              console.error(`[push-to-clickup] dependency ${to} <- ${from} failed: ${err instanceof Error ? err.message : String(err)}`);
+            for (const svcId of quotedServiceIds) {
+              const from = clickupTaskByTemplateStepId.get(`${svcId}:${e.source_step_id}`);
+              const to = clickupTaskByTemplateStepId.get(`${svcId}:${e.target_step_id}`);
+              // An edge touching a checklist_item/none step has no task on one
+              // end; skip rather than guess which neighbour it meant.
+              if (!from || !to || from === to) continue;
+              try {
+                await addClickupDependency(clickupPat, to, from);
+                linked++;
+              } catch (err) {
+                console.error(`[push-to-clickup] dependency ${to} <- ${from} failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
             }
           }
           if (linked > 0) console.log(`[push-to-clickup] chained ${linked} step task(s) from system_edges`);
