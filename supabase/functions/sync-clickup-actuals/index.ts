@@ -477,21 +477,45 @@ Deno.serve(async (req: Request) => {
       date_closed?: string | null;
       date_done?: string | null;
     };
-    const fetchTask = async (taskId: string): Promise<CuTask | null> => {
+    // null = could not read it (rate limit, network, anything transient).
+    // "deleted" = ClickUp says the task is gone, which is a fact, not a failure.
+    // The two have to be distinguishable: a task nobody can read must be left
+    // alone, and a task that no longer exists must stop being reported as live
+    // work. Both used to come back as null, so a deleted task sat in Conductor
+    // forever showing whatever status it had when it was last seen.
+    const fetchTask = async (taskId: string): Promise<CuTask | "deleted" | null> => {
       try {
         const res = await fetch(`https://api.clickup.com/api/v2/task/${taskId}?include_subtasks=false`, CU);
+        if (res.status === 404) return "deleted";
         if (!res.ok) return null;
         return (await res.json()) as CuTask;
       } catch {
         return null;
       }
     };
-    const statusOf = (task: CuTask | null): string | null =>
-      task?.status?.status?.toLowerCase() ?? null;
+    const statusOf = (task: CuTask | "deleted" | null): string | null =>
+      task === "deleted" || task === null ? null : task.status?.status?.toLowerCase() ?? null;
 
+    let briefsArchivedAsDeleted = 0;
     for (const b of briefTasks) {
       const wait = waitMap.get(b.clickup_task_id);
-      const task = await fetchTask(b.clickup_task_id);
+      const fetched = await fetchTask(b.clickup_task_id);
+      // Deleted in ClickUp: archive the brief so it leaves the lists, the
+      // counts and the monthly reports. Nothing else on the row is touched —
+      // the record of what was asked for is still worth keeping.
+      if (fetched === "deleted") {
+        const { error: delErr } = await supabase
+          .from("briefs")
+          .update({
+            status: "archived",
+            clickup_status_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", b.id);
+        if (!delErr) briefsArchivedAsDeleted++;
+        continue;
+      }
+      const task = fetched;
       // The per-task fetch is the request most likely to be rate-limited —
       // it is one call per task against a PAT the rest of this function has
       // already been using. When it fails we still have the bulk call's
@@ -574,7 +598,12 @@ Deno.serve(async (req: Request) => {
       if (!error) briefStatusUpdates++;
     }
 
-    return json({ inserted, ongoing_inserted: ongoingInserted, brief_status_updates: briefStatusUpdates });
+    return json({
+      inserted,
+      ongoing_inserted: ongoingInserted,
+      brief_status_updates: briefStatusUpdates,
+      briefs_archived_as_deleted: briefsArchivedAsDeleted,
+    });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
