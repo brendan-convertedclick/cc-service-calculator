@@ -37,6 +37,15 @@ export function countStages(rows: CountRow[]): StageCounts {
   let oldestDays = 0;
 
   for (const row of rows) {
+    // Parked is on the list but has no clock (0148): it is not waiting on
+    // them, not with us, and not signed off. Counting it as any of those would
+    // put a number in a chase email that nobody is acting on — and it is
+    // staff-only, so a client counting three items would only find two.
+    if (row.state === "parked") continue;
+    // An event (0149) is a date nobody acts on — it belongs on the calendar,
+    // not in a count of who owes what. Without this it would fall through to
+    // waitingOnYou and chase a client about their own launch date.
+    if (row.state === "noted") continue;
     if (row.state === "approved") {
       signedOff += 1;
       continue;
@@ -72,7 +81,8 @@ export async function fetchStageCounts(clientId: string): Promise<StageCounts | 
     const { data, error } = await supabase
       .from("client_approvals")
       .select("state, owed_by, due_date, briefs(client_wait_ms)")
-      .eq("client_id", clientId);
+      .eq("client_id", clientId)
+      .neq("state", "parked");
     if (error) {
       console.warn("[stage-counts]", errorMessage(error));
       return null;

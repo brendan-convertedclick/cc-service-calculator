@@ -11,6 +11,7 @@ function source(over: Partial<TimelineSource> = {}): TimelineSource {
     created_at: "2026-08-01T08:00:00Z",
     state: "pending",
     item_type: "brief",
+    raised_by: "us",
     decided_at: null,
     decided_by_name: null,
     client_note: null,
@@ -206,5 +207,20 @@ describe("buildTimeline — status changes", () => {
       row({ id: "s1", kind: "status", body: null, from_state: "pending", to_state: "approved", created_at: "2026-08-06T09:00:00Z" }),
     ]);
     expect(events.map((e) => e.kind)).toEqual(["asked", "message", "status"]);
+  });
+});
+
+describe("who started it", () => {
+  it("does not say we asked a question the client asked us", () => {
+    const [first] = buildTimeline(
+      source({ item_type: "question", raised_by: "client" }),
+      [],
+    );
+    expect(first.summary).toBe("They asked us this");
+  });
+
+  it("names a date they added as theirs", () => {
+    const [first] = buildTimeline(source({ item_type: "event", raised_by: "client" }), []);
+    expect(first.summary).toBe("They added this date");
   });
 });

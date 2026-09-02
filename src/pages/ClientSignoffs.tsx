@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ExternalLink, Handshake, Link2Off, MessageCircleQuestion, Wand2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertTriangle,
+  ExternalLink,
+  Handshake,
+  CalendarDays,
+  Library,
+  Lightbulb,
+  Link2Off,
+  MessageCircleQuestion,
+  Wand2,
+} from "lucide-react";
 import { DraftSignoffsDialog } from "@/components/signoffs/DraftSignoffsDialog";
 import { AskQuestionDialog } from "@/components/signoffs/AskQuestionDialog";
 import { LogAgreementDialog } from "@/components/signoffs/LogAgreementDialog";
+import { ParkIdeaDialog } from "@/components/signoffs/ParkIdeaDialog";
 import { WaitingTable } from "@/components/signoffs/WaitingTable";
 import { RunwayChart } from "@/components/signoffs/RunwayChart";
 import { TurnaroundStatement } from "@/components/signoffs/TurnaroundStatement";
 import { EvidenceDialog } from "@/components/signoffs/EvidenceDialog";
 import { ActivityPanel } from "@/components/signoffs/ActivityPanel";
+import { MonthCalendar } from "@/components/review/MonthCalendar";
 import { useSignoffCandidates } from "@/hooks/useSignoffCandidates";
 import { ClientReview } from "@/pages/ClientReview";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
@@ -24,11 +37,15 @@ import {
   type SignoffRow,
 } from "@/hooks/useClientSignoffs";
 import { useClientWaiting } from "@/hooks/useClientWaiting";
-import { TYPE_LABEL } from "@/lib/client-review";
+import { useSetItemState } from "@/hooks/useClientActivity";
+import { TYPE_LABEL, eventDateLabel } from "@/lib/client-review";
+import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
+import { todayISO } from "@/lib/dates";
 import { errorMessage } from "@/lib/utils";
 
 const STATE_LABEL: Record<string, string> = {
   pending: "Waiting on client",
+  parked: "Parked",
   approved: "Approved",
   changes_requested: "Changes requested",
 };
@@ -55,6 +72,22 @@ function StateBadge({ row }: { row: SignoffRow }) {
   if (row.state === "changes_requested") {
     return <Badge variant="outline">Back with us</Badge>;
   }
+  if (row.state === "noted") {
+    return (
+      <Badge className="bg-m-tertiary-container text-m-on-tertiary-container">
+        {row.raised_by === "client" ? "Their date" : "Date"}
+      </Badge>
+    );
+  }
+  // Parked says whose move it will be, because that is the one thing the row
+  // still carries — it has no clock, no date and nobody acting on it.
+  if (row.state === "parked") {
+    return (
+      <Badge variant="muted">
+        {row.owed_by === "us" ? "Parked · ours to raise" : "Parked · their call"}
+      </Badge>
+    );
+  }
   return (
     <Badge className="bg-m-primary-container text-m-on-primary-container">
       {STATE_LABEL.pending}
@@ -71,6 +104,117 @@ function fmtDate(iso: string | null): string {
 /** Open / Closed / Everything, for the task ledger. */
 type Scope = "open" | "closed" | "all";
 
+/**
+ * The staff columns on a client's items. One table, two lists: what is live,
+ * and what is parked. They carry the same facts — a parked row simply has
+ * nothing in the columns that measure a clock, which is the point of it.
+ */
+function ItemsTable({
+  rows,
+  onPickClient,
+  onEvidence,
+}: {
+  rows: SignoffRow[];
+  onPickClient: (clientId: string) => void;
+  onEvidence: (row: SignoffRow) => void;
+}) {
+  const setState = useSetItemState();
+  return (
+    <table className="w-full text-body-medium">
+      <thead>
+        <tr className="border-b border-m-outline-variant text-label-medium text-m-on-surface-variant">
+          <th className="px-6 py-2 text-left font-medium">Client</th>
+          <th className="px-3 py-2 text-left font-medium">Type</th>
+          <th className="px-3 py-2 text-left font-medium">Item</th>
+          <th className="px-3 py-2 text-left font-medium">State</th>
+          <th className="px-3 py-2 text-right font-medium">Waiting</th>
+          <th className="px-6 py-2 text-left font-medium">Answered by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r: SignoffRow) => {
+          const late = daysWaiting(r);
+          return (
+            <tr key={r.id} className="border-b border-m-outline-variant/60">
+              <td className="px-6 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => onPickClient(r.client_id)}
+                  className="text-left text-m-primary hover:underline"
+                >
+                  {r.client_name}
+                </button>
+              </td>
+              <td className="px-3 py-2.5">
+                <Badge variant="muted">{TYPE_LABEL[r.item_type]}</Badge>
+              </td>
+              <td className="px-3 py-2.5 text-m-on-surface">{r.client_title}</td>
+              <td className="px-3 py-2.5">
+                <StateBadge row={r} />
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {r.state === "noted" ? (
+                  // The date IS the row. Nothing is late, nothing is waiting.
+                  <span className="text-m-on-surface-variant">{eventDateLabel(r) ?? "—"}</span>
+                ) : r.state === "parked" ? (
+                  // Nothing is late here by definition. The only date a parked
+                  // row has is the note-to-self about looking at it again.
+                  <span className="text-m-on-surface-variant">
+                    {r.due_date ? `look again ${fmtDate(r.due_date)}` : "—"}
+                  </span>
+                ) : r.state !== "pending" ? (
+                  <span className="text-m-on-surface-variant">—</span>
+                ) : late > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-m-error">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {late}d
+                  </span>
+                ) : (
+                  <span className="text-m-on-surface-variant">on time</span>
+                )}
+              </td>
+              <td className="px-6 py-2.5 text-m-on-surface-variant">
+                {r.decided_by_name ? (
+                  <button
+                    type="button"
+                    onClick={() => onEvidence(r)}
+                    className="text-left text-m-primary hover:underline"
+                  >
+                    {r.decided_by_name} · {fmtDate(r.decided_at)}
+                  </button>
+                ) : r.state === "parked" && r.item_type !== "idea" ? (
+                  // The way back for something that was live and got parked.
+                  // An idea has no way back on purpose — it leaves this list by
+                  // being asked properly, as a question, an agreement or a
+                  // brief, which is the act of deciding what it actually is.
+                  <button
+                    type="button"
+                    disabled={setState.isPending}
+                    onClick={() =>
+                      setState.mutate(
+                        { approvalId: r.id, clientId: r.client_id, to: "pending" },
+                        {
+                          onSuccess: () => toast.success("Back on the list. It's on the timeline."),
+                          onError: (e) => toast.error(errorMessage(e)),
+                        },
+                      )
+                    }
+                    className="text-left text-m-primary hover:underline disabled:opacity-50"
+                  >
+                    Unpark
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export function ClientSignoffs() {
   const { data: rows = [], isPending, isError, error } = useClientSignoffs();
   const { data: linkCounts = {} } = useLiveLinkCounts();
@@ -80,6 +224,8 @@ export function ClientSignoffs() {
   const [draftOpen, setDraftOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
+  const [ideaOpen, setIdeaOpen] = useState(false);
+  const [month, setMonth] = useState(currentMonth);
   // The decided row whose evidence is open. Null = closed.
   const [evidenceOf, setEvidenceOf] = useState<SignoffRow | null>(null);
   // Which item the client preview currently has selected. The activity column
@@ -121,8 +267,31 @@ export function ClientSignoffs() {
 
   const q = search.trim().toLowerCase();
 
+  // Parked rows are on the list but on nobody's clock, so they are their own
+  // tab rather than rows mixed into a queue ordered by how late things are.
+  const parked = useMemo(
+    () =>
+      rows
+        .filter((r) => r.state === "parked")
+        .filter((r) => (clientId ? r.client_id === clientId : true))
+        .filter(
+          (r) =>
+            !q ||
+            r.client_title.toLowerCase().includes(q) ||
+            r.client_name.toLowerCase().includes(q),
+        )
+        // Newest first: the top of this list is what was raised most recently,
+        // which is what someone scanning it before a call is looking for.
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [rows, clientId, q],
+  );
+
   const visible = useMemo(() => {
     return rows
+      // Parked has its own tab; an event (0149) is not a sign-off or an ask at
+      // all and lives on the Calendar. This tab is the queue people work
+      // through, and a row nobody can act on is not part of that work.
+      .filter((r) => r.state !== "parked" && r.state !== "noted")
       .filter((r) => (clientId ? r.client_id === clientId : true))
       .filter(
         (r) =>
@@ -153,6 +322,41 @@ export function ClientSignoffs() {
         ),
     [waiting, clientId, q, scope],
   );
+
+  // What the month view plots. Three sources, one grid:
+  //   the client's own dates (events they added on their page),
+  //   anything still open on the list that has a date,
+  //   and the briefed ClickUp tasks that are still moving.
+  // Parked and settled rows are left off — the calendar is what is coming,
+  // and a month full of things already dealt with buries the two that are not.
+  const calendarEntries: CalendarEntry[] = useMemo(() => {
+    const showClient = !clientId;
+    const fromList: CalendarEntry[] = rows
+      .filter((r) => (clientId ? r.client_id === clientId : true))
+      .filter((r) => r.due_date && (r.state === "pending" || r.state === "noted"))
+      .map((r) => ({
+        id: r.id,
+        date: r.due_date!,
+        label: r.client_title,
+        kind: r.state === "noted" ? ("event" as const) : ("due" as const),
+        late: r.state === "pending" && daysWaiting(r) > 0,
+        clientName: showClient ? r.client_name : null,
+      }));
+
+    const fromTasks: CalendarEntry[] = waiting
+      .filter((t) => (clientId ? t.client_id === clientId : true))
+      .filter((t) => t.original_due_date && t.court !== "done")
+      .map((t) => ({
+        id: `task-${t.id}`,
+        date: t.original_due_date!,
+        label: t.title,
+        kind: "task" as const,
+        late: t.original_due_date! < todayISO(),
+        clientName: showClient ? t.client_name : null,
+      }));
+
+    return [...fromList, ...fromTasks];
+  }, [rows, waiting, clientId]);
 
   const previewItem = rows.find((r) => r.id === previewItemId) ?? null;
 
@@ -235,6 +439,16 @@ export function ClientSignoffs() {
                 <Handshake className="mr-1.5 h-3.5 w-3.5" />
                 Record an agreement
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!selected}
+                title={selected ? undefined : "Pick a client first"}
+                onClick={() => setIdeaOpen(true)}
+              >
+                <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
+                Park an idea
+              </Button>
               {candidates.length > 0 && (
                 <Button variant="outline" size="sm" onClick={() => setDraftOpen(true)}>
                   <Wand2 className="mr-1.5 h-3.5 w-3.5" />
@@ -275,6 +489,10 @@ export function ClientSignoffs() {
               <TabsList>
                 <TabsTrigger value="asks">Sign-offs &amp; asks ({pending.length})</TabsTrigger>
                 <TabsTrigger value="waiting">Who&apos;s holding it up ({onClientNow})</TabsTrigger>
+                {/* Nothing here is waiting on anyone — it is the list that
+                    stops good ideas being lost between meetings. */}
+                <TabsTrigger value="parked">Parked ({parked.length})</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar</TabsTrigger>
               </TabsList>
             </div>
 
@@ -314,6 +532,64 @@ export function ClientSignoffs() {
                   />
                   <RunwayChart tasks={visibleTasks} now={now} />
                   <WaitingTable tasks={visibleTasks} now={now} />
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="calendar">
+              <div className="p-6">
+                <p className="mb-4 flex items-start gap-2 text-body-medium text-m-on-surface-variant">
+                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Everything with a date on it{selected ? ` for ${selected.name}` : " across every client"} —
+                    open sign-offs and asks, briefed tasks still moving, and the dates clients
+                    have put on their own page. Parked and settled items are left off.
+                  </span>
+                </p>
+                <MonthCalendar
+                  month={month}
+                  entries={calendarEntries}
+                  onMonthChange={setMonth}
+                  emptyNote="Nothing dated in this month."
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="parked">
+              {parked.length === 0 ? (
+                <div className="flex flex-col items-start gap-3 p-6">
+                  <p className="text-body-medium text-m-on-surface-variant">
+                    Nothing parked{selected ? ` for ${selected.name}` : ""}. This is where the
+                    things worth doing later go — no due date, no chasing, and the client never
+                    sees them.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!selected}
+                    title={selected ? undefined : "Pick a client first"}
+                    onClick={() => setIdeaOpen(true)}
+                  >
+                    <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
+                    Park an idea
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="flex items-start gap-2 px-6 py-4 text-body-medium text-m-on-surface-variant">
+                    <Library className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      {parked.length} {parked.length === 1 ? "thing is" : "things are"} parked
+                      {selected ? ` for ${selected.name}` : ""} — worth doing, not planned yet.
+                      Raise one as a question or an agreement when the time is right; it stays
+                      here until you do.
+                    </span>
+                  </p>
+                  <ItemsTable
+                    rows={parked}
+                    onPickClient={setClientId}
+                    onEvidence={setEvidenceOf}
+                  />
                 </>
               )}
             </TabsContent>
@@ -429,68 +705,11 @@ export function ClientSignoffs() {
                   </div>
                 </div>
               ) : (
-                <table className="w-full text-body-medium">
-                  <thead>
-                    <tr className="border-b border-m-outline-variant text-label-medium text-m-on-surface-variant">
-                      <th className="px-6 py-2 text-left font-medium">Client</th>
-                      <th className="px-3 py-2 text-left font-medium">Type</th>
-                      <th className="px-3 py-2 text-left font-medium">Item</th>
-                      <th className="px-3 py-2 text-left font-medium">State</th>
-                      <th className="px-3 py-2 text-right font-medium">Waiting</th>
-                      <th className="px-6 py-2 text-left font-medium">Answered by</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.map((r: SignoffRow) => {
-                      const late = daysWaiting(r);
-                      return (
-                        <tr key={r.id} className="border-b border-m-outline-variant/60">
-                          <td className="px-6 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setClientId(r.client_id)}
-                              className="text-left text-m-primary hover:underline"
-                            >
-                              {r.client_name}
-                            </button>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <Badge variant="muted">{TYPE_LABEL[r.item_type]}</Badge>
-                          </td>
-                          <td className="px-3 py-2.5 text-m-on-surface">{r.client_title}</td>
-                          <td className="px-3 py-2.5">
-                            <StateBadge row={r} />
-                          </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">
-                            {r.state !== "pending" ? (
-                              <span className="text-m-on-surface-variant">—</span>
-                            ) : late > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-m-error">
-                                <AlertTriangle className="h-3.5 w-3.5" />
-                                {late}d
-                              </span>
-                            ) : (
-                              <span className="text-m-on-surface-variant">on time</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-2.5 text-m-on-surface-variant">
-                            {r.decided_by_name ? (
-                              <button
-                                type="button"
-                                onClick={() => setEvidenceOf(r)}
-                                className="text-left text-m-primary hover:underline"
-                              >
-                                {r.decided_by_name} · {fmtDate(r.decided_at)}
-                              </button>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <ItemsTable
+                  rows={visible}
+                  onPickClient={setClientId}
+                  onEvidence={setEvidenceOf}
+                />
               )}
             </TabsContent>
           </Tabs>
@@ -517,6 +736,12 @@ export function ClientSignoffs() {
           <LogAgreementDialog
             open={agreementOpen}
             onOpenChange={setAgreementOpen}
+            clientId={selected.id}
+            clientName={selected.name}
+          />
+          <ParkIdeaDialog
+            open={ideaOpen}
+            onOpenChange={setIdeaOpen}
             clientId={selected.id}
             clientName={selected.name}
           />

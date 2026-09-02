@@ -235,6 +235,27 @@ describe("countStages", () => {
     expect(c.oldestDays).toBe(11);
   });
 
+  it("counts a parked item in no bucket at all", () => {
+    // Parked is staff-only and on nobody's clock (0148). Landing in any of the
+    // three would put a number in a chase email that the client cannot see —
+    // and its age must not become the "oldest waiting" line either.
+    const day = 86_400_000;
+    const c = countStages([
+      row(),
+      row({ state: "parked" }),
+      row({ state: "parked", owed_by: "us" }),
+      row({ state: "parked", briefs: { client_wait_ms: 90 * day } }),
+    ]);
+    expect(c).toEqual({ waitingOnYou: 1, withUs: 0, signedOff: 0, oldestDays: 0 });
+  });
+
+  it("counts an event in no bucket either", () => {
+    // A date the client put on their own calendar is not an item waiting on
+    // them. Counting it would chase them about their own launch.
+    const c = countStages([row(), row({ state: "noted", due_date: "2026-10-01" })]);
+    expect(c).toEqual({ waitingOnYou: 1, withUs: 0, signedOff: 0, oldestDays: 0 });
+  });
+
   it("handles a client with nothing at all", () => {
     expect(countStages([])).toEqual({
       waitingOnYou: 0,

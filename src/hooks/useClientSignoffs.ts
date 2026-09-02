@@ -43,7 +43,7 @@ export type SignoffRow = ReviewItem & {
 // briefs(client_wait_ms) is the ONE column read from briefs, mirroring the
 // edge function's rule 1 — see the header of supabase/functions/client-review.
 const ITEM_COLUMNS =
-  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, created_at, client_note, briefs(client_wait_ms)";
+  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(client_wait_ms)";
 
 /**
  * The evidence behind one decision (0142). Staff-only — none of it crosses to
@@ -152,10 +152,15 @@ export function useClientReviewPreview(clientId: string | undefined) {
           .eq("client_id", clientId)
           .not("full_name", "is", null)
           .order("full_name"),
+        // Parked is EXCLUDED here, exactly as the edge function excludes it
+        // (0148). The preview's whole job is to show what the client sees, and
+        // an idea we have not raised with them appearing on it would be the
+        // same class of leak as an internal note.
         supabase
           .from("client_approvals")
           .select(ITEM_COLUMNS)
           .eq("client_id", clientId)
+          .neq("state", "parked")
           .order("created_at", { ascending: false }),
         // kind='note' EXCLUDED, exactly as the edge function excludes it. An
         // internal note appearing in the preview would be a staff-only leak in
@@ -191,6 +196,8 @@ export function useClientReviewPreview(clientId: string | undefined) {
         agreed_at: r.agreed_at,
         agreed_via: r.agreed_via,
         owed_by: r.owed_by === "us" ? ("us" as const) : ("client" as const),
+        raised_by: r.raised_by === "client" ? ("client" as const) : ("us" as const),
+        raised_by_name: r.raised_by_name,
         created_at: r.created_at,
         client_note: r.client_note,
         waiting_ms: waitingMsOf(r.briefs),

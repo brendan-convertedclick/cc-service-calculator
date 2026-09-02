@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { CalendarDays, CalendarPlus, List, MessageCircleQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,20 +8,25 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ItemDetail } from "@/components/review/ItemDetail";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
+import { MonthCalendar } from "@/components/review/MonthCalendar";
+import { RaiseDialog } from "@/components/review/RaiseDialog";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   useRememberedApprover,
   useReviewDecision,
   useReviewList,
+  useReviewRaise,
   useReviewReply,
 } from "@/hooks/useClientReview";
 import { useClientReviewPreview } from "@/hooks/useClientSignoffs";
 import { bucketCounts, bucketOf, formatAsAt, isOverdue, REVIEW_REPLY_TO, sortForQueue } from "@/lib/client-review";
+import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
 import { cn, errorMessage } from "@/lib/utils";
 import {
   isTokenFailure,
   type DecideResponse,
   type RememberedApprover,
+  type RaiseKind,
   type ReviewBucket,
   type ReviewDecision,
   type ReviewIdentity,
@@ -31,6 +37,9 @@ const BUCKETS: { id: ReviewBucket; label: string }[] = [
   { id: "your-move", label: "Your move" },
   { id: "with-us", label: "With us" },
   { id: "signed-off", label: "Signed off" },
+  // Dates they told us about. Last, because nothing here needs doing — it is
+  // the pane you look at, not the one you work through.
+  { id: "coming-up", label: "Coming up" },
 ];
 
 const EMPTY_BUCKET_COPY: Record<ReviewBucket, [string, string]> = {
@@ -42,6 +51,10 @@ const EMPTY_BUCKET_COPY: Record<ReviewBucket, [string, string]> = {
   "signed-off": [
     "Nothing signed off yet.",
     "Once you approve something it'll stay here for your records.",
+  ],
+  "coming-up": [
+    "No dates on the calendar yet.",
+    "Add anything happening on your side — a launch, a sale, time out of office — and we'll plan around it.",
   ],
 };
 
@@ -59,6 +72,12 @@ const TOKEN_FAILURE_COPY: Record<TokenFailure["status"], { title: string; body: 
     body: "It may have been copied only halfway, or shortened by a mail app along the way. Try opening it from the original email — and if it still won't open, reply to that email and we'll sort it out.",
   },
 };
+
+const RAISE_INVALID_COPY = {
+  missing_title: "Give it a short name first.",
+  missing_body: "Write your question first.",
+  missing_date: "Pick the date it happens.",
+} as const;
 
 const INVALID_COPY = {
   missing_comment: "Add a note so we know what to change.",
@@ -111,6 +130,7 @@ export function ClientReview({
   const listQuery = preview ? previewQuery : tokenQuery;
   const decisionMutation = useReviewDecision(token);
   const replyMutation = useReviewReply(token);
+  const raiseMutation = useReviewRaise(token);
   const [remembered, setRemembered] = useRememberedApprover(token);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
@@ -123,6 +143,13 @@ export function ClientReview({
   } | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [replyError, setReplyError] = useState<string | null>(null);
+  // The month view. A toggle rather than a fourth column: on a phone the
+  // queue and a calendar cannot both be on screen, and a calendar is
+  // something you go and look at, not something you work beside.
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [month, setMonth] = useState(currentMonth);
+  const [raiseKind, setRaiseKind] = useState<RaiseKind | null>(null);
+  const [raiseError, setRaiseError] = useState<string | null>(null);
 
   const data = listQuery.data;
   const ok = data?.status === "ok" ? data : null;
@@ -140,6 +167,20 @@ export function ClientReview({
   const counts = bucketCounts(items);
   const bucketItems = sorted.filter((item) => bucketOf(item) === bucket);
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+
+  // What goes on the month view: their dates, and anything still open that has
+  // a date on it. A settled item is deliberately left off — the calendar is
+  // what is coming, and a month filled with things already dealt with buries
+  // the two that are not.
+  const calendarEntries: CalendarEntry[] = items
+    .filter((item) => item.due_date && (item.state === "pending" || item.state === "noted"))
+    .map((item) => ({
+      id: item.id,
+      date: item.due_date!,
+      label: item.client_title,
+      kind: item.state === "noted" ? "event" : "due",
+      late: isOverdue(item),
+    }));
 
   // Auto-open the first item in "Your move" the moment the list first
   // loads — once only, so a decision later on never yanks the client away
@@ -254,6 +295,34 @@ export function ClientReview({
     );
   }
 
+  function submitRaise(input: { kind: RaiseKind; title: string; body?: string; date?: string }) {
+    setRaiseError(null);
+    if (preview) {
+      // Same rule as the decision and reply controls: staff are looking at the
+      // client's screen, so it keeps its real appearance and the action is
+      // caught here rather than disabled.
+      setRaiseError("Preview only — nothing was sent. This is the screen the client sees.");
+      return;
+    }
+    raiseMutation.mutate(input, {
+      onSuccess: (res) => {
+        if (res.status === "ok") {
+          setRaiseKind(null);
+          // Land them on what they just created rather than leaving them where
+          // they were wondering whether it worked.
+          setView("list");
+          setBucket(input.kind === "event" ? "coming-up" : "with-us");
+          setSelectedId(isDesktop ? res.item.id : null);
+        } else if (res.status === "invalid") {
+          setRaiseError(RAISE_INVALID_COPY[res.reason]);
+        } else if (isTokenFailure(res)) {
+          void listQuery.refetch();
+        }
+      },
+      onError: () => setRaiseError("That didn't send. Nothing was recorded — try again?"),
+    });
+  }
+
   function handleQuickApprove(id: string) {
     setDecisionError(null);
     setSelectedId(id);
@@ -324,9 +393,63 @@ export function ClientReview({
             </p>
           ) : null}
         </div>
-        {asAt ? <p className="text-label-small text-m-on-surface-variant">As at {asAt}</p> : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Theirs to start, not just to answer. Two buttons rather than one
+              "add" — a question and a date ask completely different things of
+              us, and the choice belongs before the typing, not after it. */}
+          <Button variant="outline" size="sm" onClick={() => setRaiseKind("question")}>
+            <MessageCircleQuestion className="mr-1.5 h-3.5 w-3.5" />
+            Ask us something
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setRaiseKind("event")}>
+            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+            Add a date
+          </Button>
+          <div className="flex rounded-full border border-m-outline-variant p-0.5">
+            {([
+              { id: "list" as const, label: "List", Icon: List },
+              { id: "calendar" as const, label: "Calendar", Icon: CalendarDays },
+            ]).map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setView(id)}
+                aria-pressed={view === id}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-label-large transition-colors",
+                  view === id
+                    ? "bg-m-primary-container text-m-on-primary-container"
+                    : "text-m-on-surface-variant hover:bg-m-surface-container",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {asAt ? <p className="text-label-small text-m-on-surface-variant">As at {asAt}</p> : null}
+        </div>
       </header>
 
+      {view === "calendar" ? (
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <MonthCalendar
+            month={month}
+            entries={calendarEntries}
+            onMonthChange={setMonth}
+            emptyNote="Nothing on this month. Use the arrows to look ahead, or add a date so we can plan around it."
+            onPick={(entry) => {
+              // Back to the list, on the thing they clicked. A calendar that
+              // cannot be clicked through to the detail is a picture.
+              const item = items.find((i) => i.id === entry.id);
+              if (!item) return;
+              setView("list");
+              setBucket(bucketOf(item));
+              setSelectedId(item.id);
+            }}
+          />
+        </div>
+      ) : (
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         <aside className="flex gap-2 overflow-x-auto border-b border-m-outline-variant p-3 lg:w-56 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r lg:p-4">
           {BUCKETS.map((b) => (
@@ -407,6 +530,21 @@ export function ClientReview({
           </SheetContent>
         </Sheet>
       </div>
+      )}
+
+      <RaiseDialog
+        open={raiseKind !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRaiseKind(null);
+            setRaiseError(null);
+          }
+        }}
+        initialKind={raiseKind ?? "question"}
+        busy={raiseMutation.isPending}
+        error={raiseError}
+        onSubmit={submitRaise}
+      />
 
       <IdentityDialog
         open={pendingDecision !== null}

@@ -16,6 +16,8 @@ import type {
   ListRequest,
   ListResponse,
   RememberedApprover,
+  RaiseRequest,
+  RaiseResponse,
   ReplyRequest,
   ReplyResponse,
   ReviewDecisionInput,
@@ -85,6 +87,32 @@ export function useReviewReply(
         token,
         ...input,
       } satisfies ReplyRequest),
+    onSuccess: (data) => {
+      if (data.status === "ok") qc.invalidateQueries({ queryKey: reviewKey(token) });
+    },
+  });
+}
+
+/**
+ * The client puts something on the list themselves: a question for us, or a
+ * date we should know about.
+ *
+ * Separate from reply for the same reason reply is separate from decide — it
+ * creates a row rather than moving one, and conflating "ask us something new"
+ * with "write on this thing" is how a question ends up buried under an
+ * unrelated item where nobody triages it.
+ */
+export function useReviewRaise(
+  token: string,
+): UseMutationResult<RaiseResponse, Error, Omit<RaiseRequest, "action" | "token">> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<RaiseRequest, "action" | "token">) =>
+      callEdgeFn<RaiseResponse>("client-review", {
+        action: "raise",
+        token,
+        ...input,
+      } satisfies RaiseRequest),
     onSuccess: (data) => {
       if (data.status === "ok") qc.invalidateQueries({ queryKey: reviewKey(token) });
     },

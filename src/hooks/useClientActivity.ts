@@ -42,7 +42,7 @@ export function useApprovalTimeline(approvalId: string | undefined) {
       const { data: approvalRaw, error: approvalErr } = await supabase
         .from("client_approvals")
         .select(
-          "client_id, created_at, state, item_type, decided_at, decided_by_name, client_note, outbound_email_id",
+          "client_id, created_at, state, item_type, raised_by, decided_at, decided_by_name, client_note, outbound_email_id",
         )
         .eq("id", approvalId!)
         .single();
@@ -52,6 +52,7 @@ export function useApprovalTimeline(approvalId: string | undefined) {
         created_at: string;
         state: string;
         item_type: string;
+        raised_by: string;
         decided_at: string | null;
         decided_by_name: string | null;
         client_note: string | null;
@@ -130,6 +131,7 @@ export function useApprovalTimeline(approvalId: string | undefined) {
         created_at: approval.created_at,
         state: approval.state,
         item_type: approval.item_type,
+        raised_by: approval.raised_by,
         decided_at: approval.decided_at,
         decided_by_name: approval.decided_by_name,
         client_note: approval.client_note,
@@ -331,9 +333,19 @@ export function useCloseOurAgreement() {
   });
 }
 
-/** The three states staff can move an item between, in the team's words. */
+/**
+ * The states staff can move an item between, in the team's words.
+ *
+ * "Parked" (0148) is the one that is not a step in the sequence: it takes an
+ * item off every clock without settling it, for the thing that is worth doing
+ * but not now. Moving TO parked is offered on anything; moving an idea OFF it
+ * is not — the database refuses (an idea is always parked), because the way an
+ * idea leaves the list is by being asked properly as a question, an agreement
+ * or a brief.
+ */
 export const ITEM_STATES = [
   { value: "pending", label: "Waiting on client" },
+  { value: "parked", label: "Parked — not now" },
   { value: "changes_requested", label: "Back with us" },
   { value: "approved", label: "Signed off" },
 ] as const;
@@ -384,7 +396,9 @@ export function useSetItemState() {
         if (full) name = full;
       }
 
-      const settling = input.to !== "pending";
+      // Parking is not a decision, so it clears the stamp exactly as
+      // reopening does — client_approvals_decided_chk (0148) requires it.
+      const settling = input.to === "approved" || input.to === "changes_requested";
       const { error } = await supabase
         .from("client_approvals")
         .update(
@@ -397,10 +411,10 @@ export function useSetItemState() {
                 decided_ask: current.ask,
               }
             : {
-                // Reopening clears the whole decision, not just the state —
-                // leaving a name and a timestamp on something nobody has
-                // decided is how a record stops being one.
-                state: "pending",
+                // Reopening or parking clears the whole decision, not just the
+                // state — leaving a name and a timestamp on something nobody
+                // has decided is how a record stops being one.
+                state: input.to,
                 decided_at: null,
                 decided_by_name: null,
                 decided_by_email: null,

@@ -117,12 +117,20 @@ export function ItemConversation({
 
       {/* The outcome closes the thread rather than sitting above it in a
           banner. A conversation reads downward; announcing the ending first
-          and then showing the messages that led to it does not. */}
-      {item.state !== "pending" ? (
+          and then showing the messages that led to it does not.
+
+          Settled means decided, and an event is not — it is a date on the
+          calendar, so closing its thread with "Approved, thank you" would
+          announce an outcome to something that has none. */}
+      {item.state !== "pending" && item.state !== "noted" ? (
         <p className="text-center text-label-small text-m-on-surface-variant">
-          {item.state === "approved"
-            ? (SETTLED_LINE[item.item_type]?.done ?? SETTLED_LINE.brief.done)
-            : (SETTLED_LINE[item.item_type]?.back ?? SETTLED_LINE.brief.back)}
+          {item.item_type === "question" && item.raised_by === "client"
+            ? // Their question, our answer. "We have your answer" over
+              // something they asked us reads as though we answered ourselves.
+              "Answered — it's above."
+            : item.state === "approved"
+              ? (SETTLED_LINE[item.item_type]?.done ?? SETTLED_LINE.brief.done)
+              : (SETTLED_LINE[item.item_type]?.back ?? SETTLED_LINE.brief.back)}
           {item.decided_by_name ? ` · ${item.decided_by_name}` : ""}
           {settledAt(item) ? `, ${settledAt(item)}` : ""}
         </p>
@@ -138,8 +146,12 @@ export function ItemConversation({
             answering
               ? "Your answer…"
               : ours
-                ? "Need it sooner? Tell us here."
-                : "Write a reply…"
+                ? item.raised_by === "client"
+                  ? "Anything to add?"
+                  : "Need it sooner? Tell us here."
+                : item.state === "noted"
+                  ? "Anything we should know about this date?"
+                  : "Write a reply…"
           }
         />
 

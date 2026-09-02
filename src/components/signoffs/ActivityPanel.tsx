@@ -61,6 +61,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatEventTime, type TimelineKind } from "@/lib/client-timeline";
+import type { ReviewItemState } from "@/types/client-review";
 import { cn, errorMessage, toggleInSet } from "@/lib/utils";
 
 const ICON: Record<TimelineKind, typeof Mail> = {
@@ -93,8 +94,13 @@ export function ActivityPanel({
   clientName: string;
   title: string;
   ourAgreement?: { detail: string | null; dueDate: string | null; briefId: string | null } | null;
-  /** The selected item's current state, for the manual override. */
-  state?: ItemState;
+  /**
+   * The selected item's current state, for the manual override. A state that
+   * is not one of ITEM_STATES has no moves — an event (0149) is a date, not a
+   * step in a pipeline — and the control hides itself rather than the caller
+   * having to know that.
+   */
+  state?: ReviewItemState;
   /**
    * Whether this client has ANY items. Without it the empty state told people
    * to "pick something from the list" when the list was empty — an instruction
@@ -111,6 +117,8 @@ export function ActivityPanel({
   const toBrief = useAgreementToBrief();
   const close = useCloseOurAgreement();
   const setState = useSetItemState();
+  // Null for a state with nowhere to go — see the `state` prop's note.
+  const movable = ITEM_STATES.find((o) => o.value === state)?.value ?? null;
   const [briefForSheet, setBriefForSheet] = useState<string | null>(null);
 
   const [mode, setMode] = useState<"message" | "note">("message");
@@ -207,11 +215,11 @@ export function ActivityPanel({
               pressed something; this is for when they told you on the phone,
               or when something was closed by mistake. Every change writes a
               timeline row naming who moved it. */}
-          {state && clientId ? (
+          {movable && clientId ? (
             <div className="mt-3 flex items-center gap-2">
               <span className="text-label-small text-m-on-surface-variant">Status</span>
               <Select
-                value={state}
+                value={movable}
                 disabled={setState.isPending}
                 onValueChange={(next) => {
                   setState.mutate(

@@ -6,6 +6,7 @@ import {
   bucketCounts,
   daysOverdue,
   dueStatus,
+  eventDateLabel,
   formatAsAt,
   isOverdue,
   sortForQueue,
@@ -34,6 +35,8 @@ function item(over: Partial<ReviewItem> & { id: string }): ReviewItem {
     agreed_at: null,
     agreed_via: null,
     owed_by: "client",
+    raised_by: "us",
+    raised_by_name: null,
     waiting_ms: null,
     messages: [],
     created_at: "2026-08-01T08:00:00Z",
@@ -86,7 +89,7 @@ describe("bucketCounts", () => {
       item({ id: "b" }),
       item({ id: "c", state: "approved", decided_at: "2026-08-20T09:00:00Z" }),
     ]);
-    expect(counts).toEqual({ "your-move": 2, "with-us": 0, "signed-off": 1 });
+    expect(counts).toEqual({ "your-move": 2, "with-us": 0, "signed-off": 1, "coming-up": 0 });
   });
 });
 
@@ -229,5 +232,61 @@ describe("an agreement we made", () => {
     expect(agreedLine(ours({ agreed_at: "2026-08-04", agreed_via: "meeting" }))).toBe(
       "We agreed on 4 August, in a meeting.",
     );
+  });
+});
+
+describe("events", () => {
+  const event = (id: string, date: string) =>
+    item({ id, item_type: "event", state: "noted", due_date: date, owed_by: "client" });
+
+  it("sits in its own bucket, in nobody's court", () => {
+    expect(bucketOf(event("e1", daysFromToday(10)))).toBe("coming-up");
+  });
+
+  it("is never overdue and never due — its date is not a deadline", () => {
+    // Its date passing is not lateness. Without the separate state this would
+    // read as an overdue ask the day after a client's launch.
+    const past = event("e1", daysFromToday(-30));
+    expect(isOverdue(past)).toBe(false);
+    expect(dueStatus(past)).toBeNull();
+    expect(daysOverdue(past)).toBe(0);
+  });
+
+  it("reads as a diary — soonest first, not by title", () => {
+    const order = sortForQueue([
+      event("z", daysFromToday(20)),
+      event("a", daysFromToday(2)),
+      event("m", daysFromToday(9)),
+    ]).map((i) => i.id);
+    expect(order).toEqual(["a", "m", "z"]);
+  });
+
+  it("labels its date, and labels nothing else", () => {
+    expect(eventDateLabel(event("e1", "2026-09-14"))).toMatch(/14 Sep/);
+    expect(eventDateLabel(item({ id: "b1", due_date: "2026-09-14" }))).toBeNull();
+  });
+
+  it("counts in its own bucket and leaves the other three alone", () => {
+    const counts = bucketCounts([
+      item({ id: "p1" }),
+      event("e1", daysFromToday(3)),
+      event("e2", daysFromToday(4)),
+    ]);
+    expect(counts).toMatchObject({ "your-move": 1, "coming-up": 2, "with-us": 0 });
+  });
+});
+
+describe("a question the client asked us", () => {
+  it("reads as theirs on the chip", () => {
+    const theirs = item({ id: "q1", item_type: "question", owed_by: "us", raised_by: "client" });
+    expect(typeLabelFor(theirs)).toBe("You asked");
+    // Ours still reads as a question we are asking them.
+    expect(typeLabelFor(item({ id: "q2", item_type: "question" }))).toBe("Question");
+  });
+
+  it("sits with us, because a question you asked is not one you answer", () => {
+    expect(
+      bucketOf(item({ id: "q1", item_type: "question", owed_by: "us", raised_by: "client" })),
+    ).toBe("with-us");
   });
 });

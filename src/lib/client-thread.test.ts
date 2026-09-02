@@ -17,6 +17,8 @@ function item(over: Partial<ReviewItem> = {}): ReviewItem {
     agreed_at: null,
     agreed_via: null,
     owed_by: "client",
+    raised_by: "us",
+    raised_by_name: null,
     waiting_ms: null,
     messages: [],
     created_at: "2026-08-01T08:00:00Z",
@@ -100,5 +102,36 @@ describe("threadOf — the decision", () => {
 
   it("ignores a note with no decision timestamp — that pairing cannot be placed", () => {
     expect(threadOf(item({ client_note: "stray", decided_at: null }))).toHaveLength(1);
+  });
+});
+
+describe("threadOf, when the client started it", () => {
+  it("opens with THEIR bubble, in their name", () => {
+    // A question they asked, rendered as ours, would show a client their own
+    // words attributed to Converted Click on the one page whose entire job is
+    // to be trustworthy about who said what.
+    const thread = threadOf(
+      item({
+        raised_by: "client",
+        raised_by_name: "Chantal Jacobs",
+        ask: "Are we still on for the October send?",
+        owed_by: "us",
+      }),
+    );
+    expect(thread[0]).toMatchObject({
+      from: "them",
+      author: "Chantal Jacobs",
+      body: "Are we still on for the October send?",
+    });
+  });
+
+  it("still opens as ours when we asked", () => {
+    const thread = threadOf(item({ ask: "Which of the two headlines?" }));
+    expect(thread[0]).toMatchObject({ from: "us", author: null });
+  });
+
+  it("names nobody on a legacy shared link rather than guessing", () => {
+    const thread = threadOf(item({ raised_by: "client", raised_by_name: null }));
+    expect(thread[0]).toMatchObject({ from: "them", author: null });
   });
 });

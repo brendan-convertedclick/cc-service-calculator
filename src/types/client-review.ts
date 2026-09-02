@@ -15,14 +15,24 @@
 // The edge function mirrors these types at the top of its own file, because
 // Deno cannot import from src/. Change one, change both.
 
-/** Which of the three panes an item belongs to. Derived, never stored. */
-export type ReviewBucket = "your-move" | "with-us" | "signed-off";
+/** Which pane an item belongs to. Derived, never stored. */
+export type ReviewBucket = "your-move" | "with-us" | "signed-off" | "coming-up";
 
 /** What a client can decide. Matches client_approvals.state's non-pending values. */
 export type ReviewDecision = "approved" | "changes_requested";
 
-/** client_approvals.state, verbatim. */
-export type ReviewItemState = "pending" | ReviewDecision;
+/**
+ * client_approvals.state, verbatim.
+ *
+ * 'parked' is staff-only — an item that exists but whose time is not right.
+ * 'noted' belongs to events and to nothing else (0149): a date nobody acts on.
+ * Both are undecided, so neither carries a decided_at.
+ *
+ * The client-review function filters it out of the list query and the staff
+ * preview mirrors that filter, so a parked item never reaches this page at
+ * all. It is in the union because the staff table renders the same rows.
+ */
+export type ReviewItemState = "pending" | "parked" | "noted" | ReviewDecision;
 
 /**
  * The "And you are?" picker. Names only — a contact's email never crosses the
@@ -40,13 +50,19 @@ export type ReviewContact = {
  *   brief     — a deliverable awaiting APPROVAL       (Approve / Request changes)
  *   question  — something we asked, awaiting an ANSWER (answer box + Send)
  *   agreement — something they committed to, awaiting DOING (Done / Not yet)
+ *   idea      — worth considering, not planned. NO controls, because it never
+ *               reaches a client: an idea is always parked (0148) and parked
+ *               rows are filtered out server-side.
+ *   event     — a date in the client's world, which THEY can add (0149). The
+ *               only type nobody acts on, so it has no controls and its own
+ *               state ('noted') rather than a type exclusion in every count.
  *
  * 'brief' is the value a task has carried since 0139 and is deliberately not
  * renamed to 'task' — the ClickUp candidates flow, the existing rows and
  * client_approvals_brief_ref_chk all key off it. "Task" is the label the UI
  * puts on it, nothing more.
  */
-export type ReviewItemType = "brief" | "question" | "agreement";
+export type ReviewItemType = "brief" | "question" | "agreement" | "idea" | "event";
 
 /** One row in the queue. `id` is client_approvals.id — never briefs.id. */
 export type ReviewItem = {
@@ -93,6 +109,18 @@ export type ReviewItem = {
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */
   created_at: string;
+  /**
+   * Who put this on the list. A client can raise a question or an event from
+   * their own page (0149), and their question must not open with a bubble
+   * attributed to us — see threadOf.
+   */
+  raised_by: "us" | "client";
+  /**
+   * The client contact who raised it, resolved server-side from their personal
+   * link and snapshotted. Null when we raised it, and null on a legacy shared
+   * link where there is nobody to name. NEVER a staff name.
+   */
+  raised_by_name: string | null;
   /**
    * What they wrote when they decided — the answer to a question, or the note
    * that came with requesting changes. Their own words, so it belongs in the
@@ -166,7 +194,32 @@ export type ReplyRequest = {
   body: string;
 };
 
-export type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest;
+/**
+ * What a client can start themselves. Two kinds and no more: a question they
+ * want answered, and a date we should know about. Deliberately NOT a way to
+ * create work — "please redo the banner" is a conversation, and it arrives as
+ * a question that staff turn into a brief.
+ */
+export type RaiseKind = "question" | "event";
+
+export type RaiseRequest = {
+  action: "raise";
+  token: string;
+  kind: RaiseKind;
+  /** One line. What it is about. */
+  title: string;
+  /** The question itself. Required for a question, optional context for an event. */
+  body?: string;
+  /** "YYYY-MM-DD". Required for an event, ignored for a question. */
+  date?: string;
+};
+
+export type RaiseResponse =
+  | { status: "ok"; item: ReviewItem }
+  | { status: "invalid"; reason: "missing_title" | "missing_body" | "missing_date" }
+  | TokenFailure;
+
+export type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest | RaiseRequest;
 
 // --- responses ------------------------------------------------------------
 //
@@ -214,7 +267,7 @@ export type DecideResponse =
 
 /** Narrowing helper — every response type this API returns goes through it. */
 export function isTokenFailure(
-  r: ListResponse | DecideResponse | ReplyResponse,
+  r: ListResponse | DecideResponse | ReplyResponse | RaiseResponse,
 ): r is TokenFailure {
   return r.status === "expired" || r.status === "revoked" || r.status === "unknown";
 }

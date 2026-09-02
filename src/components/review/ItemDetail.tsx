@@ -62,7 +62,12 @@ export function ItemDetail({
         ) : null}
         {item.due_date ? (
           <p className="mt-1 text-label-small text-m-on-surface-variant">
-            {overdue ? "Was needed by " : "Needed by "}
+            {/* An event's date is when it happens, not when it is owed. */}
+            {item.state === "noted"
+              ? "Happening on "
+              : overdue
+                ? "Was needed by "
+                : "Needed by "}
             {formatDueDate(item.due_date)}
           </p>
         ) : null}
@@ -80,7 +85,18 @@ export function ItemDetail({
       {item.state === "pending" && item.owed_by === "us" ? (
         <div className="rounded-lg bg-m-surface-container p-4">
           <p className="text-body-medium text-m-on-surface">
-            This one is with us — we said we would do it. Nothing for you to press.
+            {item.raised_by === "client"
+              ? "You asked us this — it's with us. We'll answer right here."
+              : "This one is with us — we said we would do it. Nothing for you to press."}
+          </p>
+        </div>
+      ) : null}
+
+      {item.state === "noted" ? (
+        <div className="rounded-lg bg-m-surface-container p-4">
+          <p className="text-body-medium text-m-on-surface">
+            A date on your side, so we can plan around it. Nothing to approve — add anything we
+            should know below.
           </p>
         </div>
       ) : null}

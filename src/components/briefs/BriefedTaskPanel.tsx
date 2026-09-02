@@ -34,6 +34,7 @@ import { useTeam } from "@/hooks/useTeam";
 import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
 import { BILLING_LABEL, type BillingType } from "@/lib/brief-routing";
 import { errorMessage } from "@/lib/utils";
+import type { ReviewItemState } from "@/types/client-review";
 import type { ExtensionRequestRow } from "@/types/extension-requests";
 import type { Database } from "@/types/db";
 
@@ -76,10 +77,18 @@ function formatDecidedAt(iso: string | null): string {
 }
 
 /** client_approvals.state → the badge shown in the status readout. */
-const SIGNOFF_BADGE = {
-  pending: { variant: "warning" as const, label: "Awaiting sign-off" },
-  approved: { variant: "success" as const, label: "Approved" },
-  changes_requested: { variant: "destructive" as const, label: "Changes requested" },
+const SIGNOFF_BADGE: Record<
+  ReviewItemState,
+  { variant: "warning" | "success" | "destructive" | "muted"; label: string }
+> = {
+  pending: { variant: "warning", label: "Awaiting sign-off" },
+  // On the list, off the clock (0148) — not waiting on anybody, so not warned about.
+  parked: { variant: "muted", label: "Parked" },
+  // An event (0149). It cannot happen on a brief-linked row today, but the
+  // state is in the union so the map must be total.
+  noted: { variant: "muted", label: "On the calendar" },
+  approved: { variant: "success", label: "Approved" },
+  changes_requested: { variant: "destructive", label: "Changes requested" },
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

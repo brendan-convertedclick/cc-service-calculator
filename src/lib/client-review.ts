@@ -32,8 +32,13 @@ export const REVIEW_REPLY_TO = "hello@convertedclick.co.za";
  *                       ask them to close something they cannot do.
  *   changes_requested → they answered and it came back to us
  *   approved          → done, kept for the record
+ *   noted             → an event: a date, in nobody's court at all
  */
 export function bucketOf(item: ReviewItem): ReviewBucket {
+  // An event is a date, not a job. It is in nobody's court, which is exactly
+  // why it has its own state (0149) rather than being filtered out of the
+  // three that are all about whose move it is.
+  if (item.state === "noted") return "coming-up";
   if (item.state === "pending") return item.owed_by === "us" ? "with-us" : "your-move";
   if (item.state === "changes_requested") return "with-us";
   return "signed-off";
@@ -66,6 +71,7 @@ export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> 
     "your-move": 0,
     "with-us": 0,
     "signed-off": 0,
+    "coming-up": 0,
   };
   for (const item of items) counts[bucketOf(item)] += 1;
   return counts;
@@ -83,9 +89,21 @@ export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> 
  *   3. within undecided and equally pressured, soonest due date first
  *   4. within decided, most recently decided first
  *   5. title as the final tie-break, so the order is stable across renders
+ *
+ * Events sit outside all of that — they are a diary, sorted by their date.
  */
 export function sortForQueue(items: ReviewItem[]): ReviewItem[] {
   return [...items].sort((a, b) => {
+    // Events are a diary, so they read like one: soonest first, oldest last.
+    // Without this they fall into the decided branch below, which sorts by a
+    // decided_at they will never have and lands them in title order.
+    const aNoted = a.state === "noted";
+    const bNoted = b.state === "noted";
+    if (aNoted && bNoted) {
+      return (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
+        a.client_title.localeCompare(b.client_title);
+    }
+
     const aPending = a.state === "pending";
     const bPending = b.state === "pending";
     if (aPending !== bPending) return aPending ? -1 : 1;
@@ -133,11 +151,21 @@ export const TYPE_LABEL: Record<ReviewItemType, string> = {
   brief: "Sign-off",
   question: "Question",
   agreement: "You agreed",
+  // Staff-only. An idea is always parked (0148) and parked rows never cross to
+  // a client, so this label is only ever read by the staff table.
+  idea: "Idea",
+  event: "Date",
 };
 
-/** The chip, which for an agreement depends on who made the promise. */
+/**
+ * The chip. Two types read differently depending on which way they run: an
+ * agreement depends on who made the promise, and a question depends on who
+ * asked — "Question" over something the client themselves sent us reads as
+ * though we are asking them their own question back.
+ */
 export function typeLabelFor(item: ReviewItem): string {
   if (item.item_type === "agreement") return item.owed_by === "us" ? "We agreed" : "You agreed";
+  if (item.item_type === "question" && item.raised_by === "client") return "You asked";
   return TYPE_LABEL[item.item_type];
 }
 
@@ -215,6 +243,28 @@ export function dueStatus(item: ReviewItem): DueStatus {
 }
 
 /**
+ * "14 Sep", or "14 Sep 2027" when it is not this year — the date on an event.
+ *
+ * Events sit outside dueStatus entirely: nothing is overdue, nothing is due
+ * "in 3 days", because nobody has to do anything. What the row needs is the
+ * plain date, which is the whole content of the item. Returns null for
+ * anything that is not a dated event, so the caller renders nothing rather
+ * than an empty badge.
+ */
+export function eventDateLabel(item: ReviewItem): string | null {
+  if (item.state !== "noted" || !item.due_date) return null;
+  const [y, m, d] = item.due_date.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d);
+  const sameYear = y === new Date().getFullYear();
+  return date.toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/**
  * How long this has been the client's problem, in whole days — past its date
  * if it had one, else how long it has sat with them. One number, so the queue
  * can rank a 30-day undated ask above a 2-day-late dated one instead of
@@ -244,8 +294,11 @@ export function threadOf(item: ReviewItem): ReviewMessage[] {
   const thread: ReviewMessage[] = [
     {
       id: `ask-${item.id}`,
-      from: "us",
-      author: null,
+      // A question the client asked opens with THEIR bubble, in their name.
+      // Rendering it as ours would show them their own words attributed to
+      // Converted Click, on the one page whose whole job is to be trustworthy.
+      from: item.raised_by === "client" ? "them" : "us",
+      author: item.raised_by === "client" ? item.raised_by_name : null,
       body: item.ask,
       at: item.created_at,
     },

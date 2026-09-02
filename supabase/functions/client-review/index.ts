@@ -4,6 +4,11 @@
 //           → 200 { status: "ok", company_name, as_at, contacts, items }
 //             | 200 TokenFailure
 //
+//           POST { action: "raise", token, kind, title, body?, date? }
+//           → 200 { status: "ok", item }
+//             | 200 { status: "invalid", reason }
+//             | 200 TokenFailure
+//
 //           POST { action: "decide", token, item_id, decision, comment?, identity }
 //           → 200 { status: "ok", item }
 //             | 200 { status: "already_decided", item }
@@ -69,7 +74,8 @@ import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.t
 // Mirrors src/types/client-review.ts. If you change one, change both.
 
 type ReviewDecision = "approved" | "changes_requested";
-type ReviewItemState = "pending" | ReviewDecision;
+/** 'parked' (0148) is staff-only and filtered out of every query below. */
+type ReviewItemState = "pending" | "parked" | ReviewDecision;
 
 const DECISIONS: ReviewDecision[] = ["approved", "changes_requested"];
 
@@ -81,9 +87,14 @@ type ReviewContact = { id: string; full_name: string };
  *   brief     — a deliverable awaiting APPROVAL     (Approve / Request changes)
  *   question  — something we asked, awaiting an ANSWER (answer box + Send)
  *   agreement — something they committed to, awaiting DOING (Done / Not yet)
+ *   idea      — worth considering, not planned. Never reaches this page: an
+ *               idea is always parked (0148) and parked rows are filtered out.
+ *   event     — a date in the client's world, which they can add themselves
+ *               (0149). Nobody acts on it, so it carries state 'noted' and no
+ *               controls at all.
  * 'brief' is the historical value for a task and is not renamed.
  */
-type ReviewItemType = "brief" | "question" | "agreement";
+type ReviewItemType = "brief" | "question" | "agreement" | "idea" | "event";
 
 type ReviewItem = {
   id: string; // client_approvals.id — NOT briefs.id
@@ -106,6 +117,10 @@ type ReviewItem = {
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */
   created_at: string;
+  /** Who put this on the list. A client can raise a question or an event (0149). */
+  raised_by: "us" | "client";
+  /** The contact who raised it, resolved from the token. Never a staff name. */
+  raised_by_name: string | null;
   /** What they wrote when they decided — their own words, shown as their message. */
   client_note: string | null;
 };
@@ -144,7 +159,24 @@ type DecideRequest = {
   identity: ReviewIdentity;
 };
 
-type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest;
+/**
+ * What a client can start themselves (0149). Two kinds and no more: a question
+ * they want answered, and a date we should know about. Deliberately NOT a way
+ * to create work — "please redo the banner by Friday" is a conversation, and
+ * it arrives here as a question that staff turn into a brief.
+ */
+type RaiseKind = "question" | "event";
+
+type RaiseRequest = {
+  action: "raise";
+  token: string;
+  kind: RaiseKind;
+  title: string;
+  body?: string;
+  date?: string; // "YYYY-MM-DD", events only
+};
+
+type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest | RaiseRequest;
 
 type TokenFailure = { status: "expired" | "revoked" | "unknown" };
 
@@ -168,6 +200,11 @@ type ListResponse =
 type ReplyResponse =
   | { status: "ok"; message: ReviewMessage }
   | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
+  | TokenFailure;
+
+type RaiseResponse =
+  | { status: "ok"; item: ReviewItem }
+  | { status: "invalid"; reason: "missing_title" | "missing_body" | "missing_date" }
   | TokenFailure;
 
 type DecideResponse =
@@ -203,6 +240,8 @@ type ApprovalRow = {
   agreed_via: string | null;
   owed_by: string;
   created_at: string;
+  raised_by: string;
+  raised_by_name: string | null;
   client_note: string | null;
   // The joined brief, one named column. See rule 1 at the top of this file.
   // PostgREST returns a to-one embed as an object at runtime but types it as
@@ -212,7 +251,7 @@ type ApprovalRow = {
 
 type BriefWait = { client_wait_ms: number | null };
 
-const ITEM_TYPES: ReviewItemType[] = ["brief", "question", "agreement"];
+const ITEM_TYPES: ReviewItemType[] = ["brief", "question", "agreement", "idea", "event"];
 
 function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
   if (!briefs) return null;
@@ -240,6 +279,8 @@ function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewI
     agreed_via: row.agreed_via,
     owed_by: row.owed_by === "us" ? "us" : "client",
     created_at: row.created_at,
+    raised_by: row.raised_by === "client" ? "client" : "us",
+    raised_by_name: row.raised_by_name,
     client_note: row.client_note,
     waiting_ms: waitingMsOf(row.briefs),
     messages,
@@ -247,7 +288,7 @@ function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewI
 }
 
 const APPROVAL_COLUMNS =
-  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, created_at, client_note, briefs(client_wait_ms)";
+  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(client_wait_ms)";
 
 // --- token hashing + verification (pure, no I/O) ------------------------
 
@@ -297,10 +338,16 @@ async function handleList(
     return json({ error: "Something went wrong on our side" }, 500);
   }
 
+  // state='parked' is EXCLUDED and must stay excluded. A parked item is one
+  // nobody is acting on yet (0148) — including ideas we have not raised with
+  // them at all — so it is ours, not theirs. Filtered in the query rather than
+  // in JS, for the same reason kind='note' is: a later refactor of the mapping
+  // must not be able to leak one onto a client's page.
   const { data: itemsRaw, error: itemsErr } = await sb
     .from("client_approvals")
     .select(APPROVAL_COLUMNS)
     .eq("client_id", clientId)
+    .neq("state", "parked")
     .order("state")
     .order("due_date", { ascending: true, nullsFirst: false });
   if (itemsErr) {
@@ -489,6 +536,9 @@ async function handleReply(
     .select("id, client_title")
     .eq("id", body.item_id)
     .eq("client_id", clientId)
+    // A parked item is not on their page, so it cannot be replied to either —
+    // the id is the only thing standing between a guess and a message on it.
+    .neq("state", "parked")
     .maybeSingle();
   if (itemErr) {
     console.error("[client-review] reply item lookup failed:", itemErr.message);
@@ -577,6 +627,8 @@ async function handleDecide(
     .select("item_type, client_title, ask")
     .eq("id", item_id)
     .eq("client_id", clientId)
+    // As in handleList and handleReply: a parked item is not theirs to act on.
+    .neq("state", "parked")
     .maybeSingle();
   if (typeErr) {
     console.error("[client-review] item type lookup failed:", typeErr.message);
@@ -666,6 +718,116 @@ async function handleDecide(
   return json({ status: "invalid", reason: "unknown_item" } satisfies DecideResponse);
 }
 
+/** "2026-09-14" and a date that actually exists. Past dates are allowed. */
+function isIsoDate(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  return (
+    probe.getUTCFullYear() === y && probe.getUTCMonth() === m - 1 && probe.getUTCDate() === d
+  );
+}
+
+/**
+ * The client puts something on the list themselves.
+ *
+ * TWO KINDS, AND THE DIFFERENCE IS WHO ACTS. A question is owed by us — it
+ * lands in "With us" with no buttons, because a question you asked is not a
+ * question you answer. An event is owed by nobody: it is a date, it carries
+ * state 'noted' (0149), and every count and clock on this feature ignores it
+ * by default rather than by remembering to.
+ *
+ * IDENTITY IS THE TOKEN'S, NOT THE BODY'S — the same rule as a decision
+ * (0142). raised_by_name is written from the contact the link belongs to and
+ * nothing in the request can name anyone. On a legacy shared link there is
+ * nobody to name, so it is recorded anonymously rather than refused: a client
+ * with an old link must still be able to reach us.
+ */
+async function handleRaise(
+  req: Request,
+  sb: SupabaseClient,
+  clientId: string,
+  body: RaiseRequest,
+  tokenContactId: string | null,
+): Promise<Response> {
+  const kind: RaiseKind = body.kind === "event" ? "event" : "question";
+  const title = (body.title ?? "").trim().slice(0, 200);
+  const text = (body.body ?? "").trim().slice(0, 4000);
+  const date = (body.date ?? "").trim();
+
+  if (!title) return json({ status: "invalid", reason: "missing_title" } satisfies RaiseResponse);
+  if (kind === "question" && !text) {
+    return json({ status: "invalid", reason: "missing_body" } satisfies RaiseResponse);
+  }
+  if (kind === "event" && !isIsoDate(date)) {
+    return json({ status: "invalid", reason: "missing_date" } satisfies RaiseResponse);
+  }
+
+  let raisedByName: string | null = null;
+  if (tokenContactId) {
+    try {
+      raisedByName = (await loadContact(sb, clientId, tokenContactId))?.name ?? null;
+    } catch (e) {
+      console.error("[client-review] raise identity lookup failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const row =
+    kind === "event"
+      ? {
+          client_id: clientId,
+          item_type: "event",
+          state: "noted",
+          owed_by: "client",
+          client_title: title,
+          // `ask` is NOT NULL and is the body of the opening bubble. An event
+          // usually has no more to say than its own title, so it stands in.
+          ask: text || title,
+          due_date: date,
+        }
+      : {
+          client_id: clientId,
+          item_type: "question",
+          state: "pending",
+          // Theirs to ask, ours to answer. This is the one place owed_by='us'
+          // is set on a question — see client_approvals_owed_by_type_chk.
+          owed_by: "us",
+          client_title: title,
+          ask: text,
+          due_date: null,
+        };
+
+  const { data: insertedRaw, error: insertErr } = await sb
+    .from("client_approvals")
+    .insert({ ...row, raised_by: "client", raised_by_name: raisedByName })
+    .select(APPROVAL_COLUMNS)
+    .single();
+  if (insertErr) {
+    console.error("[client-review] raise insert failed:", insertErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+  const item = toReviewItem(insertedRaw as unknown as ApprovalRow);
+
+  // Fire and forget, wrapped: a chat outage must never lose what a client
+  // just took the trouble to write down. Same posture as a reply.
+  (async () => {
+    const { data: clientRaw } = await sb
+      .from("clients").select("name").eq("id", clientId).maybeSingle();
+    const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
+    const who = raisedByName ?? "Someone";
+    const { token: pat } = await getOperatorClickupToken(req);
+    await postChatMessage(
+      pat,
+      APPROVALS_CHANNEL_ID,
+      kind === "event"
+        ? `📅 ${who} at ${companyName} added a date: "${title}" — ${date}`
+        : `❓ ${who} at ${companyName} asked: "${title}"\n> ${item.ask}`,
+    ).catch(() => {});
+  })().then(() => {}, () => {});
+
+  return json({ status: "ok", item } satisfies RaiseResponse);
+}
+
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
@@ -718,8 +880,10 @@ Deno.serve(async (req: Request) => {
         return await handleDecide(req, sb, clientId, body, tokenRow.contact_id);
       case "reply":
         return await handleReply(req, sb, clientId, body, tokenRow.contact_id);
+      case "raise":
+        return await handleRaise(req, sb, clientId, body, tokenRow.contact_id);
       default:
-        return json({ error: "action must be 'list', 'decide' or 'reply'" }, 400);
+        return json({ error: "action must be 'list', 'decide', 'reply' or 'raise'" }, 400);
     }
   } catch (e) {
     // Never interpolate the underlying message into a client-facing body —

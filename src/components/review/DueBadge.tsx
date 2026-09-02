@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { dueStatus } from "@/lib/client-review";
+import { dueStatus, eventDateLabel } from "@/lib/client-review";
 import type { ReviewItem } from "@/types/client-review";
 
 /**
@@ -12,6 +12,11 @@ import type { ReviewItem } from "@/types/client-review";
  * not a deadline of zero.
  */
 export function DueBadge({ item }: { item: ReviewItem }) {
+  // An event's date is a fact, not a deadline — no colour, no countdown, and
+  // it is the only thing on the row worth reading, so it is never dropped.
+  const eventDate = eventDateLabel(item);
+  if (eventDate) return <Badge variant="muted">{eventDate}</Badge>;
+
   const status = dueStatus(item);
   if (!status) return null;
 

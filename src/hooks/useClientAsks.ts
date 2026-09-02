@@ -240,6 +240,57 @@ export function useLogClientAgreement() {
   });
 }
 
+export type IdeaInput = {
+  clientId: string;
+  /** Whose idea it is to act on when the time comes. */
+  owedBy: "client" | "us";
+  title: string;
+  detail: string;
+  /** When to look at it again. Optional — most ideas have no date, that is why they are ideas. */
+  reviewOn: string | null;
+};
+
+/**
+ * Park an idea: something worth doing that nobody is doing yet.
+ *
+ * Nothing is sent and nothing is due. It is the third thing that comes out of
+ * a client meeting, after the asks and the commitments — the one that used to
+ * live in somebody's head because the list had nowhere to put it.
+ *
+ * It is written as item_type='idea', state='parked' (0148), which is what
+ * keeps it off the client's page: the review function filters parked rows out
+ * of the list, and the database refuses to let an idea be anything but parked.
+ * When the time IS right it does not get un-parked — it gets asked properly,
+ * as a question, an agreement or a brief, which is the act of deciding what it
+ * actually is.
+ */
+export function useParkIdea() {
+  const qc = useQueryClient();
+  const { currentUserId } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: IdeaInput): Promise<void> => {
+      const title = input.title.trim();
+      if (!title) throw new Error("Say what the idea is.");
+
+      const { error } = await supabase.from("client_approvals").insert({
+        client_id: input.clientId,
+        item_type: "idea",
+        state: "parked",
+        owed_by: input.owedBy,
+        client_title: title,
+        // `ask` is NOT NULL and is the one-line body everywhere else, so the
+        // note goes there and the title stands in when there is no note.
+        ask: input.detail.trim() || title,
+        due_date: input.reviewOn,
+        created_by: currentUserId ?? null,
+      });
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: () => invalidate(qc),
+  });
+}
+
 /**
  * Turn an agreement WE made into a real task.
  *

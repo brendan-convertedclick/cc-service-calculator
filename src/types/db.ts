@@ -616,7 +616,6 @@ export type Database = {
           client_delay_manual: boolean
           client_id: string | null
           client_wait_ms: number | null
-          internal_wait_ms: number | null
           closed_late: boolean | null
           completed_at: string | null
           created_at: string
@@ -625,6 +624,7 @@ export type Database = {
           gmail_thread_id_unique: string | null
           id: string
           intent_type: string | null
+          internal_wait_ms: number | null
           invoiced_at: string | null
           invoiced_by: string | null
           last_message_at: string | null
@@ -660,7 +660,6 @@ export type Database = {
           client_delay_manual?: boolean
           client_id?: string | null
           client_wait_ms?: number | null
-          internal_wait_ms?: number | null
           closed_late?: boolean | null
           completed_at?: string | null
           created_at?: string
@@ -669,6 +668,7 @@ export type Database = {
           gmail_thread_id_unique?: string | null
           id?: string
           intent_type?: string | null
+          internal_wait_ms?: number | null
           invoiced_at?: string | null
           invoiced_by?: string | null
           last_message_at?: string | null
@@ -704,7 +704,6 @@ export type Database = {
           client_delay_manual?: boolean
           client_id?: string | null
           client_wait_ms?: number | null
-          internal_wait_ms?: number | null
           closed_late?: boolean | null
           completed_at?: string | null
           created_at?: string
@@ -713,6 +712,7 @@ export type Database = {
           gmail_thread_id_unique?: string | null
           id?: string
           intent_type?: string | null
+          internal_wait_ms?: number | null
           invoiced_at?: string | null
           invoiced_by?: string | null
           last_message_at?: string | null
@@ -1085,8 +1085,8 @@ export type Database = {
           client_id: string
           contact_id: string | null
           created_at: string
-          from_state: string | null
           created_by: string | null
+          from_state: string | null
           id: string
           kind: string
           outbound_email_id: string | null
@@ -1099,8 +1099,8 @@ export type Database = {
           client_id: string
           contact_id?: string | null
           created_at?: string
-          from_state?: string | null
           created_by?: string | null
+          from_state?: string | null
           id?: string
           kind?: string
           outbound_email_id?: string | null
@@ -1113,8 +1113,8 @@ export type Database = {
           client_id?: string
           contact_id?: string | null
           created_at?: string
-          from_state?: string | null
           created_by?: string | null
+          from_state?: string | null
           id?: string
           kind?: string
           outbound_email_id?: string | null
@@ -1133,6 +1133,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_activity_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_activity_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -1177,6 +1191,8 @@ export type Database = {
           item_type: string
           outbound_email_id: string | null
           owed_by: string
+          raised_by: string
+          raised_by_name: string | null
           state: string
           weighty: boolean
         }
@@ -1205,6 +1221,8 @@ export type Database = {
           item_type?: string
           outbound_email_id?: string | null
           owed_by?: string
+          raised_by?: string
+          raised_by_name?: string | null
           state?: string
           weighty?: boolean
         }
@@ -1233,6 +1251,8 @@ export type Database = {
           item_type?: string
           outbound_email_id?: string | null
           owed_by?: string
+          raised_by?: string
+          raised_by_name?: string | null
           state?: string
           weighty?: boolean
         }
@@ -1263,6 +1283,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approvals_decided_by_contact_id_fkey"
+            columns: ["decided_by_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_approvals_outbound_email_id_fkey"
+            columns: ["outbound_email_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_emails"
             referencedColumns: ["id"]
           },
         ]
@@ -1460,6 +1494,13 @@ export type Database = {
             referencedColumns: ["client_id"]
           },
           {
+            foreignKeyName: "client_review_tokens_contact_fkey"
+            columns: ["contact_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id", "client_id"]
+          },
+          {
             foreignKeyName: "client_review_tokens_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -1606,11 +1647,13 @@ export type Database = {
           clickup_folder_id: string | null
           created_at: string
           id: string
+          is_school: boolean
           margin_target_pct: number | null
           name: string
           notes: string | null
           primary_domain: string | null
           short_name: string
+          town: string | null
           updated_at: string
           variable_overrides: Json
           wiki_path: string | null
@@ -1624,11 +1667,13 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          is_school?: boolean
           margin_target_pct?: number | null
           name: string
           notes?: string | null
           primary_domain?: string | null
           short_name: string
+          town?: string | null
           updated_at?: string
           variable_overrides?: Json
           wiki_path?: string | null
@@ -1642,11 +1687,13 @@ export type Database = {
           clickup_folder_id?: string | null
           created_at?: string
           id?: string
+          is_school?: boolean
           margin_target_pct?: number | null
           name?: string
           notes?: string | null
           primary_domain?: string | null
           short_name?: string
+          town?: string | null
           updated_at?: string
           variable_overrides?: Json
           wiki_path?: string | null
@@ -2675,6 +2722,116 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pipeline_template_tasks: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          est_hours: number | null
+          id: string
+          label: string
+          ordinal: number
+          side: string
+          theme_id: string
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          est_hours?: number | null
+          id?: string
+          label: string
+          ordinal?: number
+          side: string
+          theme_id: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          est_hours?: number | null
+          id?: string
+          label?: string
+          ordinal?: number
+          side?: string
+          theme_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_template_tasks_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_template_tasks_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_template_themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_template_themes: {
+        Row: {
+          created_at: string
+          id: string
+          ordinal: number
+          pinned_month: number | null
+          role: string
+          template_id: string
+          theme: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ordinal?: number
+          pinned_month?: number | null
+          role: string
+          template_id: string
+          theme: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ordinal?: number
+          pinned_month?: number | null
+          role?: string
+          template_id?: string
+          theme?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_template_themes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       placement_tasks: {
         Row: {
@@ -4243,6 +4400,278 @@ export type Database = {
           },
         ]
       }
+      school_tasks: {
+        Row: {
+          assignee_id: string | null
+          brief_id: string | null
+          client_approval_id: string | null
+          created_at: string
+          department_id: string | null
+          done_at: string | null
+          done_by: string | null
+          due_date: string | null
+          est_hours: number | null
+          home_month_no: number
+          id: string
+          label: string
+          month_no: number
+          moved_at: string | null
+          moved_by: string | null
+          ordinal: number
+          service_id: string | null
+          side: string
+          source: string
+          state: string
+          year_id: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          brief_id?: string | null
+          client_approval_id?: string | null
+          created_at?: string
+          department_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          due_date?: string | null
+          est_hours?: number | null
+          home_month_no: number
+          id?: string
+          label: string
+          month_no: number
+          moved_at?: string | null
+          moved_by?: string | null
+          ordinal?: number
+          service_id?: string | null
+          side: string
+          source?: string
+          state?: string
+          year_id: string
+        }
+        Update: {
+          assignee_id?: string | null
+          brief_id?: string | null
+          client_approval_id?: string | null
+          created_at?: string
+          department_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          due_date?: string | null
+          est_hours?: number | null
+          home_month_no?: number
+          id?: string
+          label?: string
+          month_no?: number
+          moved_at?: string | null
+          moved_by?: string | null
+          ordinal?: number
+          service_id?: string | null
+          side?: string
+          source?: string
+          state?: string
+          year_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_client_approval_id_fkey"
+            columns: ["client_approval_id"]
+            isOneToOne: false
+            referencedRelation: "client_approvals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_month_fkey"
+            columns: ["year_id", "month_no"]
+            isOneToOne: false
+            referencedRelation: "school_year_months"
+            referencedColumns: ["year_id", "month_no"]
+          },
+          {
+            foreignKeyName: "school_tasks_moved_by_fkey"
+            columns: ["moved_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service_totals"
+            referencedColumns: ["service_id"]
+          },
+          {
+            foreignKeyName: "school_tasks_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_tasks_year_id_fkey"
+            columns: ["year_id"]
+            isOneToOne: false
+            referencedRelation: "school_years"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_year_months: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          id: string
+          month_no: number
+          role: string
+          starts_on: string
+          theme: string
+          year_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          id?: string
+          month_no: number
+          role: string
+          starts_on: string
+          theme: string
+          year_id: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          id?: string
+          month_no?: number
+          role?: string
+          starts_on?: string
+          theme?: string
+          year_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_year_months_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_year_months_year_id_fkey"
+            columns: ["year_id"]
+            isOneToOne: false
+            referencedRelation: "school_years"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      school_years: {
+        Row: {
+          account_owner_id: string | null
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          open_days: string[]
+          planned_at: string
+          planned_by: string | null
+          planning_answers: Json
+          started_on: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_owner_id?: string | null
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          open_days?: string[]
+          planned_at?: string
+          planned_by?: string | null
+          planning_answers?: Json
+          started_on: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_owner_id?: string | null
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          open_days?: string[]
+          planned_at?: string
+          planned_by?: string | null
+          planning_answers?: Json
+          started_on?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_years_account_owner_id_fkey"
+            columns: ["account_owner_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_years_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_years_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "school_years_planned_by_fkey"
+            columns: ["planned_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_years_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scopes: {
         Row: {
           ai_context_snapshot: string | null
@@ -4473,6 +4902,7 @@ export type Database = {
           clickup_enabled: boolean
           clickup_internal_list_id: string | null
           clickup_workspace_id: string | null
+          default_pipeline_template_id: string | null
           id: number
           inbound_email_secret: string | null
           productivity_goal_points: number
@@ -4494,6 +4924,7 @@ export type Database = {
           clickup_enabled?: boolean
           clickup_internal_list_id?: string | null
           clickup_workspace_id?: string | null
+          default_pipeline_template_id?: string | null
           id?: number
           inbound_email_secret?: string | null
           productivity_goal_points?: number
@@ -4515,6 +4946,7 @@ export type Database = {
           clickup_enabled?: boolean
           clickup_internal_list_id?: string | null
           clickup_workspace_id?: string | null
+          default_pipeline_template_id?: string | null
           id?: number
           inbound_email_secret?: string | null
           productivity_goal_points?: number
@@ -4526,7 +4958,15 @@ export type Database = {
           xero_oauth_tokens?: Json | null
           zar_per_point?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "settings_default_pipeline_template_id_fkey"
+            columns: ["default_pipeline_template_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sow_documents: {
         Row: {
@@ -5870,6 +6310,23 @@ export type Database = {
       }
     }
     Functions: {
+      close_school_year_month: {
+        Args: { p_month_no: number; p_year_id: string }
+        Returns: undefined
+      }
+      create_school_year: {
+        Args: {
+          p_account_owner_id: string
+          p_answers: Json
+          p_client_id: string
+          p_months: Json
+          p_open_days: string[]
+          p_started_on: string
+          p_tasks: Json
+          p_template_id: string
+        }
+        Returns: string
+      }
       current_team_member_id: { Args: never; Returns: string }
       current_team_member_role: { Args: never; Returns: string }
       duplicate_system: { Args: { p_system_id: string }; Returns: string }
@@ -5895,10 +6352,6 @@ export type Database = {
         Args: { p_revision_id: string }
         Returns: undefined
       }
-      system_revision_back_to_draft: {
-        Args: { p_revision_id: string }
-        Returns: undefined
-      }
       queue_pending_client: {
         Args: { p_domain: string; p_sender: string; p_subject: string }
         Returns: {
@@ -5912,6 +6365,20 @@ export type Database = {
           p_email: string
           p_sample_brief_id: string
           p_sample_subject: string
+        }
+        Returns: undefined
+      }
+      reopen_school_year_month: {
+        Args: { p_month_no: number; p_year_id: string }
+        Returns: undefined
+      }
+      replan_school_year: {
+        Args: {
+          p_answers: Json
+          p_months: Json
+          p_open_days: string[]
+          p_tasks: Json
+          p_year_id: string
         }
         Returns: undefined
       }
@@ -5933,6 +6400,14 @@ export type Database = {
           p_service_id?: string
         }
         Returns: Json
+      }
+      schedule_school_year_month: {
+        Args: { p_month_no: number; p_year_id: string }
+        Returns: undefined
+      }
+      system_revision_back_to_draft: {
+        Args: { p_revision_id: string }
+        Returns: undefined
       }
     }
     Enums: {

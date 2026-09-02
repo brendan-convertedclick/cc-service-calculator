@@ -57,6 +57,7 @@ export type ActivityRow = {
  */
 const STATE_WORD: Record<string, string> = {
   pending: "waiting on the client",
+  parked: "parked — worth doing, not now",
   changes_requested: "back with us",
   approved: "signed off",
 };
@@ -81,6 +82,8 @@ export type TimelineSource = {
   created_at: string;
   state: string;
   item_type: string;
+  /** 'client' when they put it on the list themselves (0149). */
+  raised_by: string;
   decided_at: string | null;
   decided_by_name: string | null;
   client_note: string | null;
@@ -112,12 +115,21 @@ export function buildTimeline(source: TimelineSource, rows: ActivityRow[]): Time
       id: "asked",
       kind: "asked",
       at: source.created_at,
+      // Who started it changes the sentence entirely. "Question raised" over
+      // something the client sent US reads as though we asked it, and "Sent
+      // for sign-off" over a date they put on their own calendar is nonsense.
       summary:
-        source.item_type === "agreement"
-          ? "Recorded as something they agreed to"
-          : source.item_type === "question"
-            ? "Question raised"
-            : "Sent for sign-off",
+        source.item_type === "event"
+          ? source.raised_by === "client"
+            ? "They added this date"
+            : "Date noted"
+          : source.item_type === "agreement"
+            ? "Recorded as something they agreed to"
+            : source.item_type === "question"
+              ? source.raised_by === "client"
+                ? "They asked us this"
+                : "Question raised"
+              : "Sent for sign-off",
     },
   ];
 
