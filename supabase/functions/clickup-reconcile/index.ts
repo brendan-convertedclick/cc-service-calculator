@@ -30,11 +30,11 @@ interface CuTask {
 }
 
 /** ClickUp pages at 100; `last_page` is the only honest end-of-list signal. */
-async function fetchClosedTasks(
+async function fetchTasks(
   pat: string,
   teamId: string,
   spaceId: string,
-  sinceMs: number,
+  filter: string,
 ): Promise<{ tasks: CuTask[]; pages: number; truncated: boolean }> {
   const out: CuTask[] = [];
   const MAX_PAGES = 40; // 4,000 tasks — a wall, not a limit we expect to meet
@@ -42,9 +42,17 @@ async function fetchClosedTasks(
   for (; page < MAX_PAGES; page++) {
     const url =
       `https://api.clickup.com/api/v2/team/${teamId}/task` +
-      `?page=${page}&include_closed=true&subtasks=true` +
-      `&space_ids[]=${spaceId}&date_done_gt=${sinceMs}`;
-    const res = await cuFetch(url, { headers: { Authorization: pat } });
+      `?page=${page}&subtasks=true&space_ids[]=${spaceId}&${filter}`;
+    // ClickUp's limit is per token per MINUTE, and this function is the
+    // heaviest reader we have — a full pass is a dozen pages and it shares the
+    // budget with the half-hourly sync. cuFetch's default (3 tries, 3s apart)
+    // cannot ride out a window reset, so a report that is a few seconds slower
+    // beats one that returns "rate limit reached".
+    const res = await cuFetch(
+      url,
+      { headers: { Authorization: pat } },
+      { attempts: 6, maxDelayMs: 20_000 },
+    );
     if (!res.ok) {
       throw new Error(`ClickUp ${res.status} on page ${page}: ${(await res.text()).slice(0, 200)}`);
     }
@@ -59,7 +67,11 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
 
   try {
-    const body = await req.json().catch(() => ({})) as { since?: string };
+    const body = await req.json().catch(() => ({})) as { since?: string; include_open?: boolean };
+    // Off by default: the open set is dominated by future stand-ups and
+    // provisioned tasks, so it doubles the ClickUp reads for a question most
+    // runs are not asking.
+    const includeOpen = body.include_open === true;
     // Default: the start of last month, which is the window anyone asking this
     // question cares about — this month plus the one being reported on.
     const now = new Date();
@@ -81,7 +93,19 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Set the ClickUp workspace and Clients space on the Settings page first" }, 400);
     }
 
-    const { tasks, pages, truncated } = await fetchClosedTasks(pat, teamId, spaceId, since.getTime());
+    // Two questions, not one. "Did the work that got DONE reach Conductor" is
+    // the reporting question; "is there work in flight Conductor has never
+    // heard of" is the one that says whether next month's report will be wrong
+    // too. Open tasks carry no completion date, so they cannot be windowed —
+    // the whole open set of the space is the honest answer.
+    const closed = await fetchTasks(
+      pat, teamId, spaceId,
+      `include_closed=true&date_done_gt=${since.getTime()}`,
+    );
+    const open = includeOpen
+      ? await fetchTasks(pat, teamId, spaceId, "include_closed=false")
+      : { tasks: [] as CuTask[], pages: 0, truncated: false };
+    const { tasks, pages, truncated } = closed;
 
     // ── Everything that may legitimately own a ClickUp task ──────────────────
     const [briefsRes, provRes, ongoingRes, meetRes, parentRes, listsRes] = await Promise.all([
@@ -135,6 +159,29 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Same rules, reported apart: work in flight that Conductor has never seen.
+    const openMissing: typeof missing = [];
+    let openClientTasks = 0;
+    for (const t of open.tasks) {
+      const owner = listClient.get(t.list?.id ?? "");
+      // Unmapped lists are skipped HERE and not in the closed pass, on purpose.
+      // The Clients space also holds the process-template folders — "School
+      // Name: Month 1 (Template)", "Month 1: Paid Media" and the rest — which
+      // are 500-odd permanently open shell tasks that will never be a brief.
+      // In the closed pass an unmapped list is a finding worth surfacing; here
+      // it is just noise that would bury the real answer.
+      if (!owner || owner.internal) continue;
+      openClientTasks++;
+      if (known.has(t.id)) continue;
+      openMissing.push({
+        task_id: t.id,
+        name: t.name,
+        list: t.list?.name ?? "",
+        client: owner?.name ?? null,
+        points: t.points ?? null,
+      });
+    }
+
     // ── What Conductor can see wrong about itself ───────────────────────────
     const staleCut = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [staleRes, briefedNoTaskRes, lastSyncRes, archivedRes] = await Promise.all([
@@ -165,6 +212,14 @@ Deno.serve(async (req: Request) => {
       missing_points: missingPoints,
       missing_hours: missingPoints * 0.25,
       unmapped_lists: [...unmappedLists.entries()].map(([id, name]) => ({ list_id: id, name })),
+      open: includeOpen
+        ? {
+            checked: open.tasks.length,
+            client_tasks: openClientTasks,
+            truncated: open.truncated,
+            missing: openMissing.sort((a, b) => (b.points ?? 0) - (a.points ?? 0)),
+          }
+        : null,
       conductor: {
         last_sync: lastSyncRes.data?.clickup_status_synced_at ?? null,
         stale_briefs: staleRes.count ?? 0,

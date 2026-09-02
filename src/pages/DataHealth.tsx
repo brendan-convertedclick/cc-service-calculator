@@ -32,6 +32,7 @@ function monthsAgoISO(n: number): string {
 
 export function DataHealth() {
   const [since, setSince] = useState(() => monthsAgoISO(1));
+  const [includeOpen, setIncludeOpen] = useState(false);
   const run = useDataHealth();
   const data = run.data;
 
@@ -54,9 +55,18 @@ export function DataHealth() {
             onChange={(e) => e.target.value && setSince(e.target.value)}
             className="h-10 rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small text-m-on-surface"
           />
+          <label className="flex items-center gap-2 whitespace-nowrap text-body-small text-m-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={includeOpen}
+              onChange={(e) => setIncludeOpen(e.target.checked)}
+              className="h-4 w-4 rounded border-m-outline"
+            />
+            Also check work still open
+          </label>
           <Button
             onClick={() =>
-              run.mutate(since, { onError: (e) => toast.error(errorMessage(e)) })
+              run.mutate({ since, includeOpen }, { onError: (e) => toast.error(errorMessage(e)) })
             }
             disabled={run.isPending}
           >
@@ -236,6 +246,66 @@ export function DataHealth() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {data.open && (
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Open work Conductor has never seen — {data.open.missing.length} of{" "}
+                  {data.open.client_tasks} open client tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <p className="px-6 pb-3 text-body-small text-m-on-surface-variant">
+                  Work in flight rather than work delivered, so it is not missing
+                  from any month yet — it is what next month's report will be wrong
+                  about. Process-template folders are excluded; a client's own
+                  template and project-plan lists are not, so read those rows as
+                  scaffolding rather than work.
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>ClickUp list</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead className="text-right">Points</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.open.missing.slice(0, 100).map((m) => (
+                      <TableRow key={m.task_id}>
+                        <TableCell className="whitespace-nowrap text-body-medium">
+                          {m.client ?? "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-body-small text-m-on-surface-variant">
+                          {m.list}
+                        </TableCell>
+                        <TableCell className="text-body-small">
+                          <a
+                            href={`https://app.clickup.com/t/${m.task_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:underline"
+                          >
+                            {m.name}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-body-small">
+                          {m.points ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {data.open.missing.length > 100 && (
+                  <p className="px-6 py-3 text-label-small text-m-on-surface-variant">
+                    Showing the 100 largest of {data.open.missing.length}.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

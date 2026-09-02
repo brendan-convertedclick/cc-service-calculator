@@ -31,6 +31,13 @@ export interface DataHealth {
   missing_points: number;
   missing_hours: number;
   unmapped_lists: Array<{ list_id: string; name: string }>;
+  /** Null unless the run asked for it — it doubles the ClickUp reads. */
+  open: {
+    checked: number;
+    client_tasks: number;
+    truncated: boolean;
+    missing: MissingTask[];
+  } | null;
   conductor: {
     last_sync: string | null;
     stale_briefs: number;
@@ -46,7 +53,8 @@ export interface DataHealth {
 
 export function useDataHealth() {
   return useMutation({
-    mutationFn: (since: string) => callEdgeFn<DataHealth>("clickup-reconcile", { since }),
+    mutationFn: (v: { since: string; includeOpen: boolean }) =>
+      callEdgeFn<DataHealth>("clickup-reconcile", { since: v.since, include_open: v.includeOpen }),
   });
 }
 
