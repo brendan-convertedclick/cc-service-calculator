@@ -21,6 +21,7 @@ import { useRetainerAllocation, type AllocationRow } from "@/hooks/useRetainerAl
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
 import { formatZar, cn, errorMessage } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
+import { retainerStatus, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
 // uses "complete". Normalise both so the badge never shows a raw lowercase token.
@@ -66,6 +67,13 @@ const CATEGORY_LABEL: Record<AllocationRow["kind"], string> = {
   unlinked: "No retainer",
   fixed: "Fixed price",
 };
+
+function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destructive" | "outline" {
+  // Over is the one that costs money, so it is the one that shouts.
+  if (s === "over") return "destructive";
+  if (s === "under") return "outline";
+  return "secondary";
+}
 
 function deliveredTone(delivered: number, basis: number): string {
   if (!basis || !delivered) return "text-m-on-surface-variant";
@@ -454,7 +462,32 @@ export function RetainersList() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low">
+                          {(() => {
+                            // Over / under / on track for the client, judged
+                            // against the share of the month that has actually
+                            // happened — see retainer-status.ts.
+                            const r = retainerStatus({
+                              planned: group.sold,
+                              completed: group.delivered,
+                              month,
+                            });
+                            if (r.status === "none") return null;
+                            return (
+                              <Badge
+                                variant={deliveryVariant(r.status)}
+                                className="whitespace-nowrap"
+                                title={
+                                  r.inProgress
+                                    ? `${fmtHours(r.expected)} expected by today of ${fmtHours(group.sold)} planned`
+                                    : `${fmtHours(group.sold)} planned for the month`
+                                }
+                              >
+                                {DELIVERY_LABEL[r.status]}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
                       </TableRow>
                       {openClients[group.clientName] && group.rows.map((r) => (
