@@ -54,6 +54,10 @@ function fmtHours(n: number): string {
 }
 
 /** Red in BOTH directions: over-delivery is a margin problem, not a win. */
+// Judged against Planned — what the fee buys. It used to be judged against the
+// recurring schedule, which is why Kings College read as a red flag: 19.3 of its
+// 22.8 planned hours are on a retainer with no recurring tasks at all, so the
+// schedule said 2.3h and the colour called a normal month a disaster.
 function deliveredTone(delivered: number, basis: number): string {
   if (!basis || !delivered) return "text-m-on-surface-variant";
   const ratio = delivered / basis;
@@ -321,9 +325,9 @@ export function RetainersList() {
                     <TableHead className="w-px" />
                     <TableHead>Name</TableHead>
                     <TableHead className="whitespace-nowrap text-right">Monthly fee</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="What the fee buys at the standard rate">Sold</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="Recurring work scheduled against it">Committed</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="Work that closed this month">Delivered</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="What the monthly fee buys at the standard rate">Planned</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Recurring tasks set up to repeat each month. Work briefed ad hoc is not scheduled and does not appear here.">Scheduled</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month">Completed</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -401,7 +405,7 @@ export function RetainersList() {
                         <TableCell
                           className={cn(
                             "border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold",
-                            deliveredTone(group.delivered, group.committed || group.sold),
+                            deliveredTone(group.delivered, group.sold || group.committed),
                           )}
                         >
                           {fmtHours(group.delivered)}
@@ -466,7 +470,7 @@ export function RetainersList() {
                                 "text-right font-mono tabular-nums text-body-medium font-semibold",
                                 deliveredTone(
                                   alloc.get(r.id)?.deliveredHours ?? 0,
-                                  (alloc.get(r.id)?.committedHours || alloc.get(r.id)?.soldHours) ?? 0,
+                                  (alloc.get(r.id)?.soldHours || alloc.get(r.id)?.committedHours) ?? 0,
                                 ),
                               )}
                             >

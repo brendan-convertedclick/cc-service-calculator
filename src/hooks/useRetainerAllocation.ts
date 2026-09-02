@@ -1,12 +1,17 @@
 // Three numbers per retainer, per month — because one number could never do
-// the job:
+// the job. The page calls them Planned, Scheduled and Completed; the fields
+// keep their original names:
 //
-//   Sold      what the monthly fee buys at the standard rate. A pricing fact.
-//   Committed the recurring work scheduled against it. A delivery promise.
-//   Delivered  what actually got briefed and done. What happened.
+//   soldHours      PLANNED — what the monthly fee buys at the standard rate.
+//                  A pricing fact.
+//   committedHours SCHEDULED — recurring tasks set up to repeat each month.
+//                  Work briefed ad hoc is real work and is not in here.
+//   deliveredHours COMPLETED — what actually got briefed and closed.
 //
-// Sold vs Committed says whether we are giving away margin or under-servicing.
-// Committed vs Delivered says whether the month happened. Conductor previously
+// Planned vs Completed is the judgement: are we servicing the fee. Scheduled
+// sits between them as a setup fact, NOT as a promise — reading it as one is
+// what made Kings College look like a red flag at 2.3h when 11.25h had been
+// completed against 22.8h planned. Conductor previously
 // showed only hours logged against provisioned tasks, which missed every brief
 // and read as 19% on a book that was mostly being delivered.
 //
