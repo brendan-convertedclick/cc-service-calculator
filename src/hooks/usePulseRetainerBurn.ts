@@ -150,6 +150,11 @@ export function usePulseRetainerBurn(
         .from('projects')
         .select('id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)')
         .eq('engagement_type', 'retainer')
+        // A standing monthly task is not a retainer (0154). It keeps
+        // engagement_type='retainer' so the provisioner still schedules it, so
+        // every reader has to say so — otherwise Pimms' feedback meeting turns
+        // up here as a retainer with a 2h target and no fee behind it.
+        .eq('is_recurring_task', false)
         .in('status', burnStatuses(includeCompleted))
 
       const mapped = (projects ?? []).map(p => ({

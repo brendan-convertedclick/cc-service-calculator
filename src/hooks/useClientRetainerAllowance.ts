@@ -39,6 +39,11 @@ export function useClientRetainerAllowance(clientId: string | null | undefined) 
         .select("id")
         .eq("client_id", clientId)
         .eq("engagement_type", "retainer")
+        // Not a standing monthly task (0154): those keep
+        // engagement_type='retainer' for the provisioner, and picking one as
+        // "the client's retainer" would measure an allowance against a plugin
+        // update.
+        .eq("is_recurring_task", false)
         .eq("status", "in_progress")
         .order("created_at", { ascending: false })
         .limit(1)
