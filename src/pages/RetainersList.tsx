@@ -18,7 +18,7 @@ import {
 import { useRetainers, useDeleteRetainer } from "@/hooks/useRetainers";
 import { currentMonthKey } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
-import { useRetainerAllocation } from "@/hooks/useRetainerAllocation";
+import { useRetainerAllocation, type AllocationRow } from "@/hooks/useRetainerAllocation";
 import { RetainerSubItems } from "@/components/retainers/RetainerSubItems";
 import { formatZar, cn, errorMessage, toggleInSet } from "@/lib/utils";
 import { STATUS_LABEL } from "@/lib/project-status";
@@ -58,6 +58,16 @@ function fmtHours(n: number): string {
 // recurring schedule, which is why Kings College read as a red flag: 19.3 of its
 // 22.8 planned hours are on a retainer with no recurring tasks at all, so the
 // schedule said 2.3h and the colour called a normal month a disaster.
+// The three categories Lisa asked for, plus the two shapes that are neither a
+// budgeted retainer nor ad hoc and would otherwise have nowhere to go.
+const CATEGORY_LABEL: Record<AllocationRow["kind"], string> = {
+  retainer: "Retainer",
+  adhoc: "Ad hoc",
+  internal: "Internal",
+  unlinked: "No retainer",
+  fixed: "Fixed price",
+};
+
 function deliveredTone(delivered: number, basis: number): string {
   if (!basis || !delivered) return "text-m-on-surface-variant";
   const ratio = delivered / basis;
@@ -141,18 +151,19 @@ export function RetainersList() {
     return new Map((m?.rows ?? []).filter((r) => r.projectId).map((r) => [r.projectId!, r]));
   }, [allocMonths, month]);
 
-  // Work a client had delivered this month that sits on NO retainer of theirs —
-  // a fixed-price project, adhoc work, or internal. Without this the page reads
-  // as though nothing happened: Trellidor closed 8 hours on two fixed-price
-  // campaigns in August and the Delivered column showed a dash.
-  const deliveredElsewhere = useMemo(() => {
+  // Every line the month produced that is NOT one of the retainers listed
+  // above: ad hoc work, retainer work with no retainer to hang off, our own
+  // brands, and fixed-price projects. These used to be a parenthetical on the
+  // client header — "(8h off-retainer)" — which is how a whole category of
+  // work stayed invisible. They are rows now, one per category per client.
+  const extrasByClient = useMemo(() => {
     const m = allocMonths.find((x) => x.month === month) ?? allocMonths[0];
     const retainerIds = new Set(retainers.map((r) => r.id));
-    const byClient = new Map<string, number>();
+    const byClient = new Map<string, AllocationRow[]>();
     for (const r of m?.rows ?? []) {
-      if (r.deliveredHours <= 0) continue;
       if (r.projectId && retainerIds.has(r.projectId)) continue;
-      byClient.set(r.clientName, (byClient.get(r.clientName) ?? 0) + r.deliveredHours);
+      if (r.deliveredHours <= 0 && r.openPoints <= 0) continue;
+      (byClient.get(r.clientName) ?? byClient.set(r.clientName, []).get(r.clientName)!).push(r);
     }
     return byClient;
   }, [allocMonths, month, retainers]);
@@ -163,22 +174,38 @@ export function RetainersList() {
       const key = r.client_name ?? "—";
       (map.get(key) ?? map.set(key, []).get(key)!).push(r);
     }
-    return [...map.entries()].map(([clientName, rows]) => ({
+    // A client with only ad hoc work has no retainer to seed a group, and
+    // dropping them is how ad hoc work disappears from the page entirely.
+    for (const clientName of extrasByClient.keys()) {
+      if (map.has(clientName)) continue;
+      if (selectedClients.size > 0 && !selectedClients.has(clientName)) continue;
+      if (q && !clientName.toLowerCase().includes(q)) continue;
+      map.set(clientName, []);
+    }
+    return [...map.entries()].map(([clientName, rows]) => {
+      const extras = extrasByClient.get(clientName) ?? [];
+      return {
       clientName,
       // Every retainer in a group belongs to the same client, so the flag is
       // the client's (0152) — read off the first row.
-      isInternal: rows[0]?.client_is_internal ?? false,
+      isInternal: rows[0]?.client_is_internal ?? extras[0]?.isInternal ?? false,
       rows,
+      extras,
       totalFeeCents: rows.reduce(
         (sum, r) => sum + (r.retainer_monthly_fee_cents ?? 0),
         0,
       ),
       sold: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.soldHours ?? 0), 0),
       committed: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.committedHours ?? 0), 0),
-      delivered: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0),
-      open: rows.reduce((sum, r) => sum + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0),
-    }));
-  }, [filteredRetainers, alloc]);
+      delivered:
+        rows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0) +
+        extras.reduce((sum, r) => sum + r.deliveredHours, 0),
+      open:
+        rows.reduce((sum, r) => sum + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0) +
+        extras.reduce((sum, r) => sum + r.openPoints * 0.25, 0),
+      };
+    });
+  }, [filteredRetainers, alloc, extrasByClient, selectedClients, q]);
 
   // Our own brands are shown apart from the client book. They keep their fee —
   // Lisa: "internal, you can keep the revenue - worth having a view of it for
@@ -414,14 +441,6 @@ export function RetainersList() {
                               +{fmtHours(group.open)}
                             </span>
                           )}
-                          {(deliveredElsewhere.get(group.clientName) ?? 0) > 0 && (
-                            <span
-                              className="ml-1 text-label-small font-normal text-m-on-surface-variant"
-                              title="Delivered for this client but not against a retainer — fixed-price, adhoc or internal work"
-                            >
-                              ({fmtHours(deliveredElsewhere.get(group.clientName) ?? 0)} off-retainer)
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low" />
@@ -530,6 +549,41 @@ export function RetainersList() {
                             </TableRow>
                           )}
                         </Fragment>
+                      ))}
+                      {/* The other categories. No Planned or Scheduled: nobody
+                          budgeted an hour of ad hoc work in advance, and
+                          printing a 0 there would read as a target missed. */}
+                      {openClients[group.clientName] && group.extras.map((x) => (
+                        <TableRow key={x.key} className="[&>td]:py-2">
+                          <TableCell className="w-px" />
+                          <TableCell className="text-body-medium text-m-on-surface">
+                            {x.name}
+                            <Badge variant="secondary" className="ml-2 whitespace-nowrap">
+                              {CATEGORY_LABEL[x.kind]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            —
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            —
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            —
+                          </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
+                            {fmtHours(x.deliveredHours)}
+                            {x.openPoints > 0 && (
+                              <span className="ml-1 text-label-small font-normal text-m-on-surface-variant" title="Raised and still open">
+                                +{fmtHours(x.openPoints * 0.25)}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-label-small text-m-on-surface-variant">
+                            {x.briefCount > 0 ? `${x.briefCount} brief${x.briefCount !== 1 ? "s" : ""}` : ""}
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
                       ))}
                     </Fragment>
                     ))}

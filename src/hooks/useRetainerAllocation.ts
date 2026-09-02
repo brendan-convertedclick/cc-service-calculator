@@ -28,8 +28,23 @@ import { supabase } from "@/lib/supabase";
 
 export const HOURS_PER_POINT = 0.25;
 
-/** Work that belongs to no retainer, split by what it is. */
-export type AllocationKind = "retainer" | "fixed" | "adhoc" | "internal";
+// Lisa, 2026-09-02: "Split every line item into three categories: Retainer,
+// Ad Hoc (anything charged outside the retainer), and Internal (unbilled, cost
+// absorbed by you)" — and Internal means our own brands, kept apart from client
+// work. A brief lands in exactly one of them, so nothing is counted twice:
+//
+//   internal  the client is one of our brands (clients.is_internal, 0152),
+//             whatever the brief says. Our own work is never billed.
+//   adhoc     billing_type = 'adhoc'. Charged outside the retainer.
+//   retainer  billing_type = 'retainer', against a retainer with a budget.
+//   unlinked  billing_type = 'retainer' but hanging off no budgeted retainer —
+//             34 of August's 89.75 retainer hours. Real work with nothing to
+//             measure it against, which is worth seeing rather than hiding
+//             inside a client total.
+//
+// 'fixed' is the engagement type of a fixed-price project, not a billing
+// category — those rows carry delivery only.
+export type AllocationKind = "retainer" | "fixed" | "adhoc" | "internal" | "unlinked";
 
 export interface AllocationRow {
   key: string;
@@ -116,6 +131,21 @@ export function useRetainerAllocation(monthsBack = 6) {
       const projects = (projectsRes.data ?? []) as unknown as ProjectRow[];
       const briefs = (briefsRes.data ?? []) as unknown as BriefRow[];
 
+      // A retainer with neither a fee nor an hours target is the "open" shape
+      // Lisa described — Trellidor's ad hoc retainer: no budget, invoiced for
+      // whatever the month held. Its work is ad hoc and is counted there, so it
+      // is not a budgeted retainer for the purposes of this split.
+      const projectsWithOwnRow = new Set(
+        projects
+          .filter(
+            (p) =>
+              p.engagement_type === "fixed" ||
+              p.retainer_monthly_fee_cents != null ||
+              p.retainer_hours_target != null,
+          )
+          .map((p) => p.id),
+      );
+
       const committedPoints = new Map<string, number>();
       for (const s of (servicesRes.data ?? []) as Array<{
         project_id: string;
@@ -136,16 +166,45 @@ export function useRetainerAllocation(monthsBack = 6) {
       const currentMonth = monthKey(new Date().toISOString());
       if (!months.includes(currentMonth)) months.unshift(currentMonth);
 
+      // Which of the three categories a brief's hours belong to. Exactly one,
+      // decided in this order, so no hour is counted twice.
+      type Bucket =
+        | { kind: "project"; projectId: string }
+        | { kind: AllocationKind; clientId: string };
+      const bucketOf = (b: BriefRow): Bucket | null => {
+        // Our own brands first: internal is about whose work it is, not how it
+        // was booked, so it wins over anything the brief says.
+        if (b.client_id && internalClientIds.has(b.client_id)) {
+          return { kind: "internal", clientId: b.client_id };
+        }
+        if (
+          b.parent_project_id &&
+          projectsWithOwnRow.has(b.parent_project_id) &&
+          b.billing_type !== "adhoc"
+        ) {
+          return { kind: "project", projectId: b.parent_project_id };
+        }
+        if (!b.client_id) return null;
+        return {
+          kind: b.billing_type === "adhoc" ? "adhoc" : "unlinked",
+          clientId: b.client_id,
+        };
+      };
+      const otherKey = (bucket: { kind: AllocationKind; clientId: string }) =>
+        `${bucket.kind}:${bucket.clientId}`;
+
       // Still open: counted once, against whatever it is booked to.
       const openByProject = new Map<string, number>();
       const openByClient = new Map<string, number>();
       for (const b of briefs) {
         if (b.completed_at) continue;
         const pts = Number(b.original_points ?? 0);
-        if (b.parent_project_id) {
-          openByProject.set(b.parent_project_id, (openByProject.get(b.parent_project_id) ?? 0) + pts);
-        } else if (b.client_id) {
-          openByClient.set(b.client_id, (openByClient.get(b.client_id) ?? 0) + pts);
+        const bucket = bucketOf(b);
+        if (!bucket) continue;
+        if (bucket.kind === "project") {
+          openByProject.set(bucket.projectId, (openByProject.get(bucket.projectId) ?? 0) + pts);
+        } else {
+          openByClient.set(otherKey(bucket), (openByClient.get(otherKey(bucket)) ?? 0) + pts);
         }
       }
 
@@ -154,16 +213,27 @@ export function useRetainerAllocation(monthsBack = 6) {
         const inMonth = closed.filter((b) => monthKey(b.completed_at!) === month);
 
         const deliveredByProject = new Map<string, { points: number; count: number }>();
-        const otherByKey = new Map<string, { points: number; count: number; clientId: string }>();
+        const otherByKey = new Map<
+          string,
+          { points: number; count: number; clientId: string; kind: AllocationKind }
+        >();
 
         for (const b of inMonth) {
           const pts = Number(b.original_points ?? 0);
-          if (b.parent_project_id) {
-            const cur = deliveredByProject.get(b.parent_project_id) ?? { points: 0, count: 0 };
-            deliveredByProject.set(b.parent_project_id, { points: cur.points + pts, count: cur.count + 1 });
-          } else if (b.client_id) {
-            const cur = otherByKey.get(b.client_id) ?? { points: 0, count: 0, clientId: b.client_id };
-            otherByKey.set(b.client_id, { ...cur, points: cur.points + pts, count: cur.count + 1 });
+          const bucket = bucketOf(b);
+          if (!bucket) continue;
+          if (bucket.kind === "project") {
+            const cur = deliveredByProject.get(bucket.projectId) ?? { points: 0, count: 0 };
+            deliveredByProject.set(bucket.projectId, { points: cur.points + pts, count: cur.count + 1 });
+          } else {
+            const k = otherKey(bucket);
+            const cur = otherByKey.get(k) ?? {
+              points: 0,
+              count: 0,
+              clientId: bucket.clientId,
+              kind: bucket.kind,
+            };
+            otherByKey.set(k, { ...cur, points: cur.points + pts, count: cur.count + 1 });
           }
         }
 
@@ -191,22 +261,29 @@ export function useRetainerAllocation(monthsBack = 6) {
           });
 
         if (isCurrent) {
-          for (const [clientId, pts] of openByClient) {
-            if (!otherByKey.has(clientId) && pts > 0) {
-              otherByKey.set(clientId, { points: 0, count: 0, clientId });
+          for (const [k, pts] of openByClient) {
+            if (!otherByKey.has(k) && pts > 0) {
+              const [kind, clientId] = k.split(":") as [AllocationKind, string];
+              otherByKey.set(k, { points: 0, count: 0, clientId, kind });
             }
           }
         }
 
-        for (const [clientId, v] of otherByKey) {
+        for (const [k, v] of otherByKey) {
+          const clientId = v.clientId;
           const clientName = clientNameById.get(clientId) ?? "Unknown client";
-          const isInternal = internalClientIds.has(clientId);
-          const kind: AllocationKind = isInternal ? "internal" : "adhoc";
+          const isInternal = v.kind === "internal";
+          const kind = v.kind;
           rows.push({
-            key: `${kind}:${clientId}`,
+            key: k,
             kind,
             clientName,
-            name: kind === "adhoc" ? "Adhoc — to invoice" : "Internal work",
+            name:
+              kind === "adhoc"
+                ? "Ad hoc — invoiced separately"
+                : kind === "unlinked"
+                  ? "Retainer work, no retainer"
+                  : "Internal work",
             projectId: null,
             feeCents: 0,
             soldHours: 0,
@@ -215,7 +292,7 @@ export function useRetainerAllocation(monthsBack = 6) {
             deliveredPoints: v.points,
             briefCount: v.count,
             isInternal,
-            openPoints: isCurrent ? openByClient.get(clientId) ?? 0 : 0,
+            openPoints: isCurrent ? openByClient.get(k) ?? 0 : 0,
           });
         }
 
