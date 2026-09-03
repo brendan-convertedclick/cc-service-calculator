@@ -115,8 +115,15 @@ type JoinedRow = SystemDefinition & {
   time_category: { label: string } | null;
 };
 
+// Every embed here names its FK explicitly, and `service` MUST keep doing so:
+// 0140's `services.procedure_id` gave system_definitions a SECOND relationship
+// to services (one-to-many, procedure → its services) alongside this one
+// (many-to-one, procedure → the service it hangs off). With a bare
+// `service:services(name)` PostgREST cannot choose, answers the whole request
+// with HTTP 300 / PGRST201, and the list throws — which the page rendered as
+// a silent "0 procedures" rather than an error. Do not un-qualify it.
 const JOIN_SELECT =
-  "*, owner:team_members!system_definitions_owner_id_fkey(full_name,primary_department_id), service:services(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
+  "*, owner:team_members!system_definitions_owner_id_fkey(full_name,primary_department_id), service:services!system_definitions_service_id_fkey(name), recurring_service:retainer_recurring_services(service:services(name)), time_category:time_categories(label)";
 
 function withJoins(s: JoinedRow): SystemDefinitionWithJoins {
   return {

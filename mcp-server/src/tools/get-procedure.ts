@@ -35,7 +35,13 @@ export async function handler(input: Input) {
   return guarded(async () => {
     const { data: system, error } = await supabase
       .from('system_definitions')
-      .select('id, name, kind, goal_statement, trigger_text, definition_of_done, owner:team_members!system_definitions_owner_id_fkey(full_name), service:services(name)')
+      // `service` must name its FK: 0140's services.procedure_id gave
+      // system_definitions a second relationship to services, and a bare
+      // `service:services(name)` makes PostgREST answer the whole request with
+      // 300/PGRST201 — which threw here on every call. This is the many-to-one
+      // (the service a procedure hangs off), matching the single {name} shape
+      // below; services_procedure_id_fkey is the one-to-many and returns an array.
+      .select('id, name, kind, goal_statement, trigger_text, definition_of_done, owner:team_members!system_definitions_owner_id_fkey(full_name), service:services!system_definitions_service_id_fkey(name)')
       .eq('id', input.system_id)
       .maybeSingle()
     if (error) throw new Error(error.message)
