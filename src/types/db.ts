@@ -2732,6 +2732,7 @@ export type Database = {
           department_id: string | null
           est_hours: number | null
           id: string
+          is_gate: boolean
           label: string
           ordinal: number
           side: string
@@ -2742,6 +2743,7 @@ export type Database = {
           department_id?: string | null
           est_hours?: number | null
           id?: string
+          is_gate?: boolean
           label: string
           ordinal?: number
           side: string
@@ -2752,6 +2754,7 @@ export type Database = {
           department_id?: string | null
           est_hours?: number | null
           id?: string
+          is_gate?: boolean
           label?: string
           ordinal?: number
           side?: string
@@ -2778,6 +2781,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          months: number[] | null
           ordinal: number
           pinned_month: number | null
           role: string
@@ -2787,6 +2791,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          months?: number[] | null
           ordinal?: number
           pinned_month?: number | null
           role: string
@@ -2796,6 +2801,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          months?: number[] | null
           ordinal?: number
           pinned_month?: number | null
           role?: string
@@ -4422,6 +4428,7 @@ export type Database = {
           est_hours: number | null
           home_month_no: number
           id: string
+          is_gate: boolean
           label: string
           month_no: number
           moved_at: string | null
@@ -4445,6 +4452,7 @@ export type Database = {
           est_hours?: number | null
           home_month_no: number
           id?: string
+          is_gate?: boolean
           label: string
           month_no: number
           moved_at?: string | null
@@ -4468,6 +4476,7 @@ export type Database = {
           est_hours?: number | null
           home_month_no?: number
           id?: string
+          is_gate?: boolean
           label?: string
           month_no?: number
           moved_at?: string | null

@@ -13,7 +13,7 @@ import { monthOf, shiftMonth } from "@/lib/calendar-month";
 import { todayISO } from "@/lib/dates";
 
 export type ThemeRole =
-  | "spine" | "open_day_before" | "open_day" | "open_day_after" | "prize" | "filler";
+  | "spine" | "open_day_before" | "open_day" | "open_day_after" | "prize" | "filler" | "overlay";
 
 export interface TemplateTheme {
   id: string;
@@ -21,6 +21,11 @@ export interface TemplateTheme {
   role: ThemeRole;
   pinned_month: number | null;
   ordinal: number;
+  /** Overlay themes only: which of the twelve months this theme's tasks are
+   *  seeded into, ON TOP of the month's own theme. Null/absent on the six slot
+   *  roles, whose month deriveMonths decides. Optional (not required) only so
+   *  older fixtures that don't set it still typecheck — see is_gate below. */
+  months?: number[] | null;
 }
 
 export interface TemplateTask {
@@ -168,8 +173,26 @@ export function deriveMonths(
   });
 }
 
-/** A theme used in three months seeds its task list into all three. */
-export function seedTasks(months: DerivedMonth[], tasks: TemplateTask[]): SeedTask[] {
+/**
+ * A theme used in three months seeds its task list into all three.
+ *
+ * OVERLAYS SEED ON TOP. A slot theme owns its month; an overlay
+ * (role 'overlay', with a `months` array) owns none and is copied into every
+ * month it names, alongside whatever theme that month resolved to. That is
+ * what lets one month be both "the month after the open day" and "the month
+ * the guide publishes" — the two things the workbook's rollout does constantly
+ * and a one-theme-per-month template cannot say. Ordinal decides the reading
+ * order within the month, so the standing rhythm sits below the month's own
+ * work by carrying a higher number in the template.
+ *
+ * `themes` is optional so a caller with no overlays (and every existing
+ * fixture) is unchanged; without it, overlay tasks simply are not seeded.
+ */
+export function seedTasks(
+  months: DerivedMonth[],
+  tasks: TemplateTask[],
+  themes: TemplateTheme[] = [],
+): SeedTask[] {
   const byTheme = new Map<string, TemplateTask[]>();
   for (const t of tasks) {
     const list = byTheme.get(t.theme_id);
@@ -178,21 +201,35 @@ export function seedTasks(months: DerivedMonth[], tasks: TemplateTask[]): SeedTa
   }
 
   const seeded: SeedTask[] = [];
+  const push = (monthNo: number, t: TemplateTask) =>
+    seeded.push({
+      month_no: monthNo,
+      label: t.label,
+      side: t.side,
+      department_id: t.department_id,
+      est_hours: t.est_hours,
+      source: "template",
+      service_id: null,
+      ordinal: t.ordinal,
+      is_gate: t.is_gate ?? false,
+    });
+
   for (const m of months) {
-    for (const t of byTheme.get(m.theme_id) ?? []) {
-      seeded.push({
-        month_no: m.month_no,
-        label: t.label,
-        side: t.side,
-        department_id: t.department_id,
-        est_hours: t.est_hours,
-        source: "template",
-        service_id: null,
-        ordinal: t.ordinal,
-        is_gate: t.is_gate ?? false,
-      });
+    for (const t of byTheme.get(m.theme_id) ?? []) push(m.month_no, t);
+  }
+
+  const derived = new Set(months.map((m) => m.month_no));
+  for (const th of themes) {
+    if (th.role !== "overlay") continue;
+    for (const n of th.months ?? []) {
+      // A month the derivation did not produce cannot hold anything, so an
+      // out-of-range month in the template is skipped rather than seeding a
+      // task the school_tasks composite FK would reject anyway.
+      if (!derived.has(n)) continue;
+      for (const t of byTheme.get(th.id) ?? []) push(n, t);
     }
   }
+
   return seeded;
 }
 
@@ -257,16 +294,21 @@ export function planningWarnings(
 }
 
 /**
- * The live version: fires only while the school's "Creative approved — the
- * hard deadline" task in an open_day_before month is still open, past its
- * six-week gate. Mirrors schedule_school_year_month's v_gate maths exactly
- * (open_day − 42 days) so the board and the DB never disagree about the date.
- * Read off role, never off theme text — the theme is renameable.
+ * The live version: fires only while the gate task in an open_day_before
+ * month is still open, past its six-week gate. Mirrors
+ * schedule_school_year_month's v_gate maths exactly (open_day − 42 days) so
+ * the board and the DB never disagree about the date.
+ *
+ * Read off role, never off theme text, and off is_gate, never off the label:
+ * both are renameable, and the DB has read the flag since 0151 while this
+ * function was still matching a literal string. A template whose gate task is
+ * worded differently would have left the banner silently dead — the exact
+ * drift is_gate was added to end.
  */
 export function sixWeekBreach(
   openDays: string[],
   months: Pick<DerivedMonth, "month_no" | "role" | "starts_on">[],
-  tasks: { month_no: number; side: "us" | "school"; label: string; state: string }[],
+  tasks: { month_no: number; side: "us" | "school"; state: string; is_gate?: boolean }[],
   today?: string,
 ): { month_no: number; open_day: string; days: number; passed: boolean } | null {
   const now = today ?? todayISO();
@@ -280,9 +322,7 @@ export function sixWeekBreach(
       .sort()[0];
     if (!dayInMonth) continue;
 
-    const gateTask = tasks.find(
-      (t) => t.month_no === m.month_no && t.label === "Creative approved — the hard deadline",
-    );
+    const gateTask = tasks.find((t) => t.month_no === m.month_no && t.is_gate);
     if (!gateTask || gateTask.state === "done") continue;
 
     // daysUntil is signed — negative once the open day is in the past — but

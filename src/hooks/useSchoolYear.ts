@@ -50,6 +50,7 @@ export interface SchoolYearTask {
   source: string;
   service_id: string | null;
   ordinal: number;
+  is_gate: boolean;
   moved_at: string | null;
   moved_by: string | null;
   movedByName: string | null;
@@ -98,7 +99,7 @@ export function useSchoolYear(yearId: string | undefined) {
         .from("school_tasks")
         .select(
           `id, month_no, home_month_no, label, side, state, due_date, est_hours,
-           department_id, assignee_id, source, service_id, ordinal, moved_at, moved_by,
+           department_id, assignee_id, source, service_id, ordinal, is_gate, moved_at, moved_by,
            done_at, done_by, brief_id, client_approval_id,
            department:departments(name),
            assignee:team_members!school_tasks_assignee_id_fkey(full_name),
@@ -139,6 +140,7 @@ export function useSchoolYear(yearId: string | undefined) {
             source: t.source,
             service_id: t.service_id,
             ordinal: t.ordinal,
+            is_gate: t.is_gate,
             moved_at: t.moved_at,
             moved_by: t.moved_by,
             movedByName: t.moved_by_member?.full_name ?? null,

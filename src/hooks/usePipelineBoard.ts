@@ -150,7 +150,7 @@ export function usePipelineTemplate() {
 
       const { data: themes, error: themesErr } = await supabase
         .from("pipeline_template_themes")
-        .select("id, theme, role, pinned_month, ordinal")
+        .select("id, theme, role, pinned_month, months, ordinal")
         .eq("template_id", templateId)
         .order("ordinal");
       if (themesErr) throw new Error(errorMessage(themesErr));

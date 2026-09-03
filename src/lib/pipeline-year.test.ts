@@ -196,6 +196,53 @@ describe("seedTasks", () => {
     const seeded = seedTasks(months, TASKS);
     expect(seeded).toHaveLength(0);
   });
+
+  // The overlay: how the workbook's "every month" and "these months" cadences
+  // reach months whose theme is decided by where the open days fell.
+  const OVERLAYS: TemplateTheme[] = [
+    { id: "monthly", theme: "Acquisition engine — every month", role: "overlay", pinned_month: null, ordinal: 15,
+      months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+    { id: "quarterly", theme: "Every quarter", role: "overlay", pinned_month: null, ordinal: 13, months: [3, 6, 9, 12] },
+  ];
+  const OVERLAY_TASKS: TemplateTask[] = [
+    { theme_id: "monthly", label: "Monthly enrolment report", side: "us", department_id: null, est_hours: null, ordinal: 82 },
+    { theme_id: "quarterly", label: "Quarterly fee benchmark", side: "us", department_id: null, est_hours: null, ordinal: 66 },
+  ];
+  const ALL_THEMES = [...DEFAULT_THEMES, ...OVERLAYS];
+
+  it("an every-month overlay lands in all twelve, whatever theme each month got", () => {
+    const months = deriveMonths(START, ["2027-04-01"], ALL_THEMES);
+    const seeded = seedTasks(months, OVERLAY_TASKS, ALL_THEMES);
+    const report = seeded.filter((t) => t.label === "Monthly enrolment report");
+    expect(report.map((t) => t.month_no).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  });
+
+  it("a named-months overlay lands only on those months", () => {
+    const months = deriveMonths(START, ["2027-04-01"], ALL_THEMES);
+    const seeded = seedTasks(months, OVERLAY_TASKS, ALL_THEMES);
+    const bench = seeded.filter((t) => t.label === "Quarterly fee benchmark");
+    expect(bench.map((t) => t.month_no).sort((a, b) => a - b)).toEqual([3, 6, 9, 12]);
+  });
+
+  it("an overlay seeds ON TOP of the month's own theme, not instead of it", () => {
+    const months = deriveMonths(START, ["2027-04-01"], ALL_THEMES);
+    const openMonth = months.find((m) => m.role === "open_day")!.month_no;
+    const seeded = seedTasks(months, [...TASKS, ...OVERLAY_TASKS], ALL_THEMES);
+    const labels = seeded.filter((t) => t.month_no === openMonth).map((t) => t.label);
+    expect(labels).toContain("Campaign goes live");
+    expect(labels).toContain("Monthly enrolment report");
+  });
+
+  it("an overlay takes no slot: adding one changes no month's theme", () => {
+    const without = deriveMonths(START, ["2027-04-01"], DEFAULT_THEMES);
+    const withOverlays = deriveMonths(START, ["2027-04-01"], ALL_THEMES);
+    expect(withOverlays.map((m) => m.theme)).toEqual(without.map((m) => m.theme));
+  });
+
+  it("without the themes argument, overlay tasks are simply not seeded", () => {
+    const months = deriveMonths(START, ["2027-04-01"], ALL_THEMES);
+    expect(seedTasks(months, OVERLAY_TASKS)).toHaveLength(0);
+  });
 });
 
 describe("planningWarnings", () => {
@@ -243,7 +290,7 @@ describe("sixWeekBreach", () => {
 
   it("fires when the hard-deadline task is still open past the gate", () => {
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     // Six weeks before 2027-04-01 is 2027-02-18; "today" past that with the task still open.
     const breach = sixWeekBreach(["2027-04-01"], months, tasks, "2027-02-25");
@@ -253,22 +300,32 @@ describe("sixWeekBreach", () => {
 
   it("does not fire once the task is done, even past the gate", () => {
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "done" },
+      { month_no: 3, side: "school" as const, state: "done", is_gate: true },
     ];
     expect(sixWeekBreach(["2027-04-01"], months, tasks, "2027-02-25")).toBeNull();
   });
 
   it("does not fire while there is still six clear weeks to go", () => {
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     expect(sixWeekBreach(["2027-04-01"], months, tasks, "2027-01-01")).toBeNull();
+  });
+
+  it("is read off is_gate, not the task's wording — a reworded gate task still fires", () => {
+    const tasks = [{ month_no: 3, side: "school" as const, state: "scheduled", is_gate: true }];
+    expect(sixWeekBreach(["2027-04-01"], months, tasks, "2027-02-25")).not.toBeNull();
+  });
+
+  it("ignores an un-flagged school task in the build month — only the gate gates", () => {
+    const tasks = [{ month_no: 3, side: "school" as const, state: "scheduled", is_gate: false }];
+    expect(sixWeekBreach(["2027-04-01"], months, tasks, "2027-02-25")).toBeNull();
   });
 
   it("is read off role, not theme text — a renamed theme still fires", () => {
     const renamed = months.map((m) => (m.role === "open_day_before" ? { ...m, theme: "Whatever we call it" } : m));
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     expect(sixWeekBreach(["2027-04-01"], renamed, tasks, "2027-02-25")).not.toBeNull();
   });
@@ -289,7 +346,7 @@ describe("sixWeekBreach", () => {
 
   it("D1: never reports a negative day count, even once the open day has passed", () => {
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     // "Today" is two weeks after the open day itself — the gate is long blown.
     const breach = sixWeekBreach(["2027-04-01"], months, tasks, "2027-04-15");
@@ -302,7 +359,7 @@ describe("sixWeekBreach", () => {
   it("fires on a real (non-1st) open day date inside six weeks — passed is false while it's still ahead", () => {
     const realMonths = deriveMonths(START, ["2027-04-20"], DEFAULT_THEMES); // before=3, open=4
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     const breach = sixWeekBreach(["2027-04-20"], realMonths, tasks, "2027-03-15"); // 36 days out
     expect(breach).not.toBeNull();
@@ -313,7 +370,7 @@ describe("sixWeekBreach", () => {
   it("does not fire on a real (non-1st) open day date more than six weeks out", () => {
     const realMonths = deriveMonths(START, ["2027-04-20"], DEFAULT_THEMES);
     const tasks = [
-      { month_no: 3, side: "school" as const, label: "Creative approved — the hard deadline", state: "scheduled" },
+      { month_no: 3, side: "school" as const, state: "scheduled", is_gate: true },
     ];
     const breach = sixWeekBreach(["2027-04-20"], realMonths, tasks, "2027-01-20"); // 90 days out
     expect(breach).toBeNull();

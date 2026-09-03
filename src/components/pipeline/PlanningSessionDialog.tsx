@@ -136,7 +136,7 @@ export function PlanningSessionDialog({
     () => (template ? deriveMonths(startedOn, cleanOpenDays, template.themes) : []),
     [template, startedOn, cleanOpenDays],
   );
-  const seeded = useMemo(() => (template ? seedTasks(months, template.tasks) : []), [template, months]);
+  const seeded = useMemo(() => (template ? seedTasks(months, template.tasks, template.themes) : []), [template, months]);
   const warnings = useMemo(
     () => planningWarnings(startedOn, cleanOpenDays, months),
     [startedOn, cleanOpenDays, months],
