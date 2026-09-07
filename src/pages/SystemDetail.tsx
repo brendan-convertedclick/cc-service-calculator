@@ -1288,19 +1288,13 @@ export function SystemDetail() {
                       canApprove={canApprove}
                     />
                   )}
-                  {/* The way back, from wherever the latest revision has got
-                      to. Any role: the person who finds a procedure wrong is
-                      the person running it, not the person allowed to sign
-                      it. Sits beside "Send for review" because it is the same
-                      decision in reverse, taken from the same screen. */}
-                  {latestRevision && (
-                    <BackToDraftButton
-                      systemId={system.id}
-                      revisionId={latestRevision.id}
-                      state={latestRevision.state}
-                      revisionLabel={`Rev ${latestRevision.revision}`}
-                    />
-                  )}
+                  {/* The way back, for the whole procedure — every revision
+                      still open, not just the newest one (0158). Any role: the
+                      person who finds a procedure wrong is the person running
+                      it, not the person allowed to sign it. Sits beside "Send
+                      for review" because it is the same decision in reverse,
+                      taken from the same screen. */}
+                  <BackToDraftButton systemId={system.id} revisions={revisions} />
                   <Button
                     size="sm"
                     variant="outline"
@@ -1835,7 +1829,15 @@ function RevisionsCard({
         <CardTitle className="text-title-medium">
           Revisions <span className="text-label-medium font-normal text-m-on-surface-variant">· {revisions.length}</span>
         </CardTitle>
-        <Button size="sm" variant="outline" onClick={onPropose}>Send for review</Button>
+        <div className="flex gap-2">
+          {/* Procedure-scoped since 0158 — one click takes every open revision
+              back — so it lives in the header beside its opposite, not on each
+              card. A copy per row would be four buttons that all do the same
+              thing to all four rows. Not gated on role: this is the one
+              control in the systems library that never is. */}
+          <BackToDraftButton systemId={systemId} revisions={revisions} />
+          <Button size="sm" variant="outline" onClick={onPropose}>Send for review</Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3 p-5 pt-0">
         {isLoading && <p className="text-body-medium text-m-on-surface-variant">Loading…</p>}
@@ -1947,15 +1949,6 @@ function RevisionRow({
               />
             </>
           )}
-          {/* Every row that can come back offers it, including the approved
-              one — this is the only per-revision control that is not gated on
-              role. */}
-          <BackToDraftButton
-            systemId={systemId}
-            revisionId={rev.id}
-            state={rev.state}
-            revisionLabel={`Rev ${rev.revision}`}
-          />
         </div>
       </div>
       <p className="mt-1.5 text-body-small text-m-on-surface">{rev.reason_for_change}</p>

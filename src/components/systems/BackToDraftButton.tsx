@@ -1,4 +1,4 @@
-// Put a revision back to Draft.
+// Put a procedure back to Draft.
 //
 // The only control in the systems library that moves a revision BACKWARDS,
 // and deliberately the only one open to every role. Publishing is the admin
@@ -6,14 +6,21 @@
 // and the person who notices a procedure is wrong is almost always the person
 // running it rather than the person allowed to sign it off.
 //
-// It always confirms, in all three states. Not because pulling a draft out of
-// review is dangerous, but because the same click clears every sign-off
-// already recorded against the revision, and that is not visible from the
-// button. The rule underneath is the one the Send-for-review dialog already
-// follows: carry the people, never the `approved_at`. Nobody is ever shown as
-// having signed content they did not read.
+// It takes the PROCEDURE back, not one row of its history (0158). A system
+// can hold more than one open revision — an undecided proposal still sitting
+// under a later published one — and leaving those behind meant the procedure
+// carried on reading "In review" after somebody had deliberately un-approved
+// it, with the stale snapshot still publishable.
 //
-// The write is `system_revision_back_to_draft` (0147), a SECURITY DEFINER RPC
+// It always confirms. Not because pulling a draft out of review is dangerous,
+// but because the same click clears every sign-off already recorded against
+// the procedure, and that is not visible from the button. The rule underneath
+// is the one the Send-for-review dialog already follows: carry the people,
+// never the `approved_at`. Nobody is ever shown as having signed content they
+// did not read.
+//
+// The write is `system_revision_back_to_draft` (0147, procedure-scoped in
+// 0158), a SECURITY DEFINER RPC
 // rather than a plain update — staff have no UPDATE on a published row and
 // must not be given one, or published content could be rewritten in place.
 
@@ -37,13 +44,12 @@ import { useBackToDraft } from "@/hooks/useSystemRevisions";
  *  procedure into two live versions of the past. */
 const REOPENABLE = new Set(["proposed", "changes_requested", "published"]);
 
-function canGoBackToDraft(state: string): boolean {
-  return REOPENABLE.has(state);
-}
-
-/** What this particular click costs, in the words that fit that state. */
-function warning(state: string, label: string): { title: string; body: string; cta: string } {
-  if (state === "published") {
+/** What this click costs, in the words that fit the heaviest thing it touches.
+ *  Precedence over the *set*, not over the newest row: a procedure whose rev 4
+ *  came back as Requested changes while rev 3 is still the approved one would
+ *  otherwise say "Reopen" while quietly un-approving rev 3. */
+function warning(states: string[], label: string): { title: string; body: string; cta: string } {
+  if (states.includes("published")) {
     return {
       title: `Un-approve ${label}?`,
       body:
@@ -51,7 +57,7 @@ function warning(state: string, label: string): { title: string; body: string; c
       cta: "Un-approve and edit",
     };
   }
-  if (state === "proposed") {
+  if (states.includes("proposed")) {
     return {
       title: `Pull ${label} out of review?`,
       body:
@@ -68,23 +74,25 @@ function warning(state: string, label: string): { title: string; body: string; c
 
 export function BackToDraftButton({
   systemId,
-  revisionId,
-  state,
-  revisionLabel,
+  revisions,
   size = "sm",
 }: {
   systemId: string;
-  revisionId: string;
-  state: string;
-  /** "Rev 3" — what the dialog calls the thing being pulled back. */
-  revisionLabel: string;
+  /** Every revision of the procedure, newest first — the control is scoped to
+   *  the system, so it needs the whole set to know what it is about to clear. */
+  revisions: { id: string; revision: number; state: string }[];
   size?: "sm" | "default";
 }) {
   const [open, setOpen] = useState(false);
   const backToDraft = useBackToDraft();
 
-  if (!canGoBackToDraft(state)) return null;
-  const copy = warning(state, revisionLabel);
+  const reopenable = revisions.filter((r) => REOPENABLE.has(r.state));
+  if (reopenable.length === 0) return null;
+  // The RPC resolves the system from whichever revision it is handed; the
+  // newest open one is the one the dialog is named after.
+  const newest = reopenable[0];
+  const revisionLabel = reopenable.length > 1 ? "this procedure" : `Rev ${newest.revision}`;
+  const copy = warning(reopenable.map((r) => r.state), revisionLabel);
 
   return (
     <>
@@ -104,6 +112,13 @@ export function BackToDraftButton({
             <DialogTitle>{copy.title}</DialogTitle>
             <DialogDescription>{copy.body}</DialogDescription>
           </DialogHeader>
+          {reopenable.length > 1 && (
+            <p className="text-body-small text-m-on-surface-variant">
+              Everything else still open on this procedure — {reopenable.length - 1} other revision
+              {reopenable.length > 2 ? "s" : ""} in review or awaiting changes — goes back to draft
+              with it.
+            </p>
+          )}
           {/* Said out loud on every path, because it is the part the button
               cannot show: the sign-off dates go, the names stay. */}
           <p className="text-body-small text-m-on-surface-variant">
@@ -118,10 +133,10 @@ export function BackToDraftButton({
               disabled={backToDraft.isPending}
               onClick={() =>
                 backToDraft.mutate(
-                  { revisionId, systemId },
+                  { revisionId: newest.id, systemId },
                   {
                     onSuccess: () => {
-                      toast.success(`${revisionLabel} is back to draft`);
+                      toast.success(`${revisionLabel === "this procedure" ? "The procedure" : revisionLabel} is back to draft`);
                       setOpen(false);
                     },
                     onError: (e) => toast.error(`Could not reopen: ${errorMessage(e)}`),
