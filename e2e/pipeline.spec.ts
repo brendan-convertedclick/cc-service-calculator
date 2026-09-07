@@ -156,7 +156,14 @@ test.describe("Pipeline", () => {
       await expect(dialog.getByText("M5 · Build the open day machine", { exact: true })).toBeVisible();
       await expect(dialog.getByText("M6 · Open day runs", { exact: true })).toBeVisible();
       await expect(dialog.getByText("M7 · Convert the interest", { exact: true })).toBeVisible();
-      await expect(dialog.getByText("M8 · Offers go out", { exact: true })).toBeVisible();
+      // M8 is a FILLER, and M11 is the template's other pinned spine. 0157
+      // swapped the default template (Schools — Media Mixology v1.5) and this
+      // line still asserted the old one's "M8 · Offers go out", a theme that
+      // no longer exists — so the suite had been red since 3 Sep on a name,
+      // not on a behaviour. The two spines are M1 and M11; every month the
+      // open days do not claim is "Steady state".
+      await expect(dialog.getByText("M8 · Steady state", { exact: true })).toBeVisible();
+      await expect(dialog.getByText("M11 · Annual review and renewal", { exact: true })).toBeVisible();
 
       // D1's whole point: a real date carries real information. M2 → M3's
       // open day is 47 days out (clear of the six-week minimum) and must

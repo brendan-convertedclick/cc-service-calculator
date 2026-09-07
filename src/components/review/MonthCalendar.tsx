@@ -82,6 +82,10 @@ export function MonthCalendar({
             {weeks.flat().map((day) => (
               <div
                 key={day.date}
+                // The square is the assertion: "this chip is on the 8th" is the
+                // whole claim a calendar makes, and e2e cannot make it from a
+                // grid of otherwise identical divs.
+                data-testid={`day-${day.date}`}
                 className={cn(
                   "min-h-[6.5rem] bg-m-surface p-1.5",
                   !day.inMonth && "bg-m-surface-container text-m-on-surface-variant",

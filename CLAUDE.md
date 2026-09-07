@@ -340,9 +340,23 @@ whoever is making the change.
   transport, which is launched by `ecosystem.config.cjs` and never imported. It
   is not dead; add it to `knip.json`'s entries if you want a clean exit.
 - Optional local hook: `git config core.hooksPath .githooks` lints staged files.
-- Playwright specs live in `e2e/`. `systems.spec.ts` **writes to the live
-  database** (prefixed rows, cleaned up in `afterAll`) — the others are
-  read-only, so a routine gate should run those.
+- Playwright specs live in `e2e/`. `systems.spec.ts`, `pipeline.spec.ts`,
+  `staff-access.spec.ts` and `school-calendar.spec.ts` **write to the live
+  database** — prefixed rows and a throwaway team member, cleaned up in
+  `afterAll`. Each carries its own prefix and its own fixture email, and they
+  must stay distinct: every one of them cleans up with `like '<prefix>%'`, and
+  under `fullyParallel` a shared prefix means one suite deleting another's
+  fixtures mid-run. The rest are read-only, so a routine gate should run those.
+- **Two of them are red for reasons that predate any change you are making**,
+  and both are stale fixtures rather than broken features: `pipeline.spec.ts`
+  still asserts the task counts of the template 0157 replaced (M1 seeds 39
+  rows now, not 8 — the overlays), and `filter-rail.spec.ts` expects a
+  `Search…` box on `/retainers` that page no longer renders. Fix the
+  assertion, never the feature, if you go near either.
+- Point the suite at the dev server you are actually running:
+  `PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test`. The
+  config's default is 5174 with `reuseExistingServer`, which will happily run
+  the whole suite against another project's app and pass.
 
 ## Out of scope for V1 (do not implement)
 
