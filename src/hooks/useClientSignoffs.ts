@@ -18,7 +18,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
 import { todayISO } from "@/lib/dates";
-import type { ListResponse, ReviewContact, ReviewItem } from "@/types/client-review";
+import type {
+  ListResponse,
+  ReviewContact,
+  ReviewItem,
+  ReviewScheduleRow,
+} from "@/types/client-review";
 
 /**
  * PostgREST returns a to-one embed as an object at runtime but types it as an
@@ -144,7 +149,7 @@ export function useClientReviewPreview(clientId: string | undefined) {
     queryFn: async (): Promise<ListResponse> => {
       if (!clientId) throw new Error("No client selected");
 
-      const [clientRes, contactRes, itemRes, threadRes] = await Promise.all([
+      const [clientRes, contactRes, itemRes, threadRes, scheduleRes] = await Promise.all([
         supabase.from("clients").select("name").eq("id", clientId).single(),
         supabase
           .from("contacts")
@@ -171,12 +176,24 @@ export function useClientReviewPreview(clientId: string | undefined) {
           .eq("client_id", clientId)
           .in("kind", ["message", "client_message"])
           .order("created_at"),
+        // The school's delivery plan, from the same view the edge function
+        // reads (0159) — the preview's job is to show what the client sees,
+        // and their calendar is most of what they see.
+        supabase
+          .from("client_pipeline_schedule")
+          .select("id, label, side, month_no, theme, shows_on, completed_at")
+          .eq("client_id", clientId)
+          .order("shows_on"),
       ]);
 
       if (clientRes.error) throw new Error(errorMessage(clientRes.error));
       if (contactRes.error) throw new Error(errorMessage(contactRes.error));
       if (itemRes.error) throw new Error(errorMessage(itemRes.error));
       if (threadRes.error) throw new Error(errorMessage(threadRes.error));
+      // Not fatal, exactly as in the edge function: the plan is context beside
+      // the asks, and a preview that cannot draw next month must still show
+      // this month's queue.
+      if (scheduleRes.error) console.error("[preview] schedule:", scheduleRes.error.message);
 
       const contacts: ReviewContact[] = (contactRes.data ?? [])
         .filter((c): c is { id: string; full_name: string } => !!c.full_name)
@@ -220,6 +237,7 @@ export function useClientReviewPreview(clientId: string | undefined) {
         as_at: new Date().toISOString(),
         contacts,
         items,
+        schedule: (scheduleRes.data ?? []) as ReviewScheduleRow[],
         // Staff reach the preview by client id, not by anyone's link, so there
         // is nobody to be signed in as. The preview therefore shows the
         // company-wide shape — which is the honest thing: it cannot know which

@@ -1,7 +1,7 @@
 // supabase/functions/client-review/index.ts
 //
 // Request:  POST { action: "list", token }
-//           → 200 { status: "ok", company_name, as_at, contacts, items }
+//           → 200 { status: "ok", company_name, as_at, contacts, items, schedule }
 //             | 200 TokenFailure
 //
 //           POST { action: "raise", token, kind, title, body?, date? }
@@ -126,6 +126,23 @@ type ReviewItem = {
 };
 
 /**
+ * One line of the school's delivery plan (0159), read from the
+ * client_pipeline_schedule view — which is the only place this function may
+ * read a school's pipeline from. The view is what leaves the staff columns
+ * (assignee, department, estimate, who moved it) behind; selecting off
+ * school_tasks here would put them one typo away from a client's screen.
+ */
+type ReviewScheduleRow = {
+  id: string; // school_tasks.id — NOT client_approvals.id
+  label: string;
+  side: "us" | "school";
+  month_no: number;
+  theme: string;
+  shows_on: string; // "YYYY-MM-DD"
+  completed_at: string | null; // ISO timestamp; ClickUp's own when it was briefed
+};
+
+/**
  * One message on an item's thread. `from` is deliberately coarse: a client
  * sees "Converted Click", never which of us typed it — the only two parties on
  * this page are their company and ours. Internal notes are filtered out
@@ -187,6 +204,8 @@ type ListResponse =
       as_at: string;
       contacts: ReviewContact[];
       items: ReviewItem[];
+      /** The school's own year, when they are on one. Empty otherwise. */
+      schedule: ReviewScheduleRow[];
       /**
        * Who this link belongs to, when it belongs to somebody. The page shows
        * it back to them and skips the "And you are?" step entirely. Null on a
@@ -371,6 +390,19 @@ async function handleList(
     return json({ error: "Something went wrong on our side" }, 500);
   }
 
+  // The school's delivery plan. Read from the view, never from school_tasks —
+  // see ReviewScheduleRow. A failure here is NOT fatal: the plan is context
+  // beside the asks, and a client who cannot see next month's work must still
+  // be able to answer this month's. Empty for every client that is not a school.
+  const { data: scheduleRaw, error: scheduleErr } = await sb
+    .from("client_pipeline_schedule")
+    .select("id, label, side, month_no, theme, shows_on, completed_at")
+    .eq("client_id", clientId)
+    .order("shows_on");
+  if (scheduleErr) {
+    console.error("[client-review] schedule lookup failed:", scheduleErr.message);
+  }
+
   const byApproval = new Map<string, ReviewMessage[]>();
   for (const row of (threadRaw ?? []) as Array<{
     id: string;
@@ -400,6 +432,7 @@ async function handleList(
     as_at: asAt,
     contacts,
     items: items.map((row) => toReviewItem(row, byApproval.get(row.id) ?? [])),
+    schedule: (scheduleRaw ?? []) as unknown as ReviewScheduleRow[],
     // Resolved from the contacts already fetched — a personal token whose
     // contact has since been deleted or had its name cleared falls back to
     // null, which puts the picker back rather than signing as nobody.

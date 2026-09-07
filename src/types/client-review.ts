@@ -131,6 +131,43 @@ export type ReviewItem = {
 };
 
 /**
+ * One line of the school's own delivery plan (0159) — the pipeline, as the
+ * school may see it.
+ *
+ * NOT an item. Nobody approves, answers or ticks one of these: it is what is
+ * happening, in the month it happens, so the calendar can show a plan instead
+ * of the two or three asks that happen to be outstanding. School-side work that
+ * has already become an ask is excluded server-side, or it would be on the
+ * calendar twice.
+ *
+ * Rule 1 of this file holds absolutely: there is no assignee, department,
+ * estimate or staff name here and there never will be.
+ */
+export type ReviewScheduleRow = {
+  /** school_tasks.id. Never a client_approvals id — these are different things. */
+  id: string;
+  label: string;
+  /** Who does it. "us" is Converted Click, and stays that anonymous. */
+  side: "us" | "school";
+  /** 1-12, the school's own month, not the calendar's. */
+  month_no: number;
+  /** The month's theme — "Build the open day machine". Their language for it. */
+  theme: string;
+  /**
+   * "YYYY-MM-DD", the square it sits on: its due date once the month has
+   * arrived, and the date the month will hand it while it is still planned.
+   */
+  shows_on: string;
+  /**
+   * ISO timestamp, or null while it is still to do. ClickUp's own closing time
+   * when the work was briefed, the staff tick otherwise — which is what makes a
+   * past month read as a record of what happened rather than a list of dates
+   * that have gone by. Convert with toISODate; never slice(0, 10).
+   */
+  completed_at: string | null;
+};
+
+/**
  * One message on an item's thread.
  *
  * `from` is deliberately coarse. A client sees "Converted Click", never which
@@ -239,6 +276,13 @@ export type ListOk = {
   as_at: string;
   contacts: ReviewContact[];
   items: ReviewItem[];
+  /**
+   * The school's delivery plan, when they are on one — empty for every client
+   * that is not. It rides beside `items` rather than inside them because it is
+   * a different kind of thing: a plan to look at, not a queue to work through.
+   * Only the calendar reads it.
+   */
+  schedule: ReviewScheduleRow[];
   /**
    * Who this link belongs to, when it belongs to somebody (0142).
    *

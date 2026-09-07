@@ -8,8 +8,15 @@
 // timezone via @/lib/dates. Converted Click runs on SAST; a UTC date compare
 // tells a client an item is overdue two hours before it is.
 
-import { todayISO } from "@/lib/dates";
-import type { ReviewBucket, ReviewItem, ReviewItemType, ReviewMessage } from "@/types/client-review";
+import type { CalendarEntry } from "@/lib/calendar-month";
+import { todayISO, toISODate } from "@/lib/dates";
+import type {
+  ReviewBucket,
+  ReviewItem,
+  ReviewItemType,
+  ReviewMessage,
+  ReviewScheduleRow,
+} from "@/types/client-review";
 
 /**
  * The address a client replies to. Deliberately a team mailbox, never a
@@ -75,6 +82,68 @@ export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> 
   };
   for (const item of items) counts[bucketOf(item)] += 1;
   return counts;
+}
+
+/**
+ * Everything the client's month view plots, from the two things their page
+ * knows: the asks on their list, and the school's delivery plan beside them.
+ *
+ * THE POSITION OF A FINISHED THING IS WHEN IT FINISHED, not when it was due.
+ * That is the whole reason the calendar can be paged backwards at all — an
+ * approved sign-off sits on the day they approved it, and a delivered task on
+ * the day ClickUp closed it (client_pipeline_schedule.completed_at carries
+ * ClickUp's own date whenever the work was briefed). Plotting settled work on
+ * its due date instead would make last month read as a row of deadlines with
+ * no answer to "and did it happen?".
+ *
+ * Undecided asks stay on their due date, which is the date that still matters.
+ *
+ * Nothing here is ever marked late except an ask the client owes us — the
+ * existing isOverdue rule, unchanged: our own slipped date is ours to fix and
+ * not a red mark on their page (see the CLAUDE.md note on owed_by), and a
+ * planned month that has not arrived cannot be late at all.
+ */
+export function calendarEntriesFor(
+  items: ReviewItem[],
+  schedule: ReviewScheduleRow[] = [],
+): CalendarEntry[] {
+  const entries: CalendarEntry[] = [];
+
+  for (const item of items) {
+    // A decision is dated by the decision. Only 'approved' and
+    // 'changes_requested' carry a decided_at (client_approvals_decided_chk),
+    // and a settled row with no stamp at all is an old one — it falls through
+    // to its due date rather than off the calendar.
+    const settledOn = item.decided_at ? toISODate(new Date(item.decided_at)) : null;
+    const date = settledOn ?? item.due_date;
+    if (!date) continue;
+
+    entries.push({
+      id: item.id,
+      date,
+      label: item.client_title,
+      kind: item.state === "noted" ? "event" : "due",
+      late: isOverdue(item),
+      done: item.state === "approved",
+    });
+  }
+
+  for (const row of schedule) {
+    const doneOn = row.completed_at ? toISODate(new Date(row.completed_at)) : null;
+    entries.push({
+      id: `plan-${row.id}`,
+      date: doneOn ?? row.shows_on,
+      label: row.label,
+      // Ours reads as work in progress, theirs as something with their name on
+      // it — the same two marks the queue uses, so the calendar needs no key.
+      kind: row.side === "us" ? "task" : "due",
+      done: !!doneOn,
+      // Nothing to open: a plan line has no thread, no decision and no page.
+      pickable: false,
+    });
+  }
+
+  return entries;
 }
 
 /**

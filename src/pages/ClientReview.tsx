@@ -19,8 +19,16 @@ import {
   useReviewReply,
 } from "@/hooks/useClientReview";
 import { useClientReviewPreview } from "@/hooks/useClientSignoffs";
-import { bucketCounts, bucketOf, formatAsAt, isOverdue, REVIEW_REPLY_TO, sortForQueue } from "@/lib/client-review";
-import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
+import {
+  bucketCounts,
+  bucketOf,
+  calendarEntriesFor,
+  formatAsAt,
+  isOverdue,
+  REVIEW_REPLY_TO,
+  sortForQueue,
+} from "@/lib/client-review";
+import { currentMonth } from "@/lib/calendar-month";
 import { cn, errorMessage } from "@/lib/utils";
 import {
   isTokenFailure,
@@ -168,19 +176,12 @@ export function ClientReview({
   const bucketItems = sorted.filter((item) => bucketOf(item) === bucket);
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
 
-  // What goes on the month view: their dates, and anything still open that has
-  // a date on it. A settled item is deliberately left off — the calendar is
-  // what is coming, and a month filled with things already dealt with buries
-  // the two that are not.
-  const calendarEntries: CalendarEntry[] = items
-    .filter((item) => item.due_date && (item.state === "pending" || item.state === "noted"))
-    .map((item) => ({
-      id: item.id,
-      date: item.due_date!,
-      label: item.client_title,
-      kind: item.state === "noted" ? "event" : "due",
-      late: isOverdue(item),
-    }));
+  // What goes on the month view: their asks, their dates, and — for a school —
+  // the delivery plan for the months either side of this one. Settled work is
+  // ON it now, sitting on the day it was finished rather than the day it was
+  // due, which is what makes paging back a month worth doing (0159). One pure
+  // function, shared with the staff preview, so the two cannot disagree.
+  const calendarEntries = calendarEntriesFor(items, ok?.schedule ?? []);
 
   // Auto-open the first item in "Your move" the moment the list first
   // loads — once only, so a decision later on never yanks the client away
@@ -437,7 +438,7 @@ export function ClientReview({
             month={month}
             entries={calendarEntries}
             onMonthChange={setMonth}
-            emptyNote="Nothing on this month. Use the arrows to look ahead, or add a date so we can plan around it."
+            emptyNote="Nothing on this month. Use the arrows to look back at what was done, or ahead at what is coming."
             onPick={(entry) => {
               // Back to the list, on the thing they clicked. A calendar that
               // cannot be clicked through to the detail is a picture.

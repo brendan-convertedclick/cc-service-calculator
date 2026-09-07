@@ -4,9 +4,11 @@
 // render this same component — the staff one simply has more on it (briefed
 // ClickUp tasks, and a client name on each chip when no client is picked).
 //
-// The grammar is three marks and it is deliberately quiet:
+// The grammar is four marks and it is deliberately quiet:
 //   a DATE (event) is a filled band — it is a fact, it needs no attention
 //   a DUE item is an outlined chip
+//   a DONE one is the same chip, faded, with a tick — a past month is a record
+//     of what happened, and it must not read with the weight of a deadline
 //   a LATE item is the only thing that carries the error colour
 // Anything louder and a month with a normal amount of work in it reads as an
 // emergency, which is how people stop opening the calendar.
@@ -98,10 +100,16 @@ export function MonthCalendar({
                   {day.dayOfMonth}
                 </div>
 
-                <div className="flex flex-col gap-1">
+                {/* A month's plan lands on its last working square in one
+                    heap — twenty chips on a school's month end is normal and
+                    correct. The day scrolls rather than truncating: "+16 more"
+                    on the one square that holds the whole month is the same as
+                    not showing it. */}
+                <div className="flex max-h-24 flex-col gap-1 overflow-y-auto">
                   {day.entries.map((e) => {
                     const chip = (
                       <span className="block truncate">
+                        {e.done ? <span aria-hidden>✓ </span> : null}
                         {e.clientName ? (
                           <span className="opacity-70">{e.clientName} · </span>
                         ) : null}
@@ -115,19 +123,24 @@ export function MonthCalendar({
                         : e.late
                           ? "bg-m-error-container text-m-on-error-container"
                           : "border border-m-outline-variant text-m-on-surface-variant",
+                      // Done last, so it quietens whatever it was — including a
+                      // chip that would otherwise still be shouting that it is
+                      // late. It is not late; it is finished.
+                      e.done && "border-transparent bg-transparent text-m-on-surface-variant/70",
                     );
-                    return onPick ? (
+                    const title = e.done ? `${e.label} — done` : e.label;
+                    return onPick && e.pickable !== false ? (
                       <button
                         key={e.id}
                         type="button"
-                        title={e.label}
+                        title={title}
                         onClick={() => onPick(e)}
                         className={cn(className, "hover:opacity-80")}
                       >
                         {chip}
                       </button>
                     ) : (
-                      <span key={e.id} title={e.label} className={className}>
+                      <span key={e.id} title={title} className={className}>
                         {chip}
                       </span>
                     );

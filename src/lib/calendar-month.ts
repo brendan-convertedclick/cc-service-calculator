@@ -23,13 +23,26 @@ export type CalendarEntry = {
    * What kind of mark it is, which is the whole visual grammar:
    *   event → a date in the client's world; nobody acts on it
    *   due   → something on the list with a date on it
-   *   task  → a briefed ClickUp task's due date (staff calendar only)
+   *   task  → work we are doing: a briefed ClickUp task on the staff calendar,
+   *            a line of the school's delivery plan on the client's (0159)
    */
   kind: "event" | "due" | "task";
   /** Past its date and still open. Events are never late — they just happen. */
   late?: boolean;
+  /**
+   * Already finished, and sitting on the day it was finished rather than the
+   * day it was due. A month in the past is a record, not a list of deadlines
+   * that have gone by — this is the mark that says so.
+   */
+  done?: boolean;
   /** Shown on the all-clients calendar, omitted when one client is picked. */
   clientName?: string | null;
+  /**
+   * False when there is nothing behind this chip to open — a line of a school's
+   * delivery plan is context, not an item with a page. A chip that looks like a
+   * button and does nothing when clicked is worse than one that never did.
+   */
+  pickable?: boolean;
 };
 
 export type CalendarDay = {

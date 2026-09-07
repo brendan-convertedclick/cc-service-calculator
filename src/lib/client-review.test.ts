@@ -3,6 +3,7 @@ import { toISODate } from "./dates";
 import {
   agreedLine,
   bucketOf,
+  calendarEntriesFor,
   bucketCounts,
   daysOverdue,
   dueStatus,
@@ -12,7 +13,23 @@ import {
   sortForQueue,
   typeLabelFor,
 } from "./client-review";
-import type { ReviewItem, ReviewItemState } from "@/types/client-review";
+import type {
+  ReviewItem,
+  ReviewItemState,
+  ReviewScheduleRow,
+} from "@/types/client-review";
+
+function planRow(over: Partial<ReviewScheduleRow> & { id: string }): ReviewScheduleRow {
+  return {
+    label: `Task ${over.id}`,
+    side: "us",
+    month_no: 3,
+    theme: "Open day runs",
+    shows_on: "2026-03-31",
+    completed_at: null,
+    ...over,
+  };
+}
 
 /** Dates are built relative to today so these never rot at midnight. */
 function daysFromToday(n: number): string {
@@ -288,5 +305,67 @@ describe("a question the client asked us", () => {
     expect(
       bucketOf(item({ id: "q1", item_type: "question", owed_by: "us", raised_by: "client" })),
     ).toBe("with-us");
+  });
+});
+
+describe("calendarEntriesFor", () => {
+  it("plots an undecided ask on its due date, and a settled one on the day it settled", () => {
+    const entries = calendarEntriesFor([
+      item({ id: "open", due_date: "2026-03-31" }),
+      item({
+        id: "signed",
+        due_date: "2026-03-31",
+        state: "approved",
+        // Late evening SAST, which is the previous day in UTC — the whole
+        // reason this goes through toISODate rather than slice(0, 10).
+        decided_at: new Date("2026-03-12T21:30:00+02:00").toISOString(),
+      }),
+    ]);
+    expect(entries.find((e) => e.id === "open")?.date).toBe("2026-03-31");
+    const signed = entries.find((e) => e.id === "signed");
+    expect(signed?.date).toBe("2026-03-12");
+    expect(signed?.done).toBe(true);
+  });
+
+  it("keeps a settled row with no stamp on its due date rather than dropping it", () => {
+    const entries = calendarEntriesFor([
+      item({ id: "old", due_date: "2026-03-31", state: "approved", decided_at: null }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].date).toBe("2026-03-31");
+  });
+
+  it("leaves out an ask with no date at all", () => {
+    expect(calendarEntriesFor([item({ id: "undated" })])).toHaveLength(0);
+  });
+
+  it("marks our own side of the plan as work, theirs as something due", () => {
+    const entries = calendarEntriesFor([], [
+      planRow({ id: "ours", side: "us" }),
+      planRow({ id: "theirs", side: "school" }),
+    ]);
+    expect(entries.map((e) => e.kind)).toEqual(["task", "due"]);
+    // Prefixed, because a school task id and a client_approvals id are
+    // different things and the calendar keys on one namespace.
+    expect(entries[0].id).toBe("plan-ours");
+  });
+
+  it("moves a finished plan row onto the day it was finished, never its due date", () => {
+    const [entry] = calendarEntriesFor([], [
+      planRow({
+        id: "done",
+        shows_on: "2026-03-31",
+        completed_at: new Date("2026-03-19T10:00:00+02:00").toISOString(),
+      }),
+    ]);
+    expect(entry.date).toBe("2026-03-19");
+    expect(entry.done).toBe(true);
+  });
+
+  it("never marks the plan late — a month that has not arrived cannot be", () => {
+    const entries = calendarEntriesFor([], [
+      planRow({ id: "past", shows_on: daysFromToday(-30) }),
+    ]);
+    expect(entries[0].late).toBeUndefined();
   });
 });

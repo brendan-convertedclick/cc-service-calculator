@@ -6052,6 +6052,34 @@ export type Database = {
       }
     }
     Views: {
+      client_pipeline_schedule: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          id: string | null
+          label: string | null
+          month_no: number | null
+          shows_on: string | null
+          side: string | null
+          theme: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_years_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_years_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_foundations_coverage"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
       actuals_intervals: {
         Row: {
           billable: boolean | null
