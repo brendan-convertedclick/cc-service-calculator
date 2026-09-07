@@ -34,11 +34,12 @@ import {
   daysWaiting,
   useClientSignoffs,
   useLiveLinkCounts,
+  usePipelineSchedule,
   type SignoffRow,
 } from "@/hooks/useClientSignoffs";
 import { useClientWaiting } from "@/hooks/useClientWaiting";
 import { useSetItemState } from "@/hooks/useClientActivity";
-import { TYPE_LABEL, eventDateLabel } from "@/lib/client-review";
+import { TYPE_LABEL, calendarEntriesFor, eventDateLabel } from "@/lib/client-review";
 import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
 import { todayISO } from "@/lib/dates";
 import { errorMessage } from "@/lib/utils";
@@ -219,6 +220,9 @@ export function ClientSignoffs() {
   const { data: rows = [], isPending, isError, error } = useClientSignoffs();
   const { data: linkCounts = {} } = useLiveLinkCounts();
   const { data: waiting = [], isPending: waitingPending } = useClientWaiting();
+  // Only the Calendar tab reads it, and it is one small table — fetched with
+  // the page rather than on tab change, so switching to Calendar is instant.
+  const { data: schedule = [] } = usePipelineSchedule();
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
@@ -264,6 +268,13 @@ export function ClientSignoffs() {
       (a, b) => b.waiting - a.waiting || a.name.localeCompare(b.name),
     );
   }, [rows, waiting]);
+
+  // Named from the list the page already built, so the view stays a plain
+  // select and nobody has to keep an embed working.
+  const clientNames = useMemo(
+    () => new Map(clients.map((c) => [c.id, c.name])),
+    [clients],
+  );
 
   const q = search.trim().toLowerCase();
 
@@ -323,25 +334,31 @@ export function ClientSignoffs() {
     [waiting, clientId, q, scope],
   );
 
-  // What the month view plots. Three sources, one grid:
+  // What the month view plots. Four sources, one grid:
   //   the client's own dates (events they added on their page),
-  //   anything still open on the list that has a date,
+  //   the asks on the list — open ones on their due date, settled ones on the
+  //     day they were settled,
+  //   a school's delivery plan for the months either side of this one,
   //   and the briefed ClickUp tasks that are still moving.
-  // Parked and settled rows are left off — the calendar is what is coming,
-  // and a month full of things already dealt with buries the two that are not.
+  // The first three go through calendarEntriesFor, the same function the
+  // client's own calendar uses (0159), so staff and client cannot be shown two
+  // different Marches. Parked rows are dropped inside it.
   const calendarEntries: CalendarEntry[] = useMemo(() => {
     const showClient = !clientId;
-    const fromList: CalendarEntry[] = rows
-      .filter((r) => (clientId ? r.client_id === clientId : true))
-      .filter((r) => r.due_date && (r.state === "pending" || r.state === "noted"))
-      .map((r) => ({
-        id: r.id,
-        date: r.due_date!,
-        label: r.client_title,
-        kind: r.state === "noted" ? ("event" as const) : ("due" as const),
-        late: r.state === "pending" && daysWaiting(r) > 0,
-        clientName: showClient ? r.client_name : null,
-      }));
+    // A name only when there is more than one school on the grid — the same
+    // rule the chips have always followed, applied before the mapping rather
+    // than inside it.
+    const named = <T extends { client_name?: string | null }>(r: T): T => ({
+      ...r,
+      client_name: showClient ? (r.client_name ?? null) : null,
+    });
+
+    const fromList = calendarEntriesFor(
+      rows.filter((r) => (clientId ? r.client_id === clientId : true)).map(named),
+      schedule
+        .filter((r) => (clientId ? r.client_id === clientId : true))
+        .map((r) => named({ ...r, client_name: clientNames.get(r.client_id) ?? null })),
+    );
 
     const fromTasks: CalendarEntry[] = waiting
       .filter((t) => (clientId ? t.client_id === clientId : true))
@@ -356,7 +373,7 @@ export function ClientSignoffs() {
       }));
 
     return [...fromList, ...fromTasks];
-  }, [rows, waiting, clientId]);
+  }, [rows, waiting, schedule, clientNames, clientId]);
 
   const previewItem = rows.find((r) => r.id === previewItemId) ?? null;
 
@@ -542,8 +559,10 @@ export function ClientSignoffs() {
                   <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
                     Everything with a date on it{selected ? ` for ${selected.name}` : " across every client"} —
-                    open sign-offs and asks, briefed tasks still moving, and the dates clients
-                    have put on their own page. Parked and settled items are left off.
+                    sign-offs and asks, a school's delivery plan, briefed tasks still moving,
+                    and the dates clients have put on their own page. Settled work sits on the
+                    day it was settled, so a month behind you reads as what happened. Parked
+                    items are left off.
                   </span>
                 </p>
                 <MonthCalendar

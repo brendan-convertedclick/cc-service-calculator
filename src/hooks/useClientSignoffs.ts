@@ -248,6 +248,31 @@ export function useClientReviewPreview(clientId: string | undefined) {
   });
 }
 
+/**
+ * Every school's delivery plan, across every client — the staff side of the
+ * same view the client's page reads (0159). Small by nature: twelve months of
+ * one template per live school year.
+ *
+ * A separate hook rather than a column on useClientSignoffs, because it is a
+ * different table and only one tab wants it. It carries client_id so the
+ * all-clients calendar can name the school; the name itself is resolved from
+ * the client list the page already has, rather than an embed the view would
+ * have to keep answering for.
+ */
+export function usePipelineSchedule() {
+  return useQuery({
+    queryKey: ["pipeline-schedule"],
+    queryFn: async (): Promise<(ReviewScheduleRow & { client_id: string })[]> => {
+      const { data, error } = await supabase
+        .from("client_pipeline_schedule")
+        .select("id, label, side, month_no, theme, shows_on, completed_at, client_id")
+        .order("shows_on");
+      if (error) throw new Error(errorMessage(error));
+      return (data ?? []) as (ReviewScheduleRow & { client_id: string })[];
+    },
+  });
+}
+
 /** Live (unrevoked) link count per client, so staff can see who can't get in. */
 export function useLiveLinkCounts() {
   return useQuery({

@@ -335,6 +335,14 @@ describe("calendarEntriesFor", () => {
     expect(entries[0].date).toBe("2026-03-31");
   });
 
+  it("leaves a parked item off — it is on the list and on nobody's clock", () => {
+    // The client never sees one, but the staff page's rows include them for its
+    // own Parked tab, so the guard has to be in the mapping.
+    expect(
+      calendarEntriesFor([item({ id: "parked", due_date: "2026-03-31", state: "parked" })]),
+    ).toHaveLength(0);
+  });
+
   it("leaves out an ask with no date at all", () => {
     expect(calendarEntriesFor([item({ id: "undated" })])).toHaveLength(0);
   });

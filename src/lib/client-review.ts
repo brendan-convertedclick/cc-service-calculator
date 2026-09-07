@@ -104,12 +104,17 @@ export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> 
  * planned month that has not arrived cannot be late at all.
  */
 export function calendarEntriesFor(
-  items: ReviewItem[],
-  schedule: ReviewScheduleRow[] = [],
+  items: (ReviewItem & { client_name?: string | null })[],
+  schedule: (ReviewScheduleRow & { client_name?: string | null })[] = [],
 ): CalendarEntry[] {
   const entries: CalendarEntry[] = [];
 
   for (const item of items) {
+    // Parked is off every clock (0148) and a calendar is a clock. The client's
+    // payload already excludes it server-side; the staff page's rows do not,
+    // because its own Parked tab needs them — so the rule lives here, where
+    // both callers pass through it.
+    if (item.state === "parked") continue;
     // A decision is dated by the decision. Only 'approved' and
     // 'changes_requested' carry a decided_at (client_approvals_decided_chk),
     // and a settled row with no stamp at all is an old one — it falls through
@@ -125,6 +130,9 @@ export function calendarEntriesFor(
       kind: item.state === "noted" ? "event" : "due",
       late: isOverdue(item),
       done: item.state === "approved",
+      // Only the all-clients calendar passes one; a client never sees a name
+      // that is not their own, because their payload has no such field.
+      clientName: item.client_name ?? null,
     });
   }
 
@@ -138,6 +146,7 @@ export function calendarEntriesFor(
       // it — the same two marks the queue uses, so the calendar needs no key.
       kind: row.side === "us" ? "task" : "due",
       done: !!doneOn,
+      clientName: row.client_name ?? null,
       // Nothing to open: a plan line has no thread, no decision and no page.
       pickable: false,
     });
