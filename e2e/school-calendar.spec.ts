@@ -426,14 +426,15 @@ test.describe("A school's year on the client calendar", () => {
       // code paths to one grid, one set of claims.
       await assertTheYearReads(page);
     } else {
-      // Recorded rather than silent: a green run of this test with this
-      // annotation on it means the calendar works and the client cannot see it
-      // yet, which is a deploy, not a bug.
-      test.info().annotations.push({
-        type: "not verified",
-        description:
-          "the deployed client-review has no `schedule` on its list payload — the plan assertions were skipped. Deploy it (--no-verify-jwt) and they run.",
-      });
+      // Said out loud, not just annotated: an annotation lands in the HTML
+      // report and nowhere else, and a green tick whose reason lives somewhere
+      // nobody opens is precisely how this repo's old CI came to verify
+      // nothing. The warning prints in every reporter.
+      const why =
+        "SCHOOL CALENDAR E2E: the deployed client-review has no `schedule` on its list payload, " +
+        "so the plan assertions did NOT run on the client's own link. Deploy it (--no-verify-jwt) and they will.";
+      console.warn(why);
+      test.info().annotations.push({ type: "not verified", description: why });
     }
 
     expect(errors, "unexpected JS errors on the client's page").toHaveLength(0);

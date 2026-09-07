@@ -348,11 +348,18 @@ whoever is making the change.
   under `fullyParallel` a shared prefix means one suite deleting another's
   fixtures mid-run. The rest are read-only, so a routine gate should run those.
 - **Two of them are red for reasons that predate any change you are making**,
-  and both are stale fixtures rather than broken features: `pipeline.spec.ts`
-  still asserts the task counts of the template 0157 replaced (M1 seeds 39
-  rows now, not 8 — the overlays), and `filter-rail.spec.ts` expects a
-  `Search…` box on `/retainers` that page no longer renders. Fix the
-  assertion, never the feature, if you go near either.
+  and both are stale fixtures rather than broken features.
+  `filter-rail.spec.ts` expects a `Search…` box on `/retainers` that page no
+  longer renders. `pipeline.spec.ts` was written against the template 0157
+  replaced: its three stale counts are fixed (they now derive month 1's task
+  set from `pipeline_template_themes`/`pipeline_template_tasks` — the pinned
+  theme plus every overlay listing month 1 — rather than from literals), but
+  it still fails at **D2**, which picks up a task by a name the MM template
+  does not use and then asserts an hours delta the MM template cannot produce:
+  0157 seeds `est_hours` null on all 96 rows on purpose ("the workbook counts
+  units and never says what a unit is in hours"). Re-fixturing that step is a
+  piece of work with a decision in it — what D2 should assert once there are
+  no hours to move — not a rename. Fix the assertion, never the feature.
 - Point the suite at the dev server you are actually running:
   `PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test`. The
   config's default is 5174 with `reuseExistingServer`, which will happily run

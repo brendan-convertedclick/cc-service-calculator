@@ -35,6 +35,7 @@
 // (D1's own bug), so asserting both is what proves the rule now carries
 // information instead of firing unconditionally.
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { smokeCheck, waitForShell } from "./helpers/shell";
 import {
   E2E_PIPELINE_PREFIX,
@@ -78,6 +79,38 @@ async function addOpenDayRow(dialog: Locator, date: string): Promise<void> {
   await dialog.getByRole("button", { name: "Add an open day" }).click();
   const removeButtons = dialog.getByRole("button", { name: "Remove this open day" });
   await removeButtons.last().locator("xpath=preceding-sibling::input[@type='date']").fill(date);
+}
+
+/** How many tasks the CURRENT default template seeds into month 1, in total
+ *  and on the school's own side — the theme pinned there, plus every overlay
+ *  that lists month 1 (0157: an overlay takes no slot and seeds ON TOP of the
+ *  month's own theme). */
+async function month1TaskCount(db: SupabaseClient): Promise<{ total: number; school: number }> {
+  const { data: settings } = await db
+    .from("settings")
+    .select("default_pipeline_template_id")
+    .maybeSingle();
+  const templateId = settings?.default_pipeline_template_id;
+  if (!templateId) throw new Error("pipeline e2e: settings has no default_pipeline_template_id");
+
+  const { data: themes, error } = await db
+    .from("pipeline_template_themes")
+    .select("id, role, pinned_month, months")
+    .eq("template_id", templateId);
+  if (error) throw new Error(`pipeline e2e: template themes: ${error.message}`);
+
+  const inMonth1 = (themes ?? [])
+    .filter((t) => t.pinned_month === 1 || (t.role === "overlay" && (t.months ?? []).includes(1)))
+    .map((t) => t.id);
+
+  const { data: tasks, error: taskErr } = await db
+    .from("pipeline_template_tasks")
+    .select("id, side")
+    .in("theme_id", inMonth1);
+  if (taskErr) throw new Error(`pipeline e2e: template tasks: ${taskErr.message}`);
+
+  const rows = tasks ?? [];
+  return { total: rows.length, school: rows.filter((t) => t.side === "school").length };
 }
 
 test.describe("Pipeline", () => {
@@ -207,14 +240,26 @@ test.describe("Pipeline", () => {
         .eq("month_no", 1)
         .order("ordinal");
       expect(error).toBeNull();
-      expect(m1Tasks).toHaveLength(8); // "Set the year up": 5 us + 3 school, verbatim from the decks
+      // Derived from the template, not hardcoded. This was `8` — "Set the year
+      // up": 5 us + 3 school, verbatim from the decks — and 0157 replaced the
+      // default template underneath it, so the suite had been red on a number
+      // since 3 Sep. The template's own statement about month 1 is: the theme
+      // pinned to it, plus every overlay whose month list includes it. Read
+      // off the two template tables and never off pipeline-year.ts, or this
+      // asserts the derivation against itself.
+      const expected = await month1TaskCount(owner);
+      expect(m1Tasks).toHaveLength(expected.total);
       for (const t of m1Tasks!) {
         expect(t.state, `${t.label} should be scheduled`).toBe("scheduled");
         expect(t.due_date, `${t.label} should carry a due date`).not.toBeNull();
       }
 
+      // Same staleness, same fix: this was `3`, and the current template's
+      // month 1 asks the school for fourteen things. The claim worth making is
+      // that every school-side task the template names minted an ask — not how
+      // many the deck had in it in August.
       const schoolTasks = m1Tasks!.filter((t) => t.side === "school");
-      expect(schoolTasks).toHaveLength(3);
+      expect(schoolTasks).toHaveLength(expected.school);
       for (const t of schoolTasks) expect(t.client_approval_id, `${t.label} minted an ask`).not.toBeNull();
 
       const { data: approvals, error: apprErr } = await owner
@@ -225,7 +270,7 @@ test.describe("Pipeline", () => {
           schoolTasks.map((t) => t.client_approval_id as string),
         );
       expect(apprErr).toBeNull();
-      expect(approvals).toHaveLength(3);
+      expect(approvals).toHaveLength(expected.school);
       const taskIds = new Set(schoolTasks.map((t) => t.id));
       for (const a of approvals!) {
         expect(a.item_type).toBe("brief");
