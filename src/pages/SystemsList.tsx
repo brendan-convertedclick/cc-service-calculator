@@ -247,7 +247,8 @@ export function SystemsList() {
       scoped.filter((s) => {
         if (band && (isBand(s.band) ? s.band : UNBANDED) !== band) return false;
         if (kind && s.kind !== kind) return false;
-        // One department per system — whichever its owner sits in.
+        // One department per system — the one most of its tasks sit in,
+        // falling back to its owner's. See dominantDepartment.
         if (dept && (s.department_id ?? NO_DEPT) !== dept) return false;
         if (unmappedOnly && s.goal_statement !== PLACEHOLDER_GOAL) return false;
         if (myNotesOnly && !myNoteCounts?.has(s.id)) return false;

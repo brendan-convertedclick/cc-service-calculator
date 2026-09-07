@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDraft, groupProcedure, pruneDraft, taskBlockedReason, taskHours } from "./procedure-shape";
+import { applyDraft, dominantDepartment, groupProcedure, pruneDraft, taskBlockedReason, taskHours } from "./procedure-shape";
 
 const task = (id: string, ordinal: number) => ({ id, ordinal });
 const step = (id: string, parent_id: string | null, ordinal: number) => ({ id, parent_id, ordinal });
@@ -128,5 +128,26 @@ describe("pruneDraft", () => {
   it("returns the same Map when every staged row is still there", () => {
     const draft = new Map([["a", { title: "A" }]]);
     expect(pruneDraft(draft, new Set(["a", "b"]))).toBe(draft);
+  });
+});
+
+describe("dominantDepartment", () => {
+  const d = (...ids: (string | null)[]) => ids.map((department_id) => ({ department_id }));
+
+  it("returns the department most of the tasks sit in", () => {
+    expect(dominantDepartment(d("pm", "ao", "ao", "strategy"))).toBe("ao");
+  });
+
+  it("gives a tie to the first task, the order the procedure is read in", () => {
+    expect(dominantDepartment(d("ao", "strategy"))).toBe("ao");
+  });
+
+  it("ignores tasks with no department rather than counting them as one", () => {
+    expect(dominantDepartment(d(null, null, "ao"))).toBe("ao");
+  });
+
+  it("is null when nothing is departmented, so the caller can fall back", () => {
+    expect(dominantDepartment(d(null, null))).toBeNull();
+    expect(dominantDepartment([])).toBeNull();
   });
 });

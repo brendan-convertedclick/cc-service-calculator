@@ -131,3 +131,32 @@ export function pruneDraft<P>(draft: Map<string, P>, liveIds: Set<string>): Map<
   for (const rowId of stale) next.delete(rowId);
   return next;
 }
+
+/**
+ * The one department a procedure belongs to, for the systems rail: the one
+ * most of its tasks sit in.
+ *
+ * A procedure has no department column of its own. Listing it under *every*
+ * department its tasks touch was tried and dropped — a cross-team procedure
+ * appeared in all of them and the rail's counts stopped summing to the total.
+ * Reading the owner's home department instead kept the counts honest but
+ * answered the wrong question: a procedure's department is where its work
+ * happens, not where the person who wrote it sits.
+ *
+ * So: single-valued, taken from the work. Ties go to the first task, which is
+ * the order the procedure is read in. Null when no task is departmented yet —
+ * the caller falls back to the owner's department there.
+ */
+export function dominantDepartment(
+  tasks: { department_id: string | null }[],
+): string | null {
+  const tally = new Map<string, number>();
+  for (const t of tasks) {
+    if (!t.department_id) continue;
+    tally.set(t.department_id, (tally.get(t.department_id) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [id, n] of tally) if (n > bestN) [best, bestN] = [id, n];
+  return best;
+}

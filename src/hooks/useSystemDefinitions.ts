@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { dominantDepartment } from "@/lib/procedure-shape";
 import { useAuth } from "@/context/AuthContext";
 import type { Database } from "@/types/db";
 
@@ -97,11 +98,15 @@ export type SystemDefinitionWithJoins = SystemDefinition & {
    *  it. Also independent of current_revision_id: an approved system can carry
    *  a later declined revision. */
   changes_requested: boolean;
-  /** The owning department — its owner's primary department. A system has no
-   *  department column of its own, and rolling up every department its steps
-   *  touch listed a cross-team procedure under all of them, so the rail's
-   *  counts overlapped. Null when there's no owner, or the owner has no
-   *  primary department. */
+  /** The owning department — the one most of its tasks sit in, falling back to
+   *  its owner's primary department when nothing is departmented yet. A system
+   *  has no department column of its own. Rolling up EVERY department its steps
+   *  touch listed a cross-team procedure under all of them and the rail's counts
+   *  overlapped, so this stays deliberately single-valued: one department per
+   *  system, counts that still sum to the total. Owner-only was the earlier
+   *  simplification and it made the rail answer the wrong question — a
+   *  procedure's department is where its work happens, not where the person who
+   *  wrote it sits. Null when neither is known. */
   department_id: string | null;
 };
 
@@ -154,7 +159,7 @@ export function useSystemDefinitions() {
           supabase.from("system_definitions").select(JOIN_SELECT).is("archived_at", null).order("name"),
           supabase
             .from("process_steps")
-            .select("system_id")
+            .select("system_id, department_id")
             .is("parent_id", null)
             .not("system_id", "is", null),
           // Only the states the system row can't already tell us — approved is
@@ -171,16 +176,27 @@ export function useSystemDefinitions() {
       );
 
       const counts = new Map<string, number>();
-      for (const r of (stepRows ?? []) as { system_id: string }[]) {
+      // Same pass fills both: how many tasks a system has, and the tasks
+      // themselves so dominantDepartment can pick the one department the rail
+      // files it under.
+      const tasksBySystem = new Map<string, { department_id: string | null }[]>();
+      for (const r of (stepRows ?? []) as { system_id: string; department_id: string | null }[]) {
         counts.set(r.system_id, (counts.get(r.system_id) ?? 0) + 1);
+        const tasks = tasksBySystem.get(r.system_id) ?? [];
+        tasks.push({ department_id: r.department_id });
+        tasksBySystem.set(r.system_id, tasks);
       }
 
-      return ((systems ?? []) as unknown as JoinedRow[]).map((s) => ({
-        ...withJoins(s),
-        step_count: counts.get(s.id) ?? 0,
-        in_review: inReview.has(s.id),
-        changes_requested: changesRequested.has(s.id),
-      }));
+      return ((systems ?? []) as unknown as JoinedRow[]).map((s) => {
+        const joined = withJoins(s);
+        return {
+          ...joined,
+          department_id: dominantDepartment(tasksBySystem.get(s.id) ?? []) ?? joined.department_id,
+          step_count: counts.get(s.id) ?? 0,
+          in_review: inReview.has(s.id),
+          changes_requested: changesRequested.has(s.id),
+        };
+      });
     },
   });
 }
