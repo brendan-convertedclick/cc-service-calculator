@@ -10,6 +10,7 @@ import {
   Lightbulb,
   Link2Off,
   MessageCircleQuestion,
+  Presentation,
   Wand2,
 } from "lucide-react";
 import { DraftSignoffsDialog } from "@/components/signoffs/DraftSignoffsDialog";
@@ -389,6 +390,11 @@ export function ClientSignoffs() {
     (t) => t.court === "client",
   ).length;
   const owedByUs = inScope.filter((r) => r.state === "pending" && r.owed_by === "us").length;
+  // Scoped like every other number on the page. Agency-wide it told you a
+  // count that had nothing to do with the client in front of you, and opened a
+  // dialog listing everybody's — which is how eight tasks sat in Trellidor's
+  // court with nothing ever asked of them.
+  const candidatesHere = clientId ? candidates.filter((c) => c.clientId === clientId) : candidates;
 
   return (
     <div className="flex h-full">
@@ -466,17 +472,41 @@ export function ClientSignoffs() {
                 <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
                 Park an idea
               </Button>
-              {candidates.length > 0 && (
+              {/* The same page, on its own, with no rail and no other client's
+                  name on it — for putting on a screen in a meeting. Read-only
+                  by construction: it renders the preview, where pressing a
+                  button records nothing. */}
+              {selected ? (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/present/${selected.id}`} target="_blank" rel="noreferrer">
+                    <Presentation className="mr-1.5 h-3.5 w-3.5" />
+                    Present
+                  </a>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled title="Pick a client first">
+                  <Presentation className="mr-1.5 h-3.5 w-3.5" />
+                  Present
+                </Button>
+              )}
+              {candidatesHere.length > 0 && (
                 <Button variant="outline" size="sm" onClick={() => setDraftOpen(true)}>
                   <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                  Draft from ClickUp ({candidates.length})
+                  Draft from ClickUp ({candidatesHere.length})
                 </Button>
               )}
             </div>
           </div>
           <p className="mt-1 text-body-medium text-m-on-surface-variant">
             {pending.length === 0
-              ? `Nothing is waiting on ${selected ? selected.name : "a client"} right now.`
+              ? candidatesHere.length > 0
+                ? // The rail counts tasks in their court as well as asks, so
+                  // "nothing is waiting" beside a count of 8 was a flat
+                  // contradiction. They are waiting — nobody has asked yet.
+                  `Nothing has been asked of ${selected ? selected.name : "a client"} yet, but ${
+                    candidatesHere.length
+                  } ${candidatesHere.length === 1 ? "task is" : "tasks are"} sitting in their court — draft them from ClickUp.`
+                : `Nothing is waiting on ${selected ? selected.name : "a client"} right now.`
               : `${pending.length} ${pending.length === 1 ? "item is" : "items are"} waiting on ${
                   selected ? selected.name : "a client"
                 }${worst > 0 ? ` — the oldest is ${worst} days past its date` : ""}.`}
@@ -693,6 +723,11 @@ export function ClientSignoffs() {
                 <div className="flex flex-col items-start gap-3 p-6">
                   <p className="text-body-medium text-m-on-surface-variant">
                     Nothing asked yet{selected ? ` of ${selected.name}` : ""}.
+                    {candidatesHere.length > 0
+                      ? ` ${candidatesHere.length} ${
+                          candidatesHere.length === 1 ? "task is" : "tasks are"
+                        } waiting on them in ClickUp.`
+                      : ""}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -715,10 +750,10 @@ export function ClientSignoffs() {
                       <Handshake className="mr-1.5 h-3.5 w-3.5" />
                       Record an agreement
                     </Button>
-                    {candidates.length > 0 && (
+                    {candidatesHere.length > 0 && (
                       <Button variant="outline" size="sm" onClick={() => setDraftOpen(true)}>
                         <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                        Draft from ClickUp ({candidates.length})
+                        Draft from ClickUp ({candidatesHere.length})
                       </Button>
                     )}
                   </div>
@@ -735,7 +770,11 @@ export function ClientSignoffs() {
         )}
       </div>
 
-      <DraftSignoffsDialog open={draftOpen} onOpenChange={setDraftOpen} />
+      <DraftSignoffsDialog
+        open={draftOpen}
+        onOpenChange={setDraftOpen}
+        clientId={clientId ?? undefined}
+      />
       <EvidenceDialog
         open={evidenceOf !== null}
         onOpenChange={(next) => {

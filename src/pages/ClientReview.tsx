@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CalendarDays, CalendarPlus, List, MessageCircleQuestion } from "lucide-react";
+import { CalendarDays, CalendarPlus, Hourglass, List, MessageCircleQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,7 @@ import { ItemDetail } from "@/components/review/ItemDetail";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
+import { HoldingView } from "@/components/review/HoldingView";
 import { RaiseDialog } from "@/components/review/RaiseDialog";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
@@ -154,7 +155,7 @@ export function ClientReview({
   // The month view. A toggle rather than a fourth column: on a phone the
   // queue and a calendar cannot both be on screen, and a calendar is
   // something you go and look at, not something you work beside.
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "holding" | "calendar">("list");
   const [month, setMonth] = useState(currentMonth);
   const [raiseKind, setRaiseKind] = useState<RaiseKind | null>(null);
   const [raiseError, setRaiseError] = useState<string | null>(null);
@@ -364,6 +365,9 @@ export function ClientReview({
   }
 
   const asAt = ok ? formatAsAt(ok.as_at) : "";
+  // The server's own stamp, so every day-count on this page agrees with the
+  // "As at" beside it rather than drifting with the tab being left open.
+  const nowMs = ok?.as_at ? Date.parse(ok.as_at) : Date.now();
   const detailNode = selectedItem ? (
     <ItemDetail
       item={selectedItem}
@@ -409,6 +413,10 @@ export function ClientReview({
           <div className="flex rounded-full border border-m-outline-variant p-0.5">
             {([
               { id: "list" as const, label: "List", Icon: List },
+              // Their own copy of the tab staff argue from. Same figures, same
+              // stop-clock rule — the two must never tell different stories
+              // about the same week.
+              { id: "holding" as const, label: "Who's holding it up", Icon: Hourglass },
               { id: "calendar" as const, label: "Calendar", Icon: CalendarDays },
             ]).map(({ id, label, Icon }) => (
               <button
@@ -432,7 +440,11 @@ export function ClientReview({
         </div>
       </header>
 
-      {view === "calendar" ? (
+      {view === "holding" ? (
+        <div className="flex-1 overflow-y-auto p-2 lg:p-4">
+          <HoldingView items={items} now={nowMs} />
+        </div>
+      ) : view === "calendar" ? (
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
           <MonthCalendar
             month={month}
@@ -560,4 +572,15 @@ export function ClientReview({
       />
     </div>
   );
+}
+
+/**
+ * The same page on its own URL, for putting on a screen in a meeting: no nav
+ * rail, no other client's name anywhere. It renders the staff preview, so it
+ * is read-only by construction — pressing a button records nothing, and the
+ * client still decides from their own link.
+ */
+export function ClientPresent() {
+  const { clientId = "" } = useParams<{ clientId: string }>();
+  return <ClientReview previewClientId={clientId} />;
 }

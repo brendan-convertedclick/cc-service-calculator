@@ -29,7 +29,7 @@
 // every row on one render agrees and a test can pin it.
 
 import { pointsToHours } from "@/lib/sprint-points";
-import { waitSplit, type Court, type WaitingSource } from "@/lib/client-waiting";
+import { splitAt, type Court, type WaitingSource } from "@/lib/client-waiting";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -40,7 +40,14 @@ const MS_PER_DAY = 86_400_000;
  */
 export const WORK_HOURS_PER_DAY = 6;
 
-export type StopClockSource = WaitingSource & {
+export type StopClockSource = Omit<WaitingSource, "clickup_task_status" | "completed_at"> & {
+  /**
+   * Whose court it is in, already decided. Taking the court rather than the
+   * raw ClickUp status is what lets the CLIENT's page draw the same chart:
+   * their payload carries a derived court and no status string, because a
+   * status is our vocabulary — see types/client-review.ts.
+   */
+  court: Court;
   /** The due date as at the moment the brief was raised. */
   original_due_date: string | null;
   /** When Conductor learned about it — NOT always when the work was raised. */
@@ -99,7 +106,7 @@ function dueMsOf(date: string | null): number | null {
 }
 
 export function stopClock(row: StopClockSource, now: number): StopClock {
-  const split = waitSplit(row, now);
+  const split = splitAt(row.court, row, now);
   const clientDays = split.clientMs / MS_PER_DAY;
   const ourDays = split.internalMs / MS_PER_DAY;
 

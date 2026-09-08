@@ -37,16 +37,28 @@ export const REVIEW_REPLY_TO = "hello@convertedclick.co.za";
  *                       sits under "With us" and carries no buttons. Putting
  *                       our own commitment in their "Your move" pile would
  *                       ask them to close something they cannot do.
+ *   …unless the linked task's own ClickUp clock says the work has come back
+ *                       to our side: whoever is HOLDING IT UP is whose pane it
+ *                       is in. An approval we asked for that we are now
+ *                       reworking is not their move, and listing it under
+ *                       "Your move" asks them to act on something they cannot.
  *   changes_requested → they answered and it came back to us
  *   approved          → done, kept for the record
  *   noted             → an event: a date, in nobody's court at all
+ *
+ * A finished task (court "done") does NOT settle anything: the work landing is
+ * not the client agreeing to it, and moving an undecided ask into "Signed off"
+ * would claim a sign-off nobody gave. It stays their move, which is what it is
+ * — we are done, they have not answered.
  */
 export function bucketOf(item: ReviewItem): ReviewBucket {
   // An event is a date, not a job. It is in nobody's court, which is exactly
   // why it has its own state (0149) rather than being filtered out of the
   // three that are all about whose move it is.
   if (item.state === "noted") return "coming-up";
-  if (item.state === "pending") return item.owed_by === "us" ? "with-us" : "your-move";
+  if (item.state === "pending") {
+    return item.owed_by === "us" || item.court === "us" ? "with-us" : "your-move";
+  }
   if (item.state === "changes_requested") return "with-us";
   return "signed-off";
 }
@@ -57,9 +69,11 @@ export function bucketOf(item: ReviewItem): ReviewBucket {
  * reproach to keep showing them.
  */
 export function isOverdue(item: ReviewItem): boolean {
-  // Our own late commitment is not a reproach to show a client in red on
-  // their own page — it is ours to fix, and the staff table already flags it.
-  if (item.owed_by === "us") return false;
+  // Only ever red on something that is actually theirs to move. That covers
+  // our own late commitment (owed_by "us") and anything the ClickUp clock says
+  // we are currently holding — both are ours to fix, not a red mark on their
+  // page — and it stays true by construction as the pane rule changes.
+  if (bucketOf(item) !== "your-move") return false;
   if (item.state !== "pending" || !item.due_date) return false;
   return item.due_date < todayISO();
 }
@@ -153,6 +167,82 @@ export function calendarEntriesFor(
   }
 
   return entries;
+}
+
+/**
+ * "With you 25d · with us 4d" — where the time on this actually went.
+ *
+ * Both halves, always, whenever either is a day or more. One-sided it is a
+ * chase; two-sided it is a record, and it is the same pair of figures the
+ * staff page argues from, so the two cannot tell different stories about the
+ * same item in the same minute.
+ *
+ * Whole days from the banked ClickUp totals. The running clock is NOT added
+ * back: it is at most half an hour (the sync cron) and this is measured in
+ * days. Null when nothing has been linked or nothing has yet reached a day.
+ */
+export function heldLine(item: ReviewItem): string | null {
+  const theirs = Math.floor((item.waiting_ms ?? 0) / 86_400_000);
+  const ours = Math.floor((item.our_ms ?? 0) / 86_400_000);
+  if (theirs <= 0 && ours <= 0) return null;
+  const parts: string[] = [];
+  if (theirs > 0) parts.push(`With you ${theirs}d`);
+  if (ours > 0) parts.push(`${parts.length ? "with" : "With"} us ${ours}d`);
+  return parts.join(" · ");
+}
+
+/**
+ * One row of "who's holding it up", for the client's own version of the tab
+ * staff argue from. Days, not ms — nothing on this view is finer than a day.
+ */
+export type HoldingRow = {
+  id: string;
+  title: string;
+  /** Whose court the work is in right now. Never null — unlinked rows are out. */
+  court: "client" | "us" | "done";
+  theirsDays: number;
+  oursDays: number;
+  /** The date originally set, and where it lands once their days come off. */
+  neededByMs: number | null;
+  movedToMs: number | null;
+};
+
+/**
+ * Where the time on the open work has actually gone, from the client's own
+ * items. NOT from briefs: this view is built out of what is already on their
+ * page, so it cannot show them a task nobody has titled for them.
+ *
+ * THE STOP-CLOCK RULE IS THE SAME ONE STAFF SEE (src/lib/stop-clock.ts):
+ * only client-held time moves a date, queued time never does. A date that
+ * slipped because WE had not started is not adjusted, here or there — one row
+ * like that discredits every other row on the page, and this is the version
+ * the client reads.
+ *
+ * Settled items are out (how long it took is our record, not a reproach), and
+ * so is anything with no linked task, which is every question and every
+ * agreement: they have no clock, and a row of two zeroes explains nothing.
+ * Longest-held first, because that is the conversation.
+ */
+export function holdingRows(items: ReviewItem[]): HoldingRow[] {
+  const rows: HoldingRow[] = [];
+  for (const item of items) {
+    if (item.state !== "pending" || !item.court) continue;
+    const theirsMs = item.waiting_ms ?? 0;
+    const oursMs = item.our_ms ?? 0;
+    const dueMs = item.due_date ? Date.parse(`${item.due_date}T00:00:00Z`) : NaN;
+    const neededByMs = Number.isNaN(dueMs) ? null : dueMs;
+    rows.push({
+      id: item.id,
+      title: item.client_title,
+      court: item.court,
+      theirsDays: theirsMs / 86_400_000,
+      oursDays: oursMs / 86_400_000,
+      neededByMs,
+      // Their days, and only their days, move the date.
+      movedToMs: neededByMs === null ? null : neededByMs + theirsMs,
+    });
+  }
+  return rows.sort((a, b) => b.theirsDays - a.theirsDays || a.title.localeCompare(b.title));
 }
 
 /**
@@ -304,7 +394,8 @@ export type DueStatus =
   | null;
 
 export function dueStatus(item: ReviewItem): DueStatus {
-  if (item.state !== "pending" || item.owed_by === "us") return null;
+  // Same rule as isOverdue: no countdown on something that is not their move.
+  if (item.state !== "pending" || bucketOf(item) !== "your-move") return null;
 
   if (!item.due_date) {
     const days = Math.floor((item.waiting_ms ?? 0) / 86_400_000);

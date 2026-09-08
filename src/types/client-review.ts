@@ -105,6 +105,34 @@ export type ReviewItem = {
    * Null when there is no linked task or the sync has not reached it yet.
    */
   waiting_ms: number | null;
+  /**
+   * How long the work behind this has sat with US, in ms, from the same
+   * ClickUp clock — the other half of `waiting_ms`.
+   *
+   * A client sees both halves on purpose. A page that only counts their days
+   * is a chase, and the first time they know we sat on something for a month
+   * every other number on it stops being believed. These figures were built to
+   * be defensible rather than self-serving (see the stop-clock note in
+   * CLAUDE.md), which means they survive the client reading them.
+   */
+  our_ms: number | null;
+  /**
+   * Whose court the linked task is in RIGHT NOW, from its ClickUp status —
+   * not who the ask is addressed to. It is what decides the pane: an approval
+   * we asked for whose work has come back to our side is not their move,
+   * whatever the ask says. Null when nothing is linked, which is every
+   * question and every agreement — those fall back to `owed_by`.
+   */
+  court: "client" | "us" | "done" | null;
+  /**
+   * When the work behind this entered our system — the linked task's own
+   * created_at, not this row's. It is what makes a runway measurable: the days
+   * between "we were told" and "it was needed by". `created_at` cannot stand
+   * in for it, because a sign-off drafted from an existing task is written
+   * long after the work started, so every row would report as having had no
+   * runway at all. Null when nothing is linked.
+   */
+  work_since: string | null;
   /** The two-way thread, oldest first. Never contains internal notes. */
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */

@@ -11,22 +11,28 @@
 
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
-import { pressureDays } from "@/lib/client-review";
+import { bucketOf, pressureDays } from "@/lib/client-review";
+import { courtOf } from "@/lib/client-waiting";
 import type { StageCounts } from "@/lib/client-email";
 import type { ReviewItem } from "@/types/client-review";
 
-/** The fields pressureDays reads. Everything else is padded to satisfy the type. */
+type Brief = {
+  client_wait_ms: number | null;
+  clickup_task_status: string | null;
+  completed_at: string | null;
+};
+
+/** The fields bucketOf and pressureDays read. The rest is padded to the type. */
 type CountRow = {
   state: string;
   owed_by: string;
   due_date: string | null;
-  briefs: { client_wait_ms: number | null } | { client_wait_ms: number | null }[] | null;
+  briefs: Brief | Brief[] | null;
 };
 
-function waitingMsOf(briefs: CountRow["briefs"]): number | null {
+function briefOf(briefs: CountRow["briefs"]): Brief | null {
   if (!briefs) return null;
-  const row = Array.isArray(briefs) ? briefs[0] : briefs;
-  return row?.client_wait_ms ?? null;
+  return (Array.isArray(briefs) ? briefs[0] : briefs) ?? null;
 }
 
 /** Derivation only — pure, so the bucket rules can be tested without a database. */
@@ -46,23 +52,31 @@ export function countStages(rows: CountRow[]): StageCounts {
     // not in a count of who owes what. Without this it would fall through to
     // waitingOnYou and chase a client about their own launch date.
     if (row.state === "noted") continue;
-    if (row.state === "approved") {
-      signedOff += 1;
-      continue;
-    }
-    // Back with us after they answered, or something we ourselves promised.
-    if (row.state === "changes_requested" || row.owed_by === "us") {
-      withUs += 1;
-      continue;
-    }
-    waitingOnYou += 1;
-
+    const brief = briefOf(row.briefs);
     const item = {
       state: row.state,
       owed_by: row.owed_by,
       due_date: row.due_date,
-      waiting_ms: waitingMsOf(row.briefs),
+      waiting_ms: brief?.client_wait_ms ?? null,
+      // Unsynced task = no court, as in the wire mapping: silence must not
+      // move an ask out of the pane the client is looking at.
+      court:
+        brief && (brief.clickup_task_status || brief.completed_at) ? courtOf(brief) : null,
     } as ReviewItem;
+
+    // bucketOf, not a second copy of it. The three cells in the email are the
+    // three panes on their page, so a rule that moves an item on one has to
+    // move it on the other — that is the whole point of this file's header.
+    const bucket = bucketOf(item);
+    if (bucket === "signed-off") {
+      signedOff += 1;
+      continue;
+    }
+    if (bucket === "with-us") {
+      withUs += 1;
+      continue;
+    }
+    waitingOnYou += 1;
     oldestDays = Math.max(oldestDays, pressureDays(item));
   }
 
@@ -80,7 +94,7 @@ export async function fetchStageCounts(clientId: string): Promise<StageCounts | 
   try {
     const { data, error } = await supabase
       .from("client_approvals")
-      .select("state, owed_by, due_date, briefs(client_wait_ms)")
+      .select("state, owed_by, due_date, briefs(client_wait_ms, clickup_task_status, completed_at)")
       .eq("client_id", clientId)
       .neq("state", "parked");
     if (error) {

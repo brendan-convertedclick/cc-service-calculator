@@ -9,6 +9,8 @@ import {
   dueStatus,
   eventDateLabel,
   formatAsAt,
+  heldLine,
+  holdingRows,
   isOverdue,
   sortForQueue,
   typeLabelFor,
@@ -55,6 +57,9 @@ function item(over: Partial<ReviewItem> & { id: string }): ReviewItem {
     raised_by: "us",
     raised_by_name: null,
     waiting_ms: null,
+    our_ms: null,
+    court: null,
+    work_since: null,
     messages: [],
     created_at: "2026-08-01T08:00:00Z",
     client_note: null,
@@ -71,6 +76,86 @@ describe("bucketOf", () => {
     expect(
       bucketOf(item({ id: "c", state: "approved", decided_at: "2026-08-20T09:00:00Z" })),
     ).toBe("signed-off");
+  });
+
+  it("puts a pending ask under With us while WE are holding the work", () => {
+    // The ask is addressed to them, but the ClickUp clock says the work came
+    // back to our side — so it is not their move.
+    expect(bucketOf(item({ id: "a", state: "pending", court: "us" }))).toBe("with-us");
+    expect(bucketOf(item({ id: "b", state: "pending", court: "client" }))).toBe("your-move");
+    // No linked task, or one nothing has synced: no court, no override.
+    expect(bucketOf(item({ id: "c", state: "pending", court: null }))).toBe("your-move");
+  });
+
+  it("does not sign anything off just because the work finished", () => {
+    // Us finishing is not them agreeing. It stays their move.
+    expect(bucketOf(item({ id: "a", state: "pending", court: "done" }))).toBe("your-move");
+  });
+
+  it("shows no deadline or red on something that is not their move", () => {
+    const held = item({ id: "a", state: "pending", court: "us", due_date: daysFromToday(-9) });
+    expect(isOverdue(held)).toBe(false);
+    expect(dueStatus(held)).toBeNull();
+  });
+});
+
+describe("holdingRows", () => {
+  const day = 86_400_000;
+
+  it("moves the date by THEIR days only, never by ours", () => {
+    const [row] = holdingRows([
+      item({
+        id: "a",
+        court: "client",
+        due_date: "2026-08-13",
+        waiting_ms: 25 * day,
+        our_ms: 9 * day,
+      }),
+    ]);
+    // 13 Aug + 25 of their days = 7 Sept. Our 9 days move nothing: a date
+    // that slipped because we had not started is not adjusted.
+    expect(new Date(row.movedToMs!).toISOString().slice(0, 10)).toBe("2026-09-07");
+    expect(row.neededByMs).toBe(Date.parse("2026-08-13T00:00:00Z"));
+    expect(row.oursDays).toBe(9);
+  });
+
+  it("leaves out anything with no clock and anything settled", () => {
+    expect(
+      holdingRows([
+        // A question: no linked task, so no court and no clock.
+        item({ id: "a", court: null }),
+        item({ id: "b", state: "approved", court: "client", decided_at: "2026-09-01T09:00:00Z" }),
+        item({ id: "c", court: "us" }),
+      ]).map((r) => r.id),
+    ).toEqual(["c"]);
+  });
+
+  it("puts the longest-held first — that is the conversation", () => {
+    expect(
+      holdingRows([
+        item({ id: "small", court: "client", waiting_ms: 2 * day }),
+        item({ id: "big", court: "client", waiting_ms: 30 * day }),
+      ]).map((r) => r.id),
+    ).toEqual(["big", "small"]);
+  });
+});
+
+describe("heldLine", () => {
+  const day = 86_400_000;
+  it("gives both halves of the clock, whole days", () => {
+    expect(heldLine(item({ id: "a", waiting_ms: 25 * day, our_ms: 4 * day }))).toBe(
+      "With you 25d · with us 4d",
+    );
+  });
+
+  it("capitalises whichever half is there on its own", () => {
+    expect(heldLine(item({ id: "a", waiting_ms: 25 * day }))).toBe("With you 25d");
+    expect(heldLine(item({ id: "b", our_ms: 4 * day }))).toBe("With us 4d");
+  });
+
+  it("says nothing until a side has held it a whole day", () => {
+    expect(heldLine(item({ id: "a", waiting_ms: 3_600_000 }))).toBeNull();
+    expect(heldLine(item({ id: "b" }))).toBeNull();
   });
 });
 

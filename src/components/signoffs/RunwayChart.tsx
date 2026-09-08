@@ -26,17 +26,32 @@
 // real; the positions are an assumption, and the fix is keeping ClickUp's
 // status_history in the sync instead of only its sums.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   formatDays,
   formatDueDate,
   stopClock,
   type StopClock,
 } from "@/lib/stop-clock";
-import type { WaitingTask } from "@/hooks/useClientWaiting";
+import type { StopClockSource } from "@/lib/stop-clock";
+
+/**
+ * Everything this chart needs and nothing about where the row came from.
+ * A staff WaitingTask satisfies it; so does a row built from the client's own
+ * items, which is how the same picture reaches their page (and the Present
+ * link) without a ClickUp field crossing the wire.
+ */
+export type RunwayRow = StopClockSource & { id: string; title: string };
 
 const ROW_H = 50;
-const LABEL_W = 250;
+const DEFAULT_LABEL_W = 250;
+/** Room for a legible title at one end, and a plot worth drawing at the other. */
+const MIN_LABEL_W = 120;
+const MAX_LABEL_W = 520;
+/** Gap between the titles and the band, so the two never touch. */
+const BAND_GAP = 10;
+/** Room INSIDE the band, before the earliest bar, for its "6d" runway label. */
+const BAND_PAD = 38;
 const RIGHT_W = 130;
 const WIDTH = 940;
 const BAR_H = 17;
@@ -44,7 +59,7 @@ const BAR_H = 17;
 /** Enough rows to read the shape; the table below carries the rest. */
 const MAX_ROWS = 10;
 
-type Row = { task: WaitingTask; clock: StopClock };
+type Row = { task: RunwayRow; clock: StopClock };
 
 type Hover = { row: Row; x: number; y: number } | null;
 
@@ -58,8 +73,33 @@ function lateLabel(c: StopClock): { text: string; className: string } {
   };
 }
 
-export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number }) {
+export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number }) {
   const [hover, setHover] = useState<Hover>(null);
+  // Titles here are whole sentences ("UK & Ghana websites — confirmed change
+  // list"), and how much of one you need depends on how alike the rows are —
+  // which is a judgement for the person reading, not a constant. Dragged in
+  // viewBox units so it behaves the same at every container width.
+  const [labelW, setLabelW] = useState(DEFAULT_LABEL_W);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  function startDrag(e: React.PointerEvent<SVGRectElement>) {
+    e.preventDefault();
+    const svg = svgRef.current;
+    if (!svg) return;
+    const scale = WIDTH / svg.getBoundingClientRect().width;
+    const startX = e.clientX;
+    const startW = labelW;
+    const move = (ev: PointerEvent) =>
+      setLabelW(
+        Math.min(MAX_LABEL_W, Math.max(MIN_LABEL_W, startW + (ev.clientX - startX) * scale)),
+      );
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   const rows = useMemo<Row[]>(
     () =>
@@ -72,7 +112,8 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
   );
 
   const geometry = useMemo(() => {
-    const plot = WIDTH - LABEL_W - RIGHT_W;
+    const bandX = labelW + BAND_GAP;
+    const plot = WIDTH - bandX - BAND_PAD - RIGHT_W;
     const back = Math.max(4, ...rows.map((r) => r.clock.runwayDays ?? 2));
     const forward = Math.max(
       4,
@@ -86,9 +127,13 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
       ),
     );
     const total = back + forward;
-    const dueX = LABEL_W + plot * (back / total);
-    return { perDay: plot / total, dueX, x: (days: number) => dueX + days * (plot / total) };
-  }, [rows]);
+    // The longest runway bar starts BAND_PAD inside the band, not flush with
+    // its edge: its day count ("6d") is drawn to the left of the bar, and with
+    // the bar hard against the edge that number fell outside the grey and was
+    // clipped by the title column.
+    const dueX = bandX + BAND_PAD + plot * (back / total);
+    return { bandX, perDay: plot / total, dueX, x: (days: number) => dueX + days * (plot / total) };
+  }, [rows, labelW]);
 
   if (rows.length === 0) {
     return (
@@ -99,24 +144,34 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
   }
 
   const height = rows.length * ROW_H + 62;
-  const { dueX, x, perDay } = geometry;
+  const { bandX, dueX, x, perDay } = geometry;
+  // ~6.2 viewBox units per character at text-label-medium, less the gutter
+  // before the grip. Approximate on purpose: an exact measure needs a DOM
+  // read per row per render to save one character.
+  const titleChars = Math.max(8, Math.floor((labelW - 34) / 6.2));
 
   return (
     <div className="relative px-6 py-4">
       <div className="overflow-x-auto">
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${WIDTH} ${height}`}
-          width="100%"
+          // Drawn at its own size and pinned LEFT. With width="100%" and a
+          // fixed height the default preserveAspectRatio centred the whole
+          // picture in the container, which on a wide screen left a column of
+          // empty space before every label and made the chart look adrift.
+          width={WIDTH}
           height={height}
-          className="min-w-[680px]"
+          preserveAspectRatio="xMinYMid meet"
+          className="max-w-full"
           role="img"
           aria-label="Each task's runway against its due date"
           onMouseLeave={() => setHover(null)}
         >
           <rect
-            x={LABEL_W}
+            x={bandX}
             y={26}
-            width={dueX - LABEL_W}
+            width={dueX - bandX}
             height={height - 58}
             className="fill-m-surface-container"
           />
@@ -132,9 +187,9 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
           >
             LATE BY
           </text>
-          {dueX - LABEL_W > 170 ? (
+          {dueX - bandX > 170 ? (
             <text
-              x={LABEL_W + 6}
+              x={bandX + 6}
               y={height - 11}
               className="fill-m-on-surface-variant text-label-small"
             >
@@ -166,7 +221,10 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
                     textAnchor="end"
                     className="fill-m-on-surface-variant text-label-small tabular-nums"
                   >
-                    {c.bornLate ? "born late" : "no start"}
+                    {/* Plain words, not the internal name for it: this chart
+                        is now read by clients too, and "born late" sounds
+                        like a verdict on the work rather than on the date. */}
+                    {c.bornLate ? "no runway" : "no start"}
                   </text>
                 ) : (
                   <>
@@ -274,16 +332,18 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
                     })()
                   : null}
 
-                {/* Clear of the runway tick, which sits at LABEL_W - 27 on
-                    the row that owns the widest runway. */}
+                {/* Left-aligned, hard against the edge: right-aligned titles
+                    left a wide empty gutter and made every row start in a
+                    different place, which is the one thing a chart of rows
+                    must not do. How many characters fit is a function of the
+                    column width, so dragging it wider really shows more. */}
                 <text
-                  x={LABEL_W - 38}
+                  x={0}
                   y={y + 13}
-                  textAnchor="end"
                   className="fill-m-on-surface text-label-medium"
                 >
-                  {row.task.title.length > 32
-                    ? `${row.task.title.slice(0, 31)}…`
+                  {row.task.title.length > titleChars
+                    ? `${row.task.title.slice(0, titleChars - 1)}…`
                     : row.task.title}
                 </text>
                 <text
@@ -309,6 +369,28 @@ export function RunwayChart({ tasks, now }: { tasks: WaitingTask[]; now: number 
               </g>
             );
           })}
+
+          {/* LAST, so it paints over the full-width hover targets each row
+              draws — behind them the grip looked draggable and was not. */}
+          <line
+            x1={labelW - 20}
+            y1={26}
+            x2={labelW - 20}
+            y2={height - 34}
+            className="stroke-m-outline-variant"
+            strokeWidth={1}
+          />
+          <rect
+            x={labelW - 27}
+            y={26}
+            width={14}
+            height={height - 60}
+            fill="transparent"
+            style={{ cursor: "col-resize" }}
+            onPointerDown={startDrag}
+          >
+            <title>Drag to show more or less of each title</title>
+          </rect>
         </svg>
       </div>
 

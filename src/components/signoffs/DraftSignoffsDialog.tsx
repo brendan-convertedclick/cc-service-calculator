@@ -6,7 +6,7 @@
 // cannot be included. That constraint is the point — the ask is the one field
 // that makes a client understand what is actually wanted from them.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,11 +42,18 @@ function seedState(candidates: SignoffCandidate[]): DraftState {
 export function DraftSignoffsDialog({
   open,
   onOpenChange,
+  clientId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Scope to one client — the page filters the same cached query. */
+  clientId?: string;
 }) {
-  const { data: candidates = [], isPending, isError, error } = useSignoffCandidates();
+  const { data: all = [], isPending, isError, error } = useSignoffCandidates();
+  const candidates = useMemo(
+    () => (clientId ? all.filter((c) => c.clientId === clientId) : all),
+    [all, clientId],
+  );
   const create = useCreateSignoffs();
   const [state, setState] = useState<DraftState>({});
 

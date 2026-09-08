@@ -113,6 +113,13 @@ type ReviewItem = {
   owed_by: "client" | "us";
   /** ms this has sat with the client, from the linked task's ClickUp clock. */
   waiting_ms: number | null;
+  /** ms it has sat with US — the other half of the same clock. Both halves
+   *  reach the client on purpose; see the note in types/client-review.ts. */
+  our_ms: number | null;
+  /** Whose court the linked task is in now. Decides the pane. Null: no task. */
+  court: "client" | "us" | "done" | null;
+  /** The linked task's created_at — what makes a runway measurable. */
+  work_since: string | null;
   /** The two-way thread, oldest first. Never contains internal notes. */
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */
@@ -268,14 +275,42 @@ type ApprovalRow = {
   briefs?: BriefWait | BriefWait[] | null;
 };
 
-type BriefWait = { client_wait_ms: number | null };
+type BriefWait = {
+  created_at: string | null;
+  client_wait_ms: number | null;
+  internal_wait_ms: number | null;
+  clickup_task_status: string | null;
+  completed_at: string | null;
+};
+
+/**
+ * Mirror of courtOf in src/lib/client-waiting.ts — Deno cannot import from
+ * src/, the same reason the types above are mirrored. Change one, change both.
+ * The raw status string never leaves this function: it is ClickUp's private
+ * vocabulary, and the client gets the derived court instead.
+ */
+const WAITING_STATUSES = ["waiting on client", "send to client"];
+const DONE_STATUSES = ["complete", "closed", "done"];
+
+function briefOf(briefs: BriefWait | BriefWait[] | null | undefined): BriefWait | null {
+  if (!briefs) return null;
+  return (Array.isArray(briefs) ? briefs[0] : briefs) ?? null;
+}
+
+function courtOf(briefs: BriefWait | BriefWait[] | null | undefined) {
+  const row = briefOf(briefs);
+  // No row, or a task ClickUp has not been read for yet, has NO court: an
+  // unknown status must not move an ask out of the client's "Your move" pane.
+  if (!row || (!row.clickup_task_status && !row.completed_at)) return null;
+  const status = (row.clickup_task_status ?? "").toLowerCase();
+  if (row.completed_at || DONE_STATUSES.includes(status)) return "done" as const;
+  return WAITING_STATUSES.includes(status) ? ("client" as const) : ("us" as const);
+}
 
 const ITEM_TYPES: ReviewItemType[] = ["brief", "question", "agreement", "idea", "event"];
 
 function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
-  if (!briefs) return null;
-  const row = Array.isArray(briefs) ? briefs[0] : briefs;
-  return row?.client_wait_ms ?? null;
+  return briefOf(briefs)?.client_wait_ms ?? null;
 }
 
 function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewItem {
@@ -302,12 +337,15 @@ function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewI
     raised_by_name: row.raised_by_name,
     client_note: row.client_note,
     waiting_ms: waitingMsOf(row.briefs),
+    our_ms: briefOf(row.briefs)?.internal_wait_ms ?? null,
+    court: courtOf(row.briefs),
+    work_since: briefOf(row.briefs)?.created_at ?? null,
     messages,
   };
 }
 
 const APPROVAL_COLUMNS =
-  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(client_wait_ms)";
+  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at)";
 
 // --- token hashing + verification (pure, no I/O) ------------------------
 

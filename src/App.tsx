@@ -160,6 +160,9 @@ const Profile = lazy(() =>
 const ClientReview = lazy(() =>
   import("@/pages/ClientReview").then((m) => ({ default: m.ClientReview })),
 );
+const ClientPresent = lazy(() =>
+  import("@/pages/ClientReview").then((m) => ({ default: m.ClientPresent })),
+);
 const Pipeline = lazy(() =>
   import("@/pages/Pipeline").then((m) => ({ default: m.Pipeline })),
 );
@@ -205,6 +208,13 @@ export default function App() {
               <AppShell> (no nav rail, no staff breadcrumbs). */}
           <Route path="/review/:token" element={<ClientReview />} />
           <Route element={<RequireAuth />}>
+            {/* One client's page, standalone, for showing in a meeting.
+                Outside <AppShell> for the same reason /review/:token is —
+                no rail, no breadcrumbs, nothing about any other client —
+                and behind RequireAdmin because /client-signoffs is. */}
+            <Route element={<RequireAdmin />}>
+              <Route path="/present/:clientId" element={<ClientPresent />} />
+            </Route>
             {/* The shell (nav rail + breadcrumbs) wraps everyone, staff
                 included — the rail filters itself by role (navEntriesFor), so
                 a staff session gets navigation instead of a dead-end page. */}

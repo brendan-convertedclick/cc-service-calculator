@@ -42,7 +42,11 @@ export type WaitSplit = {
   internalMs: number;
 };
 
-export function courtOf(row: WaitingSource): Court {
+export function courtOf(
+  // Narrower than WaitingSource on purpose: the court is a fact about the
+  // status, and the client-facing payload carries no clocks-synced timestamp.
+  row: Pick<WaitingSource, "clickup_task_status" | "completed_at">,
+): Court {
   const status = (row.clickup_task_status ?? "").toLowerCase();
   if (row.completed_at || DONE_STATUSES.has(status)) return "done";
   return (WAITING_STATUSES as readonly string[]).includes(status) ? "client" : "us";
@@ -57,8 +61,18 @@ export function courtOf(row: WaitingSource): Court {
  * clock-skewed `synced_at` in the future must not subtract time from a total
  * we are about to show a client.
  */
-export function waitSplit(row: WaitingSource, now: number): WaitSplit {
-  const court = courtOf(row);
+/**
+ * The clock arithmetic on its own, once the court is known.
+ *
+ * Split out because the client's page reasons about the same two clocks but
+ * has no ClickUp status to derive a court from — it is handed one on the wire.
+ * One copy of "add the running clock to whoever is holding it", not two.
+ */
+export function splitAt(
+  court: Court,
+  row: Pick<WaitingSource, "client_wait_ms" | "internal_wait_ms" | "clickup_status_synced_at">,
+  now: number,
+): WaitSplit {
   let clientMs = Math.max(0, row.client_wait_ms ?? 0);
   let internalMs = Math.max(0, row.internal_wait_ms ?? 0);
 
@@ -70,6 +84,10 @@ export function waitSplit(row: WaitingSource, now: number): WaitSplit {
   }
 
   return { court, clientMs, internalMs };
+}
+
+export function waitSplit(row: WaitingSource, now: number): WaitSplit {
+  return splitAt(courtOf(row), row, now);
 }
 
 /**

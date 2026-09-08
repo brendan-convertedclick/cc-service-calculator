@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { typeLabelFor } from "@/lib/client-review";
 import { DueBadge } from "@/components/review/DueBadge";
+import { HeldBadge } from "@/components/review/HeldBadge";
 import type { ReviewItem } from "@/types/client-review";
 
 export interface QueueRowProps {
@@ -50,6 +51,7 @@ export function QueueRow({ item, selected, busy, onSelect, onQuickApprove }: Que
         <div className="mt-1.5 flex flex-wrap gap-1">
           <Badge variant="outline">{typeLabelFor(item)}</Badge>
           <DueBadge item={item} />
+          <HeldBadge item={item} />
           {item.weighty ? <Badge variant="outline">Needs a formal sign-off</Badge> : null}
         </div>
       </div>

@@ -11,11 +11,10 @@ const NOW = Date.parse("2026-08-31T00:00:00Z");
 
 function task(over: Partial<StopClockSource> = {}): StopClockSource {
   return {
-    clickup_task_status: "waiting on client",
+    court: "client",
     clickup_status_synced_at: "2026-08-31T00:00:00Z",
     client_wait_ms: 0,
     internal_wait_ms: 0,
-    completed_at: null,
     original_due_date: "2026-08-30",
     created_at: "2026-08-01T00:00:00Z",
     original_points: 4, // 1 hour
@@ -60,7 +59,7 @@ describe("stopClock", () => {
     // The boosted-posts row: 25 days sitting in Planned, no client wait.
     const c = stopClock(
       task({
-        clickup_task_status: "planned",
+        court: "us",
         created_at: "2026-08-06T00:00:00Z",
         original_due_date: "2026-08-07",
         client_wait_ms: 0,
@@ -106,7 +105,7 @@ describe("stopClock", () => {
 
   it("treats a closed task as history, whatever its dates say", () => {
     const c = stopClock(
-      task({ completed_at: "2026-08-20T00:00:00Z", original_due_date: "2026-08-01" }),
+      task({ court: "done", original_due_date: "2026-08-01" }),
       NOW,
     );
     expect(c.verdict).toBe("delivered");
@@ -120,7 +119,7 @@ describe("summariseStopClocks", () => {
     // ours, past due, no client wait — must not be counted as days lost
     stopClock(
       task({
-        clickup_task_status: "planned",
+        court: "us",
         client_wait_ms: 0,
         internal_wait_ms: 9 * DAY,
         original_due_date: "2026-08-20",

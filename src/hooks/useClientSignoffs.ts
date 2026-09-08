@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
 import { todayISO } from "@/lib/dates";
+import { courtOf } from "@/lib/client-waiting";
 import type {
   ListResponse,
   ReviewContact,
@@ -29,11 +30,37 @@ import type {
  * PostgREST returns a to-one embed as an object at runtime but types it as an
  * array. Accept both rather than casting the whole row through `unknown`.
  */
-type BriefWait = { client_wait_ms: number | null };
-function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
+type BriefWait = {
+  created_at: string | null;
+  client_wait_ms: number | null;
+  internal_wait_ms: number | null;
+  clickup_task_status: string | null;
+  completed_at: string | null;
+};
+function briefOf(briefs: BriefWait | BriefWait[] | null | undefined): BriefWait | null {
   if (!briefs) return null;
-  const row = Array.isArray(briefs) ? briefs[0] : briefs;
-  return row?.client_wait_ms ?? null;
+  return (Array.isArray(briefs) ? briefs[0] : briefs) ?? null;
+}
+/**
+ * Both halves of the ClickUp clock, plus whose court the task is in — the
+ * three wire fields the edge function derives the same way (courtOf is the
+ * shared rule; the function mirrors it because Deno cannot import from src/).
+ * The raw status is NOT among them: it is ClickUp's vocabulary, not a
+ * client's.
+ */
+function clockOf(briefs: BriefWait | BriefWait[] | null | undefined) {
+  const row = briefOf(briefs);
+  // An UNSYNCED task has no court. courtOf reads "not a waiting status" as
+  // ours, which is right for the staff tab and wrong here: it would quietly
+  // move an ask the client genuinely owes us out of their "Your move" pane
+  // just because ClickUp had not been read yet. No status, no opinion.
+  const known = !!row && (!!row.clickup_task_status || !!row.completed_at);
+  return {
+    waiting_ms: row?.client_wait_ms ?? null,
+    work_since: row?.created_at ?? null,
+    our_ms: row?.internal_wait_ms ?? null,
+    court: known ? courtOf(row!) : null,
+  };
 }
 
 /** One row of the cross-client queue, for the aggregate table and rail counts. */
@@ -45,10 +72,11 @@ export type SignoffRow = ReviewItem & {
   brief_id: string | null;
 };
 
-// briefs(client_wait_ms) is the ONE column read from briefs, mirroring the
-// edge function's rule 1 — see the header of supabase/functions/client-review.
+// The brief embed is the ONE read from briefs, mirroring the edge function's
+// rule 1 — see the header of supabase/functions/client-review. It carries the
+// two clocks and what the status means, never the status text itself.
 const ITEM_COLUMNS =
-  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(client_wait_ms)";
+  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at)";
 
 /**
  * The evidence behind one decision (0142). Staff-only — none of it crosses to
@@ -125,9 +153,9 @@ export function useClientSignoffs() {
           briefs: BriefWait | BriefWait[] | null;
         };
         return {
-          ...(rest as Omit<SignoffRow, "client_name" | "waiting_ms">),
+          ...(rest as Omit<SignoffRow, "client_name" | "waiting_ms" | "our_ms" | "court" | "work_since">),
           client_name: clients?.name ?? "Unknown client",
-          waiting_ms: waitingMsOf(briefs),
+          ...clockOf(briefs),
         };
       });
     },
@@ -217,7 +245,7 @@ export function useClientReviewPreview(clientId: string | undefined) {
         raised_by_name: r.raised_by_name,
         created_at: r.created_at,
         client_note: r.client_note,
-        waiting_ms: waitingMsOf(r.briefs),
+        ...clockOf(r.briefs),
         // The preview is a faithful render of the client's screen, so the
         // thread has to be on it too — see the thread query below.
         messages: (threadRes.data ?? [])
