@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CalendarDays, CalendarPlus, Hourglass, List, MessageCircleQuestion } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarPlus,
+  CheckCircle2,
+  Hand,
+  Hourglass,
+  List,
+  MessageCircleQuestion,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ItemDetail } from "@/components/review/ItemDetail";
-import { ItemHistory } from "@/components/review/ItemHistory";
+import { ItemActivity } from "@/components/review/ItemActivity";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
@@ -43,13 +51,15 @@ import {
   type TokenFailure,
 } from "@/types/client-review";
 
-const BUCKETS: { id: ReviewBucket; label: string }[] = [
-  { id: "your-move", label: "Your move" },
-  { id: "with-us", label: "With us" },
-  { id: "signed-off", label: "Signed off" },
+const BUCKETS: { id: ReviewBucket; label: string; Icon: typeof Hand }[] = [
+  // The icon says whose move it is before the words do: a hand held out, a
+  // clock running on our side, a tick, a date.
+  { id: "your-move", label: "Your move", Icon: Hand },
+  { id: "with-us", label: "With us", Icon: Hourglass },
+  { id: "signed-off", label: "Signed off", Icon: CheckCircle2 },
   // Dates they told us about. Last, because nothing here needs doing — it is
   // the pane you look at, not the one you work through.
-  { id: "coming-up", label: "Coming up" },
+  { id: "coming-up", label: "Coming up", Icon: CalendarDays },
 ];
 
 const EMPTY_BUCKET_COPY: Record<ReviewBucket, [string, string]> = {
@@ -101,6 +111,21 @@ function approverToIdentity(approver: RememberedApprover): ReviewIdentity {
     : { name: approver.name, email: approver.email ?? undefined };
 }
 
+/** The rendered width of one element. ResizeObserver rather than the viewport,
+ *  because this page is also rendered inside a staff preview card. */
+function useContainerWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-m-background p-6">
@@ -143,6 +168,14 @@ export function ClientReview({
   const raiseMutation = useReviewRaise(token);
   const [remembered, setRemembered] = useRememberedApprover(token);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  // Wide enough for the activity to sit BESIDE the item rather than under it.
+  // Measured on the CONTAINER, not the viewport: on /client-signoffs this same
+  // page is rendered inside a preview card roughly half a monitor wide, and a
+  // viewport test there put a 24rem activity column next to the rail and the
+  // queue and left the item itself about a word wide. It is also the more
+  // honest preview — staff see what a client with a window that size gets.
+  const [rootRef, rootWidth] = useContainerWidth<HTMLDivElement>();
+  const isWide = rootWidth >= 1400;
 
   const [bucket, setBucket] = useState<ReviewBucket>("your-move");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -160,10 +193,10 @@ export function ClientReview({
   const [month, setMonth] = useState(currentMonth);
   const [raiseKind, setRaiseKind] = useState<RaiseKind | null>(null);
   const [raiseError, setRaiseError] = useState<string | null>(null);
-  // The history slide-over. Deliberately NOT closed when the selection moves:
-  // someone flipping through items with it open is comparing histories, and
-  // shutting it under them each time is the opposite of what they asked for.
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // The one draft, owned here because two columns need it: the box is in
+  // the chat and "Request changes" is on the item. Still one box on screen
+  // — the page just knows what is in it.
+  const [draft, setDraft] = useState("");
 
   const data = listQuery.data;
   const ok = data?.status === "ok" ? data : null;
@@ -199,6 +232,12 @@ export function ClientReview({
   useEffect(() => {
     onSelectedItemChange?.(selectedId);
   }, [selectedId, onSelectedItemChange]);
+
+  // A half-typed reply must not follow the reader onto the next item and get
+  // sent against the wrong one.
+  useEffect(() => {
+    setDraft("");
+  }, [selectedId]);
 
   const didInit = useRef(false);
   useEffect(() => {
@@ -265,6 +304,7 @@ export function ClientReview({
       setDecisionError("Preview only — nothing was recorded. This is the screen the client sees.");
       return;
     }
+    if (comment !== undefined) setDraft("");
     if (approver) {
       fireDecision(itemId, decision, comment, approver);
     } else {
@@ -281,6 +321,7 @@ export function ClientReview({
       setReplyError("Preview only — nothing was sent. This is the screen the client sees.");
       return;
     }
+    setDraft("");
     replyMutation.mutate(
       { item_id: itemId, body },
       {
@@ -383,20 +424,38 @@ export function ClientReview({
       busy={decisionMutation.isPending && decisionMutation.variables?.item_id === selectedItem.id}
       error={decisionError}
       overdue={isOverdue(selectedItem)}
+      draft={draft}
+      onDecide={(decision, comment) => beginDecision(selectedItem.id, decision, comment)}
+    />
+  ) : null;
+  // The activity, which is its own column on a wide screen and sits under the
+  // item everywhere else. One instance either way — the media query picks
+  // where it mounts, so the draft and the scroll position are never duplicated.
+  const chatNode = selectedItem ? (
+    <ItemActivity
+      key={selectedItem.id}
+      item={selectedItem}
+      opens={ok?.opens ?? []}
+      draft={draft}
+      onDraftChange={setDraft}
+      decideBusy={
+        decisionMutation.isPending && decisionMutation.variables?.item_id === selectedItem.id
+      }
+      replyBusy={replyMutation.isPending}
+      error={replyError}
       onDecide={(decision, comment) => beginDecision(selectedItem.id, decision, comment)}
       onReply={(body) => sendReply(selectedItem.id, body)}
-      replyBusy={replyMutation.isPending}
-      replyError={replyError}
-      onOpenHistory={() => setHistoryOpen(true)}
     />
   ) : null;
 
   return (
-    <div className="flex h-screen flex-col bg-m-background">
+    <div ref={rootRef} className="flex h-screen flex-col bg-m-background">
       <header className="flex items-center justify-between gap-4 border-b border-m-outline-variant px-4 py-3 lg:px-6">
         <div className="min-w-0">
-          <div className="text-title-small text-m-on-surface">
-            {ok ? ok.company_name : <Skeleton className="h-5 w-40" />}
+          {/* Their name, and it is the page's title — small enough to read as
+              a label made the whole header look like a toolbar. */}
+          <div className="text-title-large text-m-on-surface">
+            {ok ? ok.company_name : <Skeleton className="h-7 w-40" />}
           </div>
           {signedIn ? (
             <p className="truncate text-label-small text-m-on-surface-variant">
@@ -405,17 +464,6 @@ export function ClientReview({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {/* Theirs to start, not just to answer. Two buttons rather than one
-              "add" — a question and a date ask completely different things of
-              us, and the choice belongs before the typing, not after it. */}
-          <Button variant="outline" size="sm" onClick={() => setRaiseKind("question")}>
-            <MessageCircleQuestion className="mr-1.5 h-3.5 w-3.5" />
-            Ask us something
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setRaiseKind("event")}>
-            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
-            Add a date
-          </Button>
           <div className="flex rounded-full border border-m-outline-variant p-0.5">
             {[
               { id: "list" as const, label: "List", Icon: List },
@@ -442,7 +490,6 @@ export function ClientReview({
               </button>
             ))}
           </div>
-          {asAt ? <p className="text-label-small text-m-on-surface-variant">As at {asAt}</p> : null}
         </div>
       </header>
 
@@ -470,7 +517,7 @@ export function ClientReview({
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-          <aside className="flex gap-2 overflow-x-auto border-b border-m-outline-variant p-3 lg:w-56 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r lg:p-4">
+          <aside className="flex gap-2 overflow-x-auto border-b border-m-outline-variant p-3 lg:w-48 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r lg:px-3 lg:py-4">
             {BUCKETS.map((b) => (
               <button
                 key={b.id}
@@ -483,10 +530,38 @@ export function ClientReview({
                     : "text-m-on-surface-variant hover:bg-m-surface-container",
                 )}
               >
-                <span>{b.label}</span>
+                <span className="flex items-center gap-2">
+                  <b.Icon className="h-4 w-4 shrink-0" />
+                  {b.label}
+                </span>
                 <span className="text-label-small">{counts[b.id]}</span>
               </button>
             ))}
+
+            {/* Theirs to start, not just to answer. Down here with the rest of
+                the navigation rather than up in the header: a question and a
+                date are two more ways INTO this list, and the choice belongs
+                before the typing, not after it. */}
+            <div className="flex shrink-0 gap-2 lg:mt-4 lg:flex-col lg:border-t lg:border-m-outline-variant lg:pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="justify-start"
+                onClick={() => setRaiseKind("question")}
+              >
+                <MessageCircleQuestion className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                Ask us something
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="justify-start"
+                onClick={() => setRaiseKind("event")}
+              >
+                <CalendarPlus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                Add a date
+              </Button>
+            </div>
           </aside>
 
           <div className="w-full overflow-y-auto lg:w-96 lg:shrink-0 lg:border-r lg:border-m-outline-variant">
@@ -532,8 +607,20 @@ export function ClientReview({
             the column itself still grows, so the content sits in it rather
             than being pinned to the edge. */}
           <main className="hidden min-w-0 flex-1 overflow-y-auto p-8 lg:block">
-            <div className="w-full max-w-[46rem]">{detailNode}</div>
+            <div className="flex w-full max-w-[46rem] flex-col gap-8">
+              {detailNode}
+              {isDesktop && !isWide ? chatNode : null}
+            </div>
           </main>
+
+          {/* The activity, beside the item rather than under it. Fixed width
+              and its own scroll: it grows all day and the item it is about
+              must not slide off the top of the screen while it does. */}
+          {isWide ? (
+            <aside className="flex w-[24rem] shrink-0 flex-col border-l border-m-outline-variant p-4">
+              {chatNode}
+            </aside>
+          ) : null}
 
           <Sheet
             open={!isDesktop && selectedItem !== null}
@@ -546,33 +633,13 @@ export function ClientReview({
                 <>
                   <SheetTitle className="sr-only">{selectedItem.client_title}</SheetTitle>
                   {detailNode}
+                  {chatNode}
                 </>
               ) : null}
             </SheetContent>
           </Sheet>
         </div>
       )}
-
-      {/* Over the page, not beside it. SheetContent is fixed-position, so
-          opening this moves nothing behind it — the ask, the thread and the
-          buttons all stay exactly where the reader left them. */}
-      <Sheet open={historyOpen && selectedItem !== null} onOpenChange={setHistoryOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-          {selectedItem ? (
-            <>
-              {/* One grid child, so the Sheet's own gap does not land between
-                  a title and its subtitle. */}
-              <div>
-                <SheetTitle className="text-title-small text-m-on-surface">History</SheetTitle>
-                <p className="text-label-small text-m-on-surface-variant">
-                  {selectedItem.client_title}
-                </p>
-              </div>
-              <ItemHistory item={selectedItem} opens={ok?.opens ?? []} />
-            </>
-          ) : null}
-        </SheetContent>
-      </Sheet>
 
       <RaiseDialog
         open={raiseKind !== null}

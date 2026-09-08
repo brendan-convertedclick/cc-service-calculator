@@ -270,8 +270,10 @@ export function sortForQueue(items: ReviewItem[]): ReviewItem[] {
     const aNoted = a.state === "noted";
     const bNoted = b.state === "noted";
     if (aNoted && bNoted) {
-      return (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
-        a.client_title.localeCompare(b.client_title);
+      return (
+        (a.due_date ?? "").localeCompare(b.due_date ?? "") ||
+        a.client_title.localeCompare(b.client_title)
+      );
     }
 
     const aPending = a.state === "pending";
@@ -489,16 +491,27 @@ export function threadOf(item: ReviewItem): ReviewMessage[] {
   return thread.sort((a, b) => a.at.localeCompare(b.at));
 }
 
-// --- the history panel ----------------------------------------------------
+// --- the activity list ----------------------------------------------------
 
-export type ClientEventKind = "asked" | "emailed" | "opened" | "message" | "moved" | "decided";
+/**
+ * The same seven kinds the STAFF panel uses (see TimelineKind in
+ * client-timeline.ts), minus `note`. The names are deliberately identical:
+ * this list and theirs are meant to be the same list, and two vocabularies for
+ * one event is how two screens start telling different stories about the same
+ * afternoon.
+ */
+export type ClientEventKind =
+  "asked" | "emailed" | "opened" | "message" | "replied" | "status" | "decided";
 
-/** One line of an item's history. A sentence and a time — never a body. */
+/** One entry on an item's activity: a sentence, a time, and the words where
+ *  there were any. */
 export type ClientEvent = {
   id: string;
   kind: ClientEventKind;
   at: string;
   summary: string;
+  /** The message, the ask, or their note on the decision. */
+  body?: string | null;
 };
 
 /** How an item opens, in the second person. Who started it changes the
@@ -510,9 +523,7 @@ function openingLine(item: ReviewItem): string {
     case "event":
       return theirs ? "You added this date" : "We noted this date";
     case "agreement":
-      return item.owed_by === "us"
-        ? "We committed to this"
-        : "Recorded as something you agreed to";
+      return item.owed_by === "us" ? "We committed to this" : "Recorded as something you agreed to";
     case "question":
       return theirs ? "You asked us this" : "We asked you this";
     default:
@@ -553,29 +564,45 @@ function decisionLine(item: ReviewItem): string {
 
 /**
  * Everything that has happened to one item, oldest first — the client's own
- * copy of the panel staff read beside the preview.
+ * copy of the panel staff read beside the preview. ONE list: the words and the
+ * events together, because a message and a state change are both just "what
+ * happened next", and splitting them into a thread plus a history meant the
+ * client had to open two things and reconcile them by timestamp.
  *
  * DELIBERATELY NOT src/lib/client-timeline.ts. That module's header says
  * nothing in it reaches a client, and it means it: it emits internal notes and
  * names the staff member who moved a state. This is the same idea rebuilt from
  * the wire contract, which carries neither — the safety is that the facts a
  * client must not see are not in `item` at all, rather than being filtered out
- * here where a later edit could quietly stop filtering.
+ * here where a later edit could quietly stop filtering. So the parity has a
+ * direction: everything on their list is on ours, never the reverse.
  *
- * Message bodies are not on it. The thread underneath is where the words live;
- * a history that repeats them IS the thread, and then there is no reason to
- * open it. It carries the six things the thread cannot say: when we asked,
- * whether the email went, who on their side has looked, that something was
- * said, every time it changed sides, and how it ended.
+ * The bubbles come from threadOf, which already knows the two rules that are
+ * easy to get wrong — a question the client raised opens in THEIR name, and a
+ * decision they typed words with joins the list at the moment they decided.
+ * The first and last of those become the `asked` and `decided` entries rather
+ * than a second copy alongside them.
  *
  * `opens` is client-level (one link opens the whole list), so only opens since
  * this item existed are shown against it — an open from last month says nothing
  * about an ask written yesterday.
  */
-export function historyOf(item: ReviewItem, opens: ReviewOpen[] = []): ClientEvent[] {
-  const events: ClientEvent[] = [
-    { id: `asked-${item.id}`, kind: "asked", at: item.created_at, summary: openingLine(item) },
-  ];
+export function activityOf(item: ReviewItem, opens: ReviewOpen[] = []): ClientEvent[] {
+  const events: ClientEvent[] = threadOf(item).map((m) => {
+    if (m.id === `ask-${item.id}`) {
+      return { id: m.id, kind: "asked", at: m.at, summary: openingLine(item), body: m.body };
+    }
+    if (m.id === `decision-${item.id}`) {
+      return { id: m.id, kind: "decided", at: m.at, summary: decisionLine(item), body: m.body };
+    }
+    return {
+      id: `msg-${m.id}`,
+      kind: m.from === "us" ? "message" : "replied",
+      at: m.at,
+      summary: m.from === "us" ? "We messaged you" : `${m.author ?? "You"} replied`,
+      body: m.body,
+    };
+  });
 
   if (item.emailed_at) {
     events.push({
@@ -596,22 +623,16 @@ export function historyOf(item: ReviewItem, opens: ReviewOpen[] = []): ClientEve
     });
   }
 
-  for (const message of item.messages) {
-    events.push({
-      id: `msg-${message.id}`,
-      kind: "message",
-      at: message.at,
-      summary: message.from === "us" ? "We messaged you" : `${message.author ?? "You"} replied`,
-    });
-  }
-
   for (const move of item.moves) {
     const summary = moveLine(move);
     if (!summary) continue;
-    events.push({ id: `move-${move.id}`, kind: "moved", at: move.at, summary });
+    events.push({ id: `move-${move.id}`, kind: "status", at: move.at, summary });
   }
 
-  if (item.decided_at) {
+  // A decision with no words of its own gets no bubble from threadOf, so it
+  // needs its line here. Same trimmed test threadOf uses, or a whitespace-only
+  // note would fall through both and the decision would vanish off the list.
+  if (item.decided_at && !item.client_note?.trim()) {
     events.push({
       id: `decided-${item.id}`,
       kind: "decided",

@@ -14,13 +14,9 @@ import {
   isOverdue,
   sortForQueue,
   typeLabelFor,
-  historyOf,
+  activityOf,
 } from "./client-review";
-import type {
-  ReviewItem,
-  ReviewItemState,
-  ReviewScheduleRow,
-} from "@/types/client-review";
+import type { ReviewItem, ReviewItemState, ReviewScheduleRow } from "@/types/client-review";
 
 function planRow(over: Partial<ReviewScheduleRow> & { id: string }): ReviewScheduleRow {
   return {
@@ -77,9 +73,9 @@ describe("bucketOf", () => {
     expect(
       bucketOf(item({ id: "b", state: "changes_requested", decided_at: "2026-08-20T09:00:00Z" })),
     ).toBe("with-us");
-    expect(
-      bucketOf(item({ id: "c", state: "approved", decided_at: "2026-08-20T09:00:00Z" })),
-    ).toBe("signed-off");
+    expect(bucketOf(item({ id: "c", state: "approved", decided_at: "2026-08-20T09:00:00Z" }))).toBe(
+      "signed-off",
+    );
   });
 
   it("puts a pending ask under With us while WE are holding the work", () => {
@@ -221,7 +217,10 @@ describe("sortForQueue", () => {
   });
 
   it("does not mutate its input", () => {
-    const input = [item({ id: "b", due_date: daysFromToday(1) }), item({ id: "a", due_date: daysFromToday(-1) })];
+    const input = [
+      item({ id: "b", due_date: daysFromToday(1) }),
+      item({ id: "a", due_date: daysFromToday(-1) }),
+    ];
     const before = input.map((i) => i.id);
     sortForQueue(input);
     expect(input.map((i) => i.id)).toEqual(before);
@@ -262,9 +261,7 @@ describe("dueStatus", () => {
   });
 
   it("is silent once decided — how late it was is our record, not a reproach", () => {
-    expect(
-      dueStatus(item({ id: "a", due_date: daysFromToday(-9), state: "approved" })),
-    ).toBeNull();
+    expect(dueStatus(item({ id: "a", due_date: daysFromToday(-9), state: "approved" }))).toBeNull();
   });
 });
 
@@ -308,8 +305,7 @@ describe("sortForQueue — pressure, not raw due date", () => {
 });
 
 describe("an agreement we made", () => {
-  const ours = (over = {}) =>
-    item({ id: "ours", item_type: "agreement", owed_by: "us", ...over });
+  const ours = (over = {}) => item({ id: "ours", item_type: "agreement", owed_by: "us", ...over });
 
   it("sits under 'With us', never in their move pile", () => {
     expect(bucketOf(ours())).toBe("with-us");
@@ -437,10 +433,10 @@ describe("calendarEntriesFor", () => {
   });
 
   it("marks our own side of the plan as work, theirs as something due", () => {
-    const entries = calendarEntriesFor([], [
-      planRow({ id: "ours", side: "us" }),
-      planRow({ id: "theirs", side: "school" }),
-    ]);
+    const entries = calendarEntriesFor(
+      [],
+      [planRow({ id: "ours", side: "us" }), planRow({ id: "theirs", side: "school" })],
+    );
     expect(entries.map((e) => e.kind)).toEqual(["task", "due"]);
     // Prefixed, because a school task id and a client_approvals id are
     // different things and the calendar keys on one namespace.
@@ -448,40 +444,42 @@ describe("calendarEntriesFor", () => {
   });
 
   it("moves a finished plan row onto the day it was finished, never its due date", () => {
-    const [entry] = calendarEntriesFor([], [
-      planRow({
-        id: "done",
-        shows_on: "2026-03-31",
-        completed_at: new Date("2026-03-19T10:00:00+02:00").toISOString(),
-      }),
-    ]);
+    const [entry] = calendarEntriesFor(
+      [],
+      [
+        planRow({
+          id: "done",
+          shows_on: "2026-03-31",
+          completed_at: new Date("2026-03-19T10:00:00+02:00").toISOString(),
+        }),
+      ],
+    );
     expect(entry.date).toBe("2026-03-19");
     expect(entry.done).toBe(true);
   });
 
   it("never marks the plan late — a month that has not arrived cannot be", () => {
-    const entries = calendarEntriesFor([], [
-      planRow({ id: "past", shows_on: daysFromToday(-30) }),
-    ]);
+    const entries = calendarEntriesFor([], [planRow({ id: "past", shows_on: daysFromToday(-30) })]);
     expect(entries[0].late).toBeUndefined();
   });
 });
 
-describe("historyOf", () => {
+describe("activityOf", () => {
   it("opens in the second person, and names who started it", () => {
-    expect(historyOf(item({ id: "a" }))[0].summary).toBe("We sent this to you for sign-off");
+    expect(activityOf(item({ id: "a" }))[0].summary).toBe("We sent this to you for sign-off");
     expect(
-      historyOf(item({ id: "b", item_type: "question", raised_by: "client" }))[0].summary,
+      activityOf(item({ id: "b", item_type: "question", raised_by: "client" }))[0].summary,
     ).toBe("You asked us this");
-    expect(historyOf(item({ id: "c", item_type: "event", raised_by: "client" }))[0].summary).toBe(
+    expect(activityOf(item({ id: "c", item_type: "event", raised_by: "client" }))[0].summary).toBe(
       "You added this date",
     );
   });
 
-  it("carries no message bodies — the thread underneath is where the words live", () => {
-    const events = historyOf(
+  it("carries the words, not just that words happened — it IS the thread now", () => {
+    const events = activityOf(
       item({
         id: "a",
+        ask: "Approve the mock-ups",
         messages: [
           { id: "m1", from: "us", author: null, body: "Any update?", at: "2026-08-02T09:00:00Z" },
           { id: "m2", from: "them", author: "Kate", body: "Friday", at: "2026-08-03T09:00:00Z" },
@@ -490,12 +488,14 @@ describe("historyOf", () => {
     );
     expect(events.map((e) => e.summary)).toContain("We messaged you");
     expect(events.map((e) => e.summary)).toContain("Kate replied");
-    expect(JSON.stringify(events)).not.toContain("Any update?");
-    expect(JSON.stringify(events)).not.toContain("Friday");
+    expect(events.map((e) => e.body)).toEqual(["Approve the mock-ups", "Any update?", "Friday"]);
+    // The same seven names the staff panel uses, so the two lists cannot drift
+    // into two vocabularies for one event.
+    expect(events.map((e) => e.kind)).toEqual(["asked", "message", "replied"]);
   });
 
   it("reads a reopen as a reopen, not as a first send", () => {
-    const events = historyOf(
+    const events = activityOf(
       item({
         id: "a",
         moves: [
@@ -514,14 +514,17 @@ describe("historyOf", () => {
   it("says nothing about a state it has no honest sentence for", () => {
     // 'parked' is dropped server-side and must never reach this page. If one
     // ever did, silence beats inventing a word for a staff-only state.
-    const events = historyOf(
-      item({ id: "a", moves: [{ id: "v1", at: "2026-08-05T09:00:00Z", from: null, to: "parked" }] }),
+    const events = activityOf(
+      item({
+        id: "a",
+        moves: [{ id: "v1", at: "2026-08-05T09:00:00Z", from: null, to: "parked" }],
+      }),
     );
     expect(events).toHaveLength(1);
   });
 
   it("only counts an open that happened after the item existed", () => {
-    const events = historyOf(item({ id: "a", created_at: "2026-08-10T09:00:00Z" }), [
+    const events = activityOf(item({ id: "a", created_at: "2026-08-10T09:00:00Z" }), [
       { name: "Kate", at: "2026-08-01T09:00:00Z" },
       { name: "Trevor", at: "2026-08-12T09:00:00Z" },
     ]);
@@ -532,7 +535,7 @@ describe("historyOf", () => {
   });
 
   it("ends on the decision, in their name", () => {
-    const events = historyOf(
+    const events = activityOf(
       item({
         id: "a",
         state: "approved",
@@ -541,5 +544,25 @@ describe("historyOf", () => {
       }),
     );
     expect(events[events.length - 1].summary).toBe("Kate approved it");
+  });
+
+  it("records the decision exactly once, with or without words on it", () => {
+    const decided = (client_note: string | null) =>
+      activityOf(
+        item({
+          id: "a",
+          state: "approved",
+          client_note,
+          decided_at: "2026-08-20T09:00:00Z",
+          decided_by_name: "Kate",
+        }),
+      ).filter((e) => e.kind === "decided");
+
+    // With words the entry carries them; without, it still exists. Two
+    // sources feed this one line (threadOf's bubble and the fallback here) and
+    // a whitespace-only note must not fall between them.
+    expect(decided("Looks good").map((e) => e.body)).toEqual(["Looks good"]);
+    expect(decided(null)).toHaveLength(1);
+    expect(decided("   ")).toHaveLength(1);
   });
 });
