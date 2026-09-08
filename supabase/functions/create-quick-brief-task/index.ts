@@ -8,7 +8,7 @@
 // if the brief already has a clickup_task_id, returns it unchanged.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { cors, json } from "../_shared/helpers.ts";
+import { APP_URL, cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
       `${descriptionBody}\n\n` +
       (docsSection ? `${docsSection}\n\n` : "") +
       `---\n` +
-      `_Quick-briefed from [Conductor brief](https://conductor.convertedclick.co.za/briefs/view/${brief.id})` +
+      `_Quick-briefed from [Conductor brief](${APP_URL}/briefs/view/${brief.id})` +
       ` on ${dateOfEngagement}${briefedByName ? ` by ${briefedByName}` : ""}._`;
 
     const taskBody = buildBriefTaskBody(cuFields, {

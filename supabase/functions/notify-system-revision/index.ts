@@ -13,12 +13,11 @@
 // "changes_requested" are both reached from 'proposed'.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { cors, json } from "../_shared/helpers.ts";
+import { APP_URL, cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient, createUserClient } from "../_shared/supabase-client.ts";
 import { postChatMessage, mentionToken, SYSTEMS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
-const APP_URL = "https://conductor.convertedclick.co.za";
 
 type Event = "proposed" | "published" | "changes_requested";
 const EVENTS: Event[] = ["proposed", "published", "changes_requested"];

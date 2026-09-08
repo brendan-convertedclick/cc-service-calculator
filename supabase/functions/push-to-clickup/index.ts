@@ -27,7 +27,7 @@
 // compensating delete on the projects row.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { cors, json } from "../_shared/helpers.ts";
+import { APP_URL, cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, addClickupDependency, buildBriefComment, buildBriefTaskBody, findCustomField } from "../_shared/clickup.ts";
@@ -35,7 +35,6 @@ import { isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANN
 import { planMaterialisation, renderHowTo, type MaterialisePlan, type MaterialiseStep } from "../_shared/system-materialise.ts";
 import { orderChildrenBySteps, type DeptChild } from "../_shared/dept-sequence.ts";
 
-const APP_URL = "https://conductor.convertedclick.co.za";
 
 type SnapshotAllocation = {
   dept_id: string;

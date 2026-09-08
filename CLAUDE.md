@@ -4,18 +4,20 @@ Internal service calculator for Converted Click. React SPA + Supabase. See the p
 
 ## Hosting — prod is Cloudflare Pages, the tunnel is dev
 
-Two hostnames, and they are not the same thing:
+Hostnames, and they are not the same thing:
 
 | URL | What it is | How code gets there |
 | --- | --- | --- |
-| `https://conductor.convertedclick.co.za` | **Production.** Cloudflare Pages project `conductor` (direct upload, no Git integration), account "Converted Clicks Account". Also reachable at `conductor-ehv.pages.dev`. | `npm run deploy` — builds and uploads `dist/`. Nothing deploys on push; a commit that is not deployed is not live. |
+| `https://conductor.stitch.net.za` | **Production.** Cloudflare Pages project `conductor` (direct upload, no Git integration), account "Converted Clicks Account". `stitch.net.za` (zone `cc77a4ce…`, same account) is the domain the agency's applications are collecting under — Conductor is not a Converted Click-only tool any more, it runs The Media Mixology's work too. | `npm run deploy` — builds and uploads `dist/`. Nothing deploys on push; a commit that is not deployed is not live. |
+| `https://conductor.convertedclick.co.za` | **Production, the old address.** Same Pages project, same deployment. It is kept alive DELIBERATELY and must not be retired: every client sign-off link already emailed carries it (`reviewUrlFor` builds from `window.location.origin`), as does every ClickUp comment the edge functions have ever posted. Also reachable at `conductor-ehv.pages.dev`. | Nothing — it is a second custom domain on the same project. |
 | `https://conductor-dev.convertedclick.co.za` | **Dev preview.** The cloudflared tunnel `conductor` → this machine's Vite dev server on `localhost:5391`. | HMR from the working tree. Uncommitted work shows here and only here. |
 
 - The build is a static SPA. `public/_redirects` (`/* /index.html 200`) is what makes deep links work — without it Pages 404s on every route but `/`.
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are baked into the bundle at build time from `.env.local`, so `npm run deploy` must run on a machine that has it.
 - The tunnel is a **public URL**, so `isLocalDev()` (`src/lib/env.ts`) tests for localhost positively. It used to test "not the prod hostname" — on a `-dev` host that would auto-sign the internet in as the shared `team@` owner. Do not loosen it back.
 - The tunnel serves `/mcp` (Vite proxies it to `mcp-server` on 8787), so the HTTP MCP URL is on `conductor-dev`, not prod. Prod is static — it has no proxy.
-- Edge functions link users to prod (`APP_URL` in `supabase/functions/*`), which is correct — those emails and ClickUp comments should not point at a laptop.
+- Edge functions link users to prod, which is correct — those emails and ClickUp comments should not point at a laptop. **`APP_URL` is ONE constant, in `supabase/functions/_shared/helpers.ts`.** Seven functions each carried their own copy of the string until the stitch.net.za move, which meant finding all seven; do not reintroduce a local one. The matching default for the MCP server is `mcp-server/src/lookup.ts` (overridable with `CONDUCTOR_APP_URL`).
+- **Changing `APP_URL` is only real once those seven functions are redeployed**, and pointing it at a hostname before that hostname resolves puts a dead link in every notification posted in between. New host first, deploy second.
 - Tunnel config is `/etc/cloudflared/config.yml` (root LaunchDaemon `com.cloudflare.cloudflared`). `DEV_ALLOWED_HOSTS` in `.env.local` must list the tunnel hostname or Vite refuses the request.
 
 ## Development workflow
@@ -382,6 +384,6 @@ Internal meetings reuse the existing Supabase Auth Google login (see `signInWith
 
 - Set Supabase secrets `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` — the same values already configured in Supabase Auth → Providers → Google.
 - The Google Cloud project needs the **Calendar API** enabled and `calendar.events` added to the OAuth consent screen's scopes.
-- `https://conductor.convertedclick.co.za` must be listed in Supabase Auth → URL Configuration → Redirect URLs, or the provider refresh token is never captured and every meeting reports "No Google account connected". `conductor-dev.convertedclick.co.za` and `conductor-ehv.pages.dev` are on the allow list too, so a Google sign-in works on the dev preview as well.
+- **Every prod hostname** must be listed in Supabase Auth → URL Configuration → Redirect URLs, or the provider refresh token is never captured on that host and every meeting reports "No Google account connected". That is now `conductor.stitch.net.za` as well as `conductor.convertedclick.co.za`; `conductor-dev.convertedclick.co.za` and `conductor-ehv.pages.dev` are on the allow list too, so a Google sign-in works on the dev preview as well. Adding a hostname to Cloudflare without adding it here is the failure that looks like "Google just stopped working".
 - Staff must sign in with Google once to grant calendar access — existing sessions (email/password or an earlier Google sign-in without the calendar scope) must **sign out and sign in with Google again**. Status/reconnect lives at Settings → Google Calendar.
 - `settings.clickup_internal_list_id` must be set (Settings → ClickUp) or meetings skip the ClickUp leg entirely and their time is never tracked as overhead.

@@ -1,7 +1,10 @@
 import { supabase } from './supabase.js'
 
-/** Where a Conductor record lives, so a tool can hand back a link a person can open. */
-export const APP_URL = process.env.CONDUCTOR_APP_URL ?? 'https://conductor.convertedclick.co.za'
+/** Where a Conductor record lives, so a tool can hand back a link a person can
+ *  open. Conductor moved to stitch.net.za; the old convertedclick.co.za host
+ *  stays live on the same Pages project, so an existing CONDUCTOR_APP_URL in
+ *  someone's .env keeps working and is simply out of date, not broken. */
+export const APP_URL = process.env.CONDUCTOR_APP_URL ?? 'https://conductor.stitch.net.za'
 
 /**
  * Resolves a human-typed name to a row id.

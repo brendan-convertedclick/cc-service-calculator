@@ -14,13 +14,12 @@
 // email are independent; one failing doesn't sink the other.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { cors, json } from "../_shared/helpers.ts";
+import { APP_URL, cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { sendNotificationEmails } from "../_shared/gmail.ts";
 
-const APP_URL = "https://conductor.convertedclick.co.za";
 
 type ExtensionRow = {
   id: string;
