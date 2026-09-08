@@ -65,6 +65,24 @@ describe('writeTasks', () => {
     })
   })
 
+  it('carries the verb onto both the task and its steps', async () => {
+    await write([{ title: 'Escalate it', verb: 'Escalate', steps: [{ title: 'Write it up', verb: 'Write' }] }], {
+      startOrdinal: 1,
+    })
+
+    const [task, step] = rowsFor('process_steps')
+    expect(task).toMatchObject({ verb: 'Escalate' })
+    expect(step).toMatchObject({ verb: 'Write' })
+  })
+
+  it('writes a null verb rather than leaving the column out when none is given', async () => {
+    await write([{ title: 'No verb', steps: [{ title: 'Also none' }] }], { startOrdinal: 1 })
+
+    const [task, step] = rowsFor('process_steps')
+    expect(task).toHaveProperty('verb', null)
+    expect(step).toHaveProperty('verb', null)
+  })
+
   it('sends task-level hours regardless of whether the task has steps', async () => {
     await write(
       [

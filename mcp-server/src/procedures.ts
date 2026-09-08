@@ -10,6 +10,16 @@ import { resolveDepartment, resolvePerson } from './lookup.js'
  * name, department, owner and estimate. A child row is a step — one line on
  * that task's checklist, belonging to whoever owns the task.
  *
+ * **A task is a ClickUp task, so the granularity question is "how many cards
+ * does this deserve on a board?", not "how many lines were on the source
+ * document?"** A recurring routine — a daily sweep, a weekly check, a
+ * month-end run — is ONE task whose steps are its checklist, however many
+ * lines the spreadsheet it came from had. Writing a task per line turns a
+ * twenty-minute routine into four cards nobody wants to tick off separately,
+ * and buries the fact that they are one sitting. Split into separate tasks
+ * only where the work genuinely stops and waits: different people, different
+ * weeks, something handed over in between.
+ *
  * Two invariants a caller must not have to know about, so they live here:
  *
  *   * `materialise_as` defaults to 'checklist_item' in the column, which is
@@ -18,6 +28,14 @@ import { resolveDepartment, resolvePerson } from './lookup.js'
  *   * A task nobody can reach isn't part of a flow, so consecutive tasks are
  *     joined by a `system_edges` row and laid out left-to-right — the canvas
  *     draws tasks horizontally and their steps vertically inside the card.
+ *   * Every row carries a `verb` — the Steps pane renders a grey `[verb]`
+ *     placeholder on any row without one, so a procedure written here and left
+ *     verbless is visibly unfinished next to every hand-written one. The GROUP
+ *     the verb sits in is the point rather than the word: a handoff verb
+ *     ("Send", "Escalate", "Present") marks where the work leaves your hands.
+ *     The picker's vocabulary is in `components/systems/VerbSelect.tsx`; the
+ *     column is plain text, so an off-list word is allowed where the list has
+ *     nothing honest — but reach for it last.
  *
  * Hours can go on the task, the steps, or both. The
  * `process_steps_rollup_hours` trigger only overwrites the task's hours with
@@ -32,12 +50,14 @@ export const TASK_GAP_X = 280
 
 export const stepInput = z.object({
   title: z.string().describe('What the person does — one line on the checklist'),
+  verb: z.string().optional().describe('The kind of act this is. Pick from: Create, Draft, Write, Design, Build, Develop, Edit, Plan, Research (produces something); Brief, Send, Submit, Approve, Sign off, Review, Escalate, Present (hands off); Check, Verify, QA, Audit, Proofread, Test (checks); Save, File, Upload, Log, Update, Notify, Schedule (admin/moves something). Shows as a grey [verb] placeholder until set'),
   description: z.string().optional().describe('Markdown detail; pushed into the ClickUp task body under a heading'),
   estimated_hours: z.number().optional().describe('Hours for this step; the task total is the sum of its steps'),
 })
 
 export const taskInput = z.object({
   title: z.string().describe('Task name — this is the name the ClickUp task gets'),
+  verb: z.string().optional().describe('The kind of act this is. Pick from: Create, Draft, Write, Design, Build, Develop, Edit, Plan, Research (produces something); Brief, Send, Submit, Approve, Sign off, Review, Escalate, Present (hands off); Check, Verify, QA, Audit, Proofread, Test (checks); Save, File, Upload, Log, Update, Notify, Schedule (admin/moves something). Shows as a grey [verb] placeholder until set'),
   department: z.string().optional().describe('Department name e.g. "Design". Required before the task can push to ClickUp'),
   owner: z.string().optional().describe('Team member name or email; defaults to the procedure owner'),
   description: z.string().optional().describe('Markdown instructions for the whole task'),
@@ -100,6 +120,7 @@ export async function writeTasks(
         department_id: resolved[i].department_id,
         owner_id: resolved[i].owner_id,
         estimated_hours: t.estimated_hours ?? null,
+        verb: t.verb ?? null,
         materialise_as: 'task' as const,
         pos_x: startX + i * TASK_GAP_X,
         pos_y: 0,
@@ -117,6 +138,7 @@ export async function writeTasks(
       title: s.title,
       description: s.description ?? null,
       estimated_hours: s.estimated_hours ?? null,
+      verb: s.verb ?? null,
       materialise_as: 'checklist_item' as const,
     })),
   )

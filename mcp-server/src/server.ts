@@ -69,7 +69,7 @@ const tools: ToolEntry[] = [
   // ── Systems: procedures, processes and policies ──────────────────────────
   ['list-procedures', 'List documented procedures (or processes/policies) by name. Start here to find the system_id for the other procedure tools.', listProcedures, true],
   ['get-procedure', 'Read a procedure in full: its goal, its tasks in order, and each task\'s checklist. Tasks are numbered 1..N and steps are numbered straight through the run, matching what Conductor shows on screen.', getProcedure, true],
-  ['create-procedure', 'Write a whole procedure in one call: the procedure itself, its tasks, and each task\'s checklist. A task becomes one ClickUp task (it owns the department, owner and estimate); its steps become that task\'s checklist items. Departments, owners and services are given by name, not id. The result is a draft — nothing reaches ClickUp until an admin publishes a revision.', createProcedure],
+  ['create-procedure', 'Write a whole procedure in one call: the procedure itself, its tasks, and each task\'s checklist. A task becomes one ClickUp task (it owns the department, owner and estimate); its steps become that task\'s checklist items. Ask how many CARDS the work deserves, not how many lines the source document had: a recurring routine (a daily sweep, a month-end run) is ONE task whose steps are its checklist \u2014 split into separate tasks only where the work stops and waits on someone else. Departments, owners and services are given by name, not id. The result is a draft — nothing reaches ClickUp until an admin publishes a revision.', createProcedure],
   ['add-procedure-task', 'Append one task, with its checklist, to the end of an existing procedure and chain it onto the task before it.', addProcedureTask],
 ]
 
