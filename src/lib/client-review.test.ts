@@ -14,6 +14,7 @@ import {
   isOverdue,
   sortForQueue,
   typeLabelFor,
+  historyOf,
 } from "./client-review";
 import type {
   ReviewItem,
@@ -60,6 +61,9 @@ function item(over: Partial<ReviewItem> & { id: string }): ReviewItem {
     our_ms: null,
     court: null,
     work_since: null,
+    links: [],
+    emailed_at: null,
+    moves: [],
     messages: [],
     created_at: "2026-08-01T08:00:00Z",
     client_note: null,
@@ -460,5 +464,82 @@ describe("calendarEntriesFor", () => {
       planRow({ id: "past", shows_on: daysFromToday(-30) }),
     ]);
     expect(entries[0].late).toBeUndefined();
+  });
+});
+
+describe("historyOf", () => {
+  it("opens in the second person, and names who started it", () => {
+    expect(historyOf(item({ id: "a" }))[0].summary).toBe("We sent this to you for sign-off");
+    expect(
+      historyOf(item({ id: "b", item_type: "question", raised_by: "client" }))[0].summary,
+    ).toBe("You asked us this");
+    expect(historyOf(item({ id: "c", item_type: "event", raised_by: "client" }))[0].summary).toBe(
+      "You added this date",
+    );
+  });
+
+  it("carries no message bodies — the thread underneath is where the words live", () => {
+    const events = historyOf(
+      item({
+        id: "a",
+        messages: [
+          { id: "m1", from: "us", author: null, body: "Any update?", at: "2026-08-02T09:00:00Z" },
+          { id: "m2", from: "them", author: "Kate", body: "Friday", at: "2026-08-03T09:00:00Z" },
+        ],
+      }),
+    );
+    expect(events.map((e) => e.summary)).toContain("We messaged you");
+    expect(events.map((e) => e.summary)).toContain("Kate replied");
+    expect(JSON.stringify(events)).not.toContain("Any update?");
+    expect(JSON.stringify(events)).not.toContain("Friday");
+  });
+
+  it("reads a reopen as a reopen, not as a first send", () => {
+    const events = historyOf(
+      item({
+        id: "a",
+        moves: [
+          { id: "v1", at: "2026-08-05T09:00:00Z", from: "pending", to: "approved" },
+          { id: "v2", at: "2026-08-06T09:00:00Z", from: "approved", to: "pending" },
+        ],
+      }),
+    );
+    expect(events.map((e) => e.summary)).toEqual([
+      "We sent this to you for sign-off",
+      "Closed off",
+      "Reopened — back with you",
+    ]);
+  });
+
+  it("says nothing about a state it has no honest sentence for", () => {
+    // 'parked' is dropped server-side and must never reach this page. If one
+    // ever did, silence beats inventing a word for a staff-only state.
+    const events = historyOf(
+      item({ id: "a", moves: [{ id: "v1", at: "2026-08-05T09:00:00Z", from: null, to: "parked" }] }),
+    );
+    expect(events).toHaveLength(1);
+  });
+
+  it("only counts an open that happened after the item existed", () => {
+    const events = historyOf(item({ id: "a", created_at: "2026-08-10T09:00:00Z" }), [
+      { name: "Kate", at: "2026-08-01T09:00:00Z" },
+      { name: "Trevor", at: "2026-08-12T09:00:00Z" },
+    ]);
+    expect(events.map((e) => e.summary)).toEqual([
+      "We sent this to you for sign-off",
+      "Trevor last opened your page",
+    ]);
+  });
+
+  it("ends on the decision, in their name", () => {
+    const events = historyOf(
+      item({
+        id: "a",
+        state: "approved",
+        decided_at: "2026-08-20T09:00:00Z",
+        decided_by_name: "Kate",
+      }),
+    );
+    expect(events[events.length - 1].summary).toBe("Kate approved it");
   });
 });

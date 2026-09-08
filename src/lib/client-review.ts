@@ -15,6 +15,8 @@ import type {
   ReviewItem,
   ReviewItemType,
   ReviewMessage,
+  ReviewMove,
+  ReviewOpen,
   ReviewScheduleRow,
 } from "@/types/client-review";
 
@@ -485,4 +487,143 @@ export function threadOf(item: ReviewItem): ReviewMessage[] {
   }
 
   return thread.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// --- the history panel ----------------------------------------------------
+
+export type ClientEventKind = "asked" | "emailed" | "opened" | "message" | "moved" | "decided";
+
+/** One line of an item's history. A sentence and a time — never a body. */
+export type ClientEvent = {
+  id: string;
+  kind: ClientEventKind;
+  at: string;
+  summary: string;
+};
+
+/** How an item opens, in the second person. Who started it changes the
+ *  sentence entirely — "we asked you this" over something they sent US is
+ *  the kind of small lie that costs a page its credibility. */
+function openingLine(item: ReviewItem): string {
+  const theirs = item.raised_by === "client";
+  switch (item.item_type) {
+    case "event":
+      return theirs ? "You added this date" : "We noted this date";
+    case "agreement":
+      return item.owed_by === "us"
+        ? "We committed to this"
+        : "Recorded as something you agreed to";
+    case "question":
+      return theirs ? "You asked us this" : "We asked you this";
+    default:
+      return "We sent this to you for sign-off";
+  }
+}
+
+/** What a state change reads as from the client's side of it. */
+function moveLine(move: ReviewMove): string | null {
+  switch (move.to) {
+    case "pending":
+      // Naming where it came FROM is what makes a reopen legible: "came to
+      // you" alone reads like the first time it was ever sent.
+      return move.from === "approved" || move.from === "changes_requested"
+        ? "Reopened — back with you"
+        : "Came to you";
+    case "changes_requested":
+      return "Came back to us";
+    case "approved":
+      return "Closed off";
+    case "noted":
+      return "Noted as a date";
+    default:
+      // 'parked' never reaches this page (it is dropped server-side) and an
+      // unknown state has no honest sentence. Silence beats a guess.
+      return null;
+  }
+}
+
+/** The line that closes the history. Their decision, in their language. */
+function decisionLine(item: ReviewItem): string {
+  const who = item.decided_by_name ?? "Someone there";
+  if (item.state === "changes_requested") return `${who} sent it back`;
+  if (item.item_type === "question") return `${who} answered`;
+  if (item.item_type === "agreement") return `${who} marked it done`;
+  return `${who} approved it`;
+}
+
+/**
+ * Everything that has happened to one item, oldest first — the client's own
+ * copy of the panel staff read beside the preview.
+ *
+ * DELIBERATELY NOT src/lib/client-timeline.ts. That module's header says
+ * nothing in it reaches a client, and it means it: it emits internal notes and
+ * names the staff member who moved a state. This is the same idea rebuilt from
+ * the wire contract, which carries neither — the safety is that the facts a
+ * client must not see are not in `item` at all, rather than being filtered out
+ * here where a later edit could quietly stop filtering.
+ *
+ * Message bodies are not on it. The thread underneath is where the words live;
+ * a history that repeats them IS the thread, and then there is no reason to
+ * open it. It carries the six things the thread cannot say: when we asked,
+ * whether the email went, who on their side has looked, that something was
+ * said, every time it changed sides, and how it ended.
+ *
+ * `opens` is client-level (one link opens the whole list), so only opens since
+ * this item existed are shown against it — an open from last month says nothing
+ * about an ask written yesterday.
+ */
+export function historyOf(item: ReviewItem, opens: ReviewOpen[] = []): ClientEvent[] {
+  const events: ClientEvent[] = [
+    { id: `asked-${item.id}`, kind: "asked", at: item.created_at, summary: openingLine(item) },
+  ];
+
+  if (item.emailed_at) {
+    events.push({
+      id: `emailed-${item.id}`,
+      kind: "emailed",
+      at: item.emailed_at,
+      summary: "We emailed it to you",
+    });
+  }
+
+  for (const open of opens) {
+    if (open.at < item.created_at) continue;
+    events.push({
+      id: `open-${item.id}-${open.name}-${open.at}`,
+      kind: "opened",
+      at: open.at,
+      summary: `${open.name} last opened your page`,
+    });
+  }
+
+  for (const message of item.messages) {
+    events.push({
+      id: `msg-${message.id}`,
+      kind: "message",
+      at: message.at,
+      summary: message.from === "us" ? "We messaged you" : `${message.author ?? "You"} replied`,
+    });
+  }
+
+  for (const move of item.moves) {
+    const summary = moveLine(move);
+    if (!summary) continue;
+    events.push({ id: `move-${move.id}`, kind: "moved", at: move.at, summary });
+  }
+
+  if (item.decided_at) {
+    events.push({
+      id: `decided-${item.id}`,
+      kind: "decided",
+      at: item.decided_at,
+      summary: decisionLine(item),
+    });
+  }
+
+  // Stable: equal timestamps keep the order they were pushed in, which is the
+  // order the events logically happen (asked before emailed before opened).
+  return events
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => a.e.at.localeCompare(b.e.at) || a.i - b.i)
+    .map(({ e }) => e);
 }

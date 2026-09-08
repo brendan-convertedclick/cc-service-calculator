@@ -33,6 +33,10 @@ const reviewKey = (token: string) => ["client-review", token] as const;
 export function useReviewList(token: string): UseQueryResult<ListResponse, Error> {
   return useQuery({
     queryKey: reviewKey(token),
+    // The staff preview and the present view render this same page with no
+    // token at all, and the query still fired: two guaranteed 400s ("token
+    // required") on every one of those loads.
+    enabled: !!token,
     retry: 1,
     queryFn: () =>
       callEdgeFn<ListResponse>("client-review", {

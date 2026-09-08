@@ -133,6 +133,32 @@ export type ReviewItem = {
    * runway at all. Null when nothing is linked.
    */
   work_since: string | null;
+  /**
+   * Web addresses this ask is about — a mock-up, a staging page, a doc (0162).
+   *
+   * A separate column and not a URL inside `detail`, because `detail` renders
+   * as pre-wrapped text: an address in it is something the client has to select
+   * and copy. These render as chips they can click.
+   */
+  links: string[];
+  /**
+   * When the email carrying this ask actually went out, or null if it never
+   * did. It is on the wire because "we did tell you, on the 14th" is the one
+   * fact on the log a client cannot reconstruct from anything else on the page.
+   * The addresses it went to are NOT here — see rule 1; the recipient reading
+   * this already knows whether they got it.
+   */
+  emailed_at: string | null;
+  /**
+   * Every time this item changed sides, oldest first (0146). What makes the
+   * history worth opening: the thread says what was said, this says what
+   * happened — sent back to us, reopened, settled by hand.
+   *
+   * No staff name and no `parked` transition ever reaches this array; both are
+   * dropped server-side rather than in the mapping, for the same reason
+   * internal notes are.
+   */
+  moves: ReviewMove[];
   /** The two-way thread, oldest first. Never contains internal notes. */
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */
@@ -209,6 +235,36 @@ export type ReviewMessage = {
   from: "us" | "them";
   author: string | null;
   body: string;
+  at: string;
+};
+
+/**
+ * One state change on an item, as the client may see it.
+ *
+ * `from`/`to` are client_approvals.state values verbatim — the phrasing is the
+ * client's page's job, not the server's. Neither can ever be 'parked': parked
+ * is a staff-only concept (0148), so those rows are dropped before the wire.
+ * There is no actor field and there never will be — the mover is one of us,
+ * and this file's rule 1 says the client's only word for us is "Converted
+ * Click".
+ */
+export type ReviewMove = {
+  id: string;
+  at: string;
+  /** Null on the very first move — nothing preceded it. */
+  from: ReviewItemState | null;
+  to: ReviewItemState;
+};
+
+/**
+ * When someone on the client's own side last opened their sign-off page.
+ *
+ * Client-level, not per item — a personal link (0142) opens the whole list, so
+ * it rides on the list response beside `contacts` rather than being copied onto
+ * every item. Names only: an address never crosses this wire.
+ */
+export type ReviewOpen = {
+  name: string;
   at: string;
 };
 
@@ -303,6 +359,12 @@ export type ListOk = {
   /** ISO timestamp, server now() at request time. Renders as "As at HH:MM". */
   as_at: string;
   contacts: ReviewContact[];
+  /**
+   * Who on their side has opened their link, and when. Client-level for the
+   * reason given on ReviewOpen. Empty on a legacy shared link, where there is
+   * nobody to name.
+   */
+  opens: ReviewOpen[];
   items: ReviewItem[];
   /**
    * The school's delivery plan, when they are on one — empty for every client

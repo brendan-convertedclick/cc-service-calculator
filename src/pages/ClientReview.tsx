@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ItemDetail } from "@/components/review/ItemDetail";
+import { ItemHistory } from "@/components/review/ItemHistory";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
@@ -159,6 +160,10 @@ export function ClientReview({
   const [month, setMonth] = useState(currentMonth);
   const [raiseKind, setRaiseKind] = useState<RaiseKind | null>(null);
   const [raiseError, setRaiseError] = useState<string | null>(null);
+  // The history slide-over. Deliberately NOT closed when the selection moves:
+  // someone flipping through items with it open is comparing histories, and
+  // shutting it under them each time is the opposite of what they asked for.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const data = listQuery.data;
   const ok = data?.status === "ok" ? data : null;
@@ -257,9 +262,7 @@ export function ClientReview({
       // Staff are looking at the client's screen. The controls are left
       // looking exactly as the client sees them — disabling them would make
       // this a different screen — so the action is caught here instead.
-      setDecisionError(
-        "Preview only — nothing was recorded. This is the screen the client sees.",
-      );
+      setDecisionError("Preview only — nothing was recorded. This is the screen the client sees.");
       return;
     }
     if (approver) {
@@ -350,7 +353,9 @@ export function ClientReview({
   if (!data && listQuery.isError) {
     return (
       <CenteredCard>
-        <p className="text-title-small text-m-on-surface">We couldn&apos;t load your list just now.</p>
+        <p className="text-title-small text-m-on-surface">
+          We couldn&apos;t load your list just now.
+        </p>
         <p className="mt-2 text-body-medium text-m-on-surface-variant">
           Give it a moment and try again — nothing you&apos;ve already approved is affected.
         </p>
@@ -382,6 +387,7 @@ export function ClientReview({
       onReply={(body) => sendReply(selectedItem.id, body)}
       replyBusy={replyMutation.isPending}
       replyError={replyError}
+      onOpenHistory={() => setHistoryOpen(true)}
     />
   ) : null;
 
@@ -411,14 +417,14 @@ export function ClientReview({
             Add a date
           </Button>
           <div className="flex rounded-full border border-m-outline-variant p-0.5">
-            {([
+            {[
               { id: "list" as const, label: "List", Icon: List },
               // Their own copy of the tab staff argue from. Same figures, same
               // stop-clock rule — the two must never tell different stories
               // about the same week.
               { id: "holding" as const, label: "Who's holding it up", Icon: Hourglass },
               { id: "calendar" as const, label: "Calendar", Icon: CalendarDays },
-            ]).map(({ id, label, Icon }) => (
+            ].map(({ id, label, Icon }) => (
               <button
                 key={id}
                 type="button"
@@ -463,87 +469,110 @@ export function ClientReview({
           />
         </div>
       ) : (
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="flex gap-2 overflow-x-auto border-b border-m-outline-variant p-3 lg:w-56 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r lg:p-4">
-          {BUCKETS.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => selectBucket(b.id)}
-              className={cn(
-                "flex shrink-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-label-large transition-colors",
-                bucket === b.id
-                  ? "bg-m-primary-container text-m-on-primary-container"
-                  : "text-m-on-surface-variant hover:bg-m-surface-container",
-              )}
-            >
-              <span>{b.label}</span>
-              <span className="text-label-small">{counts[b.id]}</span>
-            </button>
-          ))}
-        </aside>
+        <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+          <aside className="flex gap-2 overflow-x-auto border-b border-m-outline-variant p-3 lg:w-56 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r lg:p-4">
+            {BUCKETS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => selectBucket(b.id)}
+                className={cn(
+                  "flex shrink-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-label-large transition-colors",
+                  bucket === b.id
+                    ? "bg-m-primary-container text-m-on-primary-container"
+                    : "text-m-on-surface-variant hover:bg-m-surface-container",
+                )}
+              >
+                <span>{b.label}</span>
+                <span className="text-label-small">{counts[b.id]}</span>
+              </button>
+            ))}
+          </aside>
 
-        <div className="w-full overflow-y-auto lg:w-96 lg:shrink-0 lg:border-r lg:border-m-outline-variant">
-          <div className="border-b border-m-outline-variant px-4 py-2">
-            <p className="text-label-small text-m-on-surface-variant">
-              {asAt ? `As at ${asAt}` : " "}
-            </p>
-          </div>
-
-          {listQuery.isPending ? (
-            <div className="flex flex-col gap-2 p-3">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-16 rounded-md" />
-              ))}
-            </div>
-          ) : bucketItems.length === 0 ? (
-            <div className="flex flex-col items-center gap-1 p-8 text-center">
-              <p className="text-title-small text-m-on-surface">{EMPTY_BUCKET_COPY[bucket][0]}</p>
-              <p className="text-body-medium text-m-on-surface-variant">
-                {EMPTY_BUCKET_COPY[bucket][1]}
+          <div className="w-full overflow-y-auto lg:w-96 lg:shrink-0 lg:border-r lg:border-m-outline-variant">
+            <div className="border-b border-m-outline-variant px-4 py-2">
+              <p className="text-label-small text-m-on-surface-variant">
+                {asAt ? `As at ${asAt}` : " "}
               </p>
             </div>
-          ) : (
-            bucketItems.map((item) => (
-              <QueueRow
-                key={item.id}
-                item={item}
-                selected={item.id === selectedId}
-                busy={decisionMutation.isPending && decisionMutation.variables?.item_id === item.id}
-                onSelect={handleSelect}
-                onQuickApprove={handleQuickApprove}
-              />
-            ))
-          )}
-        </div>
 
-        {/* Capped, not full-bleed. The pane is whatever is left of a monitor
+            {listQuery.isPending ? (
+              <div className="flex flex-col gap-2 p-3">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-16 rounded-md" />
+                ))}
+              </div>
+            ) : bucketItems.length === 0 ? (
+              <div className="flex flex-col items-center gap-1 p-8 text-center">
+                <p className="text-title-small text-m-on-surface">{EMPTY_BUCKET_COPY[bucket][0]}</p>
+                <p className="text-body-medium text-m-on-surface-variant">
+                  {EMPTY_BUCKET_COPY[bucket][1]}
+                </p>
+              </div>
+            ) : (
+              bucketItems.map((item) => (
+                <QueueRow
+                  key={item.id}
+                  item={item}
+                  selected={item.id === selectedId}
+                  busy={
+                    decisionMutation.isPending && decisionMutation.variables?.item_id === item.id
+                  }
+                  onSelect={handleSelect}
+                  onQuickApprove={handleQuickApprove}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Capped, not full-bleed. The pane is whatever is left of a monitor
             after the rail and the queue, which on a wide screen stretched the
             answer box and every message bubble across two feet of glass. 46rem
             keeps the ask, the textarea and the thread at a readable measure;
             the column itself still grows, so the content sits in it rather
             than being pinned to the edge. */}
-        <main className="hidden min-w-0 flex-1 overflow-y-auto p-8 lg:block">
-          <div className="w-full max-w-[46rem]">{detailNode}</div>
-        </main>
+          <main className="hidden min-w-0 flex-1 overflow-y-auto p-8 lg:block">
+            <div className="w-full max-w-[46rem]">{detailNode}</div>
+          </main>
 
-        <Sheet
-          open={!isDesktop && selectedItem !== null}
-          onOpenChange={(open) => {
-            if (!open) setSelectedId(null);
-          }}
-        >
-          <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-            {selectedItem ? (
-              <>
-                <SheetTitle className="sr-only">{selectedItem.client_title}</SheetTitle>
-                {detailNode}
-              </>
-            ) : null}
-          </SheetContent>
-        </Sheet>
-      </div>
+          <Sheet
+            open={!isDesktop && selectedItem !== null}
+            onOpenChange={(open) => {
+              if (!open) setSelectedId(null);
+            }}
+          >
+            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+              {selectedItem ? (
+                <>
+                  <SheetTitle className="sr-only">{selectedItem.client_title}</SheetTitle>
+                  {detailNode}
+                </>
+              ) : null}
+            </SheetContent>
+          </Sheet>
+        </div>
       )}
+
+      {/* Over the page, not beside it. SheetContent is fixed-position, so
+          opening this moves nothing behind it — the ask, the thread and the
+          buttons all stay exactly where the reader left them. */}
+      <Sheet open={historyOpen && selectedItem !== null} onOpenChange={setHistoryOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+          {selectedItem ? (
+            <>
+              {/* One grid child, so the Sheet's own gap does not land between
+                  a title and its subtitle. */}
+              <div>
+                <SheetTitle className="text-title-small text-m-on-surface">History</SheetTitle>
+                <p className="text-label-small text-m-on-surface-variant">
+                  {selectedItem.client_title}
+                </p>
+              </div>
+              <ItemHistory item={selectedItem} opens={ok?.opens ?? []} />
+            </>
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
       <RaiseDialog
         open={raiseKind !== null}

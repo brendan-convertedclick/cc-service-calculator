@@ -347,3 +347,72 @@ export function useAgreementToBrief() {
     },
   });
 }
+
+/**
+ * The rest of the CRUD on an ask: change its wording, its date, its links — or
+ * take it off the list altogether.
+ *
+ * Update deliberately touches SIX columns and no more. `item_type`, `state` and
+ * `owed_by` each have check constraints hanging off them (an idea must be
+ * parked, an event must be noted, only an agreement may be owed by us, a
+ * decision must move with its stamp), so changing them is a different act with
+ * its own controls — useSetItemState for the state, and nothing at all for the
+ * type: an idea that turns out to be a question is asked as one, which is the
+ * point of 0148.
+ *
+ * Editing after a decision is allowed and does not rewrite history: 0142 froze
+ * decided_title/decided_ask at the click, and EvidenceDialog shows the frozen
+ * copy with a warning when the live wording has drifted from it.
+ */
+export type UpdateApprovalInput = {
+  approvalId: string;
+  patch: {
+    client_title?: string;
+    ask?: string;
+    detail?: string | null;
+    due_date?: string | null;
+    weighty?: boolean;
+    links?: string[];
+  };
+};
+
+export function useUpdateApproval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ approvalId, patch }: UpdateApprovalInput) => {
+      const { error } = await supabase
+        .from("client_approvals")
+        .update(patch)
+        .eq("id", approvalId);
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: (_r, input) => {
+      invalidate(qc);
+      void qc.invalidateQueries({ queryKey: ["client-activity", input.approvalId] });
+    },
+  });
+}
+
+/**
+ * Delete an ask outright.
+ *
+ * It takes the whole thread with it — client_activity cascades on the FK — and
+ * that includes messages we actually emailed to somebody. There is no undo and
+ * no soft-delete column, so the confirm in the UI names what is going, and a
+ * settled row says so twice: a signed-off approval is EVIDENCE (0142) that the
+ * client agreed to something, and deleting it destroys the record rather than
+ * the task.
+ *
+ * A school_tasks row pointing at it survives — that FK is ON DELETE SET NULL,
+ * so the plan keeps its line and simply stops being an ask.
+ */
+export function useDeleteApproval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (approvalId: string) => {
+      const { error } = await supabase.from("client_approvals").delete().eq("id", approvalId);
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: () => invalidate(qc),
+  });
+}

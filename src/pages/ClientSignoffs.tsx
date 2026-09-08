@@ -10,6 +10,7 @@ import {
   Lightbulb,
   Link2Off,
   MessageCircleQuestion,
+  Pencil,
   Presentation,
   Wand2,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { WaitingTable } from "@/components/signoffs/WaitingTable";
 import { RunwayChart } from "@/components/signoffs/RunwayChart";
 import { TurnaroundStatement } from "@/components/signoffs/TurnaroundStatement";
 import { EvidenceDialog } from "@/components/signoffs/EvidenceDialog";
+import { EditItemDialog } from "@/components/signoffs/EditItemDialog";
 import { ActivityPanel } from "@/components/signoffs/ActivityPanel";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
 import { useSignoffCandidates } from "@/hooks/useSignoffCandidates";
@@ -115,10 +117,14 @@ function ItemsTable({
   rows,
   onPickClient,
   onEvidence,
+  onEdit,
 }: {
   rows: SignoffRow[];
   onPickClient: (clientId: string) => void;
   onEvidence: (row: SignoffRow) => void;
+  /** Open the editor. On the ROW and not in ActivityPanel, which follows the
+   *  preview and therefore cannot reach a parked item or any idea. */
+  onEdit: (row: SignoffRow) => void;
 }) {
   const setState = useSetItemState();
   return (
@@ -130,7 +136,10 @@ function ItemsTable({
           <th className="px-3 py-2 text-left font-medium">Item</th>
           <th className="px-3 py-2 text-left font-medium">State</th>
           <th className="px-3 py-2 text-right font-medium">Waiting</th>
-          <th className="px-6 py-2 text-left font-medium">Answered by</th>
+          <th className="px-3 py-2 text-left font-medium">Answered by</th>
+          <th className="px-6 py-2 text-right font-medium">
+            <span className="sr-only">Edit</span>
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -175,7 +184,7 @@ function ItemsTable({
                   <span className="text-m-on-surface-variant">on time</span>
                 )}
               </td>
-              <td className="px-6 py-2.5 text-m-on-surface-variant">
+              <td className="px-3 py-2.5 text-m-on-surface-variant">
                 {r.decided_by_name ? (
                   <button
                     type="button"
@@ -209,6 +218,17 @@ function ItemsTable({
                   "—"
                 )}
               </td>
+              <td className="px-6 py-2.5 text-right">
+                <button
+                  type="button"
+                  aria-label={`Edit ${r.client_title}`}
+                  title="Edit"
+                  onClick={() => onEdit(r)}
+                  className="text-m-on-surface-variant hover:text-m-on-surface"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </td>
             </tr>
           );
         })}
@@ -233,6 +253,7 @@ export function ClientSignoffs() {
   const [month, setMonth] = useState(currentMonth);
   // The decided row whose evidence is open. Null = closed.
   const [evidenceOf, setEvidenceOf] = useState<SignoffRow | null>(null);
+  const [editOf, setEditOf] = useState<SignoffRow | null>(null);
   // Which item the client preview currently has selected. The activity column
   // beside it follows this, so clicking a task in that queue fills the card on
   // the right. Reset when the client changes — the old id belongs to nobody.
@@ -638,6 +659,7 @@ export function ClientSignoffs() {
                     rows={parked}
                     onPickClient={setClientId}
                     onEvidence={setEvidenceOf}
+                    onEdit={setEditOf}
                   />
                 </>
               )}
@@ -763,6 +785,7 @@ export function ClientSignoffs() {
                   rows={visible}
                   onPickClient={setClientId}
                   onEvidence={setEvidenceOf}
+                  onEdit={setEditOf}
                 />
               )}
             </TabsContent>
@@ -775,6 +798,13 @@ export function ClientSignoffs() {
         onOpenChange={setDraftOpen}
         clientId={clientId ?? undefined}
       />
+      <EditItemDialog
+        row={editOf ?? undefined}
+        onOpenChange={(open) => {
+          if (!open) setEditOf(null);
+        }}
+      />
+
       <EvidenceDialog
         open={evidenceOf !== null}
         onOpenChange={(next) => {

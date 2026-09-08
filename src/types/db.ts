@@ -1189,6 +1189,7 @@ export type Database = {
           id: string
           item_id: string | null
           item_type: string
+          links: string[]
           outbound_email_id: string | null
           owed_by: string
           raised_by: string
@@ -1219,6 +1220,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_type?: string
+          links?: string[]
           outbound_email_id?: string | null
           owed_by?: string
           raised_by?: string
@@ -1249,6 +1251,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_type?: string
+          links?: string[]
           outbound_email_id?: string | null
           owed_by?: string
           raised_by?: string

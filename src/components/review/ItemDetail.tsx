@@ -1,4 +1,7 @@
+import { Clock3, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { docLinkLabel } from "@/lib/doc-links";
 import { ItemConversation } from "@/components/review/ItemConversation";
 import { agreedLine, typeLabelFor } from "@/lib/client-review";
 import { DueBadge } from "@/components/review/DueBadge";
@@ -19,6 +22,12 @@ export interface ItemDetailProps {
   onReply: (body: string) => void;
   replyBusy: boolean;
   replyError: string | null;
+  /**
+   * Open the history panel. The panel itself is the page's, not this
+   * component's: it slides in over everything, and mounting it here would put
+   * it inside the mobile detail Sheet's own scroll container.
+   */
+  onOpenHistory: () => void;
 }
 
 /** "YYYY-MM-DD" -> "24 Aug". Built from the date parts, not `new Date(str)`,
@@ -44,6 +53,7 @@ export function ItemDetail({
   onReply,
   replyBusy,
   replyError,
+  onOpenHistory,
 }: ItemDetailProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -75,6 +85,28 @@ export function ItemDetail({
         ) : null}
       </div>
 
+      {item.links.length > 0 ? (
+        <div>
+          <h2 className="text-title-small text-m-on-surface">What it&apos;s about</h2>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {item.links.map((link) => (
+              <li key={link}>
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={link}
+                  className="inline-flex items-center gap-1 rounded-md bg-m-secondary-container px-2 py-1 text-label-small text-m-on-secondary-container hover:underline"
+                >
+                  {docLinkLabel(link)}
+                  <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {item.detail ? (
         <div>
           <h2 className="text-title-small text-m-on-surface">The detail</h2>
@@ -83,6 +115,15 @@ export function ItemDetail({
           </p>
         </div>
       ) : null}
+
+      {/* A button and not a third column. What has happened to an item is a
+          thing you go and check, not a thing you read alongside the ask. */}
+      <div>
+        <Button variant="outline" size="sm" onClick={onOpenHistory}>
+          <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+          History
+        </Button>
+      </div>
 
       {item.state === "pending" && item.owed_by === "us" ? (
         <div className="rounded-lg bg-m-surface-container p-4">

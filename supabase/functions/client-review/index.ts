@@ -74,8 +74,9 @@ import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.t
 // Mirrors src/types/client-review.ts. If you change one, change both.
 
 type ReviewDecision = "approved" | "changes_requested";
-/** 'parked' (0148) is staff-only and filtered out of every query below. */
-type ReviewItemState = "pending" | "parked" | ReviewDecision;
+/** 'parked' (0148) is staff-only and filtered out of every query below.
+ *  'noted' (0149) belongs to events: a date nobody acts on. */
+type ReviewItemState = "pending" | "parked" | "noted" | ReviewDecision;
 
 const DECISIONS: ReviewDecision[] = ["approved", "changes_requested"];
 
@@ -120,6 +121,12 @@ type ReviewItem = {
   court: "client" | "us" | "done" | null;
   /** The linked task's created_at — what makes a runway measurable. */
   work_since: string | null;
+  /** Web addresses this ask is about (0162). CLIENT-VISIBLE by construction. */
+  links: string[];
+  /** When the email carrying this ask went out. Addresses are NOT sent. */
+  emailed_at: string | null;
+  /** Every time this changed sides. No staff name, no 'parked', ever. */
+  moves: ReviewMove[];
   /** The two-way thread, oldest first. Never contains internal notes. */
   messages: ReviewMessage[];
   /** When we asked. Dates the opening message of the thread. */
@@ -130,6 +137,27 @@ type ReviewItem = {
   raised_by_name: string | null;
   /** What they wrote when they decided — their own words, shown as their message. */
   client_note: string | null;
+};
+
+/**
+ * One state change, as the client may see it. Mirror of ReviewMove.
+ *
+ * There is no actor field on purpose — the mover is one of us, and rule 1 says
+ * the client's only word for us is "Converted Click". `parked` transitions are
+ * dropped where `moves` is built, not here and not on the client: parked is a
+ * staff-only state and its name must not reach that page even as a from/to.
+ */
+type ReviewMove = {
+  id: string;
+  at: string;
+  from: ReviewItemState | null;
+  to: ReviewItemState;
+};
+
+/** When someone on the CLIENT's side last opened their page. Names only. */
+type ReviewOpen = {
+  name: string;
+  at: string;
 };
 
 /**
@@ -210,6 +238,8 @@ type ListResponse =
       company_name: string;
       as_at: string;
       contacts: ReviewContact[];
+      /** Who on their side has opened their link. Client-level, not per item. */
+      opens: ReviewOpen[];
       items: ReviewItem[];
       /** The school's own year, when they are on one. Empty otherwise. */
       schedule: ReviewScheduleRow[];
@@ -269,10 +299,19 @@ type ApprovalRow = {
   raised_by: string;
   raised_by_name: string | null;
   client_note: string | null;
+  links: string[] | null;
   // The joined brief, one named column. See rule 1 at the top of this file.
   // PostgREST returns a to-one embed as an object at runtime but types it as
   // an array, so both shapes are accepted and normalised in toReviewItem.
   briefs?: BriefWait | BriefWait[] | null;
+  // The email that carried this ask. Two columns and no more — `to_addresses`
+  // and `composed_by` are on that table and neither belongs on this wire.
+  outbound_emails?: EmailSent | EmailSent[] | null;
+};
+
+type EmailSent = {
+  sent_at: string | null;
+  status: string | null;
 };
 
 type BriefWait = {
@@ -313,7 +352,17 @@ function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number
   return briefOf(briefs)?.client_wait_ms ?? null;
 }
 
-function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewItem {
+/** The one email column that reaches a client: when it went, if it went. */
+function sentAtOf(emails: EmailSent | EmailSent[] | null | undefined): string | null {
+  const row = (Array.isArray(emails) ? emails[0] : emails) ?? null;
+  return row?.status === "sent" ? row.sent_at : null;
+}
+
+function toReviewItem(
+  row: ApprovalRow,
+  messages: ReviewMessage[] = [],
+  moves: ReviewMove[] = [],
+): ReviewItem {
   return {
     id: row.id,
     // An unrecognised type degrades to the approval controls rather than
@@ -340,12 +389,15 @@ function toReviewItem(row: ApprovalRow, messages: ReviewMessage[] = []): ReviewI
     our_ms: briefOf(row.briefs)?.internal_wait_ms ?? null,
     court: courtOf(row.briefs),
     work_since: briefOf(row.briefs)?.created_at ?? null,
+    links: row.links ?? [],
+    emailed_at: sentAtOf(row.outbound_emails),
+    moves,
     messages,
   };
 }
 
 const APPROVAL_COLUMNS =
-  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at)";
+  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
 
 // --- token hashing + verification (pure, no I/O) ------------------------
 
@@ -428,6 +480,35 @@ async function handleList(
     return json({ error: "Something went wrong on our side" }, 500);
   }
 
+  // The state moves, for the history panel. A SECOND query rather than
+  // widening the thread's `.in(...)` to include 'status', and the separation is
+  // the safety: this select names no author column at all, so the staff member
+  // who moved a state cannot reach the client even by accident. Same rule as
+  // kind='note', enforced the same way — in the query, not in the mapping.
+  const { data: movesRaw, error: movesErr } = await sb
+    .from("client_activity")
+    .select("id, approval_id, from_state, to_state, created_at")
+    .eq("client_id", clientId)
+    .eq("kind", "status")
+    .order("created_at");
+  if (movesErr) {
+    console.error("[client-review] moves lookup failed:", movesErr.message);
+    return json({ error: "Something went wrong on our side" }, 500);
+  }
+
+  // Who on their side has opened their link. Client-level, so one query for the
+  // whole list rather than one per item. Only personal, unrevoked links count:
+  // a shared link tells us nothing about who, and a revoked one is not a way in
+  // any more. Not fatal — a history panel missing an open still reads.
+  const { data: opensRaw, error: opensErr } = await sb
+    .from("client_review_tokens")
+    .select("last_used_at, contacts(full_name)")
+    .eq("client_id", clientId)
+    .not("contact_id", "is", null)
+    .not("last_used_at", "is", null)
+    .is("revoked_at", null);
+  if (opensErr) console.error("[client-review] opens lookup failed:", opensErr.message);
+
   // The school's delivery plan. Read from the view, never from school_tasks —
   // see ReviewScheduleRow. A failure here is NOT fatal: the plan is context
   // beside the asks, and a client who cannot see next month's work must still
@@ -463,13 +544,59 @@ async function handleList(
     byApproval.set(row.approval_id, list);
   }
 
+  // 'parked' is dropped HERE and not on the client, for the same reason parked
+  // items are filtered in the items query: it is a staff-only state (0148), and
+  // its name must not reach that page even as the from/to of a move. A row is
+  // dropped if either end is parked — checked explicitly rather than with a
+  // PostgREST .neq, because from_state is NULL on a first move and SQL's
+  // NULL != 'parked' is NULL, which would silently drop that row too.
+  const movesByApproval = new Map<string, ReviewMove[]>();
+  for (const row of (movesRaw ?? []) as Array<{
+    id: string;
+    approval_id: string;
+    from_state: string | null;
+    to_state: string | null;
+    created_at: string;
+  }>) {
+    if (!row.to_state) continue;
+    if (row.from_state === "parked" || row.to_state === "parked") continue;
+    const list = movesByApproval.get(row.approval_id) ?? [];
+    list.push({
+      id: row.id,
+      at: row.created_at,
+      from: (row.from_state as ReviewItemState | null) ?? null,
+      to: row.to_state as ReviewItemState,
+    });
+    movesByApproval.set(row.approval_id, list);
+  }
+
+  // One row per person, newest open wins — the same contact can hold several
+  // links (a fresh one is minted per question) and "when did she last look" is
+  // one answer, not four.
+  const latestOpen = new Map<string, string>();
+  for (const row of (opensRaw ?? []) as Array<{
+    last_used_at: string | null;
+    contacts: { full_name: string | null } | { full_name: string | null }[] | null;
+  }>) {
+    const contact = (Array.isArray(row.contacts) ? row.contacts[0] : row.contacts) ?? null;
+    const name = contact?.full_name;
+    const at = row.last_used_at;
+    if (!name || !at) continue;
+    const seen = latestOpen.get(name);
+    if (!seen || at > seen) latestOpen.set(name, at);
+  }
+  const opens: ReviewOpen[] = [...latestOpen.entries()].map(([name, at]) => ({ name, at }));
+
   const contacts = (contactsRaw ?? []) as ReviewContact[];
   const resp: ListResponse = {
     status: "ok",
     company_name: (clientRaw as { name: string } | null)?.name ?? "",
     as_at: asAt,
     contacts,
-    items: items.map((row) => toReviewItem(row, byApproval.get(row.id) ?? [])),
+    opens,
+    items: items.map((row) =>
+      toReviewItem(row, byApproval.get(row.id) ?? [], movesByApproval.get(row.id) ?? []),
+    ),
     schedule: (scheduleRaw ?? []) as unknown as ReviewScheduleRow[],
     // Resolved from the contacts already fetched — a personal token whose
     // contact has since been deleted or had its name cleared falls back to
