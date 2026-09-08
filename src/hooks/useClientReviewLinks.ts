@@ -11,6 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
+import { clientLinkOrigin } from "@/lib/env";
 
 export type ClientReviewLink = {
   id: string;
@@ -45,9 +46,13 @@ export async function sha256Hex(value: string): Promise<string> {
     .join("");
 }
 
-/** The full URL a client opens. Absolute, because it is pasted into an email. */
+/**
+ * The full URL a client opens. Absolute, because it is pasted into an email,
+ * and pinned to production rather than to wherever the sender happened to be
+ * standing — see clientLinkOrigin.
+ */
 export function reviewUrlFor(token: string): string {
-  return `${window.location.origin}/review/${token}`;
+  return `${clientLinkOrigin()}/review/${token}`;
 }
 
 export function useClientReviewLinks(clientId: string | undefined) {

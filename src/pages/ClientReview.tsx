@@ -449,8 +449,13 @@ export function ClientReview({
     />
   ) : null;
 
+  // max-h-full so the staff preview's 720px box wins. h-screen on its own made
+  // this root taller than the card that clips it, so the bottom of the queue
+  // sat somewhere nobody could scroll to — the column's own overflow-y-auto
+  // never engaged, because the column was never the thing running out of room.
+  // On the client's own route the parent height is indefinite and it no-ops.
   return (
-    <div ref={rootRef} className="flex h-screen flex-col bg-m-background">
+    <div ref={rootRef} className="flex h-screen max-h-full flex-col bg-m-background">
       <header className="flex items-center justify-between gap-4 border-b border-m-outline-variant px-4 py-3 lg:px-6">
         <div className="min-w-0">
           {/* Their name, and it is the page's title — small enough to read as

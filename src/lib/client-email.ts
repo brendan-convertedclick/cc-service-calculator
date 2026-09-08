@@ -259,3 +259,30 @@ export function buildMessageEmail(args: {
     counts: args.counts,
   });
 }
+
+/**
+ * A chase across a client's whole list, addressed to no item in particular.
+ *
+ * Everything specific in it comes from the counts block the shell already
+ * renders — the three buckets and the oldest-waiting line, off the same
+ * `pressureDays` the client's own queue sorts by. The typed part deliberately
+ * carries no numbers of its own: a hand-written count is a count that can
+ * disagree with the table underneath it in the same email.
+ */
+export function buildChaseEmail(args: {
+  message: string;
+  url: string;
+  contactName?: string | null;
+  counts?: StageCounts | null;
+}): ClientEmail {
+  return render({
+    subject: "Where things stand with Converted Click",
+    lead: "A quick update on where things stand:",
+    quoted: args.message,
+    callToAction: "Everything waiting on you is on your page. No login needed.",
+    buttonLabel: "Open your sign-off page",
+    url: args.url,
+    contactName: args.contactName,
+    counts: args.counts,
+  });
+}

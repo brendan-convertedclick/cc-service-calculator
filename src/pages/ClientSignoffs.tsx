@@ -6,16 +6,19 @@ import {
   ExternalLink,
   Handshake,
   CalendarDays,
+  ChevronRight,
   Library,
   Lightbulb,
   Link2Off,
   MessageCircleQuestion,
   Pencil,
   Presentation,
+  Send,
   Wand2,
 } from "lucide-react";
 import { DraftSignoffsDialog } from "@/components/signoffs/DraftSignoffsDialog";
 import { AskQuestionDialog } from "@/components/signoffs/AskQuestionDialog";
+import { SendUpdateDialog } from "@/components/signoffs/SendUpdateDialog";
 import { LogAgreementDialog } from "@/components/signoffs/LogAgreementDialog";
 import { ParkIdeaDialog } from "@/components/signoffs/ParkIdeaDialog";
 import { WaitingTable } from "@/components/signoffs/WaitingTable";
@@ -248,6 +251,7 @@ export function ClientSignoffs() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [month, setMonth] = useState(currentMonth);
@@ -455,6 +459,11 @@ export function ClientSignoffs() {
         <div className="border-b border-m-outline-variant px-6 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <h1 className="text-headline-small text-m-on-surface">Client sign-offs</h1>
+            {/* Icons only — five labelled buttons ate the whole header and
+                pushed the summary line down. The name is on hover and on
+                `aria-label`, so nothing is lost to a screen reader; the empty
+                states below still spell each one out in words for anyone
+                meeting the page for the first time. */}
             <div className="flex flex-wrap gap-2">
               {/* Both of these are addressed to ONE company, so they need a
                   client picked. Rendered disabled rather than hidden — the
@@ -462,54 +471,76 @@ export function ClientSignoffs() {
               <Button
                 variant="outline"
                 size="sm"
+                className="w-8 px-0"
                 disabled={!selected}
-                title={selected ? undefined : "Pick a client first"}
+                title={selected ? "Ask a question" : "Pick a client first"}
+                aria-label="Ask a question"
                 onClick={() => setAskOpen(true)}
               >
-                <MessageCircleQuestion className="mr-1.5 h-3.5 w-3.5" />
-                Ask a question
+                <MessageCircleQuestion className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="w-8 px-0"
                 disabled={!selected}
-                title={selected ? undefined : "Pick a client first"}
+                title={selected ? "Record an agreement" : "Pick a client first"}
+                aria-label="Record an agreement"
                 onClick={() => setAgreementOpen(true)}
               >
-                <Handshake className="mr-1.5 h-3.5 w-3.5" />
-                Record an agreement
+                <Handshake className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="w-8 px-0"
                 disabled={!selected}
-                title={selected ? undefined : "Pick a client first"}
+                title={selected ? "Park an idea" : "Pick a client first"}
+                aria-label="Park an idea"
                 onClick={() => setIdeaOpen(true)}
               >
-                <Lightbulb className="mr-1.5 h-3.5 w-3.5" />
-                Park an idea
+                <Lightbulb className="h-4 w-4" />
               </Button>
               {/* The same page, on its own, with no rail and no other client's
                   name on it — for putting on a screen in a meeting. Read-only
                   by construction: it renders the preview, where pressing a
                   button records nothing. */}
               {selected ? (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={`/present/${selected.id}`} target="_blank" rel="noreferrer">
-                    <Presentation className="mr-1.5 h-3.5 w-3.5" />
-                    Present
+                <Button variant="outline" size="sm" className="w-8 px-0" asChild>
+                  <a
+                    href={`/present/${selected.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Present"
+                    aria-label="Present"
+                  >
+                    <Presentation className="h-4 w-4" />
                   </a>
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" disabled title="Pick a client first">
-                  <Presentation className="mr-1.5 h-3.5 w-3.5" />
-                  Present
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-8 px-0"
+                  disabled
+                  title="Pick a client first"
+                  aria-label="Present"
+                >
+                  <Presentation className="h-4 w-4" />
                 </Button>
               )}
               {candidatesHere.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setDraftOpen(true)}>
-                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                  Draft from ClickUp ({candidatesHere.length})
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 px-2"
+                  title={`Draft from ClickUp (${candidatesHere.length})`}
+                  aria-label={`Draft from ClickUp (${candidatesHere.length})`}
+                  onClick={() => setDraftOpen(true)}
+                >
+                  {/* The count is the reason to press it — it stays visible. */}
+                  <Wand2 className="h-4 w-4" />
+                  {candidatesHere.length}
                 </Button>
               )}
             </div>
@@ -674,11 +705,27 @@ export function ClientSignoffs() {
                         records nothing.
                       </p>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/clients/${selected.id}`}>
-                        Manage their link <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                      </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/clients/${selected.id}`}>
+                          Manage their link <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                      {/* The quick chase. It needs somewhere to send to, and
+                          a client with no contacts has nowhere — the dialog
+                          says so and points at the client page, so the button
+                          stays live rather than disappearing unexplained. */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-8 px-0"
+                        title="Send them an update"
+                        aria-label="Send them an update"
+                        onClick={() => setUpdateOpen(true)}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   {!selectedHasLink && (
@@ -735,12 +782,6 @@ export function ClientSignoffs() {
                 </div>
               ) : null}
 
-              {selected && visible.length > 0 ? (
-                <h2 className="px-6 pb-2 pt-5 text-title-small text-m-on-surface">
-                  {selected.name}&apos;s items, with our own columns
-                </h2>
-              ) : null}
-
               {visible.length === 0 ? (
                 <div className="flex flex-col items-start gap-3 p-6">
                   <p className="text-body-medium text-m-on-surface-variant">
@@ -781,12 +822,25 @@ export function ClientSignoffs() {
                   </div>
                 </div>
               ) : (
-                <ItemsTable
-                  rows={visible}
-                  onPickClient={setClientId}
-                  onEvidence={setEvidenceOf}
-                  onEdit={setEditOf}
-                />
+                /* Folded away by default. The preview above is what this tab is
+                   for — the staff columns are the drill-down, and open they
+                   pushed everything else off a laptop screen. <details> rather
+                   than a state flag: the browser already owns this. */
+                <details className="group border-t border-m-outline-variant">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-3 [&::-webkit-details-marker]:hidden text-title-small text-m-on-surface hover:bg-m-surface-container">
+                    <ChevronRight className="h-4 w-4 shrink-0 text-m-on-surface-variant transition-transform group-open:rotate-90" />
+                    {selected ? `${selected.name}'s items` : "All items"}, with our own columns
+                    <span className="text-label-medium text-m-on-surface-variant">
+                      ({visible.length})
+                    </span>
+                  </summary>
+                  <ItemsTable
+                    rows={visible}
+                    onPickClient={setClientId}
+                    onEvidence={setEvidenceOf}
+                    onEdit={setEditOf}
+                  />
+                </details>
               )}
             </TabsContent>
           </Tabs>
@@ -830,6 +884,12 @@ export function ClientSignoffs() {
           <ParkIdeaDialog
             open={ideaOpen}
             onOpenChange={setIdeaOpen}
+            clientId={selected.id}
+            clientName={selected.name}
+          />
+          <SendUpdateDialog
+            open={updateOpen}
+            onOpenChange={setUpdateOpen}
             clientId={selected.id}
             clientName={selected.name}
           />

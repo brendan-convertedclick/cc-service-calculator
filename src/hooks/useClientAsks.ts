@@ -17,22 +17,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
 import { buildQuestionEmail } from "@/lib/client-email";
 import { fetchStageCounts } from "@/lib/client-stage-counts";
-import { newPlaintextToken, reviewUrlFor, sha256Hex } from "@/hooks/useClientReviewLinks";
-
-/**
- * How long a link minted by a question email stays alive.
- *
- * Every question mints its own token — the store is hash-only, so an existing
- * link cannot be recovered to reuse. Without an expiry a client would
- * accumulate one permanently live link per question ever asked. Sixty days is
- * long enough that nobody is locked out of a thread they are still working,
- * and short enough that a two-year-old email is not a key to their account.
- */
-const QUESTION_LINK_DAYS = 60;
+import { LINK_DAYS, sendOnPersonalLink } from "@/lib/client-outbound";
 
 function invalidate(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ["client-signoffs"] });
@@ -118,53 +106,34 @@ export function useAskClientQuestion() {
       // the kind of small lie that gets a whole feature ignored.
       const counts = await fetchStageCounts(input.clientId);
 
-      const expiresAt = new Date(Date.now() + QUESTION_LINK_DAYS * 86_400_000).toISOString();
+      const expiresAt = new Date(Date.now() + LINK_DAYS * 86_400_000).toISOString();
       let firstOutboundId: string | null = null;
       let firstUrl = "";
       const failures: string[] = [];
 
       for (const person of input.recipients) {
-        // 2. this person's own link
-        const token = newPlaintextToken();
-        const { error: tokenErr } = await supabase.from("client_review_tokens").insert({
-          client_id: input.clientId,
-          contact_id: person.id,
-          token_hash: await sha256Hex(token),
-          label: `${person.name ?? person.email} — ${title}`.slice(0, 120),
-          expires_at: expiresAt,
-          created_by: currentUserId,
+        // 2, 3 and 4 — this person's own link, their own letter on it, and the
+        //    send, which is collected rather than thrown so one bad address
+        //    does not strand the people queued behind it. See client-outbound.
+        const { url, outboundId, sendError } = await sendOnPersonalLink({
+          clientId: input.clientId,
+          briefId: input.briefId ?? null,
+          contact: person,
+          label: `${person.name ?? person.email} — ${title}`,
+          expiresAt,
+          createdBy: currentUserId,
+          template: "client_question",
+          build: (link) =>
+            buildQuestionEmail({
+              title,
+              question,
+              url: link,
+              dueDate: input.dueDate,
+              contactName: person.name,
+              counts,
+            }),
         });
-        if (tokenErr) throw new Error(errorMessage(tokenErr));
-        const url = reviewUrlFor(token);
         if (!firstUrl) firstUrl = url;
-
-        // 3. their own email
-        const mail = buildQuestionEmail({
-          title,
-          question,
-          url,
-          dueDate: input.dueDate,
-          contactName: person.name,
-          counts,
-        });
-        const { data: outbound, error: outboundErr } = await supabase
-          .from("outbound_emails")
-          .insert({
-            client_id: input.clientId,
-            brief_id: input.briefId ?? null,
-            composed_by: currentUserId,
-            to_addresses: [person.email],
-            subject: mail.subject,
-            body_text: mail.bodyText,
-            body_html: mail.bodyHtml,
-            approval_link: url,
-            template: "client_question",
-            status: "draft",
-          })
-          .select("id")
-          .single();
-        if (outboundErr) throw new Error(errorMessage(outboundErr));
-        const outboundId = (outbound as { id: string }).id;
         if (!firstOutboundId) {
           firstOutboundId = outboundId;
           await supabase
@@ -172,14 +141,7 @@ export function useAskClientQuestion() {
             .update({ outbound_email_id: outboundId })
             .eq("id", approvalId);
         }
-
-        // 4. send. Collected rather than thrown, so one bad address does not
-        //    strand the people whose emails would have gone out after it.
-        try {
-          await callEdgeFn("send-outbound-email", { outbound_email_id: outboundId });
-        } catch (e) {
-          failures.push(`${person.email}: ${errorMessage(e)}`);
-        }
+        if (sendError) failures.push(sendError);
       }
 
       if (failures.length === input.recipients.length) {

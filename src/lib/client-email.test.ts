@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildMessageEmail, buildQuestionEmail, escapeHtml } from "@/lib/client-email";
+import {
+  buildChaseEmail,
+  buildMessageEmail,
+  buildQuestionEmail,
+  escapeHtml,
+} from "@/lib/client-email";
 import { countStages } from "@/lib/client-stage-counts";
 
 describe("buildQuestionEmail", () => {
@@ -263,5 +268,33 @@ describe("countStages", () => {
       signedOff: 0,
       oldestDays: 0,
     });
+  });
+});
+
+describe("buildChaseEmail", () => {
+  const base = {
+    message: "Just a quick note on where things stand.",
+    url: "https://conductor.convertedclick.co.za/review/chase123",
+  };
+  const counts = { waitingOnYou: 10, withUs: 2, signedOff: 5, oldestDays: 26 };
+
+  it("does the counting itself, so the typed note never has to", () => {
+    const html = buildChaseEmail({ ...base, counts }).bodyHtml;
+    for (const bit of ["10", "Waiting on you", "2", "With us", "5", "Signed off"]) {
+      expect(html).toContain(bit);
+    }
+    expect(html).toContain("The oldest has been waiting <strong>26 days</strong>.");
+  });
+
+  it("names no single item — it is about the whole list", () => {
+    const mail = buildChaseEmail(base);
+    expect(mail.subject).toBe("Where things stand with Converted Click");
+    expect(mail.bodyHtml).toContain("Open your sign-off page");
+  });
+
+  it("shows the link once in the html and once in the text", () => {
+    const mail = buildChaseEmail(base);
+    expect(mail.bodyHtml.split(base.url).length - 1).toBe(1);
+    expect(mail.bodyText).toContain(base.url);
   });
 });

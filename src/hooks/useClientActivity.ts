@@ -12,20 +12,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
 import { buildMessageEmail } from "@/lib/client-email";
 import { fetchStageCounts } from "@/lib/client-stage-counts";
-import { newPlaintextToken, reviewUrlFor, sha256Hex } from "@/hooks/useClientReviewLinks";
+import { LINK_DAYS, sendOnPersonalLink } from "@/lib/client-outbound";
 import {
   buildTimeline,
   type ActivityRow,
   type TimelineEvent,
   type TimelineSource,
 } from "@/lib/client-timeline";
-
-/** Matches QUESTION_LINK_DAYS in useClientAsks — one rotation story, not two. */
-const LINK_DAYS = 60;
 
 const KEY = (approvalId: string) => ["client-activity", approvalId] as const;
 
@@ -199,42 +195,22 @@ export function useSendClientMessage() {
       let firstOutboundId: string | null = null;
 
       for (const person of input.recipients) {
-        const token = newPlaintextToken();
-        const { error: tokenErr } = await supabase.from("client_review_tokens").insert({
-          client_id: input.clientId,
-          contact_id: person.id,
-          token_hash: await sha256Hex(token),
-          label: `${person.name ?? person.email} — ${input.title}`.slice(0, 120),
-          expires_at: expiresAt,
-          created_by: currentUserId,
+        const { outboundId, sendError } = await sendOnPersonalLink({
+          clientId: input.clientId,
+          contact: person,
+          label: `${person.name ?? person.email} — ${input.title}`,
+          expiresAt,
+          createdBy: currentUserId,
+          template: "client_message",
+          build: (url) =>
+            buildMessageEmail({
+              title: input.title,
+              message: body,
+              url,
+              contactName: person.name,
+              counts,
+            }),
         });
-        if (tokenErr) throw new Error(errorMessage(tokenErr));
-        const url = reviewUrlFor(token);
-
-        const mail = buildMessageEmail({
-          title: input.title,
-          message: body,
-          url,
-          contactName: person.name,
-          counts,
-        });
-        const { data: outbound, error: outboundErr } = await supabase
-          .from("outbound_emails")
-          .insert({
-            client_id: input.clientId,
-            composed_by: currentUserId,
-            to_addresses: [person.email],
-            subject: mail.subject,
-            body_text: mail.bodyText,
-            body_html: mail.bodyHtml,
-            approval_link: url,
-            template: "client_message",
-            status: "draft",
-          })
-          .select("id")
-          .single();
-        if (outboundErr) throw new Error(errorMessage(outboundErr));
-        const outboundId = (outbound as { id: string }).id;
         if (!firstOutboundId) {
           firstOutboundId = outboundId;
           await supabase
@@ -242,12 +218,7 @@ export function useSendClientMessage() {
             .update({ outbound_email_id: outboundId })
             .eq("id", activityId);
         }
-
-        try {
-          await callEdgeFn("send-outbound-email", { outbound_email_id: outboundId });
-        } catch (e) {
-          failures.push(`${person.email}: ${errorMessage(e)}`);
-        }
+        if (sendError) failures.push(sendError);
       }
 
       return { failures };
