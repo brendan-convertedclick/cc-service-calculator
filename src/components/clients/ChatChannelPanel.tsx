@@ -35,8 +35,10 @@ export function ChatChannelPanel({
       <CardHeader>
         <CardTitle>ClickUp Chat channel</CardTitle>
         <CardDescription>
-          Where brief notifications for this client are posted. Leave unset to
-          fall back to the internal Converted Click channel.
+          Where this client&apos;s own replies, answers and sign-offs are posted, plus their
+          brief extension notices. Leave it unset and they go to the internal Approval
+          Requests channel instead. Anyone in the channel can read them, so pick one the
+          client is meant to see.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

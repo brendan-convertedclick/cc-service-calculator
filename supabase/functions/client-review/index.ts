@@ -667,6 +667,35 @@ async function resolveIdentity(
   return { reason: "unknown_contact" };
 }
 
+/**
+ * Who they are, and where what they just did should be announced.
+ *
+ * The agency runs a channel per client, so a client's own feedback belongs in
+ * that client's channel rather than in the internal approvals queue — it is
+ * their words, addressed to the people who work on their account. Unmapped
+ * clients keep the old destination, so nothing goes quiet while the mapping is
+ * filled in. The panel that sets it says out loud that the channel's members
+ * can read these, because they can.
+ *
+ * One lookup for all three notifiers: each used to fetch the company name on
+ * its own, which is the same query written three times.
+ */
+async function clientChatTarget(
+  sb: SupabaseClient,
+  clientId: string,
+): Promise<{ companyName: string; channelId: string }> {
+  const { data } = await sb
+    .from("clients")
+    .select("name, clickup_chat_channel_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  const row = data as { name: string; clickup_chat_channel_id: string | null } | null;
+  return {
+    companyName: row?.name ?? "a client",
+    channelId: row?.clickup_chat_channel_id || APPROVALS_CHANNEL_ID,
+  };
+}
+
 /** Best-effort ClickUp ping — never allowed to fail the decision it reports. */
 async function notifyDecision(
   req: Request,
@@ -691,12 +720,11 @@ async function notifyDecision(
     : item.item_type === "agreement"
     ? `🤝 ${deciderName} at {company} marked their agreement done: "${item.client_title}"`
     : `✅ ${deciderName} at {company} approved: "${item.client_title}"`;
-  const { data: clientRaw } = await sb.from("clients").select("name").eq("id", clientId).maybeSingle();
-  const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
+  const { companyName, channelId } = await clientChatTarget(sb, clientId);
   const { token: pat } = await getOperatorClickupToken(req);
   await postChatMessage(
     pat,
-    APPROVALS_CHANNEL_ID,
+    channelId,
     decision === "approved"
       ? approvedLine.replace("{company}", companyName)
       : `🔁 ${deciderName} at ${companyName} came back on: "${item.client_title}"\n> ${comment}`,
@@ -789,13 +817,11 @@ async function handleReply(
 
   // Fire and forget, wrapped: a chat outage must never lose a client's message.
   (async () => {
-    const { data: clientRaw } = await sb
-      .from("clients").select("name").eq("id", clientId).maybeSingle();
-    const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
+    const { companyName, channelId } = await clientChatTarget(sb, clientId);
     const { token: pat } = await getOperatorClickupToken(req);
     await postChatMessage(
       pat,
-      APPROVALS_CHANNEL_ID,
+      channelId,
       `💬 ${authorName ?? "Someone"} at ${companyName} replied on: "${item.client_title}"\n> ${text}`,
     ).catch(() => {});
   })().then(() => {}, () => {});
@@ -1038,14 +1064,12 @@ async function handleRaise(
   // Fire and forget, wrapped: a chat outage must never lose what a client
   // just took the trouble to write down. Same posture as a reply.
   (async () => {
-    const { data: clientRaw } = await sb
-      .from("clients").select("name").eq("id", clientId).maybeSingle();
-    const companyName = (clientRaw as { name: string } | null)?.name ?? "a client";
+    const { companyName, channelId } = await clientChatTarget(sb, clientId);
     const who = raisedByName ?? "Someone";
     const { token: pat } = await getOperatorClickupToken(req);
     await postChatMessage(
       pat,
-      APPROVALS_CHANNEL_ID,
+      channelId,
       kind === "event"
         ? `📅 ${who} at ${companyName} added a date: "${title}" — ${date}`
         : `❓ ${who} at ${companyName} asked: "${title}"\n> ${item.ask}`,
