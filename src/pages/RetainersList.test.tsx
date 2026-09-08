@@ -24,9 +24,14 @@ const CLIENT_RETAINER = {
 // Mutable so one test can add an internal client without moving the numbers
 // every other test asserts on.
 const retainers = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[] }));
-vi.mock("@/hooks/useRetainers", () => ({
+// Partial mock: the hooks are stubbed, but isInternalRetainer is the real pure
+// function — it is the rule deciding which tab a row lands on, so a stub would
+// mean these tests assert on tabs the page does not actually build.
+vi.mock("@/hooks/useRetainers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useRetainers")>()),
   useRetainers: () => ({ data: retainers.rows }),
   useDeleteRetainer: () => ({ mutate: mockDeleteMutate, isPending: false }),
+  useSetRetainerInternal: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 const burnRow: RetainerBurnRow = {
   projectId: "p1", clientName: "Test Conductor", feePerMonthCents: 1000000,
@@ -193,5 +198,32 @@ describe("RetainersList client vs internal", () => {
     // not revenue, and a money column invites the two books being added up.
     const internalTotals = screen.getByRole("row", { name: /internal/i });
     expect(internalTotals.textContent).not.toContain("2 500");
+  });
+
+  // 0162. The case the client-level flag could never express: a paying client
+  // with one line nobody charges for. The client has to stay on both tabs —
+  // its invoice on one, our cost on the other — or flagging the freebie would
+  // take the whole account off the client book.
+  it("moves a single flagged retainer to Internal and leaves the client's invoiced one behind", async () => {
+    retainers.rows = [
+      CLIENT_RETAINER,
+      {
+        ...CLIENT_RETAINER,
+        id: "p3",
+        name: "Test Conductor standing meeting",
+        retainer_monthly_fee_cents: 0,
+        is_internal: true,
+      },
+    ];
+    render(<RetainersList />);
+
+    let table = within(screen.getByRole("table"));
+    expect(table.getByText("Test Conductor")).toBeInTheDocument();
+    expect(table.queryByText(/standing meeting/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
+    await userEvent.click(screen.getByRole("button", { name: /show retainers for test conductor/i }));
+    table = within(screen.getByRole("table"));
+    expect(table.getByText(/standing meeting/i)).toBeInTheDocument();
   });
 });

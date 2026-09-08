@@ -3559,6 +3559,7 @@ export type Database = {
           invoiced_at: string | null
           invoiced_by: string | null
           is_recurring: boolean
+          is_internal: boolean
           is_recurring_task: boolean
           last_recurring_cycle_at: string | null
           name: string
@@ -3594,6 +3595,7 @@ export type Database = {
           invoiced_at?: string | null
           invoiced_by?: string | null
           is_recurring?: boolean
+          is_internal?: boolean
           is_recurring_task?: boolean
           last_recurring_cycle_at?: string | null
           name: string
@@ -3629,6 +3631,7 @@ export type Database = {
           invoiced_at?: string | null
           invoiced_by?: string | null
           is_recurring?: boolean
+          is_internal?: boolean
           is_recurring_task?: boolean
           last_recurring_cycle_at?: string | null
           name?: string
@@ -6055,6 +6058,26 @@ export type Database = {
       }
     }
     Views: {
+      retainer_recurring_delivery: {
+        Row: {
+          actual_hours: number | null
+          clickup_task_id: string | null
+          is_closed: boolean | null
+          month: string | null
+          period_start: string | null
+          planned_hours: number | null
+          project_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provisioned_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_pipeline_schedule: {
         Row: {
           client_id: string | null

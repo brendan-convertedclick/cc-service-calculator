@@ -14,7 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRetainers, useDeleteRetainer, type RetainerListRow } from "@/hooks/useRetainers";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  useRetainers,
+  useDeleteRetainer,
+  useSetRetainerInternal,
+  isInternalRetainer,
+  type RetainerListRow,
+} from "@/hooks/useRetainers";
 import { currentMonthKey } from "@/hooks/usePulseRetainerBurn";
 import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { useRetainerAllocation, type AllocationRow } from "@/hooks/useRetainerAllocation";
@@ -68,6 +76,27 @@ const CATEGORY_LABEL: Record<AllocationRow["kind"], string> = {
   fixed: "Fixed price",
 };
 
+// What the Completed number is made of. Since 0160 it adds two halves —
+// closed briefs and closed recurring tasks — and values each at its logged
+// time where anyone logged it and its estimate where nobody did. A total that
+// silently mixes those is a number nobody can defend on a client call, so the
+// breakdown sits one hover away rather than nowhere.
+function completedTitle(a: AllocationRow | undefined): string | undefined {
+  if (!a || a.deliveredItems === 0) return undefined;
+  const estimated = a.deliveredItems - a.measuredItems;
+  const coverage =
+    a.measuredItems === a.deliveredItems
+      ? "all with time logged"
+      : a.measuredItems === 0
+        ? "none with time logged — all estimated"
+        : `${a.measuredItems} with time logged, ${estimated} estimated`;
+  const parts = [
+    `${a.deliveredItems} item${a.deliveredItems === 1 ? "" : "s"} closed · ${coverage}`,
+  ];
+  if (a.recurringHours > 0) parts.push(`${fmtHours(a.recurringHours)} of it recurring tasks`);
+  return parts.join(" · ");
+}
+
 function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destructive" | "outline" {
   // Over is the one that costs money, so it is the one that shouts.
   if (s === "over") return "destructive";
@@ -93,6 +122,55 @@ function displayRetainerName(name: string, clientName: string | null): string {
   }
   n = n.replace(/\s*retainer\s*$/i, "").trim();
   return n || name; // never render empty
+}
+
+// The per-retainer Internal switch (0162) — the same control, wording and shape
+// as the "Internal project" switch on a staff brief, because it answers the
+// same question and people should not have to learn it twice.
+//
+// A client's own brand cannot be un-flagged from here: internal is the OR of
+// the client's flag and this one, so for Pebble or The Media Mixology the
+// switch would do nothing. It says so rather than offering a control that
+// silently no-ops.
+function InternalSwitch({ retainer }: { retainer: RetainerListRow }) {
+  const setInternal = useSetRetainerInternal();
+  const fixedByClient = retainer.client_is_internal;
+  const on = isInternalRetainer(retainer);
+  const id = `retainer-internal-${retainer.id}`;
+
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-m-outline-variant px-12 py-3">
+      <div>
+        <Label htmlFor={id} className="text-body-medium text-m-on-surface">
+          Internal work
+        </Label>
+        <p className="text-label-small text-m-on-surface-variant">
+          {fixedByClient
+            ? `${retainer.client_name} is one of our own brands, so all of its work is internal.`
+            : "Off = client work · On = our own cost, moved to the Internal tab and out of every client total"}
+        </p>
+      </div>
+      <Switch
+        id={id}
+        checked={on}
+        disabled={fixedByClient || setInternal.isPending}
+        onCheckedChange={(next) =>
+          setInternal.mutate(
+            { id: retainer.id, isInternal: next },
+            {
+              onSuccess: () =>
+                toast.success(
+                  next
+                    ? `“${retainer.name}” moved to Internal`
+                    : `“${retainer.name}” moved back to the client book`,
+                ),
+              onError: (err) => toast.error(`Could not change this: ${errorMessage(err)}`),
+            },
+          )
+        }
+      />
+    </div>
+  );
 }
 
 export function RetainersList() {
@@ -168,18 +246,32 @@ export function RetainersList() {
       // A standing monthly task is not a retainer engagement (0154): still
       // provisioned every month, but it answers "is this getting done", not
       // "is this client's retainer being serviced".
-      const recurring = rows.filter((r) => r.is_recurring_task);
-      const retainerRows = rows.filter((r) => !r.is_recurring_task);
+      //
+      // Internal comes off FIRST and beats everything else (0162). It used to
+      // be a whole-client fact, so a group was internal or it was not; a
+      // retainer can now be flagged on its own, which means one client can
+      // appear on both books — a real invoice on the client tab and the line
+      // nobody charges for on the internal one. One rule, so it stays
+      // explainable: flagged internal, and the row is internal, whatever else
+      // it is. For a client of ours that is one of our brands every row lands
+      // here anyway, which is why the tabs below no longer need to ask.
+      const internalRows = rows.filter(isInternalRetainer);
+      const clientSide = rows.filter((r) => !isInternalRetainer(r));
+      const recurring = clientSide.filter((r) => r.is_recurring_task);
+      const retainerRows = clientSide.filter((r) => !r.is_recurring_task);
       const billed = retainerRows.filter((r) => (r.retainer_monthly_fee_cents ?? 0) > 0);
       const unbilled = retainerRows.filter((r) => (r.retainer_monthly_fee_cents ?? 0) === 0);
       return {
       clientName,
-      // Every retainer in a group belongs to the same client, so the flag is
-      // the client's (0152) — read off the first row.
-      isInternal: rows[0]?.client_is_internal ?? extras[0]?.isInternal ?? false,
+      // The CLIENT's flag (0152), not the row's — it is what routes the
+      // client-level extras (ad hoc and unlinked briefs), which hang off a
+      // client and have no retainer to be flagged on. Per-retainer internal
+      // lives in `internalRows`.
+      isInternal: allRows[0]?.client_is_internal ?? extras[0]?.isInternal ?? false,
       rows: billed,
       unbilled,
       recurring,
+      internalRows,
       extras,
       totalFeeCents: billed.reduce(
         (sum, r) => sum + (r.retainer_monthly_fee_cents ?? 0),
@@ -261,11 +353,13 @@ export function RetainersList() {
     const adhoc = clientGroups
       .filter((g) => !g.isInternal && g.extras.length > 0)
       .map((g) => asSection(g, { extras: g.extras }));
-    // Our own brands, apart from the client book — a month is judged on the
-    // client half, and summing the two flatters every ratio on the page.
+    // Our own work, apart from the client book — a month is judged on the
+    // client half, and summing the two flatters every ratio on the page. Our
+    // own brands land here whole; a paying client lands here only for the
+    // rows somebody flagged (0162), and keeps its invoice on the tab above.
     const internal = clientGroups
-      .filter((g) => g.isInternal)
-      .map((g) => asSection(g, { rows: g.rows, unbilled: g.unbilled, extras: g.extras }));
+      .filter((g) => g.internalRows.length > 0 || (g.isInternal && g.extras.length > 0))
+      .map((g) => asSection(g, { rows: g.internalRows, extras: g.isInternal ? g.extras : [] }));
     // Standing monthly tasks. Their fee is a real monthly invoice: out of the
     // retainer book, not out of the accounts.
     const recurring = clientGroups
@@ -369,7 +463,7 @@ export function RetainersList() {
                     <TableHead className="whitespace-nowrap text-right">Monthly fee</TableHead>
                     <TableHead className="whitespace-nowrap text-right" title="What the monthly fee buys at the standard rate">Planned</TableHead>
                     <TableHead className="whitespace-nowrap text-right" title="Recurring tasks set up to repeat each month. Work briefed ad hoc is not scheduled and does not appear here.">Scheduled</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month">Completed</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month — briefs and recurring tasks both, valued at logged time where anyone logged it and at the estimate where nobody did. Hover a number for the split.">Completed</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -530,6 +624,7 @@ export function RetainersList() {
                               {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
                             </TableCell>
                             <TableCell
+                              title={completedTitle(alloc.get(r.id))}
                               className={cn(
                                 "text-right font-mono tabular-nums text-body-medium font-semibold",
                                 deliveredTone(
@@ -588,7 +683,16 @@ export function RetainersList() {
                           </TableRow>
                           {expanded[r.id] && (
                             <TableRow className="hover:bg-transparent">
-                              <TableCell colSpan={6} className="bg-m-surface-container-low p-0">
+                              {/* 8, not 6: the table has eight columns, and the
+                                  panel stopping two short left a white step down
+                                  the right of every expanded row. */}
+                              <TableCell colSpan={8} className="bg-m-surface-container-low p-0">
+                                {/* Above the tasks, not inside RetainerSubItems:
+                                    that component returns early when a retainer
+                                    has no provisioned tasks, and Kings College's
+                                    R22,200 marketing retainer has none — the one
+                                    place you would most want to reclassify. */}
+                                <InternalSwitch retainer={r} />
                                 <RetainerSubItems projectId={r.id} />
                               </TableCell>
                             </TableRow>
@@ -621,7 +725,10 @@ export function RetainersList() {
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
+                          <TableCell
+                            title={completedTitle(alloc.get(r.id))}
+                            className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
+                          >
                             {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                           </TableCell>
                           <TableCell>
@@ -653,7 +760,10 @@ export function RetainersList() {
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             —
                           </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
+                          <TableCell
+                            title={completedTitle(x)}
+                            className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
+                          >
                             {fmtHours(x.deliveredHours)}
                             {x.openPoints > 0 && (
                               <span className="ml-1 text-label-small font-normal text-m-on-surface-variant" title="Raised and still open">
