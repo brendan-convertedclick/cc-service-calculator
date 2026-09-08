@@ -59,6 +59,14 @@ export function ItemDetail({
   // that button is in the chat. Anything we owe them is not theirs to press.
   const decidable =
     item.state === "pending" && item.owed_by !== "us" && item.item_type !== "question";
+  // A question they raised is theirs to close (0149 gave them the way to ask;
+  // this is the way to stop asking). Nothing else we owe them is — a button
+  // that closes OUR promise does not belong on their page.
+  const theirsToClose =
+    item.state === "pending" &&
+    item.owed_by === "us" &&
+    item.item_type === "question" &&
+    item.raised_by === "client";
   const text = draft.trim();
 
   return (
@@ -119,12 +127,36 @@ export function ItemDetail({
       ) : null}
 
       {item.state === "pending" && item.owed_by === "us" ? (
-        <div className="rounded-lg bg-m-surface-container p-4">
+        <div className="flex flex-col gap-3 rounded-lg bg-m-surface-container p-4">
           <p className="text-body-medium text-m-on-surface">
-            {item.raised_by === "client"
-              ? "You asked us this — it's with us. We'll answer right here."
+            {theirsToClose
+              ? "You asked us this — it's with us. We'll answer right here, or close it off yourself if you've sorted it."
               : "This one is with us — we said we would do it. Nothing for you to press."}
           </p>
+          {theirsToClose ? (
+            <div className="flex flex-col gap-2">
+              {/* Words optional, never required: "never mind, sorted" should
+                  not need an essay. Anything typed under Activity rides along
+                  and becomes the note on the closing entry. */}
+              <Button
+                variant="outline"
+                className="self-start"
+                disabled={busy}
+                onClick={() => onDecide("approved", text || undefined)}
+              >
+                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                Close this off
+              </Button>
+              {error ? <p className="text-label-small text-destructive">{error}</p> : null}
+              <p className="flex items-start gap-1.5 text-label-small text-m-on-surface-variant opacity-80">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Closes it on both sides — ours and yours. Anything you&apos;ve written under
+                  Activity goes with it.
+                </span>
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -15,14 +15,7 @@
 // definition and can be tested without a database.
 
 export type TimelineKind =
-  | "asked"
-  | "emailed"
-  | "opened"
-  | "message"
-  | "replied"
-  | "note"
-  | "status"
-  | "decided";
+  "asked" | "emailed" | "opened" | "message" | "replied" | "note" | "status" | "decided";
 
 export type TimelineEvent = {
   id: string;
@@ -70,7 +63,7 @@ const STATE_WORD: Record<string, string> = {
  */
 function statusSummary(row: ActivityRow): string {
   const who = row.author_name ?? "Someone";
-  const to = STATE_WORD[row.to_state ?? ""] ?? (row.to_state ?? "another state");
+  const to = STATE_WORD[row.to_state ?? ""] ?? row.to_state ?? "another state";
   const reopened = row.from_state === "approved" || row.from_state === "changes_requested";
   return reopened && row.to_state === "pending"
     ? `${who} reopened this — back to ${to}`
@@ -200,7 +193,13 @@ export function buildTimeline(source: TimelineSource, rows: ActivityRow[]): Time
     const verb =
       source.state === "changes_requested"
         ? "sent it back"
-        : (SETTLED_VERB[source.item_type] ?? "approved it");
+        : // A question the CLIENT raised is closed, not answered — and it must
+          // read the same word here as it does on their own page, or the two
+          // lists tell different stories about the same afternoon (see
+          // decisionLine in client-review.ts).
+          source.item_type === "question" && source.raised_by === "client"
+          ? "closed it"
+          : (SETTLED_VERB[source.item_type] ?? "approved it");
     events.push({
       id: "decided",
       kind: "decided",

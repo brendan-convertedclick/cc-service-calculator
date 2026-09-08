@@ -546,6 +546,27 @@ describe("activityOf", () => {
     expect(events[events.length - 1].summary).toBe("Kate approved it");
   });
 
+  it("says a question the client raised was closed, not answered", () => {
+    // Same fact, same word as the staff panel — see the matching test in
+    // client-timeline.test.ts. A question they closed themselves has no
+    // answer above it, so "answered" would send someone looking for one.
+    const closed = (raised_by: "us" | "client") =>
+      activityOf(
+        item({
+          id: "a",
+          item_type: "question",
+          raised_by,
+          owed_by: raised_by === "client" ? "us" : "client",
+          state: "approved",
+          decided_at: "2026-08-20T09:00:00Z",
+          decided_by_name: "Kate",
+        }),
+      ).at(-1)!.summary;
+
+    expect(closed("client")).toBe("Kate closed it");
+    expect(closed("us")).toBe("Kate answered");
+  });
+
   it("records the decision exactly once, with or without words on it", () => {
     const decided = (client_note: string | null) =>
       activityOf(

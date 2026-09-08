@@ -302,7 +302,7 @@ export function useCloseOurAgreement() {
         .single();
       if (readErr) throw new Error(errorMessage(readErr));
       const row = current as { client_title: string; ask: string; owed_by: string; state: string };
-      if (row.owed_by !== "us") throw new Error("Only an agreement we made is ours to close.");
+      if (row.owed_by !== "us") throw new Error("Only something we owe them is ours to close.");
       if (row.state !== "pending") throw new Error("This one is already closed.");
 
       let name = "Converted Click";

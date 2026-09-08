@@ -56,7 +56,11 @@ export function QueueRow({ item, selected, busy, onSelect, onQuickApprove }: Que
         </div>
       </div>
 
-      {item.state === "pending" && item.item_type !== "question" ? (
+      {/* Nothing we owe THEM gets a tick here, whatever its type: a quick
+          ✓ on our own agreement would let a client close our promise by
+          brushing past it. Their own question is closable, but from the
+          detail pane where the words are — not in a hover. */}
+      {item.state === "pending" && item.item_type !== "question" && item.owed_by !== "us" ? (
         <button
           type="button"
           aria-label={item.item_type === "agreement" ? "Mark done" : "Quick approve"}

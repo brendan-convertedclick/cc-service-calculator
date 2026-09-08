@@ -269,9 +269,7 @@ export type ReviewOpen = {
 };
 
 /** Who is deciding. Either a known contact, or a free-typed "Someone else". */
-export type ReviewIdentity =
-  | { contact_id: string }
-  | { name: string; email?: string };
+export type ReviewIdentity = { contact_id: string } | { name: string; email?: string };
 
 /**
  * What the page remembers for the rest of the browser session, so every
@@ -396,7 +394,16 @@ export type DecideResponse =
   | { status: "ok"; item: ReviewItem }
   /** Someone already decided this one — the page shows the decided state. */
   | { status: "already_decided"; item: ReviewItem }
-  | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
+  /**
+   * `not_yours`: the item is owed by US, and the only thing on that side a
+   * client may settle is a question they raised themselves. Unreachable from
+   * the page — the button is not drawn — but the token is the auth here, so
+   * the server decides it rather than the rendering.
+   */
+  | {
+      status: "invalid";
+      reason: "unknown_item" | "missing_comment" | "unknown_contact" | "not_yours";
+    }
   | TokenFailure;
 
 /** Narrowing helper — every response type this API returns goes through it. */

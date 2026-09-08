@@ -103,6 +103,7 @@ const INVALID_COPY = {
   missing_comment: "Add a note so we know what to change.",
   unknown_contact: "We couldn't match that name — pick again?",
   unknown_item: "That item isn't on your list any more.",
+  not_yours: "That one's with us — there's nothing for you to decide on it.",
 } as const;
 
 function approverToIdentity(approver: RememberedApprover): ReviewIdentity {

@@ -266,7 +266,10 @@ type RaiseResponse =
 type DecideResponse =
   | { status: "ok"; item: ReviewItem }
   | { status: "already_decided"; item: ReviewItem }
-  | { status: "invalid"; reason: "unknown_item" | "missing_comment" | "unknown_contact" }
+  | {
+      status: "invalid";
+      reason: "unknown_item" | "missing_comment" | "unknown_contact" | "not_yours";
+    }
   | TokenFailure;
 
 // --- DB row shapes — explicit columns only, never select('*') ----------
@@ -677,7 +680,13 @@ async function notifyDecision(
   // Three item types, three sentences — "approved" is the wrong word for an
   // answered question, and an ops channel that says it teaches people to
   // ignore the channel.
-  const approvedLine = item.item_type === "question"
+  const approvedLine = item.item_type === "question" && item.raised_by === "client"
+    // Their own question, closed by them. "Answered" here would credit us with
+    // an answer nobody gave, and send someone looking for it.
+    ? `🙋 ${deciderName} at {company} closed their own question: "${item.client_title}"${
+      comment ? `\n> ${comment}` : ""
+    }`
+    : item.item_type === "question"
     ? `💬 ${deciderName} at {company} answered: "${item.client_title}"\n> ${comment}`
     : item.item_type === "agreement"
     ? `🤝 ${deciderName} at {company} marked their agreement done: "${item.client_title}"`
@@ -822,7 +831,7 @@ async function handleDecide(
   // tell us which validation applies to it.
   const { data: typeRaw, error: typeErr } = await sb
     .from("client_approvals")
-    .select("item_type, client_title, ask")
+    .select("item_type, client_title, ask, owed_by, raised_by")
     .eq("id", item_id)
     .eq("client_id", clientId)
     // As in handleList and handleReply: a parked item is not theirs to act on.
@@ -833,13 +842,33 @@ async function handleDecide(
     return json({ error: "Something went wrong on our side" }, 500);
   }
   if (!typeRaw) return json({ status: "invalid", reason: "unknown_item" } satisfies DecideResponse);
-  const current = typeRaw as { item_type: string; client_title: string; ask: string };
+  const current = typeRaw as {
+    item_type: string;
+    client_title: string;
+    ask: string;
+    owed_by: string;
+    raised_by: string;
+  };
   const itemType = current.item_type;
+  // A question they raised is theirs to close: "actually, we've sorted it" is
+  // a real outcome, and leaving it open forever waiting for us to notice is
+  // not. Everything else we owe them stays ours — offering a client a button
+  // that closes OUR promise is how a commitment quietly disappears.
+  const theirOwnQuestion =
+    current.owed_by === "us" && itemType === "question" && current.raised_by === "client";
+  if (current.owed_by === "us" && !(theirOwnQuestion && decision === "approved")) {
+    return json({ status: "invalid", reason: "not_yours" } satisfies DecideResponse);
+  }
 
   // A question's whole point is the answer, so an empty one is not a decision.
   // Changes requested without a note is the same failure in the other
   // direction: it sends work back saying nothing about what to change.
-  const commentRequired = decision === "changes_requested" || itemType === "question";
+  //
+  // Closing your OWN question is neither: there is nothing to answer and
+  // nothing to send back, so words are welcome and never demanded. Requiring
+  // them would make "never mind, sorted" a small essay.
+  const commentRequired =
+    decision === "changes_requested" || (itemType === "question" && !theirOwnQuestion);
   if (commentRequired && !trimmedComment) {
     return json({ status: "invalid", reason: "missing_comment" } satisfies DecideResponse);
   }

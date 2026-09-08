@@ -557,7 +557,12 @@ function moveLine(move: ReviewMove): string | null {
 function decisionLine(item: ReviewItem): string {
   const who = item.decided_by_name ?? "Someone there";
   if (item.state === "changes_requested") return `${who} sent it back`;
-  if (item.item_type === "question") return `${who} answered`;
+  // A question THEY raised is closed, not answered — by them when they have
+  // sorted it, by us when we have. "Answered" would credit an answer that may
+  // never have been given, and send someone looking above for it.
+  if (item.item_type === "question") {
+    return item.raised_by === "client" ? `${who} closed it` : `${who} answered`;
+  }
   if (item.item_type === "agreement") return `${who} marked it done`;
   return `${who} approved it`;
 }

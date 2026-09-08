@@ -57,13 +57,7 @@ describe("buildTimeline", () => {
       }),
       [row({ id: "m1" })],
     );
-    expect(events.map((e) => e.kind)).toEqual([
-      "asked",
-      "emailed",
-      "opened",
-      "message",
-      "decided",
-    ]);
+    expect(events.map((e) => e.kind)).toEqual(["asked", "emailed", "opened", "message", "decided"]);
   });
 
   it("says the email failed rather than silently showing nothing", () => {
@@ -83,7 +77,12 @@ describe("buildTimeline", () => {
   it("keeps notes and messages apart — a chase and a thought must not look alike", () => {
     const events = buildTimeline(source(), [
       row({ id: "m1", kind: "message" }),
-      row({ id: "n1", kind: "note", body: "Spoke to her at the open day.", created_at: "2026-08-06T09:00:00Z" }),
+      row({
+        id: "n1",
+        kind: "note",
+        body: "Spoke to her at the open day.",
+        created_at: "2026-08-06T09:00:00Z",
+      }),
     ]);
     expect(events.map((e) => e.kind)).toEqual(["asked", "message", "note"]);
   });
@@ -104,6 +103,23 @@ describe("buildTimeline", () => {
     expect(decided("question", "approved")).toBe("Asavela answered");
     expect(decided("agreement", "approved")).toBe("Asavela marked it done");
     expect(decided("brief", "changes_requested")).toBe("Asavela sent it back");
+  });
+
+  it("says a question the CLIENT raised was closed, not answered", () => {
+    // The same word their own page uses (decisionLine in client-review.ts).
+    // Closing it is what happens when they sorted it themselves, and there may
+    // be no answer above to point at — this list and theirs must not disagree.
+    const events = buildTimeline(
+      source({
+        item_type: "question",
+        raised_by: "client",
+        state: "approved",
+        decided_at: "2026-08-09T11:00:00Z",
+        decided_by_name: "Kate",
+      }),
+      [],
+    );
+    expect(events.at(-1)!.summary).toBe("Kate closed it");
   });
 
   it("does not invent a decision on a pending item", () => {
@@ -204,7 +220,14 @@ describe("buildTimeline — status changes", () => {
   it("does not read like a message or a reply", () => {
     const events = buildTimeline(source(), [
       row({ id: "m1", kind: "message" }),
-      row({ id: "s1", kind: "status", body: null, from_state: "pending", to_state: "approved", created_at: "2026-08-06T09:00:00Z" }),
+      row({
+        id: "s1",
+        kind: "status",
+        body: null,
+        from_state: "pending",
+        to_state: "approved",
+        created_at: "2026-08-06T09:00:00Z",
+      }),
     ]);
     expect(events.map((e) => e.kind)).toEqual(["asked", "message", "status"]);
   });
@@ -212,10 +235,7 @@ describe("buildTimeline — status changes", () => {
 
 describe("who started it", () => {
   it("does not say we asked a question the client asked us", () => {
-    const [first] = buildTimeline(
-      source({ item_type: "question", raised_by: "client" }),
-      [],
-    );
+    const [first] = buildTimeline(source({ item_type: "question", raised_by: "client" }), []);
     expect(first.summary).toBe("They asked us this");
   });
 

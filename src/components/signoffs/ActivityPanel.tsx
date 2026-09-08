@@ -80,9 +80,11 @@ export function ActivityPanel({
   clientId,
   clientName,
   title,
-  /** Set for an agreement WE made and have not closed — enables the two
-   *  controls only that case has: mark it done, or turn it into a task. */
-  ourAgreement,
+  /** Set for anything WE owe them and have not closed — an agreement we made,
+   *  or a question they asked us. Enables closing it from this side; "turn it
+   *  into a task" stays with the agreement, the only one of the two that is a
+   *  deliverable. */
+  ourItem,
   state,
   hasItems,
   onAskQuestion,
@@ -93,7 +95,12 @@ export function ActivityPanel({
   clientId: string | undefined;
   clientName: string;
   title: string;
-  ourAgreement?: { detail: string | null; dueDate: string | null; briefId: string | null } | null;
+  ourItem?: {
+    itemType: string;
+    detail: string | null;
+    dueDate: string | null;
+    briefId: string | null;
+  } | null;
   /**
    * The selected item's current state, for the manual override. A state that
    * is not one of ITEM_STATES has no moves — an event (0149) is a date, not a
@@ -162,7 +169,9 @@ export function ActivityPanel({
         if (failures.length > 0) {
           toast.warning(`Saved, but did not reach: ${failures.join("; ")}`);
         } else {
-          toast.success(`Sent to ${recipients.length === 1 ? recipients[0].email : `${recipients.length} people`}.`);
+          toast.success(
+            `Sent to ${recipients.length === 1 ? recipients[0].email : `${recipients.length} people`}.`,
+          );
         }
       }
       setBody("");
@@ -176,14 +185,12 @@ export function ActivityPanel({
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         {hasItems ? (
           <p className="text-body-medium text-m-on-surface-variant">
-            Pick something from {clientName}&apos;s list to see how it has gone — and to chase
-            it.
+            Pick something from {clientName}&apos;s list to see how it has gone — and to chase it.
           </p>
         ) : (
           <>
             <p className="text-body-medium text-m-on-surface-variant">
-              Nothing has been asked of {clientName} yet, so there is no history to show.
-              Start one:
+              Nothing has been asked of {clientName} yet, so there is no history to show. Start one:
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <Button size="sm" variant="outline" onClick={onAskQuestion}>
@@ -203,50 +210,52 @@ export function ActivityPanel({
 
   return (
     <div className="flex h-full flex-col">
-        <div className="border-b border-m-outline-variant p-4">
-          <h3 className="truncate text-title-small text-m-on-surface" title={title}>
-            {title}
-          </h3>
-          <p className="text-body-small text-m-on-surface-variant">
-            How this has gone with {clientName}.
-          </p>
+      <div className="border-b border-m-outline-variant p-4">
+        <h3 className="truncate text-title-small text-m-on-surface" title={title}>
+          {title}
+        </h3>
+        <p className="text-body-small text-m-on-surface-variant">
+          How this has gone with {clientName}.
+        </p>
 
-          {/* The manual override. Statuses normally move because a client
+        {/* The manual override. Statuses normally move because a client
               pressed something; this is for when they told you on the phone,
               or when something was closed by mistake. Every change writes a
               timeline row naming who moved it. */}
-          {movable && clientId ? (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="text-label-small text-m-on-surface-variant">Status</span>
-              <Select
-                value={movable}
-                disabled={setState.isPending}
-                onValueChange={(next) => {
-                  setState.mutate(
-                    { approvalId: approvalId!, clientId, to: next as ItemState },
-                    {
-                      onSuccess: () => toast.success("Status changed. It's on the timeline."),
-                      onError: (e) => toast.error(errorMessage(e)),
-                    },
-                  );
-                }}
-              >
-                <SelectTrigger className="h-8 w-48" aria-label="Change status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ITEM_STATES.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
+        {movable && clientId ? (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-label-small text-m-on-surface-variant">Status</span>
+            <Select
+              value={movable}
+              disabled={setState.isPending}
+              onValueChange={(next) => {
+                setState.mutate(
+                  { approvalId: approvalId!, clientId, to: next as ItemState },
+                  {
+                    onSuccess: () => toast.success("Status changed. It's on the timeline."),
+                    onError: (e) => toast.error(errorMessage(e)),
+                  },
+                );
+              }}
+            >
+              <SelectTrigger className="h-8 w-48" aria-label="Change status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ITEM_STATES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
-          {ourAgreement && clientId ? (
-            <div className="mt-3 flex flex-wrap gap-2">
+        {ourItem && clientId ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {/* A question is not a deliverable — there is nothing to brief. */}
+            {ourItem.itemType === "agreement" ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -256,14 +265,14 @@ export function ActivityPanel({
                     // Already turned into one? Reopen that brief rather than
                     // creating a second task for one promise.
                     const briefId =
-                      ourAgreement.briefId ??
+                      ourItem.briefId ??
                       (
                         await toBrief.mutateAsync({
                           approvalId: approvalId!,
                           clientId,
                           title,
-                          detail: ourAgreement.detail,
-                          dueDate: ourAgreement.dueDate,
+                          detail: ourItem.detail,
+                          dueDate: ourItem.dueDate,
                         })
                       ).briefId;
                     setBriefForSheet(briefId);
@@ -273,164 +282,165 @@ export function ActivityPanel({
                 }}
               >
                 <ListPlus className="mr-1.5 h-3.5 w-3.5" />
-                {ourAgreement.briefId ? "Open its task" : "Turn into a task"}
+                {ourItem.briefId ? "Open its task" : "Turn into a task"}
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={close.isPending}
-                onClick={async () => {
-                  try {
-                    await close.mutateAsync({ approvalId: approvalId! });
-                    toast.success("Marked done. They'll see it on their page.");
-                  } catch (e) {
-                    toast.error(errorMessage(e));
-                  }
-                }}
-              >
-                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                We've done it
-              </Button>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {isPending ? (
-            <div className="flex flex-col gap-3">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-10 rounded-md" />
-              ))}
-            </div>
-          ) : (
-            <ol className="flex flex-col gap-4">
-              {events.map((event) => {
-                const Icon = ICON[event.kind];
-                return (
-                  <li key={event.id} className="flex gap-3">
-                    <div
-                      className={cn(
-                        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                        event.kind === "decided"
-                          ? "bg-m-tertiary-container text-m-on-tertiary-container"
-                          : event.kind === "replied"
-                            ? "bg-m-primary-container text-m-on-primary-container"
-                            : event.kind === "note"
-                            ? "bg-m-surface-container-high text-m-on-surface-variant"
-                            : "bg-m-surface-container text-m-on-surface-variant",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-body-medium text-m-on-surface">
-                        {event.summary}
-                        {event.actor ? (
-                          <span className="text-m-on-surface-variant"> · {event.actor}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-label-small text-m-on-surface-variant">
-                        {formatEventTime(event.at)}
-                      </p>
-                      {event.body ? (
-                        <p
-                          className={cn(
-                            "mt-1.5 whitespace-pre-wrap rounded-lg p-2.5 text-body-medium",
-                            event.kind === "note"
-                              ? "bg-m-surface-container-high text-m-on-surface-variant"
-                              : event.kind === "replied"
-                                ? "bg-m-primary-container/40 text-m-on-surface"
-                                : "bg-m-surface-container text-m-on-surface",
-                          )}
-                        >
-                          {event.body}
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-
-        <div className="border-t border-m-outline-variant p-4">
-          <div className="mb-2 flex gap-1.5">
-            {(["message", "note"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-label-large transition-colors",
-                  mode === m
-                    ? "bg-m-primary-container text-m-on-primary-container"
-                    : "text-m-on-surface-variant hover:bg-m-surface-container",
-                )}
-              >
-                {m === "message" ? "Message the client" : "Internal note"}
-              </button>
-            ))}
-          </div>
-
-          <Textarea
-            rows={3}
-            value={body}
-            disabled={busy}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={
-              mode === "message"
-                ? "Any news on this one? We're holding the rest of the build for it."
-                : "Spoke to her at the open day — she's chasing marketing for the files."
-            }
-          />
-
-          {mode === "message" ? (
-            contacts.length === 0 ? (
-              <p className="mt-2 text-label-small text-m-on-surface-variant">
-                {clientName} has no contacts, so there is nobody to email.{" "}
-                {clientId ? (
-                  <Link to={`/clients/${clientId}`} className="text-m-primary underline">
-                    Add them on their client page
-                  </Link>
-                ) : (
-                  "Add them on their client page"
-                )}
-                . An internal note still works.
-              </p>
-            ) : (
-              <div className="mt-2 flex flex-wrap gap-3">
-                {contacts.map((c) => (
-                  <label key={c.id} className="flex items-center gap-1.5 text-body-small">
-                    <Checkbox
-                      checked={picked.has(c.id)}
-                      onCheckedChange={() => setPicked((prev) => toggleInSet(prev, c.id))}
-                    />
-                    <span className="text-m-on-surface-variant">{c.full_name ?? c.email}</span>
-                  </label>
-                ))}
-              </div>
-            )
-          ) : null}
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-label-small text-m-on-surface-variant">
-              {mode === "message"
-                ? "Emails each person their own link to this page."
-                : "Stays with us. The client never sees it."}
-            </p>
-            <Button onClick={() => void submit()} disabled={!canSend}>
-              {busy ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : mode === "message" ? (
-                <Send className="mr-1.5 h-4 w-4" />
-              ) : (
-                <StickyNote className="mr-1.5 h-4 w-4" />
-              )}
-              {mode === "message" ? "Send" : "Save note"}
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={close.isPending}
+              onClick={async () => {
+                try {
+                  await close.mutateAsync({ approvalId: approvalId! });
+                  toast.success("Closed. They'll see it on their page.");
+                } catch (e) {
+                  toast.error(errorMessage(e));
+                }
+              }}
+            >
+              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+              {ourItem.itemType === "question" ? "Mark it answered" : "We've done it"}
             </Button>
           </div>
+        ) : null}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {isPending ? (
+          <div className="flex flex-col gap-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-10 rounded-md" />
+            ))}
+          </div>
+        ) : (
+          <ol className="flex flex-col gap-4">
+            {events.map((event) => {
+              const Icon = ICON[event.kind];
+              return (
+                <li key={event.id} className="flex gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                      event.kind === "decided"
+                        ? "bg-m-tertiary-container text-m-on-tertiary-container"
+                        : event.kind === "replied"
+                          ? "bg-m-primary-container text-m-on-primary-container"
+                          : event.kind === "note"
+                            ? "bg-m-surface-container-high text-m-on-surface-variant"
+                            : "bg-m-surface-container text-m-on-surface-variant",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-body-medium text-m-on-surface">
+                      {event.summary}
+                      {event.actor ? (
+                        <span className="text-m-on-surface-variant"> · {event.actor}</span>
+                      ) : null}
+                    </p>
+                    <p className="text-label-small text-m-on-surface-variant">
+                      {formatEventTime(event.at)}
+                    </p>
+                    {event.body ? (
+                      <p
+                        className={cn(
+                          "mt-1.5 whitespace-pre-wrap rounded-lg p-2.5 text-body-medium",
+                          event.kind === "note"
+                            ? "bg-m-surface-container-high text-m-on-surface-variant"
+                            : event.kind === "replied"
+                              ? "bg-m-primary-container/40 text-m-on-surface"
+                              : "bg-m-surface-container text-m-on-surface",
+                        )}
+                      >
+                        {event.body}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      <div className="border-t border-m-outline-variant p-4">
+        <div className="mb-2 flex gap-1.5">
+          {(["message", "note"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={cn(
+                "rounded-full px-3 py-1 text-label-large transition-colors",
+                mode === m
+                  ? "bg-m-primary-container text-m-on-primary-container"
+                  : "text-m-on-surface-variant hover:bg-m-surface-container",
+              )}
+            >
+              {m === "message" ? "Message the client" : "Internal note"}
+            </button>
+          ))}
         </div>
+
+        <Textarea
+          rows={3}
+          value={body}
+          disabled={busy}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder={
+            mode === "message"
+              ? "Any news on this one? We're holding the rest of the build for it."
+              : "Spoke to her at the open day — she's chasing marketing for the files."
+          }
+        />
+
+        {mode === "message" ? (
+          contacts.length === 0 ? (
+            <p className="mt-2 text-label-small text-m-on-surface-variant">
+              {clientName} has no contacts, so there is nobody to email.{" "}
+              {clientId ? (
+                <Link to={`/clients/${clientId}`} className="text-m-primary underline">
+                  Add them on their client page
+                </Link>
+              ) : (
+                "Add them on their client page"
+              )}
+              . An internal note still works.
+            </p>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-3">
+              {contacts.map((c) => (
+                <label key={c.id} className="flex items-center gap-1.5 text-body-small">
+                  <Checkbox
+                    checked={picked.has(c.id)}
+                    onCheckedChange={() => setPicked((prev) => toggleInSet(prev, c.id))}
+                  />
+                  <span className="text-m-on-surface-variant">{c.full_name ?? c.email}</span>
+                </label>
+              ))}
+            </div>
+          )
+        ) : null}
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-label-small text-m-on-surface-variant">
+            {mode === "message"
+              ? "Emails each person their own link to this page."
+              : "Stays with us. The client never sees it."}
+          </p>
+          <Button onClick={() => void submit()} disabled={!canSend}>
+            {busy ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : mode === "message" ? (
+              <Send className="mr-1.5 h-4 w-4" />
+            ) : (
+              <StickyNote className="mr-1.5 h-4 w-4" />
+            )}
+            {mode === "message" ? "Send" : "Save note"}
+          </Button>
+        </div>
+      </div>
       {briefForSheet && clientId ? (
         <QuickBriefSheet
           open

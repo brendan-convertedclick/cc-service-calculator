@@ -286,17 +286,12 @@ export function ClientSignoffs() {
     };
     for (const r of rows) bump(r.client_id, r.client_name, isOnClient(r));
     for (const t of waiting) bump(t.client_id, t.client_name, t.court === "client");
-    return [...byId.values()].sort(
-      (a, b) => b.waiting - a.waiting || a.name.localeCompare(b.name),
-    );
+    return [...byId.values()].sort((a, b) => b.waiting - a.waiting || a.name.localeCompare(b.name));
   }, [rows, waiting]);
 
   // Named from the list the page already built, so the view stays a plain
   // select and nobody has to keep an embed working.
-  const clientNames = useMemo(
-    () => new Map(clients.map((c) => [c.id, c.name])),
-    [clients],
-  );
+  const clientNames = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
 
   const q = search.trim().toLowerCase();
 
@@ -320,26 +315,28 @@ export function ClientSignoffs() {
   );
 
   const visible = useMemo(() => {
-    return rows
-      // Parked has its own tab; an event (0149) is not a sign-off or an ask at
-      // all and lives on the Calendar. This tab is the queue people work
-      // through, and a row nobody can act on is not part of that work.
-      .filter((r) => r.state !== "parked" && r.state !== "noted")
-      .filter((r) => (clientId ? r.client_id === clientId : true))
-      .filter(
-        (r) =>
-          !q ||
-          r.client_title.toLowerCase().includes(q) ||
-          r.client_name.toLowerCase().includes(q),
-      )
-      .sort((a, b) => {
-        // Longest-waiting first — the whole point of the page.
-        const aw = daysWaiting(a);
-        const bw = daysWaiting(b);
-        if (aw !== bw) return bw - aw;
-        if (a.state !== b.state) return a.state === "pending" ? -1 : 1;
-        return b.created_at.localeCompare(a.created_at);
-      });
+    return (
+      rows
+        // Parked has its own tab; an event (0149) is not a sign-off or an ask at
+        // all and lives on the Calendar. This tab is the queue people work
+        // through, and a row nobody can act on is not part of that work.
+        .filter((r) => r.state !== "parked" && r.state !== "noted")
+        .filter((r) => (clientId ? r.client_id === clientId : true))
+        .filter(
+          (r) =>
+            !q ||
+            r.client_title.toLowerCase().includes(q) ||
+            r.client_name.toLowerCase().includes(q),
+        )
+        .sort((a, b) => {
+          // Longest-waiting first — the whole point of the page.
+          const aw = daysWaiting(a);
+          const bw = daysWaiting(b);
+          if (aw !== bw) return bw - aw;
+          if (a.state !== b.state) return a.state === "pending" ? -1 : 1;
+          return b.created_at.localeCompare(a.created_at);
+        })
+    );
   }, [rows, clientId, q]);
 
   const visibleTasks = useMemo(
@@ -347,8 +344,7 @@ export function ClientSignoffs() {
       waiting
         .filter((t) => (clientId ? t.client_id === clientId : true))
         .filter(
-          (t) =>
-            !q || t.title.toLowerCase().includes(q) || t.client_name.toLowerCase().includes(q),
+          (t) => !q || t.title.toLowerCase().includes(q) || t.client_name.toLowerCase().includes(q),
         )
         .filter((t) =>
           scope === "all" ? true : scope === "closed" ? t.court === "done" : t.court !== "done",
@@ -609,11 +605,11 @@ export function ClientSignoffs() {
                 <p className="mb-4 flex items-start gap-2 text-body-medium text-m-on-surface-variant">
                   <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Everything with a date on it{selected ? ` for ${selected.name}` : " across every client"} —
-                    sign-offs and asks, a school's delivery plan, briefed tasks still moving,
-                    and the dates clients have put on their own page. Settled work sits on the
-                    day it was settled, so a month behind you reads as what happened. Parked
-                    items are left off.
+                    Everything with a date on it
+                    {selected ? ` for ${selected.name}` : " across every client"} — sign-offs and
+                    asks, a school's delivery plan, briefed tasks still moving, and the dates
+                    clients have put on their own page. Settled work sits on the day it was settled,
+                    so a month behind you reads as what happened. Parked items are left off.
                   </span>
                 </p>
                 <MonthCalendar
@@ -630,8 +626,8 @@ export function ClientSignoffs() {
                 <div className="flex flex-col items-start gap-3 p-6">
                   <p className="text-body-medium text-m-on-surface-variant">
                     Nothing parked{selected ? ` for ${selected.name}` : ""}. This is where the
-                    things worth doing later go — no due date, no chasing, and the client never
-                    sees them.
+                    things worth doing later go — no due date, no chasing, and the client never sees
+                    them.
                   </p>
                   <Button
                     variant="outline"
@@ -651,8 +647,8 @@ export function ClientSignoffs() {
                     <span>
                       {parked.length} {parked.length === 1 ? "thing is" : "things are"} parked
                       {selected ? ` for ${selected.name}` : ""} — worth doing, not planned yet.
-                      Raise one as a question or an agreement when the time is right; it stays
-                      here until you do.
+                      Raise one as a question or an agreement when the time is right; it stays here
+                      until you do.
                     </span>
                   </p>
                   <ItemsTable
@@ -689,8 +685,8 @@ export function ClientSignoffs() {
                     <div className="mb-4 flex items-start gap-2 rounded-lg border border-m-outline-variant bg-m-surface-container p-3">
                       <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-m-on-surface-variant" />
                       <p className="text-body-small text-m-on-surface-variant">
-                        {selected.name} has no live link, so they cannot reach this page yet.
-                        Create one on their client page, or send them a question — that mints one.
+                        {selected.name} has no live link, so they cannot reach this page yet. Create
+                        one on their client page, or send them a question — that mints one.
                       </p>
                     </div>
                   )}
@@ -718,11 +714,15 @@ export function ClientSignoffs() {
                         hasItems={inScope.length > 0}
                         onAskQuestion={() => setAskOpen(true)}
                         onRecordAgreement={() => setAgreementOpen(true)}
-                        ourAgreement={
-                          previewItem?.item_type === "agreement" &&
-                          previewItem.owed_by === "us" &&
-                          previewItem.state === "pending"
+                        // Anything we owe them and have not closed. An
+                        // agreement is one; a question they asked us is the
+                        // other, and it was closable only by the client until
+                        // now. itemType rides along so the panel can keep
+                        // "Turn into a task" to the one that is a deliverable.
+                        ourItem={
+                          previewItem?.owed_by === "us" && previewItem.state === "pending"
                             ? {
+                                itemType: previewItem.item_type,
                                 detail: previewItem.detail,
                                 dueDate: previewItem.due_date,
                                 briefId: previewItem.brief_id ?? null,

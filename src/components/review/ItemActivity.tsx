@@ -175,9 +175,10 @@ export function ItemActivity({
       {item.state !== "pending" && item.state !== "noted" ? (
         <p className="text-center text-label-small text-m-on-surface-variant">
           {item.item_type === "question" && item.raised_by === "client"
-            ? // Their question, our answer. "We have your answer" over
-              // something they asked us reads as though we answered ourselves.
-              "Answered — it's above."
+            ? // Their question. It closes when it is sorted — sometimes by our
+              // answer above, sometimes because they sorted it themselves — so
+              // the line must not promise an answer that may not be there.
+              "Closed off — anything we said is above."
             : item.state === "approved"
               ? (SETTLED_LINE[item.item_type]?.done ?? SETTLED_LINE.brief.done)
               : (SETTLED_LINE[item.item_type]?.back ?? SETTLED_LINE.brief.back)}
