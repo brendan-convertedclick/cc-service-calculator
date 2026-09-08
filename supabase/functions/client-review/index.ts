@@ -282,8 +282,6 @@ type TokenRow = {
   revoked_at: string | null;
   /** Set on a personal link. Null on a legacy company-wide one. */
   contact_id: string | null;
-  /** Null until the first time this link is used. Read BEFORE it is stamped. */
-  last_used_at: string | null;
 };
 
 type ApprovalRow = {
@@ -706,33 +704,6 @@ async function notifyDecision(
 }
 
 /**
- * Somebody opened their sign-off page for the first time on this link.
- *
- * Same posture as every other ping from this function: fire and forget,
- * swallowed on failure, because a chat outage must never turn a client's visit
- * into a 500. It names them off the token contact (0142) rather than off
- * anything the browser claims; a legacy shared link has nobody to name.
- */
-function notifyOpened(req: Request, sb: SupabaseClient, tokenRow: TokenRow): void {
-  (async () => {
-    const [clientRes, contactRes] = await Promise.all([
-      sb.from("clients").select("name").eq("id", tokenRow.client_id).maybeSingle(),
-      tokenRow.contact_id
-        ? sb.from("contacts").select("full_name").eq("id", tokenRow.contact_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
-    const companyName = (clientRes.data as { name: string } | null)?.name ?? "a client";
-    const who = (contactRes.data as { full_name: string | null } | null)?.full_name ?? "Someone";
-    const { token: pat } = await getOperatorClickupToken(req);
-    await postChatMessage(
-      pat,
-      APPROVALS_CHANNEL_ID,
-      `👀 ${who} at ${companyName} opened their sign-off page.`,
-    ).catch(() => {});
-  })().then(() => {}, () => {});
-}
-
-/**
  * First hop of x-forwarded-for. Evidence only: an IP is trivially shared and
  * must never be used to recognise anyone. Bounded because the header is
  * attacker-controlled and this string lands in a column someone will read.
@@ -1102,7 +1073,7 @@ Deno.serve(async (req: Request) => {
     const candidateHash = await sha256Hex(body.token);
     const { data: tokenRowRaw, error: tokenErr } = await sb
       .from("client_review_tokens")
-      .select("id, client_id, token_hash, expires_at, revoked_at, contact_id, last_used_at")
+      .select("id, client_id, token_hash, expires_at, revoked_at, contact_id")
       .eq("token_hash", candidateHash)
       .maybeSingle();
     // A genuine DB fault here is NOT "no such token" — collapsing it to
@@ -1117,18 +1088,6 @@ Deno.serve(async (req: Request) => {
     if (failure) return json(failure);
     const tokenRow = tokenRowRaw as TokenRow;
     const clientId = tokenRow.client_id;
-
-    // A client opening their page is the fifth thing they can do, and the
-    // only one that leaves no row behind — so it is read off the token
-    // instead, HERE, before the stamp below overwrites the evidence.
-    //
-    // First open only. The stamp is refreshed on every action including each
-    // `list` poll, so anything gap-based would either need a magic number or
-    // report the same person tabbing back as news. Every send mints its own
-    // token (0142), so this fires once per link rather than once per person:
-    // a chase to two contacts who both look is two pings, which is the
-    // question being asked — did they even open it.
-    if (!tokenRow.last_used_at) notifyOpened(req, sb, tokenRow);
 
     // Fire-and-forget freshness stamp — never blocks or fails the request.
     // Two-arg .then() (not .catch()) because the query builder's .then()
