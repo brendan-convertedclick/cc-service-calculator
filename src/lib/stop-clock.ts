@@ -53,6 +53,17 @@ export type StopClockSource = Omit<WaitingSource, "clickup_task_status" | "compl
   /** When Conductor learned about it — NOT always when the work was raised. */
   created_at: string;
   original_points: number | null;
+  /**
+   * Does the client's time move THIS date? Defaults true, which is every
+   * briefed task: the date is our delivery promise, and days they held it are
+   * days we did not have.
+   *
+   * False for a thing the CLIENT owes — an agreement they made, a question we
+   * asked them. Its due date is the date THEY were asked to hit, so adding
+   * their own lateness back onto it is circular: the item would report "2d in
+   * hand" on the same screen where the queue calls it 14 days overdue.
+   */
+  stop_clock?: boolean;
 };
 
 /**
@@ -83,6 +94,18 @@ export type StopClock = {
    * There is no runway to measure on these and we must not invent one.
    */
   bornLate: boolean;
+  /**
+   * Where the work's own start sits relative to its due date, in days.
+   * Negative is runway: we were told before it was due. POSITIVE is the
+   * born-late gap, and those days belong to NOBODY — the date had already
+   * passed when the task was created, so no clock was running through them.
+   *
+   * It exists so a chart can put the bar where the time actually was. Drawing
+   * a born-late row from the due line implies someone held it for the whole
+   * overrun, when in truth the task is two hours old and the deadline was
+   * back-dated three weeks.
+   */
+  startDays: number | null;
 
   /** due + client-held time. Grows in real time while they still hold it. */
   impliedDueMs: number | null;
@@ -117,8 +140,11 @@ export function stopClock(row: StopClockSource, now: number): StopClock {
     dueMs === null || bornLate || Number.isNaN(raisedMs)
       ? null
       : Math.round((dueMs - raisedMs) / MS_PER_DAY);
+  const startDays =
+    dueMs === null || Number.isNaN(raisedMs) ? null : (raisedMs - dueMs) / MS_PER_DAY;
 
-  const impliedDueMs = dueMs === null ? null : dueMs + split.clientMs;
+  const impliedDueMs =
+    dueMs === null ? null : dueMs + (row.stop_clock === false ? 0 : split.clientMs);
   const pastDueDays = dueMs === null ? 0 : Math.max(0, (now - dueMs) / MS_PER_DAY);
   const lateDays = impliedDueMs === null ? 0 : Math.max(0, (now - impliedDueMs) / MS_PER_DAY);
   const daysInHand = impliedDueMs === null ? null : (impliedDueMs - now) / MS_PER_DAY;
@@ -134,6 +160,7 @@ export function stopClock(row: StopClockSource, now: number): StopClock {
     dueMs,
     runwayDays,
     bornLate,
+    startDays,
     impliedDueMs,
     pastDueDays,
     lateDays,
@@ -224,6 +251,10 @@ export function summariseStopClocks(clocks: StopClock[]): {
     if (c.court === "done") return;
     if (c.verdict === "ours") lateOnUs += 1;
     if (c.clientDays < 0.5 || c.impliedDueMs === null) return;
+    // A row whose date does not move contributes no lost deadline, however
+    // long they have held it. Their own overdue commitment is not a deadline
+    // of ours that their silence ate.
+    if (c.impliedDueMs === c.dueMs) return;
     daysLost += c.clientDays;
     moved += 1;
     // A row whose date had already passed when it was raised is not evidence

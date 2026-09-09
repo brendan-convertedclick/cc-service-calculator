@@ -1,7 +1,8 @@
 // supabase/functions/client-review/index.ts
 //
 // Request:  POST { action: "list", token }
-//           → 200 { status: "ok", company_name, as_at, contacts, items, schedule }
+//           → 200 { status: "ok", company_name, as_at, contacts, items,
+//                    schedule, work }
 //             | 200 TokenFailure
 //
 //           POST { action: "raise", token, kind, title, body?, date? }
@@ -47,13 +48,19 @@
 //
 // Two hard rules baked into the column lists below:
 //   1. No staff identity ever leaves this function — no assignee, no staff
-//      name/email, no team_members join, no points/hours/cost. Exactly ONE
-//      column is ever read from `briefs`, by name: client_wait_ms, the ms the
-//      linked task has sat in a waiting-on-client status. It is the client's
-//      own elapsed time and carries no staff or internal information. Nothing
-//      else from that table may be added — raw_subject in particular, which
-//      is the reason this rule exists: real subjects read "DFT V1.1", "(QC)".
-//      client_title lives on client_approvals only.
+//      name/email, no team_members join, no points/hours/cost. `briefs` is
+//      read through a FIXED ALLOWLIST and nothing else may join it:
+//        client_wait_ms, internal_wait_ms  the two halves of the clock
+//        clickup_task_status               read ONLY to derive `court`; the
+//                                          string itself never leaves
+//        original_due_date, created_at     dates, both already on the wire
+//        completed_at                      to leave finished work out
+//        raw_subject                       SANITISED HERE and only here
+//      raw_subject is the reason this rule exists: real subjects read
+//      "DFT V1.1", "(QC)". It crosses only as suggestClientTitle(...) on a
+//      ReviewWork row, never as itself and never on a ReviewItem —
+//      client_title lives on client_approvals only. Adding a column to that
+//      list is adding it to a client's screen.
 //   2. Every 500 body is a fixed generic string — a Postgres error message
 //      is console.error'd, never interpolated into the response a client
 //      can read.
@@ -68,6 +75,7 @@ import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { timingSafeEqualHex } from "../_shared/hmac.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
+import { suggestClientTitle, UNTITLED_WORK } from "../_shared/client-title.ts";
 import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
 // --- wire types --------------------------------------------------------
@@ -191,6 +199,25 @@ type ReviewMessage = {
   at: string;
 };
 
+/**
+ * One piece of briefed work on the client's own "Who's holding it up".
+ * Mirrors ReviewWork in src/types/client-review.ts.
+ *
+ * SEVEN FIELDS. `title` is suggestClientTitle(briefs.raw_subject), sanitised
+ * HERE — the raw subject never reaches a response. No status string, no
+ * assignee, no points, no hours, no ClickUp url. Not decidable, never in
+ * `items`.
+ */
+type ReviewWork = {
+  id: string; // briefs.id
+  title: string;
+  court: "client" | "us" | "done";
+  waiting_ms: number | null;
+  our_ms: number | null;
+  work_since: string;
+  due_date: string | null;
+};
+
 type ReviewIdentity = { contact_id: string } | { name: string; email?: string };
 
 type ListRequest = { action: "list"; token: string };
@@ -243,6 +270,11 @@ type ListResponse =
       items: ReviewItem[];
       /** The school's own year, when they are on one. Empty otherwise. */
       schedule: ReviewScheduleRow[];
+      /**
+       * Briefed work that never became an ask. Reaches "Who's holding it up"
+       * and nothing else — see ReviewWork.
+       */
+      work: ReviewWork[];
       /**
        * Who this link belongs to, when it belongs to somebody. The page shows
        * it back to them and skips the "And you are?" step entirely. Null on a
@@ -350,6 +382,9 @@ function courtOf(briefs: BriefWait | BriefWait[] | null | undefined) {
 }
 
 const ITEM_TYPES: ReviewItemType[] = ["brief", "question", "agreement", "idea", "event"];
+
+/** A uuid nothing has, so a "not in (...)" list is never empty. */
+const NO_SUCH_ID = "00000000-0000-0000-0000-000000000000";
 
 function waitingMsOf(briefs: BriefWait | BriefWait[] | null | undefined): number | null {
   return briefOf(briefs)?.client_wait_ms ?? null;
@@ -525,6 +560,72 @@ async function handleList(
     console.error("[client-review] schedule lookup failed:", scheduleErr.message);
   }
 
+  // Briefed work that never became an ask (0139-era `client_approvals` rows
+  // are the ones that did). It is what makes the client's "Who's holding it
+  // up" the same tab staff read: without it a client with seven live tasks and
+  // one agreement saw one row and reasonably concluded the page was broken.
+  //
+  // Three filters, and each is load-bearing:
+  //   clickup_task_id not null  nothing untracked has a clock to draw
+  //   completed_at is null      finished work is our record, not a reproach,
+  //                             and it matches the staff tab's Open default
+  //   brief_id not already used or the same task appears twice the moment
+  //                             somebody drafts it as a sign-off
+  //
+  // raw_subject is sanitised on the next line and NEVER put on the response as
+  // itself. Nothing that fails to sanitise is dropped: a task hidden from the
+  // client is the bug this exists to fix, so an empty result becomes a neutral
+  // label instead. Not fatal, like the schedule: their asks must still render.
+  // A query of its own rather than a column on the items select: `items` is
+  // fed to toReviewItem, and a Conductor id sitting on those rows is one
+  // careless spread away from a client's screen. This also sees the PARKED
+  // rows the items query filters out, so a parked sign-off's task does not
+  // reappear here as loose work.
+  const { data: linkedRaw, error: linkedErr } = await sb
+    .from("client_approvals")
+    .select("brief_id")
+    .eq("client_id", clientId)
+    .not("brief_id", "is", null);
+  if (linkedErr) console.error("[client-review] linked briefs lookup failed:", linkedErr.message);
+  const linkedBriefIds = (linkedRaw ?? [])
+    .map((r) => (r as { brief_id: string | null }).brief_id)
+    .filter((id): id is string => !!id);
+  // One chain, never a reassigned builder: PostgREST's types recurse and
+  // `q = q.not(...)` fails deno check with "instantiation excessively deep".
+  // A client with no linked briefs excludes a uuid that cannot exist, which is
+  // what keeps `in ()` from being empty and the filter in the QUERY — the same
+  // rule the note/parked filters follow, for the same reason.
+  const excluded = linkedBriefIds.length > 0 ? linkedBriefIds : [NO_SUCH_ID];
+  const { data: workRaw, error: workErr } = await sb
+    .from("briefs")
+    .select(
+      "id, raw_subject, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at, original_due_date, created_at",
+    )
+    .eq("client_id", clientId)
+    .not("clickup_task_id", "is", null)
+    .is("completed_at", null)
+    .not("id", "in", `(${excluded.join(",")})`)
+    .order("created_at", { ascending: false });
+  if (workErr) console.error("[client-review] work lookup failed:", workErr.message);
+
+  const companyName = (clientRaw as { name: string } | null)?.name ?? "";
+  const work: ReviewWork[] = (
+    (workRaw ?? []) as unknown as (BriefWait & {
+      id: string;
+      raw_subject: string | null;
+      original_due_date: string | null;
+      created_at: string;
+    })[]
+  ).map((b) => ({
+    id: b.id,
+    title: suggestClientTitle(b.raw_subject, companyName) || UNTITLED_WORK,
+    court: courtOf(b) ?? ("us" as const),
+    waiting_ms: b.client_wait_ms,
+    our_ms: b.internal_wait_ms,
+    work_since: b.created_at,
+    due_date: b.original_due_date,
+  }));
+
   const byApproval = new Map<string, ReviewMessage[]>();
   for (const row of (threadRaw ?? []) as Array<{
     id: string;
@@ -593,7 +694,7 @@ async function handleList(
   const contacts = (contactsRaw ?? []) as ReviewContact[];
   const resp: ListResponse = {
     status: "ok",
-    company_name: (clientRaw as { name: string } | null)?.name ?? "",
+    company_name: companyName,
     as_at: asAt,
     contacts,
     opens,
@@ -601,6 +702,7 @@ async function handleList(
       toReviewItem(row, byApproval.get(row.id) ?? [], movesByApproval.get(row.id) ?? []),
     ),
     schedule: (scheduleRaw ?? []) as unknown as ReviewScheduleRow[],
+    work,
     // Resolved from the contacts already fetched — a personal token whose
     // contact has since been deleted or had its name cleared falls back to
     // null, which puts the picker back rather than signing as nobody.

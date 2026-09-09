@@ -7,11 +7,18 @@
 //   Add Certification banners to homepage - DFT V1.1 (QC)
 //   Trellidor UK - No #1 / 5: The Ultimate Guide… - Exports Static Mock Up Assets - DFT V1.1
 //
-// None of that can go in front of a client. This produces a SUGGESTION only —
-// the seeding UI puts it in an editable field and a human confirms it before
-// any row is written. Nothing here is ever published unreviewed, because a
-// regex cannot know that "Exports Static Mock Up Assets" means "the design
-// mock-up" to the person reading it.
+// MIRRORED at supabase/functions/_shared/client-title.ts, because Deno cannot
+// import from src/ and the client-review function sanitises these subjects
+// server-side before any of them crosses the wire. CHANGE ONE, CHANGE BOTH —
+// client-title.test.ts asserts the two agree on real subjects.
+//
+// None of that can go in front of a client. In the seeding UI this is a
+// SUGGESTION: it lands in an editable field and a human confirms it before any
+// client_approvals row is written, because a regex cannot know that "Exports
+// Static Mock Up Assets" means "the design mock-up" to the person reading it.
+// On the client's "Who's holding it up" it is used UNREVIEWED, which is the
+// deliberate trade: an un-drafted task showing under a sanitised name beats a
+// client being told nothing is open when seven things are.
 
 /** Version/stage markers the team appends: "- DFT V1.1", "— REV V2.3", "- DFT 2". */
 const VERSION_SUFFIX = /\s*[-–—]\s*(DFT|REV)\s*V?\s*\d+(?:\.\d+)*\s*$/i;
@@ -64,6 +71,9 @@ export function suggestClientTitle(rawSubject: string | null, clientName?: strin
  * sentence someone might ship without reading.
  */
 export const DEFAULT_ASK = "";
+
+/** What a subject that sanitises to nothing is called on the client's page. */
+export const UNTITLED_WORK = "A piece of work";
 
 /** True when a suggestion still carries obvious internal noise. */
 export function looksInternal(title: string): boolean {

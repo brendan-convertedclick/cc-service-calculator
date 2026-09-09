@@ -1,6 +1,7 @@
 import { useMemo } from "react";
+import { ChevronRight } from "lucide-react";
 import { RunwayChart, type RunwayRow } from "@/components/signoffs/RunwayChart";
-import { holdingRows } from "@/lib/client-review";
+import { holdingRows, type HoldingRow } from "@/lib/client-review";
 import { formatWait } from "@/lib/client-waiting";
 import {
   formatDays,
@@ -9,7 +10,7 @@ import {
   summariseStopClocks,
   type StopClock,
 } from "@/lib/stop-clock";
-import type { ReviewItem } from "@/types/client-review";
+import type { ReviewItem, ReviewWork } from "@/types/client-review";
 
 const LONG_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", timeZone: "UTC" };
 
@@ -29,34 +30,38 @@ const LONG_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", t
  * Rows are built from their own items and carry no ClickUp status, url or
  * task name; `court` and the two clocks are all the chart needs.
  */
-export function HoldingView({ items, now }: { items: ReviewItem[]; now: number }) {
+export function HoldingView({
+  items,
+  work,
+  now,
+}: {
+  items: ReviewItem[];
+  /** Briefed tasks that never became an ask. Titles already sanitised. */
+  work?: ReviewWork[];
+  now: number;
+}) {
   const { rows, clocks, summary, lead } = useMemo(() => {
-    const rows: RunwayRow[] = items
-      .filter((i) => i.state === "pending" && i.court && i.work_since)
-      .map((i) => ({
-        id: i.id,
-        title: i.client_title,
-        court: i.court!,
-        client_wait_ms: i.waiting_ms,
-        internal_wait_ms: i.our_ms,
-        // No running-clock extrapolation on this side: the banked totals are
-        // at most half an hour old (the sync cron) and nothing here is finer
-        // than a day.
-        clickup_status_synced_at: null,
-        original_due_date: i.due_date,
-        created_at: i.work_since!,
-        // Points are an internal estimate and never cross — without them the
-        // chart simply does not draw the "tight" verdict.
-        original_points: null,
-      }));
-    const clocks: StopClock[] = rows.map((r) => stopClock(r, now));
+    // Longest-held first, because that is the conversation — and sorted on the
+    // CLOCK, never on the row. An ask carries no banked total; its whole
+    // elapsed time appears only once stopClock has run, so sorting the rows
+    // themselves would sink every question below a task with two banked days.
+    const pairs = holdingRows(items, work)
+      .map((row) => ({ row, clock: stopClock(row, now) }))
+      .sort(
+        (a, b) =>
+          b.clock.clientDays - a.clock.clientDays ||
+          b.clock.ourDays - a.clock.ourDays ||
+          a.row.title.localeCompare(b.row.title),
+      );
+    const rows: RunwayRow[] = pairs.map((p) => p.row);
+    const clocks: StopClock[] = pairs.map((p) => p.clock);
     const summary = summariseStopClocks(clocks);
     const lead =
       summary.leadIndex === null
         ? null
         : { row: rows[summary.leadIndex], clock: clocks[summary.leadIndex] };
     return { rows, clocks, summary, lead };
-  }, [items, now]);
+  }, [items, work, now]);
 
   const open = clocks.filter((c) => c.court !== "done");
   const theirTotalMs = open.reduce((a, c) => a + c.clientMs, 0);
@@ -67,7 +72,7 @@ export function HoldingView({ items, now }: { items: ReviewItem[]; now: number }
       <div className="p-8 text-center">
         <p className="text-title-medium text-m-on-surface">Nothing is sitting with anyone.</p>
         <p className="mt-1 text-body-medium text-m-on-surface-variant">
-          Nothing open here has a clock running on it.
+          Nothing is open. Everything on your list has been settled.
         </p>
       </div>
     );
@@ -90,7 +95,7 @@ export function HoldingView({ items, now }: { items: ReviewItem[]; now: number }
             ? `has gone to waiting on you, across ${summary.moved} ${
                 summary.moved === 1 ? "item" : "items"
               }. The clock pauses while something is with you, so those dates have moved with it.`
-            : "Nothing open here has been with you long enough to shift a date."}
+            : "Only our own work waiting on you moves a date, and none of it has. Anything you owe us keeps the date it was given."}
         </p>
 
         {lead && lead.clock.dueMs !== null && lead.clock.impliedDueMs !== null ? (
@@ -129,14 +134,31 @@ export function HoldingView({ items, now }: { items: ReviewItem[]; now: number }
 
       <RunwayChart tasks={rows} now={now} />
 
-      <HoldingTable items={items} />
+      {/* Folded away by default. The chart above already answers "who is
+          holding what up"; this is the ledger you open when you want the
+          number on a particular line, and left open it pushed the picture off
+          a laptop screen. <details> rather than a state flag: the browser
+          already owns this, and it prints and finds-in-page open. */}
+      <details className="group border-t border-m-outline-variant">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-3 text-title-small text-m-on-surface hover:bg-m-surface-container lg:px-4 [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="h-4 w-4 shrink-0 text-m-on-surface-variant transition-transform group-open:rotate-90" />
+          Every open item, and where its time went
+          <span className="text-label-medium text-m-on-surface-variant">({rows.length})</span>
+        </summary>
+        <HoldingTable rows={rows} clocks={clocks} />
+      </details>
     </div>
   );
 }
 
-/** The rest of them, in words — the chart draws the ten that matter. */
-function HoldingTable({ items }: { items: ReviewItem[] }) {
-  const rows = holdingRows(items);
+/**
+ * The rest of them, in words — the chart draws the ten that carry a date.
+ *
+ * Reads the clocks the view already computed rather than deriving its own. It
+ * had a second copy of "their days move the date" and that is precisely the
+ * arithmetic that must not be able to disagree with the picture above it.
+ */
+function HoldingTable({ rows, clocks }: { rows: HoldingRow[]; clocks: StopClock[] }) {
   if (rows.length === 0) return null;
   return (
     <div className="overflow-x-auto p-2 lg:p-4">
@@ -150,35 +172,38 @@ function HoldingTable({ items }: { items: ReviewItem[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-b border-m-outline-variant last:border-b-0">
-              <td className="py-2 pr-3 text-m-on-surface">{r.title}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-m-on-surface-variant">
-                {r.theirsDays >= 0.5 ? formatDays(r.theirsDays) : "—"}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums text-m-on-surface-variant">
-                {r.oursDays >= 0.5 ? formatDays(r.oursDays) : "—"}
-              </td>
-              <td className="py-2 pl-3 text-right tabular-nums">
-                {r.neededByMs === null ? (
-                  <span className="text-m-on-surface-variant">No date set</span>
-                ) : r.movedToMs !== null &&
-                  // Compare the DATES, not the milliseconds: a wait of under a
-                  // day moves the timestamp without moving the day, and
-                  // "31 Aug 31 Aug" with one struck through reads as a bug.
-                  formatDueDate(r.movedToMs) !== formatDueDate(r.neededByMs) ? (
-                  <>
-                    <span className="text-m-on-surface-variant line-through">
-                      {formatDueDate(r.neededByMs)}
-                    </span>{" "}
-                    <span className="text-m-on-surface">{formatDueDate(r.movedToMs)}</span>
-                  </>
-                ) : (
-                  <span className="text-m-on-surface">{formatDueDate(r.neededByMs)}</span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {rows.map((r, i) => {
+            const c = clocks[i];
+            return (
+              <tr key={r.id} className="border-b border-m-outline-variant last:border-b-0">
+                <td className="py-2 pr-3 text-m-on-surface">{r.title}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-m-on-surface-variant">
+                  {c.clientDays >= 0.5 ? formatDays(c.clientDays) : "—"}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-m-on-surface-variant">
+                  {c.ourDays >= 0.5 ? formatDays(c.ourDays) : "—"}
+                </td>
+                <td className="py-2 pl-3 text-right tabular-nums">
+                  {c.dueMs === null ? (
+                    <span className="text-m-on-surface-variant">No date set</span>
+                  ) : c.impliedDueMs !== null &&
+                    // Compare the DATES, not the milliseconds: a wait of under
+                    // a day moves the timestamp without moving the day, and
+                    // "31 Aug 31 Aug" with one struck through reads as a bug.
+                    formatDueDate(c.impliedDueMs) !== formatDueDate(c.dueMs) ? (
+                    <>
+                      <span className="text-m-on-surface-variant line-through">
+                        {formatDueDate(c.dueMs)}
+                      </span>{" "}
+                      <span className="text-m-on-surface">{formatDueDate(c.impliedDueMs)}</span>
+                    </>
+                  ) : (
+                    <span className="text-m-on-surface">{formatDueDate(c.dueMs)}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -19,12 +19,14 @@ import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
 import { todayISO } from "@/lib/dates";
 import { courtOf } from "@/lib/client-waiting";
+import { UNTITLED_WORK, suggestClientTitle } from "@/lib/client-title";
 import type {
   ListResponse,
   ReviewContact,
   ReviewItem,
   ReviewOpen,
   ReviewScheduleRow,
+  ReviewWork,
 } from "@/types/client-review";
 
 /**
@@ -205,8 +207,17 @@ export function useClientReviewPreview(clientId: string | undefined) {
     queryFn: async (): Promise<ListResponse> => {
       if (!clientId) throw new Error("No client selected");
 
-      const [clientRes, contactRes, itemRes, threadRes, moveRes, openRes, scheduleRes] =
-        await Promise.all([
+      const [
+        clientRes,
+        contactRes,
+        itemRes,
+        threadRes,
+        moveRes,
+        openRes,
+        scheduleRes,
+        workRes,
+        linkedRes,
+      ] = await Promise.all([
           supabase.from("clients").select("name").eq("id", clientId).single(),
           supabase
             .from("contacts")
@@ -260,6 +271,25 @@ export function useClientReviewPreview(clientId: string | undefined) {
             .select("id, label, side, month_no, theme, shows_on, completed_at")
             .eq("client_id", clientId)
             .order("shows_on"),
+          // Briefed work that never became an ask, mirroring the edge
+          // function's `work` query filter for filter — including the one that
+          // matters, `raw_subject` sanitised before it is rendered. The
+          // exclusion of already-linked briefs is a second query rather than a
+          // join so the two sides can be read side by side.
+          supabase
+            .from("briefs")
+            .select(
+              "id, raw_subject, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at, original_due_date, created_at",
+            )
+            .eq("client_id", clientId)
+            .not("clickup_task_id", "is", null)
+            .is("completed_at", null)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("client_approvals")
+            .select("brief_id")
+            .eq("client_id", clientId)
+            .not("brief_id", "is", null),
         ]);
 
       if (clientRes.error) throw new Error(errorMessage(clientRes.error));
@@ -274,6 +304,10 @@ export function useClientReviewPreview(clientId: string | undefined) {
       // the asks, and a preview that cannot draw next month must still show
       // this month's queue.
       if (scheduleRes.error) console.error("[preview] schedule:", scheduleRes.error.message);
+      // Not fatal for the same reason: their asks must render even when the
+      // briefed work behind them cannot be read.
+      if (workRes.error) console.error("[preview] work:", workRes.error.message);
+      if (linkedRes.error) console.error("[preview] linked briefs:", linkedRes.error.message);
 
       // One row per person, newest open wins — the same contact can hold
       // several links (a fresh one is minted per question) and "when did she
@@ -348,14 +382,32 @@ export function useClientReviewPreview(clientId: string | undefined) {
           })),
       }));
 
+      const companyName = clientRes.data?.name ?? "Unknown client";
+      const linked = new Set((linkedRes.data ?? []).map((r) => r.brief_id));
+      const work: ReviewWork[] = (workRes.data ?? [])
+        .filter((b) => !linked.has(b.id))
+        .map((b) => ({
+          id: b.id,
+          // Sanitised here exactly as the edge function sanitises it. The raw
+          // subject reads "… - DFT V1.1 (QC)" and must not reach the preview
+          // either: the preview's whole job is to be what the client sees.
+          title: suggestClientTitle(b.raw_subject, companyName) || UNTITLED_WORK,
+          court: courtOf(b) ?? ("us" as const),
+          waiting_ms: b.client_wait_ms,
+          our_ms: b.internal_wait_ms,
+          work_since: b.created_at,
+          due_date: b.original_due_date,
+        }));
+
       return {
         status: "ok",
-        company_name: clientRes.data?.name ?? "Unknown client",
+        company_name: companyName,
         as_at: new Date().toISOString(),
         contacts,
         opens,
         items,
         schedule: (scheduleRes.data ?? []) as ReviewScheduleRow[],
+        work,
         // Staff reach the preview by client id, not by anyone's link, so there
         // is nobody to be signed in as. The preview therefore shows the
         // company-wide shape — which is the honest thing: it cannot know which

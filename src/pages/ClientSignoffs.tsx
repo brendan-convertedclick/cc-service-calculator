@@ -761,6 +761,10 @@ export function ClientSignoffs() {
                         hasItems={inScope.length > 0}
                         onAskQuestion={() => setAskOpen(true)}
                         onRecordAgreement={() => setAgreementOpen(true)}
+                        // The same editor the table row opens, on the item
+                        // already selected. Guarded on previewItem so it is
+                        // absent rather than inert when nothing is picked.
+                        onEdit={previewItem ? () => setEditOf(previewItem) : undefined}
                         // Anything we owe them and have not closed. An
                         // agreement is one; a question they asked us is the
                         // other, and it was closable only by the client until

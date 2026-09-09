@@ -121,7 +121,9 @@ export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number })
         Math.max(
           r.clock.pastDueDays,
           (r.clock.impliedDueMs! - r.clock.dueMs!) / 86_400_000,
-          r.clock.clientDays + r.clock.ourDays - (r.clock.runwayDays ?? 0),
+          // startDays is -runwayDays on a normal row and the born-late gap on
+          // a back-dated one, so this one term sizes the plot for both.
+          r.clock.clientDays + r.clock.ourDays + (r.clock.startDays ?? 0),
           2,
         ),
       ),
@@ -203,7 +205,12 @@ export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number })
           {rows.map((row, i) => {
             const c = row.clock;
             const y = 34 + i * ROW_H;
-            const startDay = c.runwayDays === null ? 0 : -c.runwayDays;
+            // Where the work's own clock starts, relative to DUE. On a
+            // back-dated row this is POSITIVE: the deadline had already gone
+            // when the task was created, so the bar belongs out to the right
+            // of the line, not sitting on it pretending someone held it.
+            const startDay = c.startDays ?? 0;
+            const preHistory = c.bornLate ? startDay : 0;
             const late = lateLabel(c);
 
             // Consumption, filled from the start of the runway rightward.
@@ -215,17 +222,46 @@ export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number })
             return (
               <g key={row.task.id}>
                 {c.runwayDays === null ? (
-                  <text
-                    x={dueX - 8}
-                    y={y + 13}
-                    textAnchor="end"
-                    className="fill-m-on-surface-variant text-label-small tabular-nums"
-                  >
-                    {/* Plain words, not the internal name for it: this chart
-                        is now read by clients too, and "born late" sounds
-                        like a verdict on the work rather than on the date. */}
-                    {c.bornLate ? "no runway" : "no start"}
-                  </text>
+                  preHistory > 0 ? (
+                    /* The days between the due date and the day the work
+                       reached us. They belong to NOBODY — no clock was running
+                       through them — so they are drawn as the same empty
+                       trough a runway is, never as anyone's colour. Without
+                       this the row was a late bar with no bands on it and no
+                       way to tell why. */
+                    <>
+                      <rect
+                        x={dueX}
+                        y={y}
+                        width={Math.max(2, x(preHistory) - dueX)}
+                        height={BAR_H}
+                        rx={2}
+                        className="fill-m-surface-container-high"
+                      />
+                      {(x(preHistory) - dueX) * 1 > 150 ? (
+                        <text
+                          x={(dueX + x(preHistory)) / 2}
+                          y={y + 13}
+                          textAnchor="middle"
+                          className="fill-m-on-surface-variant text-label-small tabular-nums"
+                        >
+                          {formatDays(preHistory)} before we were told
+                        </text>
+                      ) : null}
+                    </>
+                  ) : (
+                    <text
+                      x={dueX - 8}
+                      y={y + 13}
+                      textAnchor="end"
+                      className="fill-m-on-surface-variant text-label-small tabular-nums"
+                    >
+                      {/* Plain words, not the internal name for it: this chart
+                          is now read by clients too, and "born late" sounds
+                          like a verdict on the work rather than on the date. */}
+                      no start
+                    </text>
+                  )
                 ) : (
                   <>
                     <rect
@@ -282,8 +318,14 @@ export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number })
                       // Only the coloured part of the overrun can carry white
                       // text. A born-late row's bar is three days long inside
                       // a twenty-eight day overrun, and centring on the
-                      // overrun printed white on the pale trough.
-                      const filled = Math.max(0, Math.min(cursor, c.pastDueDays));
+                      // overrun printed white on the pale trough. The band
+                      // starts at the row's own start, not at the due line —
+                      // subtracting it is what keeps a back-dated row's label
+                      // off its empty pre-history.
+                      const filled = Math.max(
+                        0,
+                        Math.min(cursor, c.pastDueDays) - Math.max(startDay, 0),
+                      );
                       return filled * perDay > 96 ? (
                         <text
                           x={dueX + (filled * perDay) / 2}
@@ -305,7 +347,11 @@ export function RunwayChart({ tasks, now }: { tasks: RunwayRow[]; now: number })
                     })()
                   : null}
 
-                {c.impliedDueMs !== null && c.clientDays >= 0.5
+                {/* Only where the date actually moved. A row the client owes
+                    keeps its date however long they hold it, and a stop-clock
+                    tick drawn on top of the DUE line saying "clock stops
+                    26 Aug" under a bar due 26 Aug reads as a bug. */}
+                {c.impliedDueMs !== null && c.impliedDueMs !== c.dueMs && c.clientDays >= 0.5
                   ? (() => {
                       const ix = x((c.impliedDueMs! - c.dueMs!) / 86_400_000);
                       return (

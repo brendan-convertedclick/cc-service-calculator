@@ -276,7 +276,7 @@ export function buildChaseEmail(args: {
   counts?: StageCounts | null;
 }): ClientEmail {
   return render({
-    subject: "Where things stand with Converted Click",
+    subject: "Task Update",
     lead: "A quick update on where things stand:",
     quoted: args.message,
     callToAction: "Everything waiting on you is on your page. No login needed.",

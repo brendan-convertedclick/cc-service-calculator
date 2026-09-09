@@ -17,6 +17,7 @@ import { ItemDetail } from "@/components/review/ItemDetail";
 import { ItemActivity } from "@/components/review/ItemActivity";
 import { IdentityDialog } from "@/components/review/IdentityDialog";
 import { QueueRow } from "@/components/review/QueueRow";
+import { WorkDetail, WorkRow } from "@/components/review/WorkRow";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
 import { HoldingView } from "@/components/review/HoldingView";
 import { RaiseDialog } from "@/components/review/RaiseDialog";
@@ -35,6 +36,7 @@ import {
   calendarEntriesFor,
   formatAsAt,
   isOverdue,
+  queueFor,
   REVIEW_REPLY_TO,
   sortForQueue,
 } from "@/lib/client-review";
@@ -211,10 +213,18 @@ export function ClientReview({
     ? { contact_id: signedIn.id, name: signedIn.full_name, email: null }
     : remembered;
   const items = ok?.items ?? [];
-  const sorted = sortForQueue(items);
-  const counts = bucketCounts(items);
-  const bucketItems = sorted.filter((item) => bucketOf(item) === bucket);
+  // Briefed work that never became an ask. It rides beside `items` and never
+  // inside them — see WorkRow: with no client_approvals row behind it there is
+  // nothing an Approve could record and nothing a reply could hang off.
+  const work = ok?.work ?? [];
+  const counts = bucketCounts(items, work);
+  // Asks and tasks in ONE order, on the one key both have. Appending the
+  // tasks would put three 26-day-late ones under a 6-day ask, in a list whose
+  // whole promise is "what needs you most, first".
+  const queue = queueFor(items, work, bucket);
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+  const selectedWork = work.find((w) => w.id === selectedId) ?? null;
+  const selectedItemId = selectedItem?.id ?? null;
 
   // What goes on the month view: their asks, their dates, and — for a school —
   // the delivery plan for the months either side of this one. Settled work is
@@ -230,9 +240,12 @@ export function ClientReview({
   // Report the selection outward whenever it moves. An effect rather than a
   // call inside each setSelectedId, so the auto-open on first load is reported
   // too — that is the item staff will be looking at.
+  // Only a real ask is reported outward. A briefed task's id is a briefs.id,
+  // and handing it to the staff ActivityPanel would have it query a timeline
+  // for an approval that does not exist and offer an Edit on nothing.
   useEffect(() => {
-    onSelectedItemChange?.(selectedId);
-  }, [selectedId, onSelectedItemChange]);
+    onSelectedItemChange?.(selectedItemId);
+  }, [selectedItemId, onSelectedItemChange]);
 
   // A half-typed reply must not follow the reader onto the next item and get
   // sent against the wrong one.
@@ -257,8 +270,8 @@ export function ClientReview({
     // Same reasoning as above: jump to the bucket's first item on desktop
     // (there's always a detail column to fill), but a bucket-chip tap on
     // mobile should just filter the list, not launch the Sheet.
-    const nextItems = sorted.filter((item) => bucketOf(item) === next);
-    setSelectedId(isDesktop ? (nextItems[0]?.id ?? null) : null);
+    const nextQueue = queueFor(items, work, next);
+    setSelectedId(isDesktop ? (nextQueue[0]?.id ?? null) : null);
   }
 
   function handleSelect(id: string) {
@@ -415,7 +428,9 @@ export function ClientReview({
   // The server's own stamp, so every day-count on this page agrees with the
   // "As at" beside it rather than drifting with the tab being left open.
   const nowMs = ok?.as_at ? Date.parse(ok.as_at) : Date.now();
-  const detailNode = selectedItem ? (
+  const detailNode = selectedWork ? (
+    <WorkDetail work={selectedWork} />
+  ) : selectedItem ? (
     <ItemDetail
       item={selectedItem}
       // On a personal link the name is already in the page header, and
@@ -501,7 +516,7 @@ export function ClientReview({
 
       {view === "holding" ? (
         <div className="flex-1 overflow-y-auto p-2 lg:p-4">
-          <HoldingView items={items} now={nowMs} />
+          <HoldingView items={items} work={ok?.work ?? []} now={nowMs} />
         </div>
       ) : view === "calendar" ? (
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
@@ -583,7 +598,7 @@ export function ClientReview({
                   <Skeleton key={i} className="h-16 rounded-md" />
                 ))}
               </div>
-            ) : bucketItems.length === 0 ? (
+            ) : queue.length === 0 ? (
               <div className="flex flex-col items-center gap-1 p-8 text-center">
                 <p className="text-title-small text-m-on-surface">{EMPTY_BUCKET_COPY[bucket][0]}</p>
                 <p className="text-body-medium text-m-on-surface-variant">
@@ -591,18 +606,28 @@ export function ClientReview({
                 </p>
               </div>
             ) : (
-              bucketItems.map((item) => (
-                <QueueRow
-                  key={item.id}
-                  item={item}
-                  selected={item.id === selectedId}
-                  busy={
-                    decisionMutation.isPending && decisionMutation.variables?.item_id === item.id
-                  }
-                  onSelect={handleSelect}
-                  onQuickApprove={handleQuickApprove}
-                />
-              ))
+              queue.map((entry) =>
+                entry.kind === "item" ? (
+                  <QueueRow
+                    key={entry.id}
+                    item={entry.item}
+                    selected={entry.id === selectedId}
+                    busy={
+                      decisionMutation.isPending &&
+                      decisionMutation.variables?.item_id === entry.id
+                    }
+                    onSelect={handleSelect}
+                    onQuickApprove={handleQuickApprove}
+                  />
+                ) : (
+                  <WorkRow
+                    key={entry.id}
+                    work={entry.work}
+                    selected={entry.id === selectedId}
+                    onSelect={handleSelect}
+                  />
+                ),
+              )
             )}
           </div>
 
@@ -622,22 +647,29 @@ export function ClientReview({
           {/* The activity, beside the item rather than under it. Fixed width
               and its own scroll: it grows all day and the item it is about
               must not slide off the top of the screen while it does. */}
-          {isWide ? (
+          {/* `chatNode` and not `isWide` alone: a briefed task has no thread
+              (nothing to hang one off), and an empty bordered column beside it
+              reads as something that failed to load. */}
+          {isWide && chatNode ? (
             <aside className="flex w-[24rem] shrink-0 flex-col border-l border-m-outline-variant p-4">
               {chatNode}
             </aside>
           ) : null}
 
+          {/* A briefed task opens here too. Tapping a row that did nothing on
+              a phone is how the list stops being trusted. */}
           <Sheet
-            open={!isDesktop && selectedItem !== null}
+            open={!isDesktop && (selectedItem !== null || selectedWork !== null)}
             onOpenChange={(open) => {
               if (!open) setSelectedId(null);
             }}
           >
             <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-              {selectedItem ? (
+              {selectedItem || selectedWork ? (
                 <>
-                  <SheetTitle className="sr-only">{selectedItem.client_title}</SheetTitle>
+                  <SheetTitle className="sr-only">
+                    {selectedItem?.client_title ?? selectedWork?.title ?? ""}
+                  </SheetTitle>
                   {detailNode}
                   {chatNode}
                 </>

@@ -10,6 +10,7 @@
 
 import type { CalendarEntry } from "@/lib/calendar-month";
 import { todayISO, toISODate } from "@/lib/dates";
+import type { StopClockSource } from "@/lib/stop-clock";
 import type {
   ReviewBucket,
   ReviewItem,
@@ -18,6 +19,7 @@ import type {
   ReviewMove,
   ReviewOpen,
   ReviewScheduleRow,
+  ReviewWork,
 } from "@/types/client-review";
 
 /**
@@ -88,8 +90,75 @@ export function daysOverdue(item: ReviewItem): number {
   return Math.max(0, Math.round((today.getTime() - due.getTime()) / 86_400_000));
 }
 
-/** How many items sit in each pane. Every bucket is present, even at zero. */
-export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> {
+/**
+ * Which pane a piece of briefed work sits in. THE SAME RULE `bucketOf` uses
+ * for an ask, deliberately: whoever is holding it up is whose pane it is in.
+ * Not a third rule, or the two halves of one list would disagree about what
+ * "with us" means.
+ *
+ * Work is never settled and never a date, so only the two live panes apply.
+ */
+export function workBucketOf(w: ReviewWork): ReviewBucket {
+  return w.court === "client" ? "your-move" : "with-us";
+}
+
+/**
+ * How long this has been the client's problem, in whole days — the same
+ * question `pressureDays` answers for an ask, so the two can be sorted into
+ * one queue. Past its date if it had one, else nothing: a task carries no
+ * "waiting on you" clock the client was ever told about.
+ */
+function workPressureDays(w: ReviewWork): number {
+  if (workBucketOf(w) !== "your-move" || !w.due_date) return 0;
+  const due = new Date(`${w.due_date}T00:00:00`);
+  const today = new Date(`${todayISO()}T00:00:00`);
+  return Math.max(0, Math.round((today.getTime() - due.getTime()) / 86_400_000));
+}
+
+/**
+ * The queue, asks and briefed work in ONE order.
+ *
+ * Interleaved rather than appended: the list is ordered by what needs them
+ * most, and three tasks 26 days past their date sitting under a 6-day ask
+ * contradicts that at a glance. The key is the same pressure both sides
+ * already sort by, so nothing here is a second definition of "urgent".
+ */
+export type QueueEntry =
+  | { kind: "item"; id: string; item: ReviewItem }
+  | { kind: "work"; id: string; work: ReviewWork };
+
+export function queueFor(
+  items: ReviewItem[],
+  work: ReviewWork[],
+  bucket: ReviewBucket,
+): QueueEntry[] {
+  const entries: QueueEntry[] = [
+    ...sortForQueue(items)
+      .filter((i) => bucketOf(i) === bucket)
+      .map((item) => ({ kind: "item" as const, id: item.id, item })),
+    ...work
+      .filter((w) => workBucketOf(w) === bucket)
+      .map((w) => ({ kind: "work" as const, id: w.id, work: w })),
+  ];
+  // sortForQueue already ordered the asks among themselves; this only decides
+  // where each task lands between them, on the one key both kinds have.
+  return entries.sort((a, b) => {
+    const ap = a.kind === "item" ? pressureDays(a.item) : workPressureDays(a.work);
+    const bp = b.kind === "item" ? pressureDays(b.item) : workPressureDays(b.work);
+    return bp - ap;
+  });
+}
+
+/**
+ * How many things sit in each pane. Every bucket is present, even at zero.
+ *
+ * `work` counts too, or the rail says 2 while the list shows 5 — the counts
+ * and the rows must come from one accounting.
+ */
+export function bucketCounts(
+  items: ReviewItem[],
+  work: ReviewWork[] = [],
+): Record<ReviewBucket, number> {
   const counts: Record<ReviewBucket, number> = {
     "your-move": 0,
     "with-us": 0,
@@ -97,6 +166,7 @@ export function bucketCounts(items: ReviewItem[]): Record<ReviewBucket, number> 
     "coming-up": 0,
   };
   for (const item of items) counts[bucketOf(item)] += 1;
+  for (const w of work) counts[workBucketOf(w)] += 1;
   return counts;
 }
 
@@ -194,57 +264,113 @@ export function heldLine(item: ReviewItem): string | null {
 }
 
 /**
- * One row of "who's holding it up", for the client's own version of the tab
- * staff argue from. Days, not ms — nothing on this view is finer than a day.
+ * One row of "who's holding it up", ready for stopClock and the same
+ * RunwayChart staff argue from. Nothing here says where the row came from.
  */
-export type HoldingRow = {
-  id: string;
-  title: string;
-  /** Whose court the work is in right now. Never null — unlinked rows are out. */
-  court: "client" | "us" | "done";
-  theirsDays: number;
-  oursDays: number;
-  /** The date originally set, and where it lands once their days come off. */
-  neededByMs: number | null;
-  movedToMs: number | null;
-};
+export type HoldingRow = StopClockSource & { id: string; title: string };
 
 /**
- * Where the time on the open work has actually gone, from the client's own
- * items. NOT from briefs: this view is built out of what is already on their
- * page, so it cannot show them a task nobody has titled for them.
+ * When something with no linked task landed with whoever owes it.
  *
- * THE STOP-CLOCK RULE IS THE SAME ONE STAFF SEE (src/lib/stop-clock.ts):
- * only client-held time moves a date, queued time never does. A date that
- * slipped because WE had not started is not adjusted, here or there — one row
- * like that discredits every other row on the page, and this is the version
- * the client reads.
- *
- * Settled items are out (how long it took is our record, not a reproach), and
- * so is anything with no linked task, which is every question and every
- * agreement: they have no clock, and a row of two zeroes explains nothing.
- * Longest-held first, because that is the conversation.
+ * An agreement started when they made it, not when we typed it up. A question
+ * started when the email went out. Everything else falls back to the row's own
+ * creation. `created_at` alone would date a commitment made in a meeting on
+ * the 4th to the day someone got round to recording it.
  */
-export function holdingRows(items: ReviewItem[]): HoldingRow[] {
+function heldSince(item: ReviewItem): string {
+  return item.agreed_at ?? item.emailed_at ?? item.created_at;
+}
+
+/**
+ * EVERYTHING OPEN, and whose hands it is sitting in. Three sources, because a
+ * client looking at this wants the whole position:
+ *
+ *   their asks       questions and agreements, which have no ClickUp task and
+ *                    so had no clock and no row at all until now
+ *   linked tasks     an ask drafted from a brief, carrying ClickUp's clocks
+ *   `work`           briefed tasks that never became an ask — the ones staff
+ *                    could see and the client could not
+ *
+ * That last one is the whole reason this function changed. The two sides of
+ * this tab read different tables, so a client with seven live tasks and one
+ * agreement saw one row. `work` titles are sanitised SERVER-SIDE (ReviewWork),
+ * because raw_subject reads "DFT V1.1" and must never cross.
+ *
+ * Two clocks, one rule for each kind of row:
+ *   linked task     ClickUp's own banked totals, and the client's days move
+ *                   the due date — that date is our delivery promise, and
+ *                   days they held it are days we did not have.
+ *   everything else no banked total to read, so the clock runs from the moment
+ *                   it landed with them and the whole of it belongs to
+ *                   whoever owes it. The date does NOT move: it is the date
+ *                   they were asked to hit. See `stop_clock` in stop-clock.ts.
+ *
+ * Settled items are out. How long something took is our record to keep, not a
+ * reproach to keep showing them. Sorting belongs to the caller, which has the
+ * clocks: the elapsed time on an unlinked row is not on the row itself.
+ */
+export function holdingRows(items: ReviewItem[], work: ReviewWork[] = []): HoldingRow[] {
   const rows: HoldingRow[] = [];
-  for (const item of items) {
-    if (item.state !== "pending" || !item.court) continue;
-    const theirsMs = item.waiting_ms ?? 0;
-    const oursMs = item.our_ms ?? 0;
-    const dueMs = item.due_date ? Date.parse(`${item.due_date}T00:00:00Z`) : NaN;
-    const neededByMs = Number.isNaN(dueMs) ? null : dueMs;
+
+  // Briefed work first only in construction order; the caller sorts on the
+  // clock. A `done` row never reaches here — the server leaves finished work
+  // out, matching the staff tab's Open default and the rule that how long
+  // something took is our record, not a reproach.
+  for (const w of work) {
+    if (w.court === "done") continue;
     rows.push({
-      id: item.id,
-      title: item.client_title,
-      court: item.court,
-      theirsDays: theirsMs / 86_400_000,
-      oursDays: oursMs / 86_400_000,
-      neededByMs,
-      // Their days, and only their days, move the date.
-      movedToMs: neededByMs === null ? null : neededByMs + theirsMs,
+      id: w.id,
+      title: w.title,
+      court: w.court,
+      client_wait_ms: w.waiting_ms,
+      internal_wait_ms: w.our_ms,
+      clickup_status_synced_at: null,
+      original_due_date: w.due_date,
+      created_at: w.work_since,
+      // Points are an internal estimate and never cross the wire; without them
+      // the chart simply does not draw the "tight" verdict.
+      original_points: null,
+      // The client's page is our delivery date on a briefed task, so their
+      // days DO move it — the default, and the opposite of an ask they owe.
     });
   }
-  return rows.sort((a, b) => b.theirsDays - a.theirsDays || a.title.localeCompare(b.title));
+
+  for (const item of items) {
+    if (item.state !== "pending") continue;
+    const base = { id: item.id, title: item.client_title, original_points: null };
+
+    if (item.court && item.work_since) {
+      rows.push({
+        ...base,
+        court: item.court,
+        client_wait_ms: item.waiting_ms,
+        internal_wait_ms: item.our_ms,
+        // No running-clock extrapolation on a linked task: the banked totals
+        // are at most half an hour old (the sync cron) and nothing here is
+        // finer than a day.
+        clickup_status_synced_at: null,
+        original_due_date: item.due_date,
+        created_at: item.work_since,
+      });
+      continue;
+    }
+
+    // Nothing banked, so the whole elapsed time is the running clock — which
+    // is exactly what splitAt does with a zero total and a "synced at" of the
+    // moment it landed. One copy of that arithmetic, not a second one here.
+    const since = heldSince(item);
+    rows.push({
+      ...base,
+      court: item.owed_by === "us" ? "us" : "client",
+      client_wait_ms: 0,
+      internal_wait_ms: 0,
+      clickup_status_synced_at: since,
+      original_due_date: item.due_date,
+      created_at: since,
+      stop_clock: false,
+    });
+  }
+  return rows;
 }
 
 /**

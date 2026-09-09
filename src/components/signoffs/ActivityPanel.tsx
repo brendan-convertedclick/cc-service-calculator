@@ -32,6 +32,7 @@ import {
   Mail,
   ListPlus,
   MessageSquare,
+  Pencil,
   Reply,
   Send,
   SlidersHorizontal,
@@ -89,6 +90,7 @@ export function ActivityPanel({
   hasItems,
   onAskQuestion,
   onRecordAgreement,
+  onEdit,
 }: {
   /** The item currently selected in the preview. Undefined = nothing picked. */
   approvalId: string | undefined;
@@ -116,6 +118,19 @@ export function ActivityPanel({
   hasItems: boolean;
   onAskQuestion?: () => void;
   onRecordAgreement?: () => void;
+  /**
+   * Open the editor on the selected item — title, ask, detail, due date and
+   * the links it points at, or delete it.
+   *
+   * It lives HERE as well as on the table row because this panel is where the
+   * work actually happens: the row you want to hang a link on is the one you
+   * just clicked in the preview, and reaching the editor meant scrolling past
+   * a 720px preview to find the same item again in a collapsed table.
+   *
+   * Staff-only by construction. This panel never renders inside ClientReview,
+   * so no edit control can reach a client's page by way of the preview.
+   */
+  onEdit?: () => void;
 }) {
   const { data: events = [], isPending } = useApprovalTimeline(approvalId);
   const { data: contacts = [] } = useClientContacts(clientId);
@@ -211,12 +226,28 @@ export function ActivityPanel({
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-m-outline-variant p-4">
-        <h3 className="truncate text-title-small text-m-on-surface" title={title}>
-          {title}
-        </h3>
-        <p className="text-body-small text-m-on-surface-variant">
-          How this has gone with {clientName}.
-        </p>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-title-small text-m-on-surface" title={title}>
+              {title}
+            </h3>
+            <p className="text-body-small text-m-on-surface-variant">
+              How this has gone with {clientName}.
+            </p>
+          </div>
+          {onEdit ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="-mr-1 shrink-0"
+              onClick={onEdit}
+              title="Edit this item, its dates and its links"
+            >
+              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+              Edit
+            </Button>
+          ) : null}
+        </div>
 
         {/* The manual override. Statuses normally move because a client
               pressed something; this is for when they told you on the phone,

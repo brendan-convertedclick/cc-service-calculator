@@ -12,11 +12,19 @@ import {
   heldLine,
   holdingRows,
   isOverdue,
+  queueFor,
+  workBucketOf,
   sortForQueue,
   typeLabelFor,
   activityOf,
 } from "./client-review";
-import type { ReviewItem, ReviewItemState, ReviewScheduleRow } from "@/types/client-review";
+import { stopClock, summariseStopClocks } from "./stop-clock";
+import type {
+  ReviewItem,
+  ReviewItemState,
+  ReviewScheduleRow,
+  ReviewWork,
+} from "@/types/client-review";
 
 function planRow(over: Partial<ReviewScheduleRow> & { id: string }): ReviewScheduleRow {
   return {
@@ -101,42 +109,145 @@ describe("bucketOf", () => {
 
 describe("holdingRows", () => {
   const day = 86_400_000;
+  // Fixed, so every assertion below is arithmetic rather than a race with the
+  // clock the test is running on.
+  const NOW = Date.parse("2026-09-09T12:00:00Z");
+  const clockFor = (row: ReturnType<typeof holdingRows>[number]) => stopClock(row, NOW);
 
   it("moves the date by THEIR days only, never by ours", () => {
     const [row] = holdingRows([
       item({
         id: "a",
         court: "client",
+        work_since: "2026-07-20T08:00:00Z",
         due_date: "2026-08-13",
         waiting_ms: 25 * day,
         our_ms: 9 * day,
       }),
     ]);
+    const c = clockFor(row);
     // 13 Aug + 25 of their days = 7 Sept. Our 9 days move nothing: a date
     // that slipped because we had not started is not adjusted.
-    expect(new Date(row.movedToMs!).toISOString().slice(0, 10)).toBe("2026-09-07");
-    expect(row.neededByMs).toBe(Date.parse("2026-08-13T00:00:00Z"));
-    expect(row.oursDays).toBe(9);
+    expect(new Date(c.impliedDueMs!).toISOString().slice(0, 10)).toBe("2026-09-07");
+    expect(c.dueMs).toBe(Date.parse("2026-08-13T00:00:00Z"));
+    expect(c.ourDays).toBe(9);
   });
 
-  it("leaves out anything with no clock and anything settled", () => {
-    expect(
-      holdingRows([
-        // A question: no linked task, so no court and no clock.
-        item({ id: "a", court: null }),
-        item({ id: "b", state: "approved", court: "client", decided_at: "2026-09-01T09:00:00Z" }),
-        item({ id: "c", court: "us" }),
-      ]).map((r) => r.id),
-    ).toEqual(["c"]);
+  it("carries the questions and agreements too, attributed by who owes them", () => {
+    const rows = holdingRows([
+      // A question we asked: no linked task, so no ClickUp clock at all.
+      item({ id: "q", item_type: "question", emailed_at: "2026-09-04T12:00:00Z" }),
+      // An agreement of ours. Their side of the page, our side of the clock.
+      item({ id: "ours", item_type: "agreement", owed_by: "us", agreed_at: "2026-09-01" }),
+      item({ id: "settled", state: "approved", decided_at: "2026-09-01T09:00:00Z" }),
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(["q", "ours"]);
+    expect(clockFor(rows[0]).clientDays).toBeCloseTo(5, 5);
+    expect(clockFor(rows[1]).ourDays).toBeCloseTo(8.5, 5);
+    expect(clockFor(rows[1]).clientDays).toBe(0);
   });
 
-  it("puts the longest-held first — that is the conversation", () => {
-    expect(
-      holdingRows([
-        item({ id: "small", court: "client", waiting_ms: 2 * day }),
-        item({ id: "big", court: "client", waiting_ms: 30 * day }),
-      ]).map((r) => r.id),
-    ).toEqual(["big", "small"]);
+  it("carries briefed work the client was never asked about", () => {
+    // The bug this whole path exists for: staff read `briefs`, the client read
+    // only their asks, so seven live tasks showed as an empty page.
+    const rows = holdingRows(
+      [item({ id: "ask" })],
+      [
+        {
+          id: "w1",
+          title: "Tego Plastics Website - SEO Audit",
+          court: "us",
+          waiting_ms: null,
+          our_ms: 23 * day,
+          work_since: "2026-08-17T06:00:00Z",
+          due_date: "2026-08-19",
+        },
+        // Finished work is our record, not a reproach, and it matches the
+        // staff tab's Open default.
+        {
+          id: "done",
+          title: "Something delivered",
+          court: "done",
+          waiting_ms: null,
+          our_ms: null,
+          work_since: "2026-08-01T06:00:00Z",
+          due_date: "2026-08-02",
+        },
+      ],
+    );
+    expect(rows.map((r) => r.id)).toEqual(["w1", "ask"]);
+    const c = clockFor(rows[0]);
+    expect(c.ourDays).toBe(23);
+    // A briefed task IS our delivery promise, so their days would move it —
+    // the opposite of an ask they owe. None here, so the date stands.
+    expect(c.impliedDueMs).toBe(c.dueMs);
+    expect(rows[0].stop_clock).toBeUndefined();
+  });
+
+  it("never moves the date on something the CLIENT owes", () => {
+    // Agreed 24 Aug, needed by 26 Aug, still not done on 9 Sep. Their own
+    // lateness must not buy them a later date: the queue calls this 14 days
+    // overdue and the chart has to agree.
+    const [row] = holdingRows([
+      item({ id: "a", item_type: "agreement", agreed_at: "2026-08-24", due_date: "2026-08-26" }),
+    ]);
+    const c = clockFor(row);
+    expect(c.court).toBe("client");
+    expect(c.clientDays).toBeCloseTo(16.5, 5);
+    expect(c.impliedDueMs).toBe(c.dueMs);
+    expect(c.lateDays).toBe(c.pastDueDays);
+    expect(summariseStopClocks([c]).daysLost).toBe(0);
+  });
+
+  it("counts our own overdue commitment as late on us", () => {
+    const [row] = holdingRows([
+      item({
+        id: "a",
+        item_type: "agreement",
+        owed_by: "us",
+        agreed_at: "2026-08-24",
+        due_date: "2026-08-26",
+      }),
+    ]);
+    const summary = summariseStopClocks([clockFor(row)]);
+    expect(summary.lateOnUs).toBe(1);
+    expect(summary.daysLost).toBe(0);
+  });
+});
+
+describe("queueFor", () => {
+  const w = (over: Partial<ReviewWork> & { id: string }): ReviewWork => ({
+    title: `Work ${over.id}`,
+    court: "us",
+    waiting_ms: null,
+    our_ms: null,
+    work_since: "2026-08-01T08:00:00Z",
+    due_date: null,
+    ...over,
+  });
+
+  it("buckets briefed work by the same rule an ask uses", () => {
+    expect(workBucketOf(w({ id: "a", court: "client" }))).toBe("your-move");
+    expect(workBucketOf(w({ id: "b", court: "us" }))).toBe("with-us");
+  });
+
+  it("counts work in the rail, or the badge and the list disagree", () => {
+    const counts = bucketCounts(
+      [item({ id: "i" })],
+      [w({ id: "a", court: "client" }), w({ id: "b", court: "us" })],
+    );
+    expect(counts["your-move"]).toBe(2);
+    expect(counts["with-us"]).toBe(1);
+  });
+
+  it("interleaves by pressure — a 26-day task outranks a 6-day ask", () => {
+    const entries = queueFor(
+      [item({ id: "ask", due_date: daysFromToday(-6) })],
+      [w({ id: "task", court: "client", due_date: daysFromToday(-26) })],
+      "your-move",
+    );
+    expect(entries.map((e) => e.id)).toEqual(["task", "ask"]);
+    expect(entries[0].kind).toBe("work");
   });
 });
 

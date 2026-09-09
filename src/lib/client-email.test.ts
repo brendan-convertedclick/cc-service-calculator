@@ -288,7 +288,7 @@ describe("buildChaseEmail", () => {
 
   it("names no single item — it is about the whole list", () => {
     const mail = buildChaseEmail(base);
-    expect(mail.subject).toBe("Where things stand with Converted Click");
+    expect(mail.subject).toBe("Task Update");
     expect(mail.bodyHtml).toContain("Open your sign-off page");
   });
 

@@ -11,6 +11,9 @@
 //     literal string "Converted Click".
 //  2. Item titles are `client_title` (client_approvals.client_title, authored
 //     by staff). `raw_subject` is not in this file and must never enter it.
+//     ReviewWork.title is the one line derived from it, and it is
+//     `suggestClientTitle(raw_subject)` computed SERVER-SIDE — the raw column
+//     never crosses the wire, only what survives the sanitiser.
 //
 // The edge function mirrors these types at the top of its own file, because
 // Deno cannot import from src/. Change one, change both.
@@ -350,6 +353,42 @@ export type ClientReviewRequest = ListRequest | DecideRequest | ReplyRequest | R
 
 export type TokenFailure = { status: "expired" | "revoked" | "unknown" };
 
+/**
+ * One piece of briefed work on the client's own "Who's holding it up".
+ *
+ * SEVEN FIELDS AND NO MORE, and the first one is the reason this type is
+ * written down rather than reusing anything: `title` is
+ * `suggestClientTitle(briefs.raw_subject)`, computed SERVER-SIDE. The raw
+ * subject reads "… - DFT V1.1 (QC)" and is barred from this file and from
+ * every response — see rule 2 at the top. What crosses is the sanitised line
+ * and two durations.
+ *
+ * No status string (ours, not theirs — `court` carries the meaning), no
+ * assignee, no points, no hours, no ClickUp url. A row here is not decidable
+ * and never appears in `items`.
+ */
+export type ReviewWork = {
+  /** briefs.id. Distinct from every ReviewItem id — nothing joins them. */
+  id: string;
+  /** The sanitised subject. Never the raw one. */
+  title: string;
+  /** Whose court, from the ClickUp status. Never the status itself. */
+  court: "client" | "us" | "done";
+  /** The two halves of the clock, in ms, as banked by the sync. */
+  waiting_ms: number | null;
+  our_ms: number | null;
+  /**
+   * When Conductor was told about it — the same column the staff chart draws
+   * from, so the two cannot disagree about one task. It is NOT when ClickUp
+   * created the task: on work briefed long after the fact the chart shows the
+   * gap as "before we were told", which is what it is. Storing ClickUp's own
+   * date_created on `briefs` is what would tighten both sides at once.
+   */
+  work_since: string;
+  /** "YYYY-MM-DD" or null. The date as briefed. */
+  due_date: string | null;
+};
+
 export type ListOk = {
   status: "ok";
   /** clients.name. The only company name in the payload. */
@@ -371,6 +410,19 @@ export type ListOk = {
    * Only the calendar reads it.
    */
   schedule: ReviewScheduleRow[];
+  /**
+   * The client's briefed work that has never become an ask (0139-era items in
+   * `client_approvals` are the ones that did). It rides beside `items` for the
+   * same reason `schedule` does: a task nobody has titled for them is not a
+   * decision they can take, so it reaches "Who's holding it up" and NOTHING
+   * else — no buttons, no queue, no bucket count.
+   *
+   * It exists because the two sides of that tab disagreed: staff read every
+   * briefed ClickUp task, the client read only their asks, so a client with
+   * seven live tasks and one agreement saw one row and concluded the page was
+   * broken. Same tab, same question, same rows.
+   */
+  work: ReviewWork[];
   /**
    * Who this link belongs to, when it belongs to somebody (0142).
    *
