@@ -63,7 +63,7 @@ export function useTeamCapacity(month: string) {
         supabase.from("team_members").select("id, full_name").is("archived_at", null),
         supabase
           .from("briefs")
-          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points")
+          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points")
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
@@ -146,9 +146,12 @@ export function useTeamCapacity(month: string) {
         completed_at: string | null;
         assignee_id: string | null;
         original_points: number | null;
+        clickup_points: number | null;
       }>) {
         const p = bucket(b.assignee_id);
-        const hours = Number(b.original_points ?? 0) * HOURS_PER_POINT;
+        // Live points first (0170): original_points is the frozen estimate,
+        // and ClickUp's dashboard sums what the task says today.
+        const hours = Number(b.clickup_points ?? b.original_points ?? 0) * HOURS_PER_POINT;
         p.briefedHours += hours;
         p.briefCount += 1;
         p.items.push({

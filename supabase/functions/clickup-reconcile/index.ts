@@ -27,6 +27,7 @@ interface CuTask {
   points: number | null;
   list: { id: string; name: string } | null;
   date_closed: string | null;
+  date_done?: string | null;
   assignees?: Array<{ id: number }>;
 }
 
@@ -87,6 +88,9 @@ Deno.serve(async (req: Request) => {
       include_open?: boolean;
       adopt?: boolean;
       backfill_points?: boolean;
+      /** Return every closed task in the window (id, name, points, assignees,
+       *  dates, list) so a per-task diff against Conductor can be done outside. */
+      dump?: boolean;
     };
     // adopt: write every closed task Conductor is missing (client AND internal)
     // into briefs, so the person who did it gets the hours. ClickUp-native
@@ -243,6 +247,18 @@ Deno.serve(async (req: Request) => {
           pointsBackfilled += rows.length;
         }
       }
+      // Briefs: the live points (0170), so a task whose points were edited
+      // after briefing values the way ClickUp values it.
+      for (const r of briefsRes.data ?? []) {
+        const id = (r as { clickup_task_id: string | null }).clickup_task_id;
+        const t = id ? byId.get(id) : undefined;
+        if (!id || !t) continue;
+        const { error } = await sb
+          .from("briefs")
+          .update({ clickup_points: t.points ?? null })
+          .eq("clickup_task_id", id);
+        if (!error) pointsBackfilled++;
+      }
       for (const r of meetRes.data ?? []) {
         const id = (r as { clickup_task_id: string | null }).clickup_task_id;
         const t = id ? byId.get(id) : undefined;
@@ -340,6 +356,18 @@ Deno.serve(async (req: Request) => {
       adopted,
       points_backfilled: pointsBackfilled,
       meetings_backfilled: meetingsBackfilled,
+      tasks: body.dump === true
+        ? tasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          points: t.points ?? null,
+          assignees: (t.assignees ?? []).map((a) => a.id),
+          date_closed: t.date_closed,
+          date_done: t.date_done ?? null,
+          list: t.list?.name ?? null,
+          list_id: t.list?.id ?? null,
+        }))
+        : undefined,
       unmapped_lists: [...unmappedLists.entries()].map(([id, name]) => ({ list_id: id, name })),
       open: includeOpen
         ? {

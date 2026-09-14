@@ -609,6 +609,7 @@ export type Database = {
           actual_points: number | null
           assignee_id: string | null
           billing_type: string
+          clickup_points: number | null
           clickup_status_synced_at: string | null
           clickup_task_id: string | null
           clickup_task_status: string | null

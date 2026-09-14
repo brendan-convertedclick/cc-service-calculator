@@ -619,6 +619,8 @@ Deno.serve(async (req: Request) => {
           ? {
             actual_hours: actualHours,
             actual_points: actualPoints,
+            // Live points (0170). original_points stays frozen for over_budget.
+            clickup_points: task.points ?? null,
             over_budget: isComplete ? overBudget : false,
             closed_late: isComplete ? closedLate : false,
             completed_at: isComplete && completedMs

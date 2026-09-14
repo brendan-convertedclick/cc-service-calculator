@@ -108,6 +108,7 @@ const brief: Brief = {
   invoiced_by: null,
   actual_hours: null,
   actual_points: null,
+  clickup_points: null,
   original_points: null,
   original_due_date: null,
   completed_at: null,
