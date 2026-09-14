@@ -189,6 +189,45 @@ Deno.serve(async (req: Request) => {
     );
     const waitMap = await fetchWaitMap([...byTaskId.keys()]);
 
+    // Meeting tasks (0169): the capacity page values a meeting at the points on
+    // its ClickUp task once that task is closed, the same rule as a brief, so
+    // it needs the same status/points snapshot. It sits HERE, before the
+    // projects loop, for the same reason the bulk wait call does: by the end of
+    // that loop the PAT is over ClickUp's per-minute limit and everything
+    // after it silently reads nothing. 30 a tick, stalest first — a meeting's
+    // task changes once, when someone closes it, so this converges in a day.
+    const { data: meetingTasks } = await supabase
+      .from("internal_meeting_tasks")
+      .select("id, clickup_task_id")
+      .not("clickup_task_id", "is", null)
+      .order("clickup_synced_at", { ascending: true, nullsFirst: true })
+      .limit(30);
+    let meetingUpdates = 0;
+    for (const t of (meetingTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      let task: { status?: { status?: string }; points?: number | null; date_closed?: string | null; date_done?: string | null } | null = null;
+      let deleted = false;
+      try {
+        const res = await fetch(`https://api.clickup.com/api/v2/task/${t.clickup_task_id}?include_subtasks=false`, CU);
+        if (res.status === 404) deleted = true;
+        else if (res.ok) task = await res.json();
+        else continue; // rate-limited or transient: leave it for the next tick
+      } catch {
+        continue;
+      }
+      const closedMs = task?.date_closed ?? task?.date_done ?? null;
+      const { error } = await supabase
+        .from("internal_meeting_tasks")
+        .update({
+          clickup_status: deleted ? "deleted" : task?.status?.status?.toLowerCase() ?? null,
+          clickup_points: task?.points ?? null,
+          clickup_closed_at: closedMs ? new Date(Number(closedMs)).toISOString() : null,
+          clickup_synced_at: new Date().toISOString(),
+        })
+        .eq("id", t.id);
+      if (error) console.error("[meeting-sync]", t.id, error.message);
+      else meetingUpdates++;
+    }
+
     let projectsQuery = supabase.from("projects").select("*");
     if (requestedProjectId) {
       projectsQuery = projectsQuery.eq("id", requestedProjectId);
@@ -334,6 +373,9 @@ Deno.serve(async (req: Request) => {
             date_closed: task.date_closed ?? task.date_done
               ? new Date(Number(task.date_closed ?? task.date_done)).toISOString()
               : null,
+            // Sprint points, so a closed recurring task is valued the way
+            // ClickUp's points dashboard values it (0169).
+            points: task.points ?? null,
           });
         if (insErr) throw insErr;
         inserted++;
@@ -625,6 +667,7 @@ Deno.serve(async (req: Request) => {
       ongoing_inserted: ongoingInserted,
       brief_status_updates: briefStatusUpdates,
       briefs_archived_as_deleted: briefsArchivedAsDeleted,
+      meeting_updates: meetingUpdates,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

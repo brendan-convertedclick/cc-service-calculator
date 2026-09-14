@@ -2141,7 +2141,11 @@ export type Database = {
       }
       internal_meeting_tasks: {
         Row: {
+          clickup_closed_at: string | null
+          clickup_points: number | null
+          clickup_status: string | null
           clickup_sync_error: string | null
+          clickup_synced_at: string | null
           clickup_task_id: string | null
           clickup_task_url: string | null
           created_at: string
@@ -6186,6 +6190,7 @@ export type Database = {
           month: string | null
           period_start: string | null
           planned_hours: number | null
+          points: number | null
           project_id: string | null
         }
         Relationships: [

@@ -73,18 +73,18 @@ export function useTeamCapacity(month: string) {
         // Lisa's July GMB weeks closed in August belong to August (0168).
         supabase
           .from("retainer_recurring_delivery")
-          .select("clickup_task_id, is_closed, planned_hours")
+          .select("clickup_task_id, is_closed, planned_hours, points")
           .eq("closed_month", month)
           .eq("is_closed", true),
         // Meetings live in their own table and were invisible here; five of
-        // Lisa's August tasks were [Meeting] rows. Duration is the honest
-        // figure — a 30-minute stand-up is 30 minutes whatever its points say.
+        // Lisa's August tasks were [Meeting] rows. Same rule as a brief: the
+        // meeting counts when its ClickUp task is closed, at that task's
+        // points (0169), so this page and ClickUp's points dashboard agree.
         supabase
-          .from("internal_meetings")
-          .select("id, title, starts_at, ends_at, clients(name), internal_meeting_tasks(team_member_id)")
-          .gte("starts_at", start)
-          .lt("starts_at", end)
-          .neq("status", "cancelled"),
+          .from("internal_meeting_tasks")
+          .select("id, team_member_id, clickup_points, clickup_closed_at, internal_meetings(title, clients(name))")
+          .gte("clickup_closed_at", start)
+          .lt("clickup_closed_at", end),
         supabase.from("clients").select("id, name"),
       ]);
       if (teamRes.error) throw teamRes.error;
@@ -161,13 +161,18 @@ export function useTeamCapacity(month: string) {
         });
       }
 
+      // Points when the task has them, planned hours only for a snapshot old
+      // enough to predate 0169 — the same basis as briefs and as ClickUp.
       const closedHoursByTask = new Map<string, number>();
       for (const d of (deliveryRes.data ?? []) as Array<{
         clickup_task_id: string;
         is_closed: boolean;
         planned_hours: number | null;
+        points: number | null;
       }>) {
-        if (d.is_closed) closedHoursByTask.set(d.clickup_task_id, Number(d.planned_hours ?? 0));
+        if (!d.is_closed) continue;
+        const hours = d.points != null ? Number(d.points) * HOURS_PER_POINT : Number(d.planned_hours ?? 0);
+        closedHoursByTask.set(d.clickup_task_id, hours);
       }
       for (const row of (provRes.data ?? []) as unknown as Array<{
         assignee_id: string | null;
@@ -194,30 +199,26 @@ export function useTeamCapacity(month: string) {
         }
       }
 
-      for (const m of (meetingsRes.data ?? []) as unknown as Array<{
+      for (const t of (meetingsRes.data ?? []) as unknown as Array<{
         id: string;
-        title: string;
-        starts_at: string;
-        ends_at: string;
-        clients: { name: string } | null;
-        internal_meeting_tasks: Array<{ team_member_id: string | null }>;
+        team_member_id: string | null;
+        clickup_points: number | null;
+        clickup_closed_at: string | null;
+        internal_meetings: { title: string; clients: { name: string } | null } | null;
       }>) {
-        const hours = Math.round(((Date.parse(m.ends_at) - Date.parse(m.starts_at)) / 3_600_000) * 100) / 100;
-        if (!(hours > 0)) continue;
-        for (const t of m.internal_meeting_tasks) {
-          if (!t.team_member_id) continue;
-          const p = bucket(t.team_member_id);
-          p.meetingHours += hours;
-          p.meetingCount += 1;
-          p.items.push({
-            id: `${m.id}:${t.team_member_id}`,
-            name: m.title,
-            clientName: m.clients?.name ?? "Internal",
-            hours,
-            kind: "meeting",
-            closedAt: m.starts_at,
-          });
-        }
+        if (!t.team_member_id) continue;
+        const hours = Number(t.clickup_points ?? 0) * HOURS_PER_POINT;
+        const p = bucket(t.team_member_id);
+        p.meetingHours += hours;
+        p.meetingCount += 1;
+        p.items.push({
+          id: t.id,
+          name: t.internal_meetings?.title ?? "Meeting",
+          clientName: t.internal_meetings?.clients?.name ?? "Internal",
+          hours,
+          kind: "meeting",
+          closedAt: t.clickup_closed_at,
+        });
       }
 
       const people = [...byPerson.values()].map((p) => ({
