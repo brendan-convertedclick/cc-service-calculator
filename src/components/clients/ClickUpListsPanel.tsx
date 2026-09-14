@@ -10,13 +10,7 @@ import {
 } from "@/hooks/useClientLists";
 import { useTaskGroups } from "@/hooks/useOngoingTasks";
 import { errorMessage } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { PanelSection } from "@/components/clients/PanelSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,7 +44,7 @@ export function ClickUpListsPanel({
     sync.mutate(clientId, {
       onSuccess: (r) => {
         toast.success(
-          `Sync complete: ${r.discovered} discovered, ${r.refreshed} refreshed`,
+          `Sync complete: ${r.discovered} discovered, ${r.refreshed} refreshed, ${r.archived} archived`,
         );
       },
       onError: (e) =>
@@ -60,28 +54,17 @@ export function ClickUpListsPanel({
 
   if (!clickupFolderId) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>ClickUp lists</CardTitle>
-          <CardDescription>
-            This client has no <code>clickup_folder_id</code>. Set one in the
-            ClickUp folder picker before mapping lists.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <PanelSection title="Lists" description="No folder linked yet. Pick one above, then sync.">
+        {null}
+      </PanelSection>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between">
-        <div className="space-y-1">
-          <CardTitle>ClickUp lists</CardTitle>
-          <CardDescription>
-            Map each ClickUp list inside this client's folder to a task group.
-            Ongoing tasks are provisioned into the mapped list.
-          </CardDescription>
-        </div>
+    <PanelSection
+      title="Lists"
+      description="Map each ClickUp list inside this client's folder to a task group. Ongoing tasks are provisioned into the mapped list."
+      action={
         <Button
           variant="outline"
           size="sm"
@@ -93,8 +76,9 @@ export function ClickUpListsPanel({
           />
           {sync.isPending ? "Syncing…" : "Sync from ClickUp"}
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-2">
+      }
+    >
+      <div className="space-y-2">
         {isLoading && (
           <div className="text-body-small text-m-on-surface-variant">
             Loading…
@@ -220,7 +204,7 @@ export function ClickUpListsPanel({
             <Plus className="h-4 w-4 mr-1" /> New list
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelSection>
   );
 }

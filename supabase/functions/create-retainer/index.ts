@@ -4,7 +4,10 @@
 //   client_id, clickup_list_id, name, retainer_hours_target,
 //   retainer_monthly_fee_cents, recurrence_start,
 //   services: Array<{ service_id, cadence, occurrences_per_month,
-//                     points_per_occurrence, default_assignees, is_live_eligible }>
+//                     points_per_occurrence, default_assignees, is_live_eligible,
+//                     occurrence_labels?, occurrence_start_days?, occurrence_due_days?,
+//                     label_as_task_name?, roll_up_monthly?, recur_weekday?,
+//                     task_description?, checklist_items? }>
 // }
 // Response: 200 { project_id, clickup_parent_task_id, provision } | { ..., provision_warning }
 //
@@ -49,6 +52,18 @@ type ServiceInput = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  // The timing half of a recurring service. Optional so every existing caller
+  // is unaffected, but they are what decide WHEN the provisioner puts a task —
+  // every Monday, due on the 15th — and a retainer of routines is nothing
+  // without them. Carried through templates since 0167.
+  occurrence_labels?: string[];
+  occurrence_start_days?: number[];
+  occurrence_due_days?: number[];
+  label_as_task_name?: boolean;
+  roll_up_monthly?: boolean;
+  recur_weekday?: number | null;
+  task_description?: string | null;
+  checklist_items?: string[];
 };
 
 type RetainerBody = {
@@ -115,6 +130,14 @@ Deno.serve(async (req: Request) => {
       }
       if (typeof svc.points_per_occurrence !== "number" || !(svc.points_per_occurrence > 0)) {
         return json({ error: `services[${i}]: points_per_occurrence must be > 0` }, 400);
+      }
+      if (
+        svc.recur_weekday != null &&
+        (!Number.isInteger(svc.recur_weekday) || svc.recur_weekday < 0 || svc.recur_weekday > 6)
+      ) {
+        return json({
+          error: `services[${i}]: recur_weekday must be 0 (Sunday) to 6 (Saturday)`,
+        }, 400);
       }
       if (!Array.isArray(svc.default_assignees) || svc.default_assignees.length < 1) {
         return json({
@@ -204,6 +227,14 @@ Deno.serve(async (req: Request) => {
       points_per_occurrence: svc.points_per_occurrence,
       default_assignees: svc.default_assignees,
       is_live_eligible: svc.is_live_eligible ?? true,
+      occurrence_labels: svc.occurrence_labels ?? [],
+      occurrence_start_days: svc.occurrence_start_days ?? [],
+      occurrence_due_days: svc.occurrence_due_days ?? [],
+      label_as_task_name: svc.label_as_task_name ?? false,
+      roll_up_monthly: svc.roll_up_monthly ?? false,
+      recur_weekday: svc.recur_weekday ?? null,
+      task_description: svc.task_description ?? null,
+      checklist_items: svc.checklist_items ?? [],
     }));
     const { error: rrsErr } = await sb
       .from("retainer_recurring_services")

@@ -30,6 +30,8 @@ export interface ProvisionedTaskRow {
 
 export interface SubItemActualRow {
   clickup_task_id: string;
+  /** The task's real name in ClickUp, as read by sync-clickup-actuals. */
+  task_name: string | null;
   planned_hours: number | null;
   actual_hours: number | null;
   status_at_sync: string | null;
@@ -64,8 +66,18 @@ export function combineSubItems(
       const status = actual?.status_at_sync ?? null;
       out.push({
         taskId,
+        // The task's ACTUAL ClickUp name when we have it (Lisa, 2026-09-09:
+        // "why do the names not correlate?"). One recurring service produces
+        // several tasks — Pimms' plugin sweep is one per site — and the
+        // provisioner puts that per-occurrence label into the ClickUp name.
+        // Showing the service name here printed "Website Plugin Updates" five
+        // times against five differently-named ClickUp tasks, so the panel and
+        // the board looked unrelated. The service name stays as the fallback
+        // for a task the sync has not read yet.
         serviceName:
-          row.retainer_recurring_services?.services?.name ?? "Recurring service",
+          actual?.task_name?.trim() ||
+          row.retainer_recurring_services?.services?.name ||
+          "Recurring service",
         assigneeName: row.team_members?.full_name ?? null,
         periodStart: row.period_start,
         periodEnd: row.period_end,
@@ -96,7 +108,7 @@ export function useRetainerSubItems(projectId: string) {
           .order("period_start", { ascending: false }),
         sb
           .from("project_actuals_current")
-          .select("clickup_task_id, planned_hours, actual_hours, status_at_sync")
+          .select("clickup_task_id, task_name, planned_hours, actual_hours, status_at_sync")
           .eq("project_id", projectId),
       ]);
       if (prov.error) throw prov.error;

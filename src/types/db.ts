@@ -5963,6 +5963,11 @@ export type Database = {
           xero_contact_id: string | null
           xero_contact_name: string | null
           xero_invoice_id: string
+          amount_net_cents: number | null
+          issued_on: string | null
+          kind: string
+          reference: string | null
+          source: string
         }
         Insert: {
           amount_cents?: number
@@ -5980,6 +5985,11 @@ export type Database = {
           xero_contact_id?: string | null
           xero_contact_name?: string | null
           xero_invoice_id: string
+          amount_net_cents: number | null
+          issued_on: string | null
+          kind: string
+          reference: string | null
+          source: string
         }
         Update: {
           amount_cents?: number
@@ -5997,6 +6007,11 @@ export type Database = {
           xero_contact_id?: string | null
           xero_contact_name?: string | null
           xero_invoice_id?: string
+          amount_net_cents?: number | null
+          issued_on?: string | null
+          kind?: string
+          reference?: string | null
+          source?: string
         }
         Relationships: [
           {
@@ -6055,6 +6070,108 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      retainer_templates: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_internal: boolean
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_internal?: boolean
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_internal?: boolean
+          name?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      retainer_template_services: {
+        Row: {
+          cadence: string
+          checklist_items: string[]
+          id: string
+          is_live_eligible: boolean
+          label_as_task_name: boolean
+          occurrence_due_days: number[]
+          occurrence_labels: string[]
+          occurrence_start_days: number[]
+          occurrences_per_month: number
+          points_per_occurrence: number
+          recur_weekday: number | null
+          roll_up_monthly: boolean
+          service_id: string
+          sort_order: number
+          task_description: string | null
+          template_id: string
+        }
+        Insert: {
+          cadence?: string
+          checklist_items?: string[]
+          id?: string
+          is_live_eligible?: boolean
+          label_as_task_name?: boolean
+          occurrence_due_days?: number[]
+          occurrence_labels?: string[]
+          occurrence_start_days?: number[]
+          occurrences_per_month: number
+          points_per_occurrence: number
+          recur_weekday?: number | null
+          roll_up_monthly?: boolean
+          service_id: string
+          sort_order?: number
+          task_description?: string | null
+          template_id: string
+        }
+        Update: {
+          cadence?: string
+          checklist_items?: string[]
+          id?: string
+          is_live_eligible?: boolean
+          label_as_task_name?: boolean
+          occurrence_due_days?: number[]
+          occurrence_labels?: string[]
+          occurrence_start_days?: number[]
+          occurrences_per_month?: number
+          points_per_occurrence?: number
+          recur_weekday?: number | null
+          roll_up_monthly?: boolean
+          service_id?: string
+          sort_order?: number
+          task_description?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retainer_template_services_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "retainer_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retainer_template_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

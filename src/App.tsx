@@ -70,6 +70,9 @@ const NewProjectWizard = lazy(() =>
 const Feedback = lazy(() =>
   import("@/pages/Feedback").then((m) => ({ default: m.Feedback })),
 );
+const RetainersDashboard = lazy(() =>
+  import("@/pages/RetainersDashboard").then((m) => ({ default: m.RetainersDashboard })),
+);
 const RetainersList = lazy(() =>
   import("@/pages/RetainersList").then((m) => ({ default: m.RetainersList })),
 );
@@ -284,7 +287,10 @@ export default function App() {
               <Route path="projects" element={<Projects />} />
               <Route path="projects/new" element={<NewProjectWizard />} />
               <Route path="projects/:id" element={<ProjectDetail />} />
-              <Route path="retainers" element={<RetainersList />} />
+              {/* The dashboard is what you land on (Lisa, 2026-09-10); the
+                  book it summarises is one button away at /retainers/book. */}
+              <Route path="retainers" element={<RetainersDashboard />} />
+              <Route path="retainers/book" element={<RetainersList />} />
               <Route path="retainers/new" element={<NewRetainerWizard />} />
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />

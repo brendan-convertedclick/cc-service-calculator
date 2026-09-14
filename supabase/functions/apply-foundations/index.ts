@@ -24,6 +24,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
+import { cuFetch } from "../_shared/clickup.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
 type CuList = { id: string; name: string };
@@ -161,7 +162,7 @@ Deno.serve(async (req: Request) => {
         if (mapped) {
           stat.lists_existing++;
         } else {
-          const cuRes = await fetch(
+          const cuRes = await cuFetch(
             `https://api.clickup.com/api/v2/folder/${client.clickup_folder_id}/list`,
             {
               ...CU,
@@ -218,7 +219,7 @@ Deno.serve(async (req: Request) => {
             stat.tasks_existing++;
             continue;
           }
-          const cuTaskRes = await fetch(
+          const cuTaskRes = await cuFetch(
             `https://api.clickup.com/api/v2/list/${mapped.clickup_list_id}/task`,
             {
               ...CU,

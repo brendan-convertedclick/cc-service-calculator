@@ -1,7 +1,13 @@
 // supabase/functions/provision-retainer-period/index.ts
 //
 // Request:  POST { project_id: string, period_start?: string, rename_existing?: boolean }
-// Response: 200 { created: number, reused: number, patched: number }
+// Response: 200 { created, reused, patched, failed_count, failed? }
+//
+// `created` counts periods where ClickUp ACTUALLY took a task. A period the
+// ClickUp create failed on is reported in `failed` and NOT written to
+// provisioned_tasks — writing it anyway used to report success, claim the month
+// was done, and then let the unique index refuse every retry, so the month could
+// never heal.
 //
 // Provisions ClickUp tasks for one retainer's period (default = current month).
 // Idempotent: rerunning for the same (recurring_service × assignee × period)
@@ -25,6 +31,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { cuFetch } from "../_shared/clickup.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { addClickupChecklist, findCustomField, resolveDropdownOption } from "../_shared/clickup.ts";
 import type { CuField } from "../_shared/clickup.ts";
@@ -83,10 +90,16 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Project has no clickup_list_id — cannot provision tasks." }, 400);
     }
 
+    // Paused services are skipped (0163). This is the ONLY place that has to
+    // know: pausing stops the provisioner and nothing else, so a paused service
+    // still shows on the retainer and still owns the tasks it made before.
+    // It exists because the alternative was deleting the service, which
+    // cascades away its provisioned_tasks and quietly rewrites past months.
     const { data: services } = await sb
       .from("retainer_recurring_services")
       .select("*")
-      .eq("project_id", project_id);
+      .eq("project_id", project_id)
+      .is("paused_at", null);
     if (!services || services.length === 0) {
       return json({ created: 0, reused: 0, patched: 0, note: "No recurring services on this project." });
     }
@@ -197,6 +210,10 @@ Deno.serve(async (req: Request) => {
       Math.max(1, Math.round(svc.points_per_occurrence));
 
     let created = 0;
+    // Periods ClickUp refused. Returned rather than swallowed: a caller that
+    // sees created:0, failed:1 can retry; one that sees created:1 cannot know
+    // anything is wrong.
+    const failed: Array<{ service_id: string; assignee_id: string; reason: string }> = [];
     let reused = 0;
     let patched = 0;
     let reprovisioned = 0;
@@ -478,6 +495,23 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        // A period is only "provisioned" if ClickUp actually took a task. Both
+        // branches above push an id ONLY on a successful create, so an empty
+        // list means nothing was made — and writing the row anyway was quietly
+        // catastrophic: `created` reported success, the row claimed the month
+        // was done, and the unique index then refused every retry, so the month
+        // could never heal. Trellidor's new Social Media Post Scheduling hit it
+        // on 2026-09-10 — August and September reported created:1 apiece with
+        // no task behind either, and 29 such rows exist across June–September.
+        if (taskIds.length === 0) {
+          failed.push({
+            service_id: svc.id,
+            assignee_id: assigneeId,
+            reason: "ClickUp did not create a task (rate limit, or the list rejected it)",
+          });
+          continue;
+        }
+
         await sb.from("provisioned_tasks").insert({
           project_id,
           recurring_service_id: svc.id,
@@ -505,7 +539,16 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    return json({ created, reused, patched, reprovisioned, skipped_logged, field_resolution });
+    return json({
+      created,
+      reused,
+      patched,
+      reprovisioned,
+      skipped_logged,
+      failed_count: failed.length,
+      ...(failed.length > 0 ? { failed } : {}),
+      field_resolution,
+    });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
@@ -540,8 +583,11 @@ async function createClickupTask(
   if (args.parent) body.parent = args.parent;
   if (args.points !== undefined) body.points = args.points;
   if (args.customFields && args.customFields.length > 0) body.custom_fields = args.customFields;
+  // cuFetch, not fetch: a retainer of weekday routines fans out to ~20 creates
+  // in one burst, which is exactly the shape that got "Rate limit reached"
+  // (APP_002) out of ClickUp on 2026-09-10. It retries 429 only.
   const post = (b: Record<string, unknown>) =>
-    fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
+    cuFetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
       method: "POST",
       headers: { Authorization: pat, "Content-Type": "application/json" },
       body: JSON.stringify(b),

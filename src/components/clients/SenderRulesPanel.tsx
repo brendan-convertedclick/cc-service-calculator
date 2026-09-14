@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Check, X } from "lucide-react";
+import { useSaveClient } from "@/hooks/useClients";
 import {
   useSenderRules,
   usePendingSenders,
@@ -9,14 +10,9 @@ import {
   useResolvePendingSender,
   type SenderRule,
 } from "@/hooks/useSenderRules";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { PanelSection } from "@/components/clients/PanelSection";
 import { RetroCleanupDialog } from "./RetroCleanupDialog";
 
 export function SenderRulesPanel({
@@ -64,17 +60,22 @@ export function SenderRulesPanel({
   };
 
   return (
-    <div className="space-y-4">
-      {primaryDomain && (
-        <p className="text-xs text-muted-foreground">
-          All senders at <code>@{primaryDomain}</code> are accepted by default.
-          Add allow rules to restrict, or block rules to exclude specific
-          addresses. Blocklist beats allowlist.
-        </p>
-      )}
+    <>
+      {/* The domain lives here rather than in a details card because it is the
+          first sender rule: everything at it counts as business until a rule
+          below says otherwise. */}
+      <PrimaryDomainSection clientId={clientId} primaryDomain={primaryDomain} />
 
       <RuleList
         title="Allowed"
+        description={
+          primaryDomain ? (
+            <>
+              Every sender at <code>@{primaryDomain}</code> counts as business
+              already. Add an allow rule only to narrow that to named people.
+            </>
+          ) : undefined
+        }
         emptyHint="No allow rules — all senders on this domain count as business."
         rules={allow}
         onDelete={(r) => del.mutate({ id: r.id, client_id: clientId })}
@@ -86,6 +87,7 @@ export function SenderRulesPanel({
 
       <RuleList
         title="Blocked"
+        description="Blocklist beats allowlist, so an address here is ignored however else it matches."
         emptyHint="No block rules yet."
         rules={blocked}
         onDelete={(r) => del.mutate({ id: r.id, client_id: clientId })}
@@ -95,11 +97,8 @@ export function SenderRulesPanel({
         placeholder="someone@example.co.za"
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Pending approval</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <PanelSection title="Pending approval">
+        <div>
           {pending.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No senders waiting for review.
@@ -148,8 +147,8 @@ export function SenderRulesPanel({
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </PanelSection>
 
       <RetroCleanupDialog
         clientId={clientId}
@@ -157,12 +156,13 @@ export function SenderRulesPanel({
         open={!!retroPattern}
         onClose={() => setRetroPattern(null)}
       />
-    </div>
+    </>
   );
 }
 
 function RuleList({
   title,
+  description,
   emptyHint,
   rules,
   onDelete,
@@ -172,6 +172,7 @@ function RuleList({
   placeholder,
 }: {
   title: string;
+  description?: ReactNode;
   emptyHint: string;
   rules: SenderRule[];
   onDelete: (r: SenderRule) => void;
@@ -181,11 +182,8 @@ function RuleList({
   placeholder: string;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <PanelSection title={title} description={description}>
+      <div className="space-y-3">
         {rules.length === 0 ? (
           <p className="text-sm text-muted-foreground">{emptyHint}</p>
         ) : (
@@ -220,7 +218,43 @@ function RuleList({
             <Plus className="h-4 w-4" /> Add
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelSection>
+  );
+}
+
+function PrimaryDomainSection({
+  clientId,
+  primaryDomain,
+}: {
+  clientId: string;
+  primaryDomain: string | null;
+}) {
+  const { save, isPending } = useSaveClient();
+  const [value, setValue] = useState(primaryDomain ?? "");
+  const next = value.trim().toLowerCase() || null;
+  const dirty = next !== primaryDomain;
+
+  return (
+    <PanelSection
+      title="Primary domain"
+      description="Inbound mail from this domain is attributed to this client. Leave it unset and nothing from them reaches the inbox."
+    >
+      <div className="flex items-center gap-3">
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="example.co.za"
+          className="max-w-md"
+        />
+        <Button
+          size="sm"
+          disabled={!dirty || isPending}
+          onClick={() => save(clientId, { primary_domain: next })}
+        >
+          {isPending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </PanelSection>
   );
 }

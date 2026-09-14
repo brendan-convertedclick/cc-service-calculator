@@ -15,10 +15,22 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { resolveDropdownOption, type CuField } from "./clickup.ts";
 
 export const NO_CLICKUP_LIST_ERROR =
-  "No Meetings, Overhead or Admin list found in this client's ClickUp folder - add one (then re-sync the client's lists), or set a fallback internal list in Settings -> ClickUp.";
+  "No Meetings, Non-Billable or Admin list found in this client's ClickUp folder - add one (then re-sync the client's lists), or set a fallback internal list in Settings -> ClickUp.";
 
-/** ClickUp list NAMES that are a sane home for a meeting, best first. */
-const MEETING_LIST_NAMES = ["meetings", "overhead", "admin", "administration"];
+/**
+ * ClickUp list NAMES that are a sane home for a meeting, best first.
+ *
+ * "overhead" stays alongside "non-billable" (0165 renamed the label): the
+ * lists already created in ClickUp under the old word keep it until somebody
+ * renames them over there, and dropping it would strand those folders.
+ */
+const MEETING_LIST_NAMES = [
+  "meetings",
+  "non-billable",
+  "overhead",
+  "admin",
+  "administration",
+];
 
 /**
  * Resolve the ClickUp list a meeting's task belongs in, by list NAME.

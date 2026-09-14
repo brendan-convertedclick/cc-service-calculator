@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { errorMessage } from "@/lib/utils";
 import type { Database } from "@/types/db";
 
 type Client = Database["public"]["Tables"]["clients"]["Row"];
@@ -66,6 +68,24 @@ export function useUpdateClient() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: LIST }),
   });
+}
+
+// One client, edited from four different cards on its page. Each of them
+// wants the same save: patch, toast, done. Written out per card it was four
+// copies of the same eight lines.
+export function useSaveClient() {
+  const update = useUpdateClient();
+  return {
+    isPending: update.isPending,
+    save: (id: string, patch: ClientUpdate) =>
+      update.mutate(
+        { id, patch },
+        {
+          onSuccess: () => toast.success("Saved"),
+          onError: (e) => toast.error(`Update failed: ${errorMessage(e)}`),
+        },
+      ),
+  };
 }
 
 export function useArchiveClient() {

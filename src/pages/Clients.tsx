@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Check, Search, Shield, Trash2, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Check, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   useClients,
-  useUpdateClient,
   useArchiveClient,
   useClickUpFolders,
   type Client,
@@ -13,18 +12,14 @@ import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Combobox } from "@/components/ui/combobox";
-import { cn, cellField } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { DetectedInboxButton } from "@/components/clients/DetectedInboxButton";
-import { Checkbox } from "@/components/ui/checkbox";
 import { NewClientDialog, UNLINKED } from "@/components/clients/NewClientDialog";
 
 export function Clients() {
   const { data: clients = [], isLoading } = useClients();
   const { data: settings } = useSettings();
-  const { data: folders, isLoading: foldersLoading, error: foldersError } =
-    useClickUpFolders();
-  const update = useUpdateClient();
+  const { data: folders } = useClickUpFolders();
   const archive = useArchiveClient();
   const [q, setQ] = useState("");
 
@@ -54,7 +49,7 @@ export function Clients() {
             ) : (
               <>{clients.length} clients</>
             )}
-            {" · "}Each maps to a ClickUp folder, so accepting a quote creates tasks in the right place.
+            {" · "}Each maps to a ClickUp folder, so accepting a quote creates tasks in the right place. Open a client to edit it.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -137,13 +132,8 @@ export function Clients() {
                   <ClientRow
                     key={c.id}
                     client={c}
-                    update={update}
                     archive={archive}
-                    folderOptions={folderOptions}
                     folderNameById={folderNameById}
-                    foldersLoading={foldersLoading}
-                    foldersError={foldersError}
-                    clientsSpaceConfigured={clientsSpaceConfigured}
                   />
                 ))}
               </tbody>
@@ -156,171 +146,94 @@ export function Clients() {
   );
 }
 
+// Read-only. Every field here is edited on the client's own page, which is
+// where the ClickUp folder carries the warning about re-routing future work.
+// The row used to be a line of inputs saving on blur, so tabbing across it
+// committed whatever you had half-typed.
 function ClientRow({
   client: c,
-  update,
   archive,
-  folderOptions,
   folderNameById,
-  foldersLoading,
-  foldersError,
-  clientsSpaceConfigured,
 }: {
   client: Client;
-  update: ReturnType<typeof useUpdateClient>;
   archive: ReturnType<typeof useArchiveClient>;
-  folderOptions: Array<{ value: string; label: string }>;
   folderNameById: Map<string, string>;
-  foldersLoading: boolean;
-  foldersError: Error | null;
-  clientsSpaceConfigured: boolean;
 }) {
+  const navigate = useNavigate();
+  const folderName = c.clickup_folder_id
+    ? folderNameById.get(c.clickup_folder_id)
+    : null;
+  const muted = "text-muted-foreground";
   return (
-    <tr className="border-b transition-colors hover:bg-m-surface-container-low">
-      <td className="px-2 py-1.5">
-        <Input
-          className={cellField}
-          defaultValue={c.name}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (v && v !== c.name) update.mutate({ id: c.id, patch: { name: v } });
-          }}
-        />
+    <tr
+      onClick={() => navigate(`/clients/${c.id}`)}
+      className="cursor-pointer border-b transition-colors hover:bg-m-surface-container-low"
+    >
+      <td className="truncate px-4 py-2.5">
+        {/* The row navigates, but the name stays a real link so the page is
+            reachable by keyboard and openable in a new tab. */}
+        <Link
+          to={`/clients/${c.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="font-medium hover:underline"
+        >
+          {c.name}
+        </Link>
       </td>
-      <td className="px-1 py-1.5">
-        <Input
-          className={cellField}
-          defaultValue={c.primary_domain ?? ""}
-          placeholder="example.co.za"
-          onBlur={(e) => {
-            const v = e.target.value.trim() || null;
-            if (v !== c.primary_domain)
-              update.mutate({ id: c.id, patch: { primary_domain: v } });
-          }}
-        />
+      <td className={cn("truncate px-3 py-2.5", !c.primary_domain && muted)}>
+        {c.primary_domain ?? "Not set"}
       </td>
-      <td className="px-1 py-1.5">
-        {foldersError ? (
-          <span className="px-2 text-xs text-destructive">
-            Couldn't load folders — check Settings
-          </span>
-        ) : foldersLoading ? (
-          <span className="px-2 text-xs text-muted-foreground">Loading…</span>
-        ) : !clientsSpaceConfigured ? (
-          <span className="px-2 text-xs text-muted-foreground">
-            Configure Clients space first
-          </span>
+      <td className={cn("truncate px-3 py-2.5", !c.clickup_folder_id && muted)}>
+        {folderName ?? (c.clickup_folder_id ? c.clickup_folder_id : "Unlinked")}
+      </td>
+      <td className={cn("truncate px-3 py-2.5", !c.wiki_path && muted)}>
+        {c.wiki_path ?? "Not set"}
+      </td>
+      <td className="px-3 py-2.5 text-right tabular-nums">
+        {c.margin_target_pct ?? 40}
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        {c.is_internal ? (
+          <Check className="mx-auto h-4 w-4" strokeWidth={3} />
         ) : (
-          <Combobox
-            className={cellField}
-            options={folderOptions}
-            value={c.clickup_folder_id ?? UNLINKED}
-            onChange={(v) => {
-              const next = v === UNLINKED ? null : v;
-              if (next !== c.clickup_folder_id)
-                update.mutate(
-                  { id: c.id, patch: { clickup_folder_id: next } },
-                  { onSuccess: () => toast.success("Saved") },
-                );
-            }}
-            placeholder="Pick a folder…"
-          />
+          <span className="sr-only">No</span>
         )}
       </td>
-      <td className="px-1 py-1.5">
-        <Input
-          className={cellField}
-          defaultValue={c.wiki_path ?? `wiki/clients/${c.name.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`}
-          placeholder="wiki/clients/…"
-          onBlur={(e) => {
-            const v = e.target.value.trim() || null;
-            if (v !== c.wiki_path)
-              update.mutate({ id: c.id, patch: { wiki_path: v } });
-          }}
-        />
+      <td
+        className={cn(
+          "truncate px-3 py-2.5 font-mono text-xs",
+          !c.xero_contact_id && muted,
+        )}
+      >
+        {c.xero_contact_id ?? "Not set"}
       </td>
-      <td className="px-1 py-1.5">
-        <Input
-          type="number"
-          min="0"
-          max="100"
-          step="0.5"
-          className={cn(cellField, "text-right")}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          defaultValue={(c as any).margin_target_pct ?? 40}
-          onBlur={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!isNaN(v)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              update.mutate({ id: c.id, patch: { margin_target_pct: v as any } });
-            }
-          }}
-        />
-      </td>
-      <td className="px-1 py-1.5 text-center">
-        <Checkbox
-          aria-label={`${c.name} is internal work`}
-          checked={c.is_internal ?? false}
-          onCheckedChange={(v) =>
-            update.mutate(
-              { id: c.id, patch: { is_internal: v === true } },
-              { onSuccess: () => toast.success("Saved") },
-            )
-          }
-        />
-      </td>
-      <td className="px-1 py-1.5">
-        <Input
-          className={cn(cellField, "font-mono text-xs")}
-          defaultValue={c.xero_contact_id ?? ""}
-          placeholder="Xero UUID"
-          onBlur={(e) => {
-            const v = e.target.value.trim() || null;
-            if (v !== c.xero_contact_id)
-              update.mutate({ id: c.id, patch: { xero_contact_id: v } });
-          }}
-        />
-      </td>
-      <td className="px-3 py-1.5 text-xs">
+      <td className="px-3 py-2.5 text-xs">
         {c.clickup_folder_id ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
-            <span>
-              Linked
-              {folderNameById.get(c.clickup_folder_id)
-                ? ` to ${folderNameById.get(c.clickup_folder_id)}`
-                : ""}
-            </span>
+            <span>Linked{folderName ? ` to ${folderName}` : ""}</span>
           </span>
         ) : (
-          <span className="text-muted-foreground">Unlinked</span>
+          <span className={muted}>Unlinked</span>
         )}
       </td>
       <td className="px-3 py-1.5">
-        <div className="flex items-center gap-1">
-          <Link
-            to={`/clients/${c.id}`}
-            title="Sender rules"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-gradient-gold text-white shadow-elev-1 transition hover:brightness-110 hover:shadow-elev-2 active:brightness-95"
-          >
-            <Shield className="h-4 w-4" />
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Archive"
-            onClick={() => {
-              if (confirm(`Archive "${c.name}"?`)) {
-                archive.mutate(c.id, {
-                  onSuccess: () => toast.success(`Archived ${c.name}`),
-                  onError: (e) => toast.error(e.message),
-                });
-              }
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Archive"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (confirm(`Archive "${c.name}"?`)) {
+              archive.mutate(c.id, {
+                onSuccess: () => toast.success(`Archived ${c.name}`),
+                onError: (err) => toast.error(err.message),
+              });
+            }
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </td>
     </tr>
   );

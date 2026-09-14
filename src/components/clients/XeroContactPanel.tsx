@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
-import { useUpdateClient } from "@/hooks/useClients";
-import { errorMessage } from "@/lib/utils";
+import { useSaveClient, type Client } from "@/hooks/useClients";
 import {
   Card,
   CardContent,
@@ -11,50 +9,87 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
-export function XeroContactPanel({
-  clientId,
-  xeroContactName,
-}: {
-  clientId: string;
-  xeroContactName: string | null;
-}) {
-  const update = useUpdateClient();
-  const [value, setValue] = useState(xeroContactName ?? "");
+// Everything about billing this client: the two Xero identifiers and the
+// margin the work is priced to hit.
+export function XeroContactPanel({ client }: { client: Client }) {
+  const { save, isPending } = useSaveClient();
+  const [name, setName] = useState(client.xero_contact_name ?? "");
+  const [contactId, setContactId] = useState(client.xero_contact_id ?? "");
+  const [margin, setMargin] = useState(String(client.margin_target_pct ?? 40));
 
-  const dirty = value.trim() !== (xeroContactName ?? "");
-
-  function handleSave() {
-    update.mutate(
-      { id: clientId, patch: { xero_contact_name: value.trim() || null } },
-      {
-        onSuccess: () => toast.success("Saved"),
-        onError: (e) => toast.error(`Update failed: ${errorMessage(e)}`),
-      },
-    );
-  }
+  const marginNum = parseFloat(margin);
+  const patch = {
+    xero_contact_name: name.trim() || null,
+    xero_contact_id: contactId.trim() || null,
+    margin_target_pct: isNaN(marginNum) ? null : marginNum,
+  };
+  const dirty =
+    patch.xero_contact_name !== (client.xero_contact_name ?? null) ||
+    patch.xero_contact_id !== (client.xero_contact_id ?? null) ||
+    patch.margin_target_pct !== (client.margin_target_pct ?? null);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Xero contact name</CardTitle>
+        <CardTitle>Xero and margin</CardTitle>
         <CardDescription>
-          The exact Contact Name Xero uses for this client's invoices (often the
-          full legal entity name, e.g. "Trellicor (PTY) LTD") — used to link
-          synced Xero invoices back to this client. Check Xero's Contacts list
-          if unsure.
+          The contact name is the exact one Xero uses on this client's invoices,
+          often the full legal entity such as "Trellicor (PTY) LTD". It is what
+          links a synced Xero invoice back to this client, so check Xero's
+          Contacts list if you are unsure.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center gap-2">
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="e.g. Trellicor (PTY) LTD"
-          className="max-w-md"
-        />
-        <Button size="sm" disabled={!dirty || update.isPending} onClick={handleSave}>
-          {update.isPending ? "Saving…" : "Save"}
-        </Button>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="xero-name">Contact name</Label>
+            <Input
+              id="xero-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Trellicor (PTY) LTD"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="xero-id">Contact ID</Label>
+            <Input
+              id="xero-id"
+              className="font-mono text-xs"
+              value={contactId}
+              onChange={(e) => setContactId(e.target.value)}
+              placeholder="Xero UUID"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="client-margin">Margin target %</Label>
+            <Input
+              id="client-margin"
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              className="max-w-[10rem]"
+              value={margin}
+              onChange={(e) => setMargin(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            disabled={!dirty || isPending}
+            onClick={() => save(client.id, patch)}
+          >
+            {isPending ? "Saving…" : "Save"}
+          </Button>
+          {dirty && (
+            <span className="text-body-small text-m-on-surface-variant">
+              Unsaved changes.
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

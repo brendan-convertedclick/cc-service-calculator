@@ -1590,7 +1590,7 @@ function OverheadPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-title-medium">Overhead consumed</CardTitle>
+        <CardTitle className="text-title-medium">Non-billable time consumed</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (

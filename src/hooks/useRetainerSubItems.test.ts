@@ -19,6 +19,7 @@ const provRow = (over: Partial<ProvisionedTaskRow> = {}): ProvisionedTaskRow => 
 
 const actualRow = (over: Partial<SubItemActualRow> = {}): SubItemActualRow => ({
   clickup_task_id: "t1",
+  task_name: null,
   planned_hours: 0.25,
   actual_hours: 2,
   status_at_sync: "closed",
@@ -85,5 +86,26 @@ describe("combineSubItems", () => {
     expect(items[0].serviceName).toBe("Recurring service");
     expect(items[0].assigneeName).toBeNull();
     expect(items[0].estimatedHours).toBeNull();
+  });
+});
+
+// Lisa, 2026-09-09: "why do the names not correlate?" One recurring service
+// makes several differently-named ClickUp tasks — Pimms' plugin sweep is one
+// per site — so labelling every row with the service name made the panel and
+// the ClickUp board look unrelated.
+describe("task naming", () => {
+  it("uses the real ClickUp task name when the sync has read it", () => {
+    const out = combineSubItems(
+      [provRow({ clickup_task_ids: ["t1"] })],
+      [actualRow({ task_name: "Pimms - Safeload - Website Plugin Updates - September 2026 - DFT V1.1" })],
+    );
+    expect(out[0].serviceName).toBe(
+      "Pimms - Safeload - Website Plugin Updates - September 2026 - DFT V1.1",
+    );
+  });
+
+  it("falls back to the service name for a task not synced yet", () => {
+    const out = combineSubItems([provRow({ clickup_task_ids: ["t1"] })], []);
+    expect(out[0].serviceName).toBe("Local SEO Pack");
   });
 });

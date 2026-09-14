@@ -4,13 +4,22 @@
 // Response: 200 {
 //   discovered: number,      // new client_lists rows inserted this run
 //   refreshed: number,       // existing rows whose CU name we updated
+//   archived: number,        // rows whose CU list is no longer live
 //   lists: Array<{ id, clickup_list_id, clickup_list_name, group_id|null }>
 // }
 //
 // Reads the client's ClickUp Folder, lists every CU List inside, and stages
 // staging rows in `client_lists` (with group_id NULL until the user maps
-// them). Idempotent: re-runs only refresh names for existing rows and add
-// any lists that have appeared on the CU side since last sync.
+// them). Idempotent: re-runs refresh names, add lists that have appeared on
+// the CU side, and archive rows whose list is gone from it.
+//
+// The archive sweep is the load-bearing half. ClickUp is asked for
+// `?archived=false`, so a List archived over there simply stops appearing;
+// without the sweep its `client_lists` row stays live forever and every
+// consumer keeps routing into a list nobody can see. That is how The Media
+// Mixology's Administration, Meetings and Overhead groups spent months
+// pointing at archived lists, and why re-running Foundations reported four
+// lists already mapped and created nothing.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -96,6 +105,26 @@ Deno.serve(async (req: Request) => {
       discovered++;
     }
 
+    // Archive rows whose list has left the folder (archived or deleted in CU).
+    // Archiving is the whole fix: every partial unique index on this table and
+    // every consumer that routes work filters on `archived_at is null`, so the
+    // group slot frees up and Foundations will create a real list next run.
+    //
+    // Guarded on a non-empty CU response. A 200 with no lists is far more
+    // likely to be a ClickUp hiccup than a client whose folder was emptied,
+    // and this sweep is the one destructive step in the function.
+    let archived = 0;
+    const liveCuIds = new Set(cuLists.map((l) => l.id));
+    const stale = (existing ?? []).filter((r) => !liveCuIds.has(r.clickup_list_id));
+    if (cuLists.length > 0 && stale.length > 0) {
+      const { error } = await supabase
+        .from("client_lists")
+        .update({ archived_at: now })
+        .in("id", stale.map((r) => r.id));
+      if (error) return json({ error: error.message }, 500);
+      archived = stale.length;
+    }
+
     // Return the full current picture so the UI can render the mapping
     // screen straight from the response.
     const { data: lists } = await supabase
@@ -105,7 +134,7 @@ Deno.serve(async (req: Request) => {
       .is("archived_at", null)
       .order("clickup_list_name");
 
-    return json({ discovered, refreshed, lists: lists ?? [] });
+    return json({ discovered, refreshed, archived, lists: lists ?? [] });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

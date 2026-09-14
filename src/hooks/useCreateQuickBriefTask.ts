@@ -13,7 +13,7 @@ export type CreateQuickBriefArgs = {
   list_id?: string;
   status?: string;
   briefed_by_member_id?: string | null;
-  billing_type?: "retainer" | "adhoc";
+  billing_type?: "retainer" | "adhoc" | "internal";
   /** One item per line — creates a ClickUp checklist on the task. */
   checklist_items?: string[];
   /** The Systems entry `checklist_items` was built from, if one was picked.

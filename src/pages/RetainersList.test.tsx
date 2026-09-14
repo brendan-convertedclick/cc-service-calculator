@@ -43,12 +43,17 @@ vi.mock("@/hooks/usePulseRetainerBurn", () => ({
   usePulseRetainerBurn: () => [burnRow],
   currentMonthKey: () => "2026-08",
 }));
-vi.mock("@/hooks/useRetainerAllocation", () => ({
+// Extra allocation rows one test adds on top of the default. Reset before
+// every test (below) so the numbers the other tests assert on never move.
+const extraAlloc = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[] }));
+vi.mock("@/hooks/useRetainerAllocation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useRetainerAllocation")>()),
   useRetainerAllocation: () => ({
     data: [
       {
         month: "2026-08",
         rows: [
+          ...extraAlloc.rows,
           {
             key: "p1",
             kind: "retainer",
@@ -59,6 +64,10 @@ vi.mock("@/hooks/useRetainerAllocation", () => ({
             soldHours: 10,
             committedHours: 8,
             deliveredHours: 6,
+            measuredHours: 0,
+            deliveredItems: 3,
+            measuredItems: 0,
+            recurringHours: 2,
             deliveredPoints: 24,
             briefCount: 3,
             openPoints: 0,
@@ -67,6 +76,15 @@ vi.mock("@/hooks/useRetainerAllocation", () => ({
       },
     ],
   }),
+}));
+// Real helpers, stubbed data: billingKey and impliedRateCents decide what the
+// Invoiced cell says, so stubbing them would test a page this one does not build.
+vi.mock("@/hooks/useAdhocInvoices", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useAdhocInvoices")>()),
+  useAdhocInvoices: () => ({ data: new Map() }),
+}));
+vi.mock("@/hooks/useRetainerTemplates", () => ({
+  useSaveRetainerTemplate: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/hooks/useSyncActuals", () => ({
   useSyncActuals: () => ({ mutate: mockSyncMutate, isPending: false, variables: undefined }),
@@ -94,6 +112,7 @@ import { RetainersList } from "./RetainersList";
 
 beforeEach(() => {
   retainers.rows = [CLIENT_RETAINER];
+  extraAlloc.rows = [];
 });
 
 describe("RetainersList sync controls", () => {
@@ -200,6 +219,34 @@ describe("RetainersList client vs internal", () => {
     expect(internalTotals.textContent).not.toContain("2 500");
   });
 
+  // Lisa, 2026-09-08: "under Internal — lets remove the column for monthly fee
+  // as that doesn't apply here. Planned is also not applicable." Both are facts
+  // about an invoice, and there is no invoice on our own work.
+  it("drops the two invoice columns on Internal and shows Briefed instead", async () => {
+    retainers.rows = [CLIENT_RETAINER, GRANITE];
+    render(<RetainersList />);
+    expect(screen.getByRole("columnheader", { name: "Monthly fee" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Planned" })).toBeInTheDocument();
+    // Briefed is on the client tab too — it is what tells a retainer with no
+    // delivery apart from one nobody even asked for work against.
+    expect(screen.getByRole("columnheader", { name: "Briefed" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
+    expect(screen.queryByRole("columnheader", { name: "Monthly fee" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Planned" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Briefed" })).toBeInTheDocument();
+    // Scheduled and Completed are on both — Lisa kept Scheduled explicitly.
+    expect(screen.getByRole("columnheader", { name: "Scheduled" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Completed" })).toBeInTheDocument();
+
+    // The key follows the columns. Explaining a column that is not on screen is
+    // how a key stops being trusted.
+    const terms = [...document.querySelectorAll("details dt")].map((d) => d.textContent);
+    expect(terms).not.toContain("Monthly fee");
+    expect(terms).not.toContain("Planned");
+    expect(terms).toContain("Briefed");
+  });
+
   // 0162. The case the client-level flag could never express: a paying client
   // with one line nobody charges for. The client has to stay on both tabs —
   // its invoice on one, our cost on the other — or flagging the freebie would
@@ -225,5 +272,54 @@ describe("RetainersList client vs internal", () => {
     await userEvent.click(screen.getByRole("button", { name: /show retainers for test conductor/i }));
     table = within(screen.getByRole("table"));
     expect(table.getByText(/standing meeting/i)).toBeInTheDocument();
+  });
+
+  // Lisa, 2026-09-08: "Why are there missing internal retainers — ie. Conductor,
+  // Quartz, Flint, Granite". Because the page built its client list from
+  // retainer records, and we do not invoice ourselves, so most of our brands
+  // have none. Five of them were missing from the tab that exists to show them.
+  it("lists one of our brands on Internal even with no retainer of its own", async () => {
+    retainers.rows = [CLIENT_RETAINER];
+    extraAlloc.rows = [
+      {
+        key: "internal:granite",
+        kind: "internal",
+        clientName: "Granite",
+        name: "Internal work",
+        projectId: null,
+        feeCents: 0,
+        soldHours: 0,
+        committedHours: 0,
+        deliveredHours: 12,
+        deliveredPoints: 48,
+        briefCount: 11,
+        isInternal: true,
+        openPoints: 0,
+      },
+      // A paying client with ad hoc work and no retainer stays off the page —
+      // that rule is unchanged, and this row is here to prove the fix above
+      // did not quietly relax it.
+      {
+        key: "adhoc:als",
+        kind: "adhoc",
+        clientName: "A Love Supreme",
+        name: "Ad hoc — invoiced separately",
+        projectId: null,
+        feeCents: 0,
+        soldHours: 0,
+        committedHours: 0,
+        deliveredHours: 2.3,
+        deliveredPoints: 9,
+        briefCount: 4,
+        isInternal: false,
+        openPoints: 0,
+      },
+    ];
+    render(<RetainersList />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Granite")).toBeInTheDocument();
+    expect(table.queryByText("A Love Supreme")).not.toBeInTheDocument();
   });
 });

@@ -32,9 +32,10 @@ export function useSyncClientStructure() {
         error?: string;
         discovered?: number;
         refreshed?: number;
+        archived?: number;
       };
       if (body.error) throw new Error(body.error);
-      return body as { discovered: number; refreshed: number };
+      return body as { discovered: number; refreshed: number; archived: number };
     },
     onSuccess: (_d, clientId) => {
       qc.invalidateQueries({ queryKey: ["client-lists", clientId] });

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { errorMessage } from "@/lib/utils";
+import { outcomeFor, countListWork } from "@/lib/foundations-preview";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { useClients, useClickUpFolders } from "@/hooks/useClients";
@@ -63,6 +64,10 @@ export function Foundations() {
   const { data: seedTasksByList = new Map<string, Array<{ id: string; name: string }>>() } =
     useSeedTasksForBaselines(Array.from(selectedBaselines));
 
+  const { data: existingLists = new Map<string, string>() } =
+    useExistingGroupLists(Array.from(selectedClients));
+
+
   const totalSeedTaskCount = useMemo(() => {
     let n = 0;
     for (const id of selectedBaselines) {
@@ -70,6 +75,19 @@ export function Foundations() {
     }
     return n;
   }, [seedTasksByList, selectedBaselines]);
+
+  // Every (client × selected baseline) cell, split by whether it needs a list.
+  const [listsToCreate, listsAlreadyMapped] = useMemo(
+    () =>
+      countListWork(
+        Array.from(selectedClients),
+        Array.from(selectedBaselines).map(
+          (id) => baselines.find((b) => b.id === id)?.group_id,
+        ),
+        existingLists,
+      ),
+    [selectedClients, selectedBaselines, baselines, existingLists],
+  );
 
   const clientsWithoutFolder = useMemo(
     () =>
@@ -109,8 +127,19 @@ export function Foundations() {
       let msg = `${lists} list${lists === 1 ? "" : "s"} created, ${tasks} task${tasks === 1 ? "" : "s"} seeded`;
       if (skipped > 0) msg += ` · ${skipped} skipped`;
       if (errs > 0) msg += ` · ${errs} error${errs === 1 ? "" : "s"}`;
-      if (errs > 0) toast.warning(msg);
-      else toast.success(msg);
+      if (errs > 0) {
+        // The reasons were being counted and thrown away, so "2 errors" was
+        // the whole of what anyone could see — a ClickUp rate limit and a
+        // missing folder looked identical. Show what actually went wrong.
+        toast.warning(msg, {
+          description: [...res.errors.map((x) => x.reason), ...res.skipped.map((x) => x.reason)]
+            .slice(0, 4)
+            .join(" · "),
+          duration: 15_000,
+        });
+      } else if (skipped > 0) {
+        toast.warning(msg, { description: res.skipped.map((x) => x.reason).join(" · ") });
+      } else toast.success(msg);
     } catch (e) {
       toast.error(`Apply failed: ${errorMessage(e)}`);
     }
@@ -203,14 +232,37 @@ export function Foundations() {
             {baselines.map((bl) => (
               <label
                 key={bl.id}
-                className="flex items-center gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded-md"
+                className="flex items-start gap-2 cursor-pointer hover:bg-m-surface-container/40 px-1 py-0.5 rounded-md"
                 data-testid={`baseline-row-${bl.id}`}
               >
                 <Checkbox
+                  className="mt-0.5"
                   checked={selectedBaselines.has(bl.id)}
                   onCheckedChange={() => setSelectedBaselines((s) => toggle(s, bl.id))}
                 />
-                <span className="flex-1 truncate text-body-small">{bl.label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body-small">{bl.label}</span>
+                  {(() => {
+                    // Under the label, not beside it: the column is narrow and
+                    // an inline note ate the name it was explaining.
+                    const o = outcomeFor(bl.group_id, Array.from(selectedClients), existingLists);
+                    if (!o) return null;
+                    return (
+                      <span
+                        className={`block truncate text-label-small ${
+                          o.creates ? "text-m-primary" : "text-m-on-surface-variant"
+                        }`}
+                        title={
+                          o.creates
+                            ? "No list is mapped to this group yet, so Apply will create one."
+                            : "This group already has a list. Apply will use it and create nothing."
+                        }
+                      >
+                        {o.text}
+                      </span>
+                    );
+                  })()}
+                </span>
               </label>
             ))}
             {baselines.length === 0 ? (
@@ -297,6 +349,10 @@ export function Foundations() {
                   {includeTasks ? totalSeedTaskCount : 0}
                 </span>{" "}
                 seed task{includeTasks && totalSeedTaskCount === 1 ? "" : "s"}
+              </div>
+              <div className="text-m-on-surface-variant">
+                <span className="font-semibold text-m-on-surface">{listsToCreate}</span> new
+                list{listsToCreate === 1 ? "" : "s"}, {listsAlreadyMapped} already mapped
               </div>
               {clientsWithoutFolder.length > 0 ? (
                 <div className="pt-2 text-m-error text-body-small">
@@ -550,6 +606,36 @@ function SeedTasksEditor({ baselineListId }: { baselineListId: string }) {
 }
 
 // Helper hook: load seed tasks for a set of baseline ids and return a Map.
+/** What the selected clients ALREADY have per task group, so a run can say what
+ *  it is about to do before anyone presses Apply.
+ *
+ *  Lisa, 2026-09-10, on Kings College: "I don't see those lists under Kings
+ *  College in ClickUp?" — they were there, mapped onto lists called Admin,
+ *  Creative and Development. A baseline only creates a list when its group has
+ *  none, and nothing on this page said so, which made a correct run look like a
+ *  failed one. Keyed by `${client_id}|${group_id}`. */
+function useExistingGroupLists(clientIds: string[]) {
+  const key = [...clientIds].sort().join(",");
+  return useQuery<Map<string, string>>({
+    queryKey: ["foundations-existing-lists", key],
+    enabled: clientIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_lists")
+        .select("client_id, group_id, clickup_list_name")
+        .in("client_id", clientIds)
+        .is("archived_at", null)
+        .is("custom_label", null);
+      if (error) throw error;
+      const m = new Map<string, string>();
+      for (const r of data ?? []) {
+        if (r.group_id) m.set(`${r.client_id}|${r.group_id}`, r.clickup_list_name);
+      }
+      return m;
+    },
+  });
+}
+
 function useSeedTasksForBaselines(baselineIds: string[]) {
   const key = baselineIds.sort().join(",");
   return useBatchSeedTasks(key, baselineIds);

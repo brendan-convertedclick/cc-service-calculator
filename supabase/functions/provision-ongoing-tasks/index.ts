@@ -27,6 +27,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
+import { cuFetch } from "../_shared/clickup.ts";
 
 export function buildTaskName(
   member: { full_name: string },
@@ -135,6 +136,13 @@ Deno.serve(async (req: Request) => {
       .is("archived_at", null);
     if (templateIds && templateIds.length > 0) {
       templateQuery = templateQuery.in("id", templateIds);
+    } else if (groupId) {
+      // "Every category in this group" is what a client-scoped run with no
+      // explicit list means. Without this it loaded EVERY group's categories
+      // and then failed its own must-belong-to-group check, so the whole-group
+      // shorthand was unusable — TEST New School's Administration, Delivery and
+      // Meetings tasks had to be provisioned by naming all six ids by hand.
+      templateQuery = templateQuery.eq("group_id", groupId);
     }
     const { data: templates } = await templateQuery;
     if (!templates || templates.length === 0) {
@@ -260,7 +268,7 @@ Deno.serve(async (req: Request) => {
           // Resolve effective billable: ongoing_tasks override is null at create
           // time, so the template default rules.
           const billable = !!tmpl.billable;
-          const cuRes = await fetch(
+          const cuRes = await cuFetch(
             `https://api.clickup.com/api/v2/list/${listId}/task`,
             {
               ...CU,

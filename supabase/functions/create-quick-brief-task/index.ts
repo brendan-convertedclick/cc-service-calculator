@@ -208,7 +208,11 @@ Deno.serve(async (req: Request) => {
 
     const { error: upErr } = await sb.from("briefs").update({
       status: "briefed", clickup_task_id: created.id, clickup_task_url: created.url,
-      billing_type: b.billing_type === "adhoc" ? "adhoc" : "retainer",
+      // 0165 added 'internal'. Anything else still falls back to retainer —
+      // an unrecognised value must not reach the check constraint.
+      billing_type: b.billing_type === "adhoc" || b.billing_type === "internal"
+        ? b.billing_type
+        : "retainer",
       // Mirror the task's assignee onto the brief so the drawer/list don't
       // read "Unassigned" for work that was briefed to someone.
       ...(b.assignee_member_id ? { assignee_id: b.assignee_member_id } : {}),

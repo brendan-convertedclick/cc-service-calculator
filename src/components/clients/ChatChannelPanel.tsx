@@ -1,14 +1,6 @@
-import { useState } from "react";
-import { toast } from "sonner";
-import { useClickUpChatChannels, useUpdateClient } from "@/hooks/useClients";
+import { useClickUpChatChannels, useSaveClient } from "@/hooks/useClients";
 import { errorMessage } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { PanelSection } from "@/components/clients/PanelSection";
 import {
   Select,
   SelectContent,
@@ -27,21 +19,14 @@ export function ChatChannelPanel({
   clickupChatChannelId: string | null;
 }) {
   const { data: channels = [], isLoading, error } = useClickUpChatChannels();
-  const update = useUpdateClient();
-  const [saving, setSaving] = useState(false);
+  const { save, isPending } = useSaveClient();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>ClickUp Chat channel</CardTitle>
-        <CardDescription>
-          Where this client&apos;s own replies, answers and sign-offs are posted, plus their
-          brief extension notices. Leave it unset and they go to the internal Approval
-          Requests channel instead. Anyone in the channel can read them, so pick one the
-          client is meant to see.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <PanelSection
+      title="Chat channel"
+      description="Where this client's own replies, answers and sign-offs are posted, plus their brief extension notices. Leave it unset and they go to the internal Approval Requests channel instead. Anyone in the channel can read them, so pick one the client is meant to see."
+    >
+      <div className="space-y-2">
         {error ? (
           <div className="text-body-small text-m-error">
             Couldn't load ClickUp chat channels:{" "}
@@ -50,20 +35,11 @@ export function ChatChannelPanel({
         ) : null}
         <Select
           value={clickupChatChannelId ?? NONE}
-          disabled={isLoading || saving}
+          disabled={isLoading || isPending}
           onValueChange={(v) => {
             const next = v === NONE ? null : v;
             if (next === (clickupChatChannelId ?? null)) return;
-            setSaving(true);
-            update.mutate(
-              { id: clientId, patch: { clickup_chat_channel_id: next } },
-              {
-                onSuccess: () => toast.success("Saved"),
-                onError: (e) =>
-                  toast.error(`Update failed: ${errorMessage(e)}`),
-                onSettled: () => setSaving(false),
-              },
-            );
+            save(clientId, { clickup_chat_channel_id: next });
           }}
         >
           <SelectTrigger className="w-72">
@@ -82,7 +58,7 @@ export function ChatChannelPanel({
             ))}
           </SelectContent>
         </Select>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelSection>
   );
 }

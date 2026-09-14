@@ -44,7 +44,7 @@ export function MetricCards({ meta, goalPoints }: Props) {
           <span className="ml-1 text-sm font-normal text-m-on-surface-variant">hrs</span>
         </p>
         <p className="mt-1 text-label-small text-m-on-surface-variant">
-          <span className="font-medium text-m-on-surface">{meta.totalOverheadHours}</span> Overhead hrs
+          <span className="font-medium text-m-on-surface">{meta.totalOverheadHours}</span> Non-billable hrs
         </p>
       </div>
 

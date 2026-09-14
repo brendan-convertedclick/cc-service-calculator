@@ -347,7 +347,7 @@ export function OngoingTasksPlanner() {
                     <div key={i} className="text-m-on-surface-variant">
                       <span className="text-foreground">
                         {member?.full_name ?? f.member_id} ·{" "}
-                        {client?.short_name ?? "Overhead"} · {tmpl?.label ?? f.task_template_id}
+                        {client?.short_name ?? "No client"} · {tmpl?.label ?? f.task_template_id}
                       </span>
                       {" — "}
                       {f.reason}

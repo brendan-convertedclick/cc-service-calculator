@@ -12,12 +12,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { checklistFromSteps, NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
+import {
+  checklistFromSteps,
+  pointsFromSteps,
+  NO_WORKFLOW,
+  WorkflowSelect,
+} from "@/components/systems/WorkflowSelect";
 import { memberColors, useTeam } from "@/hooks/useTeam";
 import { initials } from "@/components/systems/SystemBlockNode";
 import { supabase } from "@/lib/supabase";
 import { useDepartments } from "@/hooks/useDepartments";
-import { useRetainers } from "@/hooks/useRetainers";
+import { useRetainers, isBillableRetainer } from "@/hooks/useRetainers";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
 import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
@@ -44,7 +49,7 @@ export interface QuickBriefSheetBrief {
   intent_type: string | null;
   raw_subject: string | null;
   quick_task_suggestion: QuickTaskSuggestion | null;
-  billing_type?: "retainer" | "adhoc" | null;
+  billing_type?: "retainer" | "adhoc" | "internal" | null;
   /** Seeds the Assignee select so a pre-assigned brief doesn't open as Unassigned. */
   assignee_id?: string | null;
   /** The retainer this brief already sits against, if any — seeds the picker. */
@@ -71,8 +76,30 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   // work was retainer or adhoc but never which retainer — so "retainer" work
   // was created with no project behind it and never reached a burn figure.
   const { data: allRetainers = [] } = useRetainers();
+  // Only retainers this work can actually be billed against (Lisa, 2026-09-08).
+  // The list used to be every live retainer the client had, and two kinds of
+  // them are traps rather than choices:
+  //
+  //   * No fee AND no hours target — "Trellidor Adhoc Retainer", the open
+  //     arrangement with no budget. useRetainerAllocation's bucketOf only routes
+  //     a brief to its parent project when that project has a fee or a target,
+  //     so picking this one with Billing = Retainer drops the work into
+  //     "Retainer work, no retainer": counted against no budget, on no invoice.
+  //     For a client whose ad hoc arrangement is itself NAMED a retainer, it is
+  //     also the most obvious thing in the list to pick.
+  //   * A standing monthly task (0154) — Trellidor's bi-weekly meetings, monthly
+  //     reporting, plugin updates. Those answer "is this getting done", and
+  //     briefing project work against one files it as a recurring chore.
+  //
+  // A client left with nothing here is a real answer, not a gap: Little Flock
+  // and OracleMed hold only a plugin task, and the empty state below already
+  // says to bill it ad hoc.
   const clientRetainers = allRetainers.filter(
-    (r) => r.status === "in_progress" && brief.client_id != null && r.client_id === brief.client_id,
+    (r) =>
+      r.status === "in_progress" &&
+      brief.client_id != null &&
+      r.client_id === brief.client_id &&
+      isBillableRetainer(r),
   );
   const [projectId, setProjectId] = useState<string>(brief.parent_project_id ?? NO_PROJECT);
 
@@ -85,7 +112,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const [workStream, setWorkStream] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [briefedBy, setBriefedBy] = useState<string>(UNASSIGNED);
-  const [billingType, setBillingType] = useState<"retainer" | "adhoc">("retainer");
+  const [billingType, setBillingType] = useState<"retainer" | "adhoc" | "internal">("retainer");
   const [checklistItems, setChecklistItems] = useState("");
   // Rows are a view over the same newline string — an empty value is one
   // empty row, which is the right starting state for a list you type into.
@@ -123,7 +150,13 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setDueDate(draft.due_date ?? "");
     setBriefedBy(UNASSIGNED);
     setStatus(STATUS_DEFAULT);
-    setBillingType(brief.billing_type === "adhoc" ? "adhoc" : "retainer");
+    // Anything the DB already holds is a valid choice here; only an absent
+    // or unrecognised value falls back to retainer.
+    setBillingType(
+      brief.billing_type === "adhoc" || brief.billing_type === "internal"
+        ? brief.billing_type
+        : "retainer",
+    );
     setChecklistItems("");
     setSystemId(NO_WORKFLOW);
     setAttachments([]);
@@ -177,7 +210,18 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   useEffect(() => {
     if (systemId === NO_WORKFLOW) return;
     setChecklistItems(checklistFromSteps(systemSteps));
+    // The procedure already carries an estimate; typing it again from memory is
+    // how a 6-hour job gets briefed as 1 point. Null means the procedure has no
+    // hours on it, and then whatever is in the box stays.
+    const pts = pointsFromSteps(systemSteps);
+    if (pts != null) setSprintPoints(pts);
   }, [systemId, systemSteps]);
+
+  const autoPoints = useMemo(
+    () => (systemId === NO_WORKFLOW ? null : pointsFromSteps(systemSteps)),
+    [systemId, systemSteps],
+  );
+  const needsWorkflow = systemId === NO_WORKFLOW;
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
   const waitingStatus = useMemo(
@@ -339,7 +383,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             />
           </div>
 
-          <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} />
+          <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} required />
 
           {/* One row per item rather than a textarea of lines: this becomes a
               ClickUp checklist, so it should look like one while you write it
@@ -448,6 +492,21 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
                 value={sprintPoints}
                 onChange={(e) => setSprintPoints(Number(e.target.value))}
               />
+              {/* Say where the number came from, and stop saying it the moment
+                  somebody overrides it — a label that still claims "from the
+                  procedure" over a hand-typed number is worse than none. */}
+              {autoPoints != null && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  {sprintPoints === autoPoints
+                    ? `From the procedure, ${autoPoints * 0.25}h of steps`
+                    : `Procedure estimates ${autoPoints} pts, ${autoPoints * 0.25}h`}
+                </p>
+              )}
+              {autoPoints === null && systemId !== NO_WORKFLOW && (
+                <p className="text-label-small text-m-on-surface-variant">
+                  This procedure has no hours on its steps, so the points are yours to set.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="qb-due">Due date</Label>
@@ -490,15 +549,25 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             </div>
             <div className="space-y-2">
               <Label htmlFor="qb-billing">Billing</Label>
-              <Select value={billingType} onValueChange={(v) => setBillingType(v as "retainer" | "adhoc")}>
+              <Select value={billingType} onValueChange={(v) => setBillingType(v as "retainer" | "adhoc" | "internal")}>
                 <SelectTrigger id="qb-billing">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="retainer">Retainer</SelectItem>
                   <SelectItem value="adhoc">Adhoc</SelectItem>
+                  {/* 0165. Our own cost, absorbed — valid on a paying client,
+                      which is the case that had nowhere to go: adhoc claimed we
+                      invoiced it and retainer claimed a fee covered it. */}
+                  <SelectItem value="internal">Internal</SelectItem>
                 </SelectContent>
               </Select>
+              {billingType === "internal" && (
+                <p className="mt-2 rounded-md bg-m-surface-container-high px-2 py-1.5 text-label-small text-m-on-surface-variant">
+                  Our own cost. It stays off this client's invoiced and retainer
+                  figures, and shows on the Internal tab instead.
+                </p>
+              )}
               {billingType === "retainer" && (
                 <div className="mt-2 space-y-1.5">
                   <Label htmlFor="qb-project">Against which retainer</Label>
@@ -579,10 +648,20 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
+            {/* Ahead of the buttons, not between them: the reason Create is off
+                belongs beside the reader's eye before they reach for it. */}
+            {needsWorkflow && (
+              <span className="mr-auto text-label-small text-m-on-surface-variant">
+                Pick a service workflow first.
+              </span>
+            )}
             <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={saving || !hasClient || !workStreamValid} onClick={handleCreate}>
+            <Button
+              disabled={saving || !hasClient || !workStreamValid || needsWorkflow}
+              onClick={handleCreate}
+            >
               {saving ? "Creating…" : "Create task"}
             </Button>
           </div>

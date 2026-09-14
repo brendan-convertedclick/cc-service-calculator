@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ServicePicker } from "@/components/ServicePicker";
 import { useClients } from "@/hooks/useClients";
+import { useRetainerTemplates, type TemplateShape } from "@/hooks/useRetainerTemplates";
+import { rowFromTemplateService, payloadFromRow } from "@/lib/retainer-template-shape";
 import { useClientLists } from "@/hooks/useClientLists";
 import { useServices } from "@/hooks/useServices";
 import { useTeam } from "@/hooks/useTeam";
@@ -43,6 +45,11 @@ type ServiceRow = {
   points_per_occurrence: number;
   default_assignees: string[];
   is_live_eligible: boolean;
+  // Timing, carried from a template and passed straight through. Deliberately
+  // has no controls in this form: a routine's weekday and due day are part of
+  // the shape somebody already worked out, and re-asking for them per client is
+  // how the shape drifts. Rows added by hand simply leave it undefined.
+  shape?: Partial<TemplateShape>;
 };
 
 let rowSeq = 0;
@@ -180,6 +187,21 @@ export function NewRetainerWizard() {
 
   // Step 2 — Recurring services
   const [rows, setRows] = useState<ServiceRow[]>(initialDraft?.rows ?? []);
+  const { data: templates = [] } = useRetainerTemplates();
+  // A template supplies the SHAPE only — services, cadence, occurrences,
+  // points. Assignees stay empty on purpose: who does the work is a fact about
+  // this client and this person, and carrying one client's names onto another
+  // is how a template starts producing tasks for the wrong people (0166).
+  const applyTemplate = (templateId: string) => {
+    const tpl = templates.find((x) => x.id === templateId);
+    if (!tpl) return;
+    setRows(
+      tpl.services.map((s) => {
+        const row = rowFromTemplateService(s);
+        return { ...row, rowId: nextRowId(), cadence: row.cadence as Cadence };
+      }),
+    );
+  };
 
   const { data: clientLists = [], isLoading: listsLoading } = useClientLists(clientId || null);
   const { data: clientQuotes = [] } = useClientAcceptedQuotes(clientId || null);
@@ -432,14 +454,17 @@ export function NewRetainerWizard() {
       retainer_hours_target: Number(hoursTarget) || 0,
       retainer_monthly_fee_cents: Math.round((Number(monthlyFee) || 0) * 100),
       recurrence_start: recurrenceStart,
-      services: rows.map((r) => ({
-        service_id: r.service_id,
-        cadence: r.cadence,
-        occurrences_per_month: r.occurrences_per_month,
-        points_per_occurrence: r.points_per_occurrence,
-        default_assignees: r.default_assignees,
-        is_live_eligible: r.is_live_eligible,
-      })),
+      services: rows.map((r) =>
+        payloadFromRow({
+          service_id: r.service_id,
+          cadence: r.cadence,
+          occurrences_per_month: r.occurrences_per_month,
+          points_per_occurrence: r.points_per_occurrence,
+          default_assignees: r.default_assignees,
+          is_live_eligible: r.is_live_eligible,
+          shape: r.shape,
+        }),
+      ),
     };
 
     createRetainer.mutate(body, {
@@ -668,6 +693,31 @@ export function NewRetainerWizard() {
 
       {step === "services" && (
         <div className="space-y-4">
+          {templates.length > 0 && (
+            <div className="rounded-xl border border-m-outline-variant bg-m-surface-container-low p-4">
+              <div className="mb-2 text-body-medium text-m-on-surface">Start from a template</div>
+              <div className="flex flex-wrap gap-2">
+                {templates.map((tpl) => (
+                  <Button
+                    key={tpl.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyTemplate(tpl.id)}
+                  >
+                    {tpl.name}
+                    <span className="ml-2 text-label-small text-m-on-surface-variant">
+                      {tpl.services.length} service{tpl.services.length === 1 ? "" : "s"} ·{" "}
+                      {Math.round(tpl.monthlyHours * 10) / 10}h
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              <p className="mt-2 text-label-small text-m-on-surface-variant">
+                Replaces the rows below with the template's services. You still
+                choose the assignees — a template never carries them.
+              </p>
+            </div>
+          )}
           <div className="rounded-xl border border-m-outline-variant bg-m-surface p-4">
             <ServicePicker
               excludeIds={pickedServiceIds}

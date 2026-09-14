@@ -21,6 +21,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
+import { cuFetch } from "../_shared/clickup.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -48,11 +49,18 @@ Deno.serve(async (req: Request) => {
 
     const clickupHeaders = { Authorization: clickupPat, "Content-Type": "application/json" };
 
-    const res = await fetch(
+    const res = await cuFetch(
       `https://api.clickup.com/api/v2/folder/${client.clickup_folder_id}/list`,
       { headers: clickupHeaders },
     );
-    if (!res.ok) return json({ error: `ClickUp ${res.status}: ${await res.text()}` }, 502);
+    if (!res.ok) {
+      const detail = await res.text();
+      return json({
+        error: res.status === 429
+          ? "ClickUp is rate-limiting us right now — wait a few seconds and reopen this."
+          : `ClickUp ${res.status}: ${detail}`,
+      }, 502);
+    }
 
     const body = (await res.json()) as {
       lists?: Array<{ id: string; name: string }>;
@@ -64,20 +72,25 @@ Deno.serve(async (req: Request) => {
     // Effective statuses (including space-inherited ones) only come back from
     // the single-list endpoint. Fetch them in parallel; a single list's
     // failure shouldn't fail the whole request — default it to [].
-    const listsWithStatuses = await Promise.all(
-      bareLists.map(async (l) => {
-        try {
-          const listRes = await fetch(`https://api.clickup.com/api/v2/list/${l.id}`, {
-            headers: clickupHeaders,
-          });
-          if (!listRes.ok) return { ...l, statuses: [] as ClickUpStatus[] };
-          const listBody = (await listRes.json()) as { statuses?: ClickUpStatus[] };
-          return { ...l, statuses: listBody.statuses ?? [] };
-        } catch {
-          return { ...l, statuses: [] as ClickUpStatus[] };
-        }
-      }),
-    );
+    const fetchStatuses = async (l: { id: string; name: string }) => {
+      try {
+        const listRes = await cuFetch(`https://api.clickup.com/api/v2/list/${l.id}`, {
+          headers: clickupHeaders,
+        });
+        if (!listRes.ok) return { ...l, statuses: [] as ClickUpStatus[] };
+        const listBody = (await listRes.json()) as { statuses?: ClickUpStatus[] };
+        return { ...l, statuses: listBody.statuses ?? [] };
+      } catch {
+        return { ...l, statuses: [] as ClickUpStatus[] };
+      }
+    };
+    // Four at a time, not all at once. A busy client folder holds a dozen or
+    // more lists, and firing every one in parallel is what put this over
+    // ClickUp's limit and returned a bare 502 to the brief sheet.
+    const listsWithStatuses: Array<{ id: string; name: string; statuses: ClickUpStatus[] }> = [];
+    for (let i = 0; i < bareLists.length; i += 4) {
+      listsWithStatuses.push(...await Promise.all(bareLists.slice(i, i + 4).map(fetchStatuses)));
+    }
 
     const lists = listsWithStatuses
       .map((l) => ({
@@ -103,7 +116,7 @@ Deno.serve(async (req: Request) => {
     if (bareLists.length > 0) {
       for (let attempt = 0; attempt < 2 && workStreamOptions.length === 0; attempt++) {
         try {
-          const fieldRes = await fetch(
+          const fieldRes = await cuFetch(
             `https://api.clickup.com/api/v2/list/${bareLists[0].id}/field`,
             { headers: clickupHeaders },
           );

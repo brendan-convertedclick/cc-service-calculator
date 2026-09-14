@@ -23,6 +23,24 @@ export type RetainerListRow = Pick<
   client_is_internal: boolean;
 };
 
+/** Whether work can meaningfully be briefed AGAINST this retainer — i.e. whether
+ *  `useRetainerAllocation`'s bucketOf will route the brief to it rather than
+ *  dropping it in "Retainer work, no retainer".
+ *
+ *  Two shapes fail, and both are traps rather than choices in a picker:
+ *  a retainer with neither a fee nor an hours target (the open arrangement —
+ *  Trellidor's, which is itself named "Adhoc Retainer" and is therefore the
+ *  most obvious thing to pick for ad hoc work), and a standing monthly task
+ *  (0154), which answers "is this getting done" rather than holding a budget. */
+export function isBillableRetainer(r: {
+  is_recurring_task: boolean;
+  retainer_monthly_fee_cents: number | null;
+  retainer_hours_target: number | null;
+}): boolean {
+  if (r.is_recurring_task) return false;
+  return r.retainer_monthly_fee_cents != null || r.retainer_hours_target != null;
+}
+
 /** Whether a retainer belongs in the Internal book. The client flag (0152) and
  *  the retainer's own (0162) are OR-ed: a brand of ours is our own work
  *  whatever the retainer says, so the switch can move work OUT of the client
@@ -44,6 +62,12 @@ export function useRetainers() {
           "id, name, status, client_id, retainer_hours_target, retainer_monthly_fee_cents, started_at, revenue_source, is_recurring_task, is_internal, clients(name, is_internal)",
         )
         .eq("engagement_type", "retainer")
+        // An archived retainer is not part of the book. Nothing was archived
+        // until now, so this changed no number when it was added — it is what
+        // makes archiving a usable way to retire a line, since
+        // useRetainerAllocation already excludes archived and the row would
+        // otherwise sit here for ever with every figure showing a dash.
+        .neq("status", "archived")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

@@ -4,8 +4,8 @@
 //
 //   soldHours      PLANNED — what the monthly fee buys at the standard rate.
 //                  A pricing fact.
-//   committedHours SCHEDULED — recurring tasks set up to repeat each month.
-//                  Work briefed ad hoc is real work and is not in here.
+//   committedHours SCHEDULED — the recurring tasks that were actually created
+//                  for this month. Work briefed ad hoc is not in here.
 //   deliveredHours COMPLETED — what actually got briefed and closed.
 //
 // Planned vs Completed is the judgement: are we servicing the fee. Scheduled
@@ -48,6 +48,7 @@
 // the month it was synced in: that is the month whose fee paid for it.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { openForMonth } from "@/lib/retainer-drilldown";
 
 export const HOURS_PER_POINT = 0.25;
 
@@ -69,10 +70,30 @@ export const HOURS_PER_POINT = 0.25;
 // category — those rows carry delivery only.
 export type AllocationKind = "retainer" | "fixed" | "adhoc" | "internal" | "unlinked";
 
+/** One brief behind a row's numbers — what the Ad Hoc and Internal tabs expand
+ *  to show. A category total answers "how much"; only this answers "what". */
+export interface DeliveryItem {
+  id: string;
+  name: string;
+  /** Valued the same way the total is: logged time if anyone logged it. */
+  hours: number;
+  measured: boolean;
+  /** null = raised this month and still running. */
+  completedAt: string | null;
+  /** What it was due by. Shown beside an open item so one that is weeks late
+   *  reads as late rather than as this month's work. Null on plenty of rows —
+   *  22 briefs carry no due date at all. */
+  dueDate: string | null;
+}
+
 export interface AllocationRow {
   key: string;
   kind: AllocationKind;
   clientName: string;
+  /** Needed to join anything keyed on the client — the invoiced amounts on the
+   *  Ad Hoc tab (0164) are per client per month, and matching on name would
+   *  break the day two clients share one. */
+  clientId: string | null;
   /** Retainer name, or the client name for adhoc/internal groupings. */
   name: string;
   projectId: string | null;
@@ -93,6 +114,10 @@ export interface AllocationRow {
   recurringHours: number;
   deliveredPoints: number;
   briefCount: number;
+  /** The briefs themselves, closed ones first then whatever is still open.
+   *  Empty on a row whose work is recurring tasks rather than briefs — those
+   *  already drill down through RetainerSubItems. */
+  items: DeliveryItem[];
   /** Our own work rather than a paying client's — the client being one of our
    *  brands (clients.is_internal, 0152) or this one retainer being flagged
    *  (projects.is_internal, 0162). */
@@ -121,6 +146,8 @@ interface ProjectRow {
 }
 
 interface BriefRow {
+  id: string;
+  raw_subject: string | null;
   parent_project_id: string | null;
   client_id: string | null;
   billing_type: string | null;
@@ -128,6 +155,7 @@ interface BriefRow {
   actual_hours: number | null;
   created_at: string;
   completed_at: string | null;
+  original_due_date: string | null;
 }
 
 interface RecurringRow {
@@ -157,6 +185,8 @@ export function hoursOf(
 /** Running total of delivered work, so briefs and recurring tasks accumulate
  *  through one rule instead of two copies of it. */
 interface Delivery {
+  /** The briefs themselves; `items` below is their count. */
+  list: DeliveryItem[];
   hours: number;
   measuredHours: number;
   items: number;
@@ -167,6 +197,7 @@ interface Delivery {
 }
 
 const emptyDelivery = (): Delivery => ({
+  list: [],
   hours: 0,
   measuredHours: 0,
   items: 0,
@@ -181,9 +212,13 @@ function addToDelivery(
   actual: number | null | undefined,
   estimate: number,
   kind: "brief" | "recurring",
+  /** Omitted for a recurring task: the view carries no name for one, and those
+   *  rows already drill down through RetainerSubItems. */
+  item?: Omit<DeliveryItem, "hours" | "measured">,
 ): Delivery {
   const { hours, measured } = hoursOf(actual, estimate);
   return {
+    list: item ? [...d.list, { ...item, hours, measured }] : d.list,
     hours: d.hours + hours,
     measuredHours: d.measuredHours + (measured ? hours : 0),
     items: d.items + 1,
@@ -204,18 +239,15 @@ export function useRetainerAllocation(monthsBack = 6) {
 
       const sinceMonth = monthKey(sinceIso);
 
-      const [projectsRes, servicesRes, briefsRes, clientsRes, recurringRes] = await Promise.all([
+      const [projectsRes, briefsRes, clientsRes, recurringRes] = await Promise.all([
         supabase
           .from("projects")
           .select("id, name, client_id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, is_internal, clients(name)")
           .in("engagement_type", ["retainer", "fixed"])
           .neq("status", "archived"),
         supabase
-          .from("retainer_recurring_services")
-          .select("project_id, occurrences_per_month, points_per_occurrence"),
-        supabase
           .from("briefs")
-          .select("parent_project_id, client_id, billing_type, original_points, actual_hours, created_at, completed_at")
+          .select("id, raw_subject, parent_project_id, client_id, billing_type, original_points, actual_hours, created_at, completed_at, original_due_date")
           .or(`completed_at.gte.${sinceIso},completed_at.is.null`)
           .in("status", ["briefed", "accepted", "quoted", "scoped"]),
         // Read from the clients table, not from the projects join: a client
@@ -232,7 +264,6 @@ export function useRetainerAllocation(monthsBack = 6) {
           .gte("month", sinceMonth),
       ]);
       if (projectsRes.error) throw projectsRes.error;
-      if (servicesRes.error) throw servicesRes.error;
       if (briefsRes.error) throw briefsRes.error;
       if (clientsRes.error) throw clientsRes.error;
       if (recurringRes.error) throw recurringRes.error;
@@ -255,14 +286,37 @@ export function useRetainerAllocation(monthsBack = 6) {
           .map((p) => p.id),
       );
 
-      const committedPoints = new Map<string, number>();
-      for (const s of (servicesRes.data ?? []) as Array<{
-        project_id: string;
-        occurrences_per_month: number | null;
-        points_per_occurrence: number | null;
-      }>) {
-        const pts = Number(s.occurrences_per_month ?? 0) * Number(s.points_per_occurrence ?? 0);
-        committedPoints.set(s.project_id, (committedPoints.get(s.project_id) ?? 0) + pts);
+      const recurring = (recurringRes.data ?? []) as unknown as RecurringRow[];
+
+      // SCHEDULED is what the provisioner actually created for the month, not
+      // what retainer_recurring_services says it should have (Lisa, 2026-09-08).
+      // The config is an instruction; the provisioner INTERPRETS it —
+      // roll_up_monthly collapses occurrences into one task, a service with
+      // occurrence labels is shared between its assignees instead of copied per
+      // assignee, recur_weekday fans out per weekday in the period — and lands
+      // somewhere else. Trellidor SEO's config summed to 9h and three tasks
+      // worth 3h were made; four monthly feedback meetings summed to 1.25h and
+      // 2.25h was made. Neither number was a lie, but only one of them is the
+      // work that exists, and the gap against Planned is the thing worth
+      // seeing: Kings College Marketing has 0h scheduled against R22,200, and
+      // Dovetail SEO has 12.75h against the 7.08h its fee buys.
+      //
+      // It also retires the second copy of this sum: retainerMath's
+      // retainerRowStats multiplies by assignee count and this did not, so the
+      // New Retainer wizard and this page disagreed on the same retainer. There
+      // is now one answer and the provisioner owns it.
+      //
+      // Consequence to know: provisioned_tasks only go back to June 2026, so an
+      // earlier month reads 0 scheduled. That is "we have no record", not "we
+      // scheduled nothing" — but printing the CURRENT config against a month it
+      // was never in force for would be the worse lie.
+      const scheduledByProjectMonth = new Map<string, number>();
+      for (const r of recurring) {
+        const k = `${r.project_id}|${r.month}`;
+        scheduledByProjectMonth.set(
+          k,
+          (scheduledByProjectMonth.get(k) ?? 0) + Number(r.planned_hours ?? 0),
+        );
       }
 
       const clientRows = (clientsRes.data ?? []) as Array<{ id: string; name: string; is_internal: boolean }>;
@@ -272,9 +326,7 @@ export function useRetainerAllocation(monthsBack = 6) {
       // Only closed recurring tasks are delivery. An open one is scheduled
       // work that has not happened — the Scheduled column's business, not this
       // one's.
-      const recurringClosed = ((recurringRes.data ?? []) as unknown as RecurringRow[]).filter(
-        (r) => r.is_closed,
-      );
+      const recurringClosed = recurring.filter((r) => r.is_closed);
 
       // Months are the months work CLOSED in, newest first. A retainer serviced
       // entirely by standing tasks closes no briefs at all, so its months have
@@ -283,7 +335,7 @@ export function useRetainerAllocation(monthsBack = 6) {
       const months = [
         ...new Set([
           ...closed.map((b) => monthKey(b.completed_at!)),
-          ...recurringClosed.map((r) => r.month),
+          ...recurring.map((r) => r.month),
         ]),
       ]
         .sort()
@@ -297,9 +349,13 @@ export function useRetainerAllocation(monthsBack = 6) {
         | { kind: "project"; projectId: string }
         | { kind: AllocationKind; clientId: string };
       const bucketOf = (b: BriefRow): Bucket | null => {
-        // Our own brands first: internal is about whose work it is, not how it
-        // was booked, so it wins over anything the brief says.
-        if (b.client_id && internalClientIds.has(b.client_id)) {
+        // Internal first, from either direction (0165): the client is one of our
+        // brands, OR this piece of work was marked internal on a paying client.
+        // The second is the case that had nowhere to go — adhoc claimed we
+        // invoiced it, retainer claimed a fee covered it, and both overstated
+        // what the client was billed. Like every other internal flag here it can
+        // only move work OUT of the billable book, never into it.
+        if (b.client_id && (internalClientIds.has(b.client_id) || b.billing_type === "internal")) {
           return { kind: "internal", clientId: b.client_id };
         }
         if (
@@ -318,23 +374,37 @@ export function useRetainerAllocation(monthsBack = 6) {
       const otherKey = (bucket: { kind: AllocationKind; clientId: string }) =>
         `${bucket.kind}:${bucket.clientId}`;
 
-      // Still open: counted once, against whatever it is booked to.
-      const openByProject = new Map<string, number>();
-      const openByClient = new Map<string, number>();
+      // Still open: counted once, against whatever it is booked to. The items
+      // ride along so an expanded row can name what is still running, not just
+      // total it — an open brief is the half of "what came in" that a
+      // completed-only list would hide.
+      const openItemsByProject = new Map<string, DeliveryItem[]>();
+      const openItemsByClient = new Map<string, DeliveryItem[]>();
       for (const b of briefs) {
         if (b.completed_at) continue;
         const pts = Number(b.original_points ?? 0);
         const bucket = bucketOf(b);
         if (!bucket) continue;
+        const item: DeliveryItem = {
+          id: b.id,
+          name: b.raw_subject ?? "Untitled brief",
+          hours: pts * HOURS_PER_POINT,
+          measured: false,
+          completedAt: null,
+          dueDate: b.original_due_date ?? null,
+        };
         if (bucket.kind === "project") {
-          openByProject.set(bucket.projectId, (openByProject.get(bucket.projectId) ?? 0) + pts);
+          openItemsByProject.set(bucket.projectId, [
+            ...(openItemsByProject.get(bucket.projectId) ?? []),
+            item,
+          ]);
         } else {
-          openByClient.set(otherKey(bucket), (openByClient.get(otherKey(bucket)) ?? 0) + pts);
+          const k = otherKey(bucket);
+          openItemsByClient.set(k, [...(openItemsByClient.get(k) ?? []), item]);
         }
       }
 
       return months.map((month) => {
-        const isCurrent = month === currentMonth;
         const inMonth = closed.filter((b) => monthKey(b.completed_at!) === month);
 
         const deliveredByProject = new Map<string, Delivery>();
@@ -347,11 +417,17 @@ export function useRetainerAllocation(monthsBack = 6) {
           const estimate = Number(b.original_points ?? 0) * HOURS_PER_POINT;
           const bucket = bucketOf(b);
           if (!bucket) continue;
+          const item = {
+            id: b.id,
+            name: b.raw_subject ?? "Untitled brief",
+            completedAt: b.completed_at,
+            dueDate: b.original_due_date ?? null,
+          };
           if (bucket.kind === "project") {
             const cur = deliveredByProject.get(bucket.projectId) ?? emptyDelivery();
             deliveredByProject.set(
               bucket.projectId,
-              addToDelivery(cur, b.actual_hours, estimate, "brief"),
+              addToDelivery(cur, b.actual_hours, estimate, "brief", item),
             );
           } else {
             const k = otherKey(bucket);
@@ -362,7 +438,7 @@ export function useRetainerAllocation(monthsBack = 6) {
             };
             otherByKey.set(k, {
               ...cur,
-              d: addToDelivery(cur.d, b.actual_hours, estimate, "brief"),
+              d: addToDelivery(cur.d, b.actual_hours, estimate, "brief", item),
             });
           }
         }
@@ -389,11 +465,12 @@ export function useRetainerAllocation(monthsBack = 6) {
               // there are no columns for it — so those rows show delivery only.
               kind: (p.engagement_type === "fixed" ? "fixed" : "retainer") as AllocationKind,
               clientName: p.clients?.name ?? "Unknown",
+              clientId: p.client_id,
               name: p.name,
               projectId: p.id,
               feeCents: p.retainer_monthly_fee_cents ?? 0,
               soldHours: Number(p.retainer_hours_target ?? 0),
-              committedHours: (committedPoints.get(p.id) ?? 0) * HOURS_PER_POINT,
+              committedHours: scheduledByProjectMonth.get(`${p.id}|${month}`) ?? 0,
               deliveredHours: d.hours,
               measuredHours: d.measuredHours,
               deliveredItems: d.items,
@@ -401,20 +478,24 @@ export function useRetainerAllocation(monthsBack = 6) {
               recurringHours: d.recurringHours,
               deliveredPoints: d.points,
               briefCount: d.briefs,
+              items: [...d.list, ...openForMonth(month, openItemsByProject.get(p.id) ?? []).items],
               // 0162: the client flag OR the retainer's own. A brand of ours is
               // our own work whatever the retainer says, so this only ever
               // moves a row out of the client book.
               isInternal: internalClientIds.has(p.client_id) || p.is_internal === true,
-              openPoints: isCurrent ? openByProject.get(p.id) ?? 0 : 0,
+              // Derived from the same filtered list the row expands to show,
+              // so the number and the rows behind it cannot disagree.
+              openPoints:
+                openForMonth(month, openItemsByProject.get(p.id) ?? []).hours / HOURS_PER_POINT,
             };
           });
 
-        if (isCurrent) {
-          for (const [k, pts] of openByClient) {
-            if (!otherByKey.has(k) && pts > 0) {
-              const [kind, clientId] = k.split(":") as [AllocationKind, string];
-              otherByKey.set(k, { d: emptyDelivery(), clientId, kind });
-            }
+        // A client whose only work this month is still open still needs a row,
+        // or the thing you are looking for is the thing that is missing.
+        for (const [k, items] of openItemsByClient) {
+          if (!otherByKey.has(k) && openForMonth(month, items).items.length > 0) {
+            const [kind, clientId] = k.split(":") as [AllocationKind, string];
+            otherByKey.set(k, { d: emptyDelivery(), clientId, kind });
           }
         }
 
@@ -427,6 +508,7 @@ export function useRetainerAllocation(monthsBack = 6) {
             key: k,
             kind,
             clientName,
+            clientId,
             name:
               kind === "adhoc"
                 ? "Ad hoc — invoiced separately"
@@ -444,8 +526,10 @@ export function useRetainerAllocation(monthsBack = 6) {
             recurringHours: v.d.recurringHours,
             deliveredPoints: v.d.points,
             briefCount: v.d.briefs,
+            items: [...v.d.list, ...openForMonth(month, openItemsByClient.get(k) ?? []).items],
             isInternal,
-            openPoints: isCurrent ? openByClient.get(k) ?? 0 : 0,
+            openPoints:
+              openForMonth(month, openItemsByClient.get(k) ?? []).hours / HOURS_PER_POINT,
           });
         }
 

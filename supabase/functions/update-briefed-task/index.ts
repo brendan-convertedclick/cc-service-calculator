@@ -18,6 +18,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
+import { cuFetch, resolveDropdownOption, type CuField } from "../_shared/clickup.ts";
 
 const POINT_TO_MIN = 15; // keep in sync with _shared/clickup.ts
 /** Keep in sync with WAITING_STATUSES in src/hooks/useSignoffCandidates.ts. */
@@ -55,6 +56,14 @@ Deno.serve(async (req: Request) => {
       due_date?: string | null;
       assignee_member_id?: string | null;
       with_client?: boolean;
+      description?: string;
+      status?: string;
+      work_stream?: string;
+      // Conductor-only. These never reach ClickUp: they decide which retainer
+      // the work is booked to and whether it is billable, which is Conductor's
+      // question, not the task's.
+      billing_type?: "retainer" | "adhoc" | "internal";
+      parent_project_id?: string | null;
     } = {};
     if (req.method === "GET") {
       briefId = new URL(req.url).searchParams.get("brief_id") ?? undefined;
@@ -70,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: brief, error: bErr } = await sb
       .from("briefs")
-      .select("id, raw_subject, clickup_task_id, clickup_task_url, assignee_id, original_points, original_due_date, client_wait_ms, client_delay_manual")
+      .select("id, raw_subject, clickup_task_id, clickup_task_url, assignee_id, original_points, original_due_date, client_wait_ms, client_delay_manual, billing_type, parent_project_id, client_id")
       .eq("id", briefId)
       .single();
     if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
@@ -82,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
     // ── read: return the task's current name / points / due date + completion ─
     if (isRead) {
-      const res = await fetch(taskApi, CU);
+      const res = await cuFetch(taskApi, CU);
       if (!res.ok) return json({ error: `ClickUp get ${res.status}: ${await res.text()}` }, 502);
       const t = await res.json() as {
         name?: string;
@@ -94,6 +103,18 @@ Deno.serve(async (req: Request) => {
         time_estimate?: number | null;
         time_spent?: number | null;
         status?: { status?: string; type?: string } | null;
+        description?: string | null;
+        text_content?: string | null;
+        list?: { id?: string } | null;
+        assignees?: Array<{ id: number }> | null;
+        custom_fields?: Array<
+          {
+            name?: string;
+            type?: string;
+            value?: unknown;
+            type_config?: { options?: Array<{ id: string; name?: string; orderindex?: number }> };
+          }
+        > | null;
       };
       // Estimated points = the ORIGINAL allocation (frozen), not the current
       // (possibly-edited) task points. Freeze it the first time we see points.
@@ -116,6 +137,36 @@ Deno.serve(async (req: Request) => {
       const completedMs = t.date_done ?? t.date_closed ?? null;
       const statusType = t.status?.type ?? null;
       const isComplete = !!completedMs || statusType === "closed" || statusType === "done";
+      // The statuses this task's list actually offers. Never hardcoded: client
+      // spaces use custom status sets, and "to do" does not exist in them.
+      let availableStatuses: string[] = [];
+      if (t.list?.id) {
+        const lr = await cuFetch(`https://api.clickup.com/api/v2/list/${t.list.id}`, CU);
+        if (lr.ok) {
+          const l = await lr.json() as { statuses?: Array<{ status?: string; type?: string }> };
+          availableStatuses = (l.statuses ?? [])
+            // A task is closed in ClickUp, not from here: closing sets
+            // completed_at on the next sync and moves every retainer figure,
+            // so offering it in an edit dialog invites an accident.
+            .filter((s) => s.type !== "closed" && s.type !== "done")
+            .map((s) => s.status ?? "")
+            .filter(Boolean);
+        }
+      }
+      const workStreamField = (t.custom_fields ?? []).find(
+        (f) => f.name?.trim().toLowerCase() === "work stream" && f.type === "drop_down",
+      );
+      // A drop_down reads back as its ORDERINDEX (a number), not its option id —
+      // the id is what you WRITE. Matching on id alone silently reported every
+      // work stream as unset. Handle both, since ClickUp is not consistent
+      // about it across field types.
+      const wsValue = workStreamField?.value;
+      const workStream = workStreamField
+        ? workStreamField.type_config?.options?.find((o) =>
+          typeof wsValue === "number" ? o.orderindex === wsValue : o.id === String(wsValue ?? ""),
+        )?.name ?? null
+        : null;
+
       return json({
         task_name: t.name ?? brief.raw_subject ?? "",
         sprint_points: t.points ?? null, // current (editable) task points
@@ -136,6 +187,15 @@ Deno.serve(async (req: Request) => {
         client_wait_ms: brief.client_wait_ms ?? null,
         // Operator override: this late delivery was manually flagged client-caused.
         client_delay_manual: brief.client_delay_manual ?? false,
+        // The rest of what the brief carried, so one dialog can edit all of it.
+        description: t.description ?? t.text_content ?? "",
+        work_stream: workStream,
+        available_statuses: availableStatuses,
+        assignee_member_id: brief.assignee_id ?? null,
+        billing_type: brief.billing_type ?? null,
+        parent_project_id: brief.parent_project_id ?? null,
+        client_id: brief.client_id ?? null,
+        clickup_list_id: t.list?.id ?? null,
       });
     }
 
@@ -147,6 +207,15 @@ Deno.serve(async (req: Request) => {
     if (typeof body.sprint_points === "number" && Number.isFinite(body.sprint_points)) {
       update.points = body.sprint_points;
       update.time_estimate = Math.round(body.sprint_points * POINT_TO_MIN * 60_000);
+    }
+    if (typeof body.description === "string") {
+      // ClickUp is the source of truth for the body text — briefs has no
+      // description column, the three brief text boxes are composed into this
+      // at creation and never stored separately.
+      update.description = body.description;
+    }
+    if (typeof body.status === "string" && body.status.trim()) {
+      update.status = body.status.trim();
     }
     if (body.due_date !== undefined) {
       const ms = dateStrToMs(body.due_date);
@@ -162,11 +231,11 @@ Deno.serve(async (req: Request) => {
     // doesn't have makes ClickUp reject the whole update.
     let waitingStatus: string | null = null;
     if (body.with_client) {
-      const cur = await fetch(taskApi, CU);
+      const cur = await cuFetch(taskApi, CU);
       if (!cur.ok) return json({ error: `ClickUp get ${cur.status}: ${await cur.text()}` }, 502);
       const listId = ((await cur.json()) as { list?: { id?: string } }).list?.id;
       if (!listId) return json({ error: "Could not read the task's ClickUp list." }, 502);
-      const listRes = await fetch(`https://api.clickup.com/api/v2/list/${listId}`, CU);
+      const listRes = await cuFetch(`https://api.clickup.com/api/v2/list/${listId}`, CU);
       if (!listRes.ok) return json({ error: `ClickUp list ${listRes.status}: ${await listRes.text()}` }, 502);
       const statuses = ((await listRes.json()) as { statuses?: Array<{ status?: string }> }).statuses ?? [];
       waitingStatus = statuses
@@ -194,7 +263,7 @@ Deno.serve(async (req: Request) => {
         if (!newClickupId) return json({ error: "That team member has no linked ClickUp user." }, 400);
       }
       // Current assignees come from the live task so we can remove them cleanly.
-      const cur = await fetch(taskApi, CU);
+      const cur = await cuFetch(taskApi, CU);
       if (!cur.ok) return json({ error: `ClickUp get ${cur.status}: ${await cur.text()}` }, 502);
       const curTask = await cur.json() as { assignees?: Array<{ id: number }> };
       const currentIds = (curTask.assignees ?? []).map((a) => a.id);
@@ -203,14 +272,22 @@ Deno.serve(async (req: Request) => {
       update.assignees = { add, rem };
     }
 
-    if (Object.keys(update).length === 0) {
+    // Three kinds of edit, and only the first rides the task PUT:
+    //   the task itself  → `update`
+    //   Work Stream      → its own custom-field endpoint
+    //   billing/retainer → Conductor columns, never sent to ClickUp
+    // Any one of them alone is a real save.
+    const wantsWorkStream = typeof body.work_stream === "string" && !!body.work_stream.trim();
+    const conductorOnly = body.billing_type !== undefined || body.parent_project_id !== undefined;
+    const hasTaskUpdate = Object.keys(update).length > 0;
+    if (!hasTaskUpdate && !wantsWorkStream && !conductorOnly) {
       return json({ error: "No fields to update." }, 400);
     }
 
     // If points are being changed and the original allocation was never frozen,
     // capture the CURRENT (pre-edit) task points as the original first.
     if (body.sprint_points !== undefined && brief.original_points == null) {
-      const pre = await fetch(taskApi, CU);
+      const pre = await cuFetch(taskApi, CU);
       if (pre.ok) {
         const preTask = await pre.json() as { points?: number | null };
         if (preTask.points != null) {
@@ -219,16 +296,61 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    let res = await fetch(taskApi, { ...CU, method: "PUT", body: JSON.stringify(update) });
+    if (!hasTaskUpdate && !wantsWorkStream) {
+      // Nothing for ClickUp at all; write the Conductor side and return.
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (body.billing_type !== undefined) patch.billing_type = body.billing_type;
+      if (body.parent_project_id !== undefined) patch.parent_project_id = body.parent_project_id;
+      const { error: pErr } = await sb.from("briefs").update(patch).eq("id", briefId);
+      if (pErr) return json({ error: pErr.message }, 500);
+      return json({
+        task_name: brief.raw_subject ?? "",
+        sprint_points: brief.original_points != null ? Number(brief.original_points) : null,
+        due_date: brief.original_due_date ?? null,
+        clickup_task_url: brief.clickup_task_url,
+      });
+    }
+
+    let res = await cuFetch(taskApi, { ...CU, method: "PUT", body: JSON.stringify(update) });
     // ClickUp rejects very large point values; retry once without `points`
     // (time_estimate + the other fields still apply). See the points-cap note.
     if (!res.ok && "points" in update) {
       const errText = await res.text();
       console.warn(`[update-briefed-task] PUT failed with points (${res.status}: ${errText}); retrying without points`);
       const { points: _p, time_estimate: _t, ...noPoints } = update;
-      res = await fetch(taskApi, { ...CU, method: "PUT", body: JSON.stringify(noPoints) });
+      res = await cuFetch(taskApi, { ...CU, method: "PUT", body: JSON.stringify(noPoints) });
     }
     if (!res.ok) return json({ error: `ClickUp update ${res.status}: ${await res.text()}` }, 502);
+
+    // Work Stream is a dropdown CUSTOM field, so it does not ride the task PUT
+    // and it must be sent as the OPTION ID — posting the label is a 400
+    // FIELD_011, and only a live write ever surfaces that.
+    if (wantsWorkStream) {
+      const cur = await cuFetch(taskApi, CU);
+      const listId = cur.ok
+        ? ((await cur.json()) as { list?: { id?: string } }).list?.id ?? null
+        : null;
+      if (listId) {
+        const fr = await cuFetch(`https://api.clickup.com/api/v2/list/${listId}/field`, CU);
+        if (fr.ok) {
+          const { fields } = await fr.json() as { fields?: CuField[] };
+          const opt = resolveDropdownOption(fields ?? [], "Work Stream", body.work_stream!);
+          if (opt) {
+            // Best-effort, like the checklist push: the task and every other
+            // edit already landed, and failing the whole save over one dropdown
+            // would lose them.
+            const wr = await cuFetch(`https://api.clickup.com/api/v2/task/${taskId}/field/${opt.id}`, {
+              ...CU,
+              method: "POST",
+              body: JSON.stringify({ value: opt.value }),
+            });
+            if (!wr.ok) console.error(`work stream set failed: ${wr.status} ${await wr.text()}`);
+          } else {
+            console.error(`work stream "${body.work_stream}" is not an option on list ${listId}`);
+          }
+        }
+      }
+    }
     const t = await res.json() as { name?: string; points?: number | null; due_date?: string | null };
 
     // Mirror the task name / assignee onto the Conductor brief so the list stays
@@ -240,6 +362,8 @@ Deno.serve(async (req: Request) => {
     if (newAssigneeMemberId !== undefined && newAssigneeMemberId !== brief.assignee_id) {
       briefPatch.assignee_id = newAssigneeMemberId;
     }
+    if (body.billing_type !== undefined) briefPatch.billing_type = body.billing_type;
+    if (body.parent_project_id !== undefined) briefPatch.parent_project_id = body.parent_project_id;
     // Mirror the status so the sign-off candidate query sees it now rather than
     // at the next sync-clickup-actuals tick.
     if (waitingStatus) briefPatch.clickup_task_status = waitingStatus;

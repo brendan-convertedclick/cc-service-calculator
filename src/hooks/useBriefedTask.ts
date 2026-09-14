@@ -19,6 +19,17 @@ export type BriefedTaskFields = {
   original_due_date?: string | null; // "YYYY-MM-DD" — original committed due date
   client_wait_ms?: number | null; // time spent waiting on the client (ms)
   client_delay_manual?: boolean; // operator flagged the delay as client-caused
+  // The rest of what the brief carried, so one dialog can edit all of it.
+  description?: string;
+  work_stream?: string | null;
+  /** Statuses this task's list actually offers, closed/done ones removed.
+   *  Client spaces use custom status sets — never hardcode "to do". */
+  available_statuses?: string[];
+  assignee_member_id?: string | null;
+  billing_type?: "retainer" | "adhoc" | "internal" | null;
+  parent_project_id?: string | null;
+  client_id?: string | null;
+  clickup_list_id?: string | null;
 };
 
 async function invokeBriefedTask(body: Record<string, unknown>): Promise<BriefedTaskFields> {
@@ -73,12 +84,22 @@ export function useUpdateBriefedTask() {
       assignee_member_id?: string | null;
       /** Hand the task to the client: unassigned + the list's waiting status. */
       with_client?: boolean;
+      description?: string;
+      status?: string;
+      work_stream?: string;
+      /** Conductor-only: which retainer the work is booked to and whether it is
+       *  billable. Neither reaches ClickUp. */
+      billing_type?: "retainer" | "adhoc" | "internal";
+      parent_project_id?: string | null;
     }) => invokeBriefedTask({ ...args, mode: "write" }),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["briefed-task", vars.brief_id] });
       qc.invalidateQueries({ queryKey: ["briefs"] });
       qc.invalidateQueries({ queryKey: ["briefs", "inbox"] });
       qc.invalidateQueries({ queryKey: ["signoff-candidates"] });
+      // Re-parenting a task or flipping it to internal moves it between rows on
+      // the Retainers book, so that has to be re-read too.
+      qc.invalidateQueries({ queryKey: ["retainer_allocation"] });
     },
   });
 }
