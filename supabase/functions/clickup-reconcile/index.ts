@@ -82,7 +82,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
 
   try {
-    const body = await req.json().catch(() => ({})) as { since?: string; include_open?: boolean; adopt?: boolean };
+    const body = await req.json().catch(() => ({})) as {
+      since?: string;
+      include_open?: boolean;
+      adopt?: boolean;
+      backfill_points?: boolean;
+    };
     // adopt: write every closed task Conductor is missing (client AND internal)
     // into briefs, so the person who did it gets the hours. ClickUp-native
     // recurring copies — the daily stand-up, General Admin — are the bulk of
@@ -193,6 +198,68 @@ Deno.serve(async (req: Request) => {
     // Only tasks whose list maps to a client; an unmapped list is a finding to
     // fix on the client page, not something to guess a client for. Dedupe is
     // on clickup_task_id, so running this twice adopts nothing the second time.
+    // ── Backfill points (0169) onto work Conductor already knows ────────────
+    // The half-hourly sync only re-snapshots the CURRENT period's provisioned
+    // tasks and 30 meeting tasks a tick, so a task closed last month would never
+    // see the points column. This pass already holds every closed task in the
+    // window, points included, so it writes them on: a fresh project_actuals
+    // snapshot per known provisioned task, and points/close date on each
+    // known meeting task. Idempotent in effect — a re-run writes the same values.
+    let pointsBackfilled = 0;
+    let meetingsBackfilled = 0;
+    if (body.backfill_points === true) {
+      const byId = new Map(tasks.map((t) => [t.id, t]));
+      const provisionedIds = new Set<string>();
+      for (const r of provRes.data ?? []) {
+        for (const id of (r as { clickup_task_ids: string[] | null }).clickup_task_ids ?? []) {
+          if (byId.has(id)) provisionedIds.add(id);
+        }
+      }
+      const provList = [...provisionedIds];
+      for (let i = 0; i < provList.length; i += 150) {
+        const chunk = provList.slice(i, i + 150);
+        const { data: snaps } = await sb
+          .from("retainer_recurring_delivery")
+          .select("project_id, clickup_task_id, planned_hours, actual_hours")
+          .in("clickup_task_id", chunk);
+        const rows = ((snaps ?? []) as Array<{ project_id: string; clickup_task_id: string; planned_hours: number; actual_hours: number }>)
+          .map((s) => {
+            const t = byId.get(s.clickup_task_id)!;
+            return {
+              project_id: s.project_id,
+              clickup_task_id: s.clickup_task_id,
+              task_name: t.name,
+              planned_hours: s.planned_hours ?? 0,
+              actual_hours: s.actual_hours ?? 0,
+              status_at_sync: "closed",
+              synced_at: new Date().toISOString(),
+              date_closed: t.date_closed ? new Date(Number(t.date_closed)).toISOString() : null,
+              points: t.points ?? null,
+            };
+          });
+        if (rows.length) {
+          const { error } = await sb.from("project_actuals").insert(rows);
+          if (error) return json({ error: `backfill_points (recurring) failed: ${error.message}` }, 500);
+          pointsBackfilled += rows.length;
+        }
+      }
+      for (const r of meetRes.data ?? []) {
+        const id = (r as { clickup_task_id: string | null }).clickup_task_id;
+        const t = id ? byId.get(id) : undefined;
+        if (!id || !t) continue;
+        const { error } = await sb
+          .from("internal_meeting_tasks")
+          .update({
+            clickup_status: "closed",
+            clickup_points: t.points ?? null,
+            clickup_closed_at: t.date_closed ? new Date(Number(t.date_closed)).toISOString() : null,
+            clickup_synced_at: new Date().toISOString(),
+          })
+          .eq("clickup_task_id", id);
+        if (!error) meetingsBackfilled++;
+      }
+    }
+
     let adopted = 0;
     if (adopt) {
       const { data: teamRows } = await sb
@@ -271,6 +338,8 @@ Deno.serve(async (req: Request) => {
       missing_hours: missingPoints * 0.25,
       internal_missing: internalMissing.sort((a, b) => (b.points ?? 0) - (a.points ?? 0)),
       adopted,
+      points_backfilled: pointsBackfilled,
+      meetings_backfilled: meetingsBackfilled,
       unmapped_lists: [...unmappedLists.entries()].map(([id, name]) => ({ list_id: id, name })),
       open: includeOpen
         ? {
