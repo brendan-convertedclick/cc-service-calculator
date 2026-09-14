@@ -29,6 +29,7 @@ interface CuTask {
   date_closed: string | null;
   date_done?: string | null;
   assignees?: Array<{ id: number }>;
+  parent?: string | null;
 }
 
 /** A closed ClickUp task Conductor has never heard of, with enough on it to
@@ -43,6 +44,8 @@ interface MissingTask {
   internal: boolean;
   assignee_clickup_id: number | null;
   date_closed: string | null;
+  /** The retainer this books to, by the 0171 rules; null = ad hoc. */
+  project_id: string | null;
 }
 
 /** ClickUp pages at 100; `last_page` is the only honest end-of-list signal. */
@@ -91,6 +94,9 @@ Deno.serve(async (req: Request) => {
       /** Return every closed task in the window (id, name, points, assignees,
        *  dates, list) so a per-task diff against Conductor can be done outside. */
       dump?: boolean;
+      /** Fill parent_project_id on briefs in the window that have none, using
+       *  the same two rules adopt uses (0171). */
+      attribute?: boolean;
     };
     // adopt: write every closed task Conductor is missing (client AND internal)
     // into briefs, so the person who did it gets the hours. ClickUp-native
@@ -143,9 +149,26 @@ Deno.serve(async (req: Request) => {
       sb.from("provisioned_tasks").select("clickup_task_ids"),
       sb.from("ongoing_tasks").select("clickup_task_id"),
       sb.from("internal_meeting_tasks").select("clickup_task_id"),
-      sb.from("projects").select("clickup_parent_task_id").not("clickup_parent_task_id", "is", null),
-      sb.from("client_lists").select("clickup_list_id, client_id, clients(name, is_internal)"),
+      sb.from("projects").select("id, clickup_parent_task_id").not("clickup_parent_task_id", "is", null),
+      sb.from("client_lists").select("clickup_list_id, client_id, default_project_id, clients(name, is_internal)"),
     ]);
+
+    // ── Which retainer a task belongs to (0171) ─────────────────────────────
+    // Two rules, in order: a task nested under a retainer's ClickUp parent task
+    // is that retainer's; otherwise the list's default, set on the client page
+    // (or filled automatically where one live retainer owns the list). Anything
+    // else is ad hoc, which is the honest answer rather than a guess.
+    const projectByParentTask = new Map<string, string>();
+    for (const r of parentRes.data ?? []) {
+      const row = r as { id: string; clickup_parent_task_id: string };
+      projectByParentTask.set(row.clickup_parent_task_id, row.id);
+    }
+    const defaultProjectByList = new Map<string, string>();
+    for (const r of (listsRes.data ?? []) as unknown as Array<{ clickup_list_id: string; default_project_id: string | null }>) {
+      if (r.default_project_id) defaultProjectByList.set(r.clickup_list_id, r.default_project_id);
+    }
+    const retainerFor = (t: CuTask): string | null =>
+      (t.parent && projectByParentTask.get(t.parent)) || defaultProjectByList.get(t.list?.id ?? "") || null;
 
     const known = new Set<string>();
     const add = (v: unknown) => { if (typeof v === "string" && v) known.add(v); };
@@ -173,6 +196,7 @@ Deno.serve(async (req: Request) => {
       internal: owner?.internal ?? false,
       assignee_clickup_id: t.assignees?.[0]?.id ?? null,
       date_closed: t.date_closed,
+      project_id: retainerFor(t),
     });
 
     const missing: MissingTask[] = [];
@@ -276,6 +300,31 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Attribute: book already-known briefs to a retainer (0171) ──────────
+    // Only rows with no retainer yet; a retainer someone chose by hand in the
+    // task editor is never overwritten. billing_type follows, because a brief
+    // on a retainer is retainer work by definition.
+    let attributed = 0;
+    if (body.attribute === true) {
+      const byId = new Map(tasks.map((t) => [t.id, t]));
+      const { data: bare } = await sb
+        .from("briefs")
+        .select("id, clickup_task_id")
+        .is("parent_project_id", null)
+        .not("clickup_task_id", "is", null)
+        .gte("completed_at", since.toISOString());
+      for (const b of (bare ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+        const t = byId.get(b.clickup_task_id);
+        const projectId = t ? retainerFor(t) : null;
+        if (!projectId) continue;
+        const { error } = await sb
+          .from("briefs")
+          .update({ parent_project_id: projectId, billing_type: "retainer", updated_at: new Date().toISOString() })
+          .eq("id", b.id);
+        if (!error) attributed++;
+      }
+    }
+
     let adopted = 0;
     if (adopt) {
       const { data: teamRows } = await sb
@@ -292,7 +341,11 @@ Deno.serve(async (req: Request) => {
           raw_subject: m.name,
           raw_body: `Adopted from ClickUp by the reconcile check: the task existed and closed there before Conductor knew about it.`,
           original_points: m.points,
-          billing_type: m.internal ? "internal" : "adhoc",
+          clickup_points: m.points,
+          // Booked to a retainer when the rules find one; that is what makes
+          // it retainer work on the Book rather than an ad hoc line.
+          parent_project_id: m.project_id,
+          billing_type: m.internal ? "internal" : m.project_id ? "retainer" : "adhoc",
           clickup_task_id: m.task_id,
           clickup_task_status: "closed",
           clickup_status_synced_at: new Date().toISOString(),
@@ -356,6 +409,7 @@ Deno.serve(async (req: Request) => {
       adopted,
       points_backfilled: pointsBackfilled,
       meetings_backfilled: meetingsBackfilled,
+      attributed,
       tasks: body.dump === true
         ? tasks.map((t) => ({
           id: t.id,
@@ -366,6 +420,8 @@ Deno.serve(async (req: Request) => {
           date_done: t.date_done ?? null,
           list: t.list?.name ?? null,
           list_id: t.list?.id ?? null,
+          parent: t.parent ?? null,
+          project_id: retainerFor(t),
         }))
         : undefined,
       unmapped_lists: [...unmappedLists.entries()].map(([id, name]) => ({ list_id: id, name })),

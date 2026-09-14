@@ -1395,6 +1395,7 @@ export type Database = {
           client_id: string
           created_at: string
           custom_label: string | null
+          default_project_id: string | null
           discovered_at: string | null
           group_id: string | null
           id: string
@@ -1406,6 +1407,7 @@ export type Database = {
           client_id: string
           created_at?: string
           custom_label?: string | null
+          default_project_id?: string | null
           discovered_at?: string | null
           group_id?: string | null
           id?: string
@@ -1417,6 +1419,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           custom_label?: string | null
+          default_project_id?: string | null
           discovered_at?: string | null
           group_id?: string | null
           id?: string

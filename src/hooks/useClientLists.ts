@@ -49,11 +49,17 @@ export function useSyncClientStructure() {
 export function useUpdateClientList() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: { id: string; group_id: string | null; client_id: string }) => {
-      const { error } = await supabase
-        .from("client_lists")
-        .update({ group_id: patch.group_id })
-        .eq("id", patch.id);
+    mutationFn: async (patch: {
+      id: string;
+      client_id: string;
+      group_id?: string | null;
+      /** Which retainer work in this list is booked to (0171); null = ad hoc. */
+      default_project_id?: string | null;
+    }) => {
+      const fields: { group_id?: string | null; default_project_id?: string | null } = {};
+      if (patch.group_id !== undefined) fields.group_id = patch.group_id;
+      if (patch.default_project_id !== undefined) fields.default_project_id = patch.default_project_id;
+      const { error } = await supabase.from("client_lists").update(fields).eq("id", patch.id);
       if (error) throw error;
     },
     onSuccess: (_d, patch) => {

@@ -9,6 +9,7 @@ import {
   useCreateClientList,
 } from "@/hooks/useClientLists";
 import { useTaskGroups } from "@/hooks/useOngoingTasks";
+import { useClientProjects } from "@/hooks/useClientProjects";
 import { errorMessage } from "@/lib/utils";
 import { PanelSection } from "@/components/clients/PanelSection";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,13 @@ export function ClickUpListsPanel({
 }) {
   const { data: lists = [], isLoading } = useClientLists(clientId);
   const { data: groups = [] } = useTaskGroups();
+  // Which retainer a list's work is booked to (0171). Only live retainers are
+  // offered: booking work to a finished one would put it on nobody's fee.
+  const { data: clientsWithProjects = [] } = useClientProjects();
+  const retainers = (clientsWithProjects.find((c) => c.id === clientId)?.projects ?? []).filter(
+    (p) => p.engagement_type === "retainer" && p.status === "in_progress",
+  );
+  const ADHOC = "__adhoc__";
   const sync = useSyncClientStructure();
   const update = useUpdateClientList();
   const archive = useArchiveClientList();
@@ -63,7 +71,7 @@ export function ClickUpListsPanel({
   return (
     <PanelSection
       title="Lists"
-      description="Map each ClickUp list inside this client's folder to a task group. Ongoing tasks are provisioned into the mapped list."
+      description="Map each ClickUp list inside this client's folder to a task group, and say which retainer work closed in that list is booked to. Ongoing tasks are provisioned into the mapped list; a task under a retainer's own parent task is booked to that retainer regardless."
       action={
         <Button
           variant="outline"
@@ -129,6 +137,32 @@ export function ClickUpListsPanel({
                 {groups.map((g) => (
                   <SelectItem key={g.id} value={g.id}>
                     {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={row.default_project_id ?? ADHOC}
+              onValueChange={(v) => {
+                setBusyId(row.id);
+                update.mutate(
+                  { id: row.id, client_id: clientId, default_project_id: v === ADHOC ? null : v },
+                  {
+                    onSettled: () => setBusyId(null),
+                    onError: (e) => toast.error(`Update failed: ${errorMessage(e)}`),
+                  },
+                );
+              }}
+              disabled={busyId === row.id || retainers.length === 0}
+            >
+              <SelectTrigger className="w-52" title="Which retainer work closed in this list is booked to">
+                <SelectValue placeholder="Ad hoc" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ADHOC}>Ad hoc (no retainer)</SelectItem>
+                {retainers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>
