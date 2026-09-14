@@ -153,8 +153,9 @@ Deno.serve(async (req: Request) => {
       clickup_task_id: string;
       original_points: number | null;
       original_due_date: string | null;
+      assignee_id: string | null;
     };
-    const BRIEF_TASK_COLUMNS = "id, clickup_task_id, original_points, original_due_date";
+    const BRIEF_TASK_COLUMNS = "id, clickup_task_id, original_points, original_due_date, assignee_id";
     const [{ data: staleTasks }, { data: waitingTasks }] = await Promise.all([
       supabase
         .from("briefs")
@@ -177,6 +178,15 @@ Deno.serve(async (req: Request) => {
       if (!byTaskId.has(row.clickup_task_id)) byTaskId.set(row.clickup_task_id, row);
     }
     const briefTasks = [...byTaskId.values()];
+    // ClickUp user id → team member id, so a brief mirrored without an
+    // assignee (staff briefs did this for months) picks it up from the task.
+    const { data: teamRows } = await supabase
+      .from("team_members")
+      .select("id, clickup_user_id")
+      .not("clickup_user_id", "is", null);
+    const memberByClickupUser = new Map<number, string>(
+      ((teamRows ?? []) as Array<{ id: string; clickup_user_id: number }>).map((t) => [Number(t.clickup_user_id), t.id]),
+    );
     const waitMap = await fetchWaitMap([...byTaskId.keys()]);
 
     let projectsQuery = supabase.from("projects").select("*");
@@ -476,6 +486,7 @@ Deno.serve(async (req: Request) => {
       due_date?: string | null;
       date_closed?: string | null;
       date_done?: string | null;
+      assignees?: Array<{ id: number }> | null;
     };
     // null = could not read it (rate limit, network, anything transient).
     // "deleted" = ClickUp says the task is gone, which is a fact, not a failure.
@@ -571,6 +582,12 @@ Deno.serve(async (req: Request) => {
       };
       if (b.original_points == null && originalPoints != null) patch.original_points = originalPoints;
       if (b.original_due_date == null && originalDue != null) patch.original_due_date = originalDue;
+      // Only fill a blank: ClickUp is the source of truth for who holds a task,
+      // but an assignee someone set in Conductor is not overwritten here.
+      if (b.assignee_id == null) {
+        const member = memberByClickupUser.get(Number(task?.assignees?.[0]?.id));
+        if (member) patch.assignee_id = member;
+      }
       // Both waiting clocks, from the bulk call made at the top of this run.
       // Only patch when that call returned a value for this task, so a failed
       // call never zeroes a number someone is about to show a client.

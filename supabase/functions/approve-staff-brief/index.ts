@@ -304,8 +304,18 @@ Deno.serve(async (req: Request) => {
       raw_body: brief.goal,
       original_points: brief.sprint_points,
       // internal is billed to nobody, but adhoc is what the invoice run reads.
-      billing_type: destination === "retainer" ? "retainer" : "adhoc",
+      // Was `destination === "retainer" ? "retainer" : "adhoc"`, which filed
+      // every internal staff brief as adhoc because the check constraint had no
+      // third value. 0165 added one, so this can now say what it means.
+      billing_type: destination === "retainer"
+        ? "retainer"
+        : destination === "internal"
+          ? "internal"
+          : "adhoc",
       clickup_task_id: created.id,
+      // The ClickUp task above is assigned to the submitter; the mirror was not,
+      // so every staff brief read as "Unassigned" on the capacity page.
+      assignee_id: brief.submitter_id,
     });
     if (mirrorErr) {
       // Loud, not silent: a failed mirror means the work is in ClickUp and in no
