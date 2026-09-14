@@ -18,7 +18,7 @@ export interface CapacityItem {
   name: string;
   clientName: string;
   hours: number;
-  kind: "brief" | "recurring";
+  kind: "brief" | "recurring" | "meeting";
   closedAt: string | null;
 }
 
@@ -27,9 +27,12 @@ export interface PersonLoad {
   name: string;
   briefedHours: number;
   recurringHours: number;
+  /** Internal and client meetings Conductor put in the calendar, by duration. */
+  meetingHours: number;
   totalHours: number;
   briefCount: number;
   recurringCount: number;
+  meetingCount: number;
   items: CapacityItem[];
 }
 
@@ -38,6 +41,7 @@ export interface CapacityMonth {
   accountedHours: number;
   briefedHours: number;
   recurringHours: number;
+  meetingHours: number;
   people: PersonLoad[];
 }
 
@@ -55,7 +59,7 @@ export function useTeamCapacity(month: string) {
       const start = `${month}-01`;
       const end = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`;
 
-      const [teamRes, briefsRes, provRes, deliveryRes, clientsRes] = await Promise.all([
+      const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes] = await Promise.all([
         supabase.from("team_members").select("id, full_name").is("archived_at", null),
         supabase
           .from("briefs")
@@ -63,24 +67,45 @@ export function useTeamCapacity(month: string) {
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
-        // provisioned_tasks carries the assignee; the delivery view carries
-        // whether the task closed and what it was worth. Joined here rather
-        // than in SQL because the task ids live in an array column.
-        supabase
-          .from("provisioned_tasks")
-          .select("assignee_id, clickup_task_ids, projects(name, clients(name))")
-          .eq("period_start", start),
+        // closed_month, not month: the delivery view's `month` is the fee
+        // month a recurring task was provisioned for, which is the retainer
+        // question. Here the question is when the person spent the time, and
+        // Lisa's July GMB weeks closed in August belong to August (0168).
         supabase
           .from("retainer_recurring_delivery")
           .select("clickup_task_id, is_closed, planned_hours")
-          .eq("month", month),
+          .eq("closed_month", month)
+          .eq("is_closed", true),
+        // Meetings live in their own table and were invisible here; five of
+        // Lisa's August tasks were [Meeting] rows. Duration is the honest
+        // figure — a 30-minute stand-up is 30 minutes whatever its points say.
+        supabase
+          .from("internal_meetings")
+          .select("id, title, starts_at, ends_at, clients(name), internal_meeting_tasks(team_member_id)")
+          .gte("starts_at", start)
+          .lt("starts_at", end)
+          .neq("status", "cancelled"),
         supabase.from("clients").select("id, name"),
       ]);
       if (teamRes.error) throw teamRes.error;
       if (briefsRes.error) throw briefsRes.error;
-      if (provRes.error) throw provRes.error;
       if (deliveryRes.error) throw deliveryRes.error;
+      if (meetingsRes.error) throw meetingsRes.error;
       if (clientsRes.error) throw clientsRes.error;
+
+      // provisioned_tasks carries the assignee; the delivery view carries
+      // whether the task closed and what it was worth. Joined here rather
+      // than in SQL because the task ids live in an array column, and fetched
+      // by task id rather than period so an earlier period's task closed this
+      // month still finds its owner.
+      const closedIds = (deliveryRes.data ?? []).map((d) => d.clickup_task_id).filter((id): id is string => !!id);
+      const provRes = closedIds.length
+        ? await supabase
+          .from("provisioned_tasks")
+          .select("assignee_id, clickup_task_ids, projects(name, clients(name))")
+          .overlaps("clickup_task_ids", closedIds)
+        : { data: [], error: null };
+      if (provRes.error) throw provRes.error;
 
       const team = (teamRes.data ?? []) as Array<{ id: string; full_name: string }>;
       const nameById = new Map(team.map((t) => [t.id, t.full_name]));
@@ -95,9 +120,11 @@ export function useTeamCapacity(month: string) {
           name: id ? nameById.get(id) ?? "Unknown" : UNASSIGNED,
           briefedHours: 0,
           recurringHours: 0,
+          meetingHours: 0,
           totalHours: 0,
           briefCount: 0,
           recurringCount: 0,
+          meetingCount: 0,
           items: [],
         };
         byPerson.set(key, made);
@@ -167,9 +194,35 @@ export function useTeamCapacity(month: string) {
         }
       }
 
+      for (const m of (meetingsRes.data ?? []) as unknown as Array<{
+        id: string;
+        title: string;
+        starts_at: string;
+        ends_at: string;
+        clients: { name: string } | null;
+        internal_meeting_tasks: Array<{ team_member_id: string | null }>;
+      }>) {
+        const hours = Math.round(((Date.parse(m.ends_at) - Date.parse(m.starts_at)) / 3_600_000) * 100) / 100;
+        if (!(hours > 0)) continue;
+        for (const t of m.internal_meeting_tasks) {
+          if (!t.team_member_id) continue;
+          const p = bucket(t.team_member_id);
+          p.meetingHours += hours;
+          p.meetingCount += 1;
+          p.items.push({
+            id: `${m.id}:${t.team_member_id}`,
+            name: m.title,
+            clientName: m.clients?.name ?? "Internal",
+            hours,
+            kind: "meeting",
+            closedAt: m.starts_at,
+          });
+        }
+      }
+
       const people = [...byPerson.values()].map((p) => ({
         ...p,
-        totalHours: p.briefedHours + p.recurringHours,
+        totalHours: p.briefedHours + p.recurringHours + p.meetingHours,
         // Biggest first: reviewing a person's month starts with what took the
         // most of it.
         items: [...p.items].sort((a, b) => b.hours - a.hours),
@@ -178,11 +231,13 @@ export function useTeamCapacity(month: string) {
 
       const briefedHours = people.reduce((n, p) => n + p.briefedHours, 0);
       const recurringHours = people.reduce((n, p) => n + p.recurringHours, 0);
+      const meetingHours = people.reduce((n, p) => n + p.meetingHours, 0);
       return {
         headcount: team.length,
-        accountedHours: briefedHours + recurringHours,
+        accountedHours: briefedHours + recurringHours + meetingHours,
         briefedHours,
         recurringHours,
+        meetingHours,
         people,
       };
     },

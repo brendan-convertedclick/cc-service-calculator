@@ -27,6 +27,21 @@ interface CuTask {
   points: number | null;
   list: { id: string; name: string } | null;
   date_closed: string | null;
+  assignees?: Array<{ id: number }>;
+}
+
+/** A closed ClickUp task Conductor has never heard of, with enough on it to
+ *  adopt it as a brief: the list's client, the first assignee, when it closed. */
+interface MissingTask {
+  task_id: string;
+  name: string;
+  list: string;
+  client: string | null;
+  points: number | null;
+  client_id: string | null;
+  internal: boolean;
+  assignee_clickup_id: number | null;
+  date_closed: string | null;
 }
 
 /** ClickUp pages at 100; `last_page` is the only honest end-of-list signal. */
@@ -67,7 +82,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
 
   try {
-    const body = await req.json().catch(() => ({})) as { since?: string; include_open?: boolean };
+    const body = await req.json().catch(() => ({})) as { since?: string; include_open?: boolean; adopt?: boolean };
+    // adopt: write every closed task Conductor is missing (client AND internal)
+    // into briefs, so the person who did it gets the hours. ClickUp-native
+    // recurring copies — the daily stand-up, General Admin — are the bulk of
+    // what a person's month is made of and were never briefs; Lisa's August
+    // read 56h in Conductor against 104h in ClickUp until they were.
+    const adopt = body.adopt === true;
     // Off by default: the open set is dominated by future stand-ups and
     // provisioned tasks, so it doubles the ClickUp reads for a question most
     // runs are not asking.
@@ -114,7 +135,7 @@ Deno.serve(async (req: Request) => {
       sb.from("ongoing_tasks").select("clickup_task_id"),
       sb.from("internal_meeting_tasks").select("clickup_task_id"),
       sb.from("projects").select("clickup_parent_task_id").not("clickup_parent_task_id", "is", null),
-      sb.from("client_lists").select("clickup_list_id, clients(name, is_internal)"),
+      sb.from("client_lists").select("clickup_list_id, client_id, clients(name, is_internal)"),
     ]);
 
     const known = new Set<string>();
@@ -127,13 +148,28 @@ Deno.serve(async (req: Request) => {
 
     // A list belongs to a client, and a client is ours or a paying one. An
     // unmapped list is its own finding — Trellidor's Adhoc Work list was one.
-    type ListRow = { clickup_list_id: string; clients: { name: string; is_internal: boolean } | null };
-    const listClient = new Map<string, { name: string; internal: boolean }>();
+    type ListRow = { clickup_list_id: string; client_id: string; clients: { name: string; is_internal: boolean } | null };
+    const listClient = new Map<string, { id: string; name: string; internal: boolean }>();
     for (const r of (listsRes.data ?? []) as unknown as ListRow[]) {
-      if (r.clients) listClient.set(r.clickup_list_id, { name: r.clients.name, internal: r.clients.is_internal });
+      if (r.clients) listClient.set(r.clickup_list_id, { id: r.client_id, name: r.clients.name, internal: r.clients.is_internal });
     }
 
-    const missing: Array<{ task_id: string; name: string; list: string; client: string | null; points: number | null }> = [];
+    const toMissing = (t: CuTask, owner: { id: string; name: string; internal: boolean } | undefined): MissingTask => ({
+      task_id: t.id,
+      name: t.name,
+      list: t.list?.name ?? "",
+      client: owner?.name ?? null,
+      points: t.points ?? null,
+      client_id: owner?.id ?? null,
+      internal: owner?.internal ?? false,
+      assignee_clickup_id: t.assignees?.[0]?.id ?? null,
+      date_closed: t.date_closed,
+    });
+
+    const missing: MissingTask[] = [];
+    // Internal work Conductor never saw. Kept off `missing` and off the score
+    // (see header) but reported, because it is most of a person's month.
+    const internalMissing: MissingTask[] = [];
     let clientTasks = 0;
     let clientMatched = 0;
     let internalUnmatched = 0;
@@ -149,14 +185,42 @@ Deno.serve(async (req: Request) => {
         if (isClientWork) clientMatched++;
         continue;
       }
-      if (!isClientWork) { internalUnmatched++; continue; }
-      missing.push({
-        task_id: t.id,
-        name: t.name,
-        list: t.list?.name ?? "",
-        client: owner?.name ?? null,
-        points: t.points ?? null,
-      });
+      if (!isClientWork) { internalUnmatched++; internalMissing.push(toMissing(t, owner)); continue; }
+      missing.push(toMissing(t, owner));
+    }
+
+    // ── Adopt: make the missing work a brief so the hours land on a person ──
+    // Only tasks whose list maps to a client; an unmapped list is a finding to
+    // fix on the client page, not something to guess a client for. Dedupe is
+    // on clickup_task_id, so running this twice adopts nothing the second time.
+    let adopted = 0;
+    if (adopt) {
+      const { data: teamRows } = await sb
+        .from("team_members").select("id, clickup_user_id").not("clickup_user_id", "is", null);
+      const memberByCu = new Map<number, string>(
+        ((teamRows ?? []) as Array<{ id: string; clickup_user_id: number }>).map((t) => [Number(t.clickup_user_id), t.id]),
+      );
+      const rows = [...missing, ...internalMissing]
+        .filter((m) => m.client_id)
+        .map((m) => ({
+          client_id: m.client_id,
+          source: "manual",
+          status: "briefed",
+          raw_subject: m.name,
+          raw_body: `Adopted from ClickUp by the reconcile check: the task existed and closed there before Conductor knew about it.`,
+          original_points: m.points,
+          billing_type: m.internal ? "internal" : "adhoc",
+          clickup_task_id: m.task_id,
+          clickup_task_status: "closed",
+          clickup_status_synced_at: new Date().toISOString(),
+          completed_at: m.date_closed ? new Date(Number(m.date_closed)).toISOString() : null,
+          assignee_id: m.assignee_clickup_id != null ? memberByCu.get(m.assignee_clickup_id) ?? null : null,
+        }));
+      if (rows.length) {
+        const { error: adoptErr } = await sb.from("briefs").insert(rows);
+        if (adoptErr) return json({ error: `adopt failed: ${adoptErr.message}` }, 500);
+        adopted = rows.length;
+      }
     }
 
     // Same rules, reported apart: work in flight that Conductor has never seen.
@@ -173,13 +237,7 @@ Deno.serve(async (req: Request) => {
       if (!owner || owner.internal) continue;
       openClientTasks++;
       if (known.has(t.id)) continue;
-      openMissing.push({
-        task_id: t.id,
-        name: t.name,
-        list: t.list?.name ?? "",
-        client: owner?.name ?? null,
-        points: t.points ?? null,
-      });
+      openMissing.push(toMissing(t, owner));
     }
 
     // ── What Conductor can see wrong about itself ───────────────────────────
@@ -211,6 +269,8 @@ Deno.serve(async (req: Request) => {
       missing: missing.sort((a, b) => (b.points ?? 0) - (a.points ?? 0)),
       missing_points: missingPoints,
       missing_hours: missingPoints * 0.25,
+      internal_missing: internalMissing.sort((a, b) => (b.points ?? 0) - (a.points ?? 0)),
+      adopted,
       unmapped_lists: [...unmappedLists.entries()].map(([id, name]) => ({ list_id: id, name })),
       open: includeOpen
         ? {

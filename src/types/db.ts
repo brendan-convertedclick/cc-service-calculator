@@ -3383,6 +3383,7 @@ export type Database = {
           actual_hours: number
           clickup_task_id: string
           cost_cents: number | null
+          date_closed: string | null
           dept_id: string | null
           id: string
           is_productized: boolean | null
@@ -6179,6 +6180,8 @@ export type Database = {
         Row: {
           actual_hours: number | null
           clickup_task_id: string | null
+          closed_at: string | null
+          closed_month: string | null
           is_closed: boolean | null
           month: string | null
           period_start: string | null

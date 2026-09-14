@@ -99,8 +99,8 @@ function CapacityItems({ items }: { items: CapacityItem[] }) {
           <TableRow key={`${it.kind}-${it.id}`} className="[&>td]:py-2">
             <TableCell className="pl-12 text-body-medium text-m-on-surface">
               {it.name}
-              {it.kind === "recurring" && (
-                <span className="ml-2 text-label-small text-m-on-surface-variant">recurring</span>
+              {it.kind !== "brief" && (
+                <span className="ml-2 text-label-small text-m-on-surface-variant">{it.kind}</span>
               )}
             </TableCell>
             <TableCell className="text-body-medium text-m-on-surface-variant">{it.clientName}</TableCell>
@@ -195,6 +195,7 @@ export function RetainersDashboard() {
               <div className="flex justify-between text-label-small text-m-on-surface-variant">
                 <span>Briefed {fmtH(data?.briefedHours ?? 0)}</span>
                 <span>Recurring {fmtH(data?.recurringHours ?? 0)}</span>
+                <span>Meetings {fmtH(data?.meetingHours ?? 0)}</span>
               </div>
               <div className="mt-2">
                 <LoadBar pct={cap.inProgress ? cap.pctOfElapsed : cap.pctOfMonth} />

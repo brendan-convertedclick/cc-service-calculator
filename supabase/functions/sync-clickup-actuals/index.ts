@@ -329,6 +329,11 @@ Deno.serve(async (req: Request) => {
             time_entries: timeEntries,
             status_at_sync: status,
             synced_at: new Date().toISOString(),
+            // When it closed, for the capacity page (0168). Fee month stays on
+            // provisioned_tasks.period_start; this is the person's month.
+            date_closed: task.date_closed ?? task.date_done
+              ? new Date(Number(task.date_closed ?? task.date_done)).toISOString()
+              : null,
           });
         if (insErr) throw insErr;
         inserted++;
