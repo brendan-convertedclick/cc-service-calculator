@@ -50,6 +50,10 @@ Deno.serve(async (req: Request) => {
     let briefId: string | undefined;
     let body: {
       brief_id?: string;
+      /** Write path for a task that has no brief — a provisioned recurring task,
+       *  say. Everything ClickUp-side works the same; the Conductor mirror is
+       *  skipped because there is no row to mirror onto. */
+      clickup_task_id?: string;
       mode?: "read" | "write";
       task_name?: string;
       sprint_points?: number;
@@ -74,15 +78,49 @@ Deno.serve(async (req: Request) => {
     } else {
       return json({ error: "GET or POST only" }, 405);
     }
-    if (!briefId) return json({ error: "brief_id required" }, 400);
+    if (!briefId && !body.clickup_task_id) return json({ error: "brief_id required" }, 400);
     const isRead = req.method === "GET" || body.mode === "read";
 
-    const { data: brief, error: bErr } = await sb
-      .from("briefs")
-      .select("id, raw_subject, clickup_task_id, clickup_task_url, assignee_id, original_points, original_due_date, client_wait_ms, client_delay_manual, billing_type, parent_project_id, client_id")
-      .eq("id", briefId)
-      .single();
-    if (bErr || !brief) return json({ error: bErr?.message ?? "Brief not found" }, 404);
+    type BriefRow = {
+      id: string | null;
+      raw_subject: string | null;
+      clickup_task_id: string | null;
+      clickup_task_url: string | null;
+      assignee_id: string | null;
+      original_points: number | null;
+      original_due_date: string | null;
+      client_wait_ms: number | null;
+      client_delay_manual: unknown;
+      billing_type: string | null;
+      parent_project_id: string | null;
+      client_id: string | null;
+    };
+    let brief: BriefRow;
+    if (briefId) {
+      const { data, error: bErr } = await sb
+        .from("briefs")
+        .select("id, raw_subject, clickup_task_id, clickup_task_url, assignee_id, original_points, original_due_date, client_wait_ms, client_delay_manual, billing_type, parent_project_id, client_id")
+        .eq("id", briefId)
+        .single();
+      if (bErr || !data) return json({ error: bErr?.message ?? "Brief not found" }, 404);
+      brief = data as BriefRow;
+    } else {
+      brief = {
+        id: null,
+        raw_subject: null,
+        clickup_task_id: body.clickup_task_id!,
+        clickup_task_url: `https://app.clickup.com/t/${body.clickup_task_id}`,
+        assignee_id: null,
+        // Nothing to freeze: there is no brief to hold an original allocation.
+        original_points: 0,
+        original_due_date: null,
+        client_wait_ms: null,
+        client_delay_manual: null,
+        billing_type: null,
+        parent_project_id: null,
+        client_id: null,
+      };
+    }
     if (!brief.clickup_task_id) {
       return json({ error: "This brief has not been briefed into ClickUp yet." }, 400);
     }
@@ -367,7 +405,7 @@ Deno.serve(async (req: Request) => {
     // Mirror the status so the sign-off candidate query sees it now rather than
     // at the next sync-clickup-actuals tick.
     if (waitingStatus) briefPatch.clickup_task_status = waitingStatus;
-    if (Object.keys(briefPatch).length > 0) {
+    if (briefId && Object.keys(briefPatch).length > 0) {
       briefPatch.updated_at = new Date().toISOString();
       await sb.from("briefs").update(briefPatch).eq("id", briefId);
     }
