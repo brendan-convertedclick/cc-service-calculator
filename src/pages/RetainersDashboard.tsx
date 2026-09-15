@@ -19,7 +19,125 @@ import {
   type CapacityItem,
 } from "@/hooks/useTeamCapacity";
 import { teamCapacity, personCapacityHours, HOURS_PER_WORKING_DAY } from "@/lib/capacity";
-import { cn } from "@/lib/utils";
+import { useTeamDaysOff, useSetDayOff, type DayOff, type DayOffKind } from "@/hooks/useTeamDaysOff";
+import { todayISO } from "@/lib/dates";
+import { cn, errorMessage } from "@/lib/utils";
+import { toast } from "sonner";
+
+/** Every Monday to Friday of the month as "YYYY-MM-DD", local. */
+function workingDates(month: string): string[] {
+  const [y, m] = month.split("-").map(Number);
+  const out: string[] = [];
+  const last = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= last; d++) {
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) out.push(`${month}-${String(d).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+// Click cycles a day through nothing → leave → sick → nothing. Holiday is
+// kept as a kind (0172) but not on the cycle; add it when someone asks.
+const NEXT_KIND: Record<string, DayOffKind | null> = { none: "leave", leave: "sick", sick: null, holiday: null };
+const KIND_STYLE: Record<DayOffKind, string> = {
+  leave: "bg-m-primary-container text-m-on-primary-container",
+  sick: "bg-m-error-container text-m-on-error-container",
+  holiday: "bg-m-tertiary-container text-m-on-tertiary-container",
+};
+const KIND_LABEL: Record<DayOffKind, string> = { leave: "L", sick: "S", holiday: "H" };
+
+// The month as a grid: who was off which day (Lisa, 2026-09-15). Each mark
+// takes 7h off that person's capacity above, so the ring and Of capacity
+// column move with it. Weekends are not offered; they were never capacity.
+function DaysOffGrid({
+  month,
+  people,
+  daysOff,
+}: {
+  month: string;
+  people: Array<{ id: string; name: string }>;
+  daysOff: DayOff[];
+}) {
+  const dates = workingDates(month);
+  const today = todayISO();
+  const set = useSetDayOff(month);
+  const byKey = new Map(daysOff.map((d) => [`${d.team_member_id}|${d.day}`, d.kind]));
+  return (
+    <Card className="mt-6">
+      <CardContent className="p-6">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <div className="text-label-large text-m-on-surface">Days off</div>
+            <p className="text-label-small text-m-on-surface-variant">
+              Click a day to mark it. Once for leave, twice for sick, a third time clears it. Each day off takes {HOURS_PER_WORKING_DAY}h off that person's capacity.
+            </p>
+          </div>
+          <div className="flex gap-3 text-label-small text-m-on-surface-variant">
+            <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block h-4 w-4 rounded-sm text-center text-[10px] leading-4", KIND_STYLE.leave)}>L</span>Leave</span>
+            <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block h-4 w-4 rounded-sm text-center text-[10px] leading-4", KIND_STYLE.sick)}>S</span>Sick</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-y-1 text-label-small">
+            <thead>
+              <tr>
+                <th className="w-40 text-left font-normal text-m-on-surface-variant">Who</th>
+                {dates.map((d) => {
+                  const dt = new Date(`${d}T00:00:00`);
+                  return (
+                    <th
+                      key={d}
+                      className={cn(
+                        "min-w-7 px-0.5 text-center font-normal text-m-on-surface-variant",
+                        d === today && "text-m-primary font-semibold",
+                      )}
+                      title={d}
+                    >
+                      <div>{"SMTWTFS"[dt.getDay()]}</div>
+                      <div className="font-mono tabular-nums">{dt.getDate()}</div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((p) => (
+                <tr key={p.id}>
+                  <td className="text-body-medium text-m-on-surface">{p.name}</td>
+                  {dates.map((d) => {
+                    const kind = (byKey.get(`${p.id}|${d}`) ?? null) as DayOffKind | null;
+                    return (
+                      <td key={d} className="px-0.5 text-center">
+                        <button
+                          type="button"
+                          aria-label={`${p.name}, ${d}: ${kind ?? "working"}`}
+                          disabled={set.isPending}
+                          onClick={() =>
+                            set.mutate(
+                              { team_member_id: p.id, day: d, kind: NEXT_KIND[kind ?? "none"] },
+                              { onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`) },
+                            )
+                          }
+                          className={cn(
+                            "h-7 w-7 rounded-sm font-mono text-[11px] transition-colors",
+                            kind ? KIND_STYLE[kind] : "bg-m-surface-container-high hover:bg-m-surface-container-highest",
+                            d === today && !kind && "ring-1 ring-m-primary/40",
+                          )}
+                        >
+                          {kind ? KIND_LABEL[kind] : ""}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function fmtH(n: number): string {
   return `${Math.round(n * 10) / 10}h`;
@@ -122,6 +240,7 @@ function CapacityKey() {
     ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same closed tasks, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
+    ["Days off", "Leave and sick days logged in the grid at the bottom. Each one takes 7 hours off that person's capacity and off the team total, so a month with leave in it is judged against the hours people actually had."],
     ["Unassigned", "Work closed this month with nobody's name on it. It has no capacity to be a share of, so it shows no percentage — but the hours are real and are in the total."],
   ];
   return (
@@ -182,6 +301,27 @@ export function RetainersDashboard() {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => currentMonthKey());
   const { data, isLoading } = useTeamCapacity(month);
+  const { data: daysOff = [] } = useTeamDaysOff(month);
+
+  // Days off per person, split into the part of the month that has passed
+  // and the whole month (0172). A day off is not capacity.
+  const off = useMemo(() => {
+    const today = todayISO();
+    const perPerson = new Map<string, { elapsed: number; total: number }>();
+    let elapsed = 0;
+    let total = 0;
+    for (const d of daysOff) {
+      const cur = perPerson.get(d.team_member_id) ?? { elapsed: 0, total: 0 };
+      cur.total += 1;
+      total += 1;
+      if (d.day <= today) {
+        cur.elapsed += 1;
+        elapsed += 1;
+      }
+      perPerson.set(d.team_member_id, cur);
+    }
+    return { perPerson, elapsed, total };
+  }, [daysOff]);
 
   const cap = useMemo(
     () =>
@@ -189,10 +329,12 @@ export function RetainersDashboard() {
         month,
         headcount: data?.headcount ?? 0,
         accountedHours: data?.accountedHours ?? 0,
+        daysOff: { elapsed: off.elapsed, total: off.total },
       }),
-    [month, data?.headcount, data?.accountedHours],
+    [month, data?.headcount, data?.accountedHours, off],
   );
-  const perPerson = useMemo(() => personCapacityHours(month), [month]);
+  const perPersonHours = (id: string | null) =>
+    personCapacityHours(month, new Date(), id ? off.perPerson.get(id)?.elapsed ?? 0 : 0);
 
   const people: PersonLoad[] = data?.people ?? [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -310,6 +452,7 @@ export function RetainersDashboard() {
                 // Unassigned work has no person and therefore no capacity to be
                 // a share of — showing it a percentage would invent a colleague.
                 const isPerson = p.name !== UNASSIGNED;
+                const perPerson = perPersonHours(p.id);
                 const pct = isPerson && perPerson > 0 ? (p.totalHours / perPerson) * 100 : null;
                 const key = p.id ?? UNASSIGNED;
                 return (
@@ -374,6 +517,12 @@ export function RetainersDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      <DaysOffGrid
+        month={month}
+        people={people.filter((p): p is PersonLoad & { id: string } => !!p.id)}
+        daysOff={daysOff}
+      />
 
       <p className="mt-4 max-w-3xl text-label-small text-m-on-surface-variant">
         A low figure is not the same as a quiet month — it usually means work

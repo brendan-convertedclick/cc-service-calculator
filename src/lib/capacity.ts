@@ -31,6 +31,10 @@ export interface CapacityInput {
   accountedHours: number;
   /** Injected for tests; defaults to now. */
   today?: Date;
+  /** Person-days off in the month (leave, sick, holiday), split into the
+   *  part that has passed and the whole month (0172). A day off is not 7h
+   *  of capacity. */
+  daysOff?: { elapsed: number; total: number };
 }
 
 export interface CapacityResult {
@@ -50,7 +54,7 @@ export interface CapacityResult {
 }
 
 export function teamCapacity(
-  { month, headcount, accountedHours, today = new Date() }: CapacityInput,
+  { month, headcount, accountedHours, today = new Date(), daysOff = { elapsed: 0, total: 0 } }: CapacityInput,
 ): CapacityResult {
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   const inProgress = month === currentMonth;
@@ -62,8 +66,8 @@ export function teamCapacity(
   const totalDays = workingDays(month);
   const elapsedDays = inProgress ? workingDays(month, today) : totalDays;
 
-  const availableHours = totalDays * HOURS_PER_WORKING_DAY * headcount;
-  const elapsedHours = elapsedDays * HOURS_PER_WORKING_DAY * headcount;
+  const availableHours = Math.max(0, totalDays * headcount - daysOff.total) * HOURS_PER_WORKING_DAY;
+  const elapsedHours = Math.max(0, elapsedDays * headcount - daysOff.elapsed) * HOURS_PER_WORKING_DAY;
 
   return {
     availableHours,
@@ -78,8 +82,8 @@ export function teamCapacity(
 /** One person's share. Everyone is assumed full-time — there is nothing in
  *  team_members to say otherwise, and inventing a part-time flag nobody
  *  maintains would make the number less trustworthy, not more. */
-export function personCapacityHours(month: string, today = new Date()): number {
+export function personCapacityHours(month: string, today = new Date(), daysOff = 0): number {
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   const days = month === currentMonth ? workingDays(month, today) : workingDays(month);
-  return days * HOURS_PER_WORKING_DAY;
+  return Math.max(0, days - daysOff) * HOURS_PER_WORKING_DAY;
 }

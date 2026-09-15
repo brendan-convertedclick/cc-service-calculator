@@ -5793,6 +5793,41 @@ export type Database = {
           },
         ]
       }
+      team_days_off: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          day: string
+          kind: string
+          note: string | null
+          team_member_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          day: string
+          kind: string
+          note?: string | null
+          team_member_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          day?: string
+          kind?: string
+          note?: string | null
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_days_off_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           archived_at: string | null

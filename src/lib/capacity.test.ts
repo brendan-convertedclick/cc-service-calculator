@@ -48,3 +48,19 @@ describe("personCapacityHours", () => {
     expect(personCapacityHours(SEP, IN_SEP)).toBeLessThan(22 * HOURS_PER_WORKING_DAY);
   });
 });
+
+describe("days off (0172)", () => {
+  it("takes a day off out of the person and out of the team", () => {
+    // 10 September: 8 working days have passed. One person off 2 of them,
+    // and off 5 in the whole month.
+    const r = teamCapacity({
+      month: SEP, headcount: 4, accountedHours: 0, today: IN_SEP,
+      daysOff: { elapsed: 2, total: 5 },
+    });
+    expect(r.elapsedHours).toBe((8 * 4 - 2) * HOURS_PER_WORKING_DAY);
+    expect(r.availableHours).toBe((22 * 4 - 5) * HOURS_PER_WORKING_DAY);
+    expect(personCapacityHours(SEP, IN_SEP, 2)).toBe(6 * HOURS_PER_WORKING_DAY);
+    // More days off than days does not go negative.
+    expect(personCapacityHours(SEP, IN_SEP, 30)).toBe(0);
+  });
+});
