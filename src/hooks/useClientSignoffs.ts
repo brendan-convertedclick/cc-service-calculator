@@ -283,6 +283,8 @@ export function useClientReviewPreview(clientId: string | undefined) {
             )
             .eq("client_id", clientId)
             .not("clickup_task_id", "is", null)
+            // Internal work (0165) stays off their page; mirrors the edge fn.
+            .neq("billing_type", "internal")
             .is("completed_at", null)
             .order("created_at", { ascending: false }),
           supabase
