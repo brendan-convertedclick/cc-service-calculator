@@ -35,6 +35,10 @@ export interface PersonLoad {
    *  those, so this is the one bucket measured in tracked time (0174). */
   ongoingHours: number;
   totalHours: number;
+  /** Raw sprint points on everything closed this month (briefs, recurring,
+   *  meetings). The figure ClickUp's points dashboard shows; Lisa reconciles
+   *  against it. Ongoing carries no points. */
+  totalPoints: number;
   /** Time actually tracked on the same closed tasks (Rize → ClickUp →
    *  actual_hours), beside the points figure. Lisa, 2026-09-15: the
    *  candidate replacement basis; shown alongside until coverage is there. */
@@ -148,6 +152,7 @@ export function useTeamCapacity(month: string) {
           meetingHours: 0,
           ongoingHours: 0,
           totalHours: 0,
+          totalPoints: 0,
           trackedHours: 0,
           briefCount: 0,
           recurringCount: 0,
@@ -180,8 +185,10 @@ export function useTeamCapacity(month: string) {
         const p = bucket(b.assignee_id);
         // Live points first (0170): original_points is the frozen estimate,
         // and ClickUp's dashboard sums what the task says today.
-        const hours = Number(b.clickup_points ?? b.original_points ?? 0) * HOURS_PER_POINT;
+        const points = Number(b.clickup_points ?? b.original_points ?? 0);
+        const hours = points * HOURS_PER_POINT;
         p.briefedHours += hours;
+        p.totalPoints += points;
         p.trackedHours += Number(b.actual_hours ?? 0);
         p.briefCount += 1;
         p.items.push({
@@ -197,6 +204,7 @@ export function useTeamCapacity(month: string) {
       // Points when the task has them, planned hours only for a snapshot old
       // enough to predate 0169 — the same basis as briefs and as ClickUp.
       const closedHoursByTask = new Map<string, number>();
+      const pointsByTask = new Map<string, number>();
       const trackedByTask = new Map<string, number>();
       for (const d of (deliveryRes.data ?? []) as Array<{
         clickup_task_id: string;
@@ -208,6 +216,7 @@ export function useTeamCapacity(month: string) {
         if (!d.is_closed) continue;
         const hours = d.points != null ? Number(d.points) * HOURS_PER_POINT : Number(d.planned_hours ?? 0);
         closedHoursByTask.set(d.clickup_task_id, hours);
+        pointsByTask.set(d.clickup_task_id, Number(d.points ?? 0));
         trackedByTask.set(d.clickup_task_id, Number(d.actual_hours ?? 0));
       }
       for (const row of (provRes.data ?? []) as unknown as Array<{
@@ -220,6 +229,7 @@ export function useTeamCapacity(month: string) {
           if (hours === undefined) continue;
           const p = bucket(row.assignee_id);
           p.recurringHours += hours;
+          p.totalPoints += pointsByTask.get(taskId) ?? 0;
           p.trackedHours += trackedByTask.get(taskId) ?? 0;
           p.recurringCount += 1;
           p.items.push({
@@ -248,6 +258,7 @@ export function useTeamCapacity(month: string) {
         const hours = Number(t.clickup_points ?? 0) * HOURS_PER_POINT;
         const p = bucket(t.team_member_id);
         p.meetingHours += hours;
+        p.totalPoints += Number(t.clickup_points ?? 0);
         p.trackedHours += Number(t.clickup_tracked_hours ?? 0);
         p.meetingCount += 1;
         p.items.push({

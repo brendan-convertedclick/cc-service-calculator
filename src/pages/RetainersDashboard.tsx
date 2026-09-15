@@ -261,6 +261,7 @@ function CapacityKey() {
     ["Ongoing", "Time logged this month on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. No points on those, so this is the one bucket counted in tracked hours. Internal and never billable, but it is real capacity used."],
     ["Accounted", "That person's Briefed, Recurring, Meetings and Ongoing added together. It is what their month contained, not how long they sat at their desk."],
     ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same tasks: briefs, recurring, meetings and ongoing, and what share of Accounted that covers. Points are the basis and stay the basis; this column is the comparison."],
+    ["Total points", "The sprint points on everything that person closed this month: briefs, recurring and meetings. This is the number ClickUp's points dashboard shows, so the two should match. Ongoing tasks carry no points and are not in it."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
     ["Days off", "Leave, sick days and public holidays in the grid at the bottom. Each whole day takes 7 hours off that person's capacity and off the team total, a half day 3.5, so a month with leave or a holiday in it is judged against the hours people actually had."],
@@ -462,13 +463,14 @@ export function RetainersDashboard() {
                 <TableHead className="whitespace-nowrap text-right">Recurring</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Accounted</TableHead>
                 <TableHead className="whitespace-nowrap text-right" title="Time tracked in ClickUp on the same closed tasks">Tracked</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Sprint points on everything closed this month, as ClickUp's dashboard counts them">Total points</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Of capacity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-6 text-center text-body-medium text-m-on-surface-variant">
+                  <TableCell colSpan={8} className="py-6 text-center text-body-medium text-m-on-surface-variant">
                     Loading…
                   </TableCell>
                 </TableRow>
@@ -525,12 +527,15 @@ export function RetainersDashboard() {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                      {Math.round(p.totalPoints * 10) / 10}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                       {pct != null ? `${fmtPct(pct)} of ${fmtH(perPerson)}` : "—"}
                     </TableCell>
                   </TableRow>
                   {open[key] && p.items.length > 0 && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={6} className="bg-m-surface-container-low p-0">
+                      <TableCell colSpan={8} className="bg-m-surface-container-low p-0">
                         <CapacityItems items={p.items} />
                       </TableCell>
                     </TableRow>
