@@ -30,6 +30,10 @@ export interface PersonLoad {
   /** Internal and client meetings Conductor put in the calendar, by duration. */
   meetingHours: number;
   totalHours: number;
+  /** Time actually tracked on the same closed tasks (Rize → ClickUp →
+   *  actual_hours), beside the points figure. Lisa, 2026-09-15: the
+   *  candidate replacement basis; shown alongside until coverage is there. */
+  trackedHours: number;
   briefCount: number;
   recurringCount: number;
   meetingCount: number;
@@ -42,6 +46,7 @@ export interface CapacityMonth {
   briefedHours: number;
   recurringHours: number;
   meetingHours: number;
+  trackedHours: number;
   people: PersonLoad[];
 }
 
@@ -63,7 +68,7 @@ export function useTeamCapacity(month: string) {
         supabase.from("team_members").select("id, full_name").is("archived_at", null),
         supabase
           .from("briefs")
-          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points")
+          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points, actual_hours")
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
@@ -73,7 +78,7 @@ export function useTeamCapacity(month: string) {
         // Lisa's July GMB weeks closed in August belong to August (0168).
         supabase
           .from("retainer_recurring_delivery")
-          .select("clickup_task_id, is_closed, planned_hours, points")
+          .select("clickup_task_id, is_closed, planned_hours, points, actual_hours")
           .eq("closed_month", month)
           .eq("is_closed", true),
         // Meetings live in their own table and were invisible here; five of
@@ -122,6 +127,7 @@ export function useTeamCapacity(month: string) {
           recurringHours: 0,
           meetingHours: 0,
           totalHours: 0,
+          trackedHours: 0,
           briefCount: 0,
           recurringCount: 0,
           meetingCount: 0,
@@ -147,12 +153,14 @@ export function useTeamCapacity(month: string) {
         assignee_id: string | null;
         original_points: number | null;
         clickup_points: number | null;
+        actual_hours: number | null;
       }>) {
         const p = bucket(b.assignee_id);
         // Live points first (0170): original_points is the frozen estimate,
         // and ClickUp's dashboard sums what the task says today.
         const hours = Number(b.clickup_points ?? b.original_points ?? 0) * HOURS_PER_POINT;
         p.briefedHours += hours;
+        p.trackedHours += Number(b.actual_hours ?? 0);
         p.briefCount += 1;
         p.items.push({
           id: b.id,
@@ -167,15 +175,18 @@ export function useTeamCapacity(month: string) {
       // Points when the task has them, planned hours only for a snapshot old
       // enough to predate 0169 — the same basis as briefs and as ClickUp.
       const closedHoursByTask = new Map<string, number>();
+      const trackedByTask = new Map<string, number>();
       for (const d of (deliveryRes.data ?? []) as Array<{
         clickup_task_id: string;
         is_closed: boolean;
         planned_hours: number | null;
         points: number | null;
+        actual_hours: number | null;
       }>) {
         if (!d.is_closed) continue;
         const hours = d.points != null ? Number(d.points) * HOURS_PER_POINT : Number(d.planned_hours ?? 0);
         closedHoursByTask.set(d.clickup_task_id, hours);
+        trackedByTask.set(d.clickup_task_id, Number(d.actual_hours ?? 0));
       }
       for (const row of (provRes.data ?? []) as unknown as Array<{
         assignee_id: string | null;
@@ -187,6 +198,7 @@ export function useTeamCapacity(month: string) {
           if (hours === undefined) continue;
           const p = bucket(row.assignee_id);
           p.recurringHours += hours;
+          p.trackedHours += trackedByTask.get(taskId) ?? 0;
           p.recurringCount += 1;
           p.items.push({
             id: taskId,
@@ -236,12 +248,16 @@ export function useTeamCapacity(month: string) {
       const briefedHours = people.reduce((n, p) => n + p.briefedHours, 0);
       const recurringHours = people.reduce((n, p) => n + p.recurringHours, 0);
       const meetingHours = people.reduce((n, p) => n + p.meetingHours, 0);
+      // ponytail: meetings carry no tracked time yet (internal_meeting_tasks
+      // has no actual_hours); add it when the sync starts writing one.
+      const trackedHours = people.reduce((n, p) => n + p.trackedHours, 0);
       return {
         headcount: team.length,
         accountedHours: briefedHours + recurringHours + meetingHours,
         briefedHours,
         recurringHours,
         meetingHours,
+        trackedHours,
         people,
       };
     },

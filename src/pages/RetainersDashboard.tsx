@@ -59,7 +59,8 @@ function CapacityKey() {
     ["Briefed", "Hours from tasks somebody raised as a brief and closed this month."],
     ["Recurring", "Hours from the standing monthly tasks the provisioner creates — reports, plugin sweeps, standing meetings — that closed this month."],
     ["Accounted", "That person's Briefed and Recurring added together. It is what their month contained, not how long they sat at their desk."],
-    ["Of capacity", "Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
+    ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same closed tasks, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
+    ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
     ["Unassigned", "Work closed this month with nobody's name on it. It has no capacity to be a share of, so it shows no percentage — but the hours are real and are in the total."],
   ];
@@ -192,10 +193,11 @@ export function RetainersDashboard() {
               </p>
             </div>
             <div className="min-w-56">
-              <div className="flex justify-between text-label-small text-m-on-surface-variant">
+              <div className="flex justify-between gap-3 text-label-small text-m-on-surface-variant">
                 <span>Briefed {fmtH(data?.briefedHours ?? 0)}</span>
                 <span>Recurring {fmtH(data?.recurringHours ?? 0)}</span>
                 <span>Meetings {fmtH(data?.meetingHours ?? 0)}</span>
+                <span>Tracked {fmtH(data?.trackedHours ?? 0)}</span>
               </div>
               <div className="mt-2">
                 <LoadBar pct={cap.inProgress ? cap.pctOfElapsed : cap.pctOfMonth} />
@@ -215,6 +217,7 @@ export function RetainersDashboard() {
                 <TableHead className="whitespace-nowrap text-right">Briefed</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Recurring</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Accounted</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Time tracked in ClickUp on the same closed tasks">Tracked</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Of capacity</TableHead>
               </TableRow>
             </TableHeader>
@@ -267,6 +270,14 @@ export function RetainersDashboard() {
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                       {fmtH(p.totalHours)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                      {fmtH(p.trackedHours)}
+                      {p.totalHours > 0 && (
+                        <span className="ml-1 text-label-small">
+                          ({Math.round((p.trackedHours / p.totalHours) * 100)}%)
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                       {pct != null ? `${fmtPct(pct)} of ${fmtH(perPerson)}` : "—"}
