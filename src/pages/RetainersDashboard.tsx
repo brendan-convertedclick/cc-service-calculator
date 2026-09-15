@@ -36,15 +36,29 @@ function workingDates(month: string): string[] {
   return out;
 }
 
-// Click cycles a day through nothing → leave → sick → nothing. Holiday is
-// kept as a kind (0172) but not on the cycle; add it when someone asks.
-const NEXT_KIND: Record<string, DayOffKind | null> = { none: "leave", leave: "sick", sick: null, holiday: null };
+// Click cycles a day: nothing → leave → half leave → sick → half sick →
+// public holiday → nothing (0173). Holidays are seeded for the year, and a
+// person who worked one clicks through to clear it.
+type Mark = { kind: DayOffKind; fraction: number } | null;
+const CYCLE: Mark[] = [
+  null,
+  { kind: "leave", fraction: 1 },
+  { kind: "leave", fraction: 0.5 },
+  { kind: "sick", fraction: 1 },
+  { kind: "sick", fraction: 0.5 },
+  { kind: "holiday", fraction: 1 },
+];
+function nextMark(cur: Mark): Mark {
+  const i = CYCLE.findIndex((m) => m?.kind === cur?.kind && m?.fraction === cur?.fraction);
+  return CYCLE[(i + 1) % CYCLE.length];
+}
 const KIND_STYLE: Record<DayOffKind, string> = {
   leave: "bg-m-primary-container text-m-on-primary-container",
   sick: "bg-m-error-container text-m-on-error-container",
   holiday: "bg-m-tertiary-container text-m-on-tertiary-container",
 };
-const KIND_LABEL: Record<DayOffKind, string> = { leave: "L", sick: "S", holiday: "H" };
+const KIND_LABEL: Record<DayOffKind, string> = { leave: "L", sick: "S", holiday: "PH" };
+const markLabel = (m: Mark) => (m ? `${KIND_LABEL[m.kind]}${m.fraction === 0.5 ? "½" : ""}` : "");
 
 // The month as a grid: who was off which day (Lisa, 2026-09-15). Each mark
 // takes 7h off that person's capacity above, so the ring and Of capacity
@@ -61,7 +75,10 @@ function DaysOffGrid({
   const dates = workingDates(month);
   const today = todayISO();
   const set = useSetDayOff(month);
-  const byKey = new Map(daysOff.map((d) => [`${d.team_member_id}|${d.day}`, d.kind]));
+  const byKey = new Map(daysOff.map((d) => [`${d.team_member_id}|${d.day}`, d]));
+  // A holiday everyone has is a column, not four cells: the header names it.
+  const holidayName = new Map<string, string>();
+  for (const d of daysOff) if (d.kind === "holiday" && d.note) holidayName.set(d.day, d.note);
   return (
     <Card className="mt-6">
       <CardContent className="p-6">
@@ -69,12 +86,14 @@ function DaysOffGrid({
           <div>
             <div className="text-label-large text-m-on-surface">Days off</div>
             <p className="text-label-small text-m-on-surface-variant">
-              Click a day to mark it. Once for leave, twice for sick, a third time clears it. Each day off takes {HOURS_PER_WORKING_DAY}h off that person's capacity.
+              Click a day to cycle it: leave, half leave, sick, half sick, public holiday, clear. A whole day off takes {HOURS_PER_WORKING_DAY}h off that person's capacity, a half day {HOURS_PER_WORKING_DAY / 2}h. South African public holidays are preloaded for 2026 and 2027.
             </p>
           </div>
           <div className="flex gap-3 text-label-small text-m-on-surface-variant">
             <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block h-4 w-4 rounded-sm text-center text-[10px] leading-4", KIND_STYLE.leave)}>L</span>Leave</span>
             <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block h-4 w-4 rounded-sm text-center text-[10px] leading-4", KIND_STYLE.sick)}>S</span>Sick</span>
+            <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block h-4 min-w-4 rounded-sm px-0.5 text-center text-[10px] leading-4", KIND_STYLE.holiday)}>PH</span>Public holiday</span>
+            <span>½ = half day</span>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -91,7 +110,7 @@ function DaysOffGrid({
                         "min-w-7 px-0.5 text-center font-normal text-m-on-surface-variant",
                         d === today && "text-m-primary font-semibold",
                       )}
-                      title={d}
+                      title={holidayName.get(d) ? `${d}: ${holidayName.get(d)}` : d}
                     >
                       <div>{"SMTWTFS"[dt.getDay()]}</div>
                       <div className="font-mono tabular-nums">{dt.getDate()}</div>
@@ -105,26 +124,29 @@ function DaysOffGrid({
                 <tr key={p.id}>
                   <td className="text-body-medium text-m-on-surface">{p.name}</td>
                   {dates.map((d) => {
-                    const kind = (byKey.get(`${p.id}|${d}`) ?? null) as DayOffKind | null;
+                    const row = byKey.get(`${p.id}|${d}`);
+                    const mark: Mark = row ? { kind: row.kind, fraction: Number(row.fraction) } : null;
                     return (
                       <td key={d} className="px-0.5 text-center">
                         <button
                           type="button"
-                          aria-label={`${p.name}, ${d}: ${kind ?? "working"}`}
+                          aria-label={`${p.name}, ${d}: ${mark ? `${mark.kind}${mark.fraction === 0.5 ? " half day" : ""}` : "working"}`}
+                          title={row?.note ?? undefined}
                           disabled={set.isPending}
-                          onClick={() =>
+                          onClick={() => {
+                            const next = nextMark(mark);
                             set.mutate(
-                              { team_member_id: p.id, day: d, kind: NEXT_KIND[kind ?? "none"] },
+                              { team_member_id: p.id, day: d, kind: next?.kind ?? null, fraction: next?.fraction },
                               { onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`) },
-                            )
-                          }
+                            );
+                          }}
                           className={cn(
                             "h-7 w-7 rounded-sm font-mono text-[11px] transition-colors",
-                            kind ? KIND_STYLE[kind] : "bg-m-surface-container-high hover:bg-m-surface-container-highest",
-                            d === today && !kind && "ring-1 ring-m-primary/40",
+                            mark ? KIND_STYLE[mark.kind] : "bg-m-surface-container-high hover:bg-m-surface-container-highest",
+                            d === today && !mark && "ring-1 ring-m-primary/40",
                           )}
                         >
-                          {kind ? KIND_LABEL[kind] : ""}
+                          {markLabel(mark)}
                         </button>
                       </td>
                     );
@@ -240,7 +262,7 @@ function CapacityKey() {
     ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same closed tasks, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
-    ["Days off", "Leave and sick days logged in the grid at the bottom. Each one takes 7 hours off that person's capacity and off the team total, so a month with leave in it is judged against the hours people actually had."],
+    ["Days off", "Leave, sick days and public holidays in the grid at the bottom. Each whole day takes 7 hours off that person's capacity and off the team total, a half day 3.5, so a month with leave or a holiday in it is judged against the hours people actually had."],
     ["Unassigned", "Work closed this month with nobody's name on it. It has no capacity to be a share of, so it shows no percentage — but the hours are real and are in the total."],
   ];
   return (
@@ -312,11 +334,12 @@ export function RetainersDashboard() {
     let total = 0;
     for (const d of daysOff) {
       const cur = perPerson.get(d.team_member_id) ?? { elapsed: 0, total: 0 };
-      cur.total += 1;
-      total += 1;
+      const f = Number(d.fraction ?? 1);
+      cur.total += f;
+      total += f;
       if (d.day <= today) {
-        cur.elapsed += 1;
-        elapsed += 1;
+        cur.elapsed += f;
+        elapsed += f;
       }
       perPerson.set(d.team_member_id, cur);
     }

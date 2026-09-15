@@ -64,3 +64,15 @@ describe("days off (0172)", () => {
     expect(personCapacityHours(SEP, IN_SEP, 30)).toBe(0);
   });
 });
+
+describe("half days (0173)", () => {
+  it("a half day is half of 7h", () => {
+    expect(personCapacityHours(SEP, IN_SEP, 0.5)).toBe(7.5 * HOURS_PER_WORKING_DAY);
+    const r = teamCapacity({
+      month: SEP, headcount: 4, accountedHours: 0, today: IN_SEP,
+      daysOff: { elapsed: 0.5, total: 1.5 },
+    });
+    expect(r.elapsedHours).toBe((32 - 0.5) * HOURS_PER_WORKING_DAY);
+    expect(r.availableHours).toBe((88 - 1.5) * HOURS_PER_WORKING_DAY);
+  });
+});

@@ -11,6 +11,8 @@ export interface DayOff {
   day: string; // "YYYY-MM-DD"
   kind: DayOffKind;
   note: string | null;
+  /** 1 = whole day, 0.5 = half (0173). */
+  fraction: number;
 }
 
 function monthBounds(month: string): { start: string; end: string } {
@@ -27,7 +29,7 @@ export function useTeamDaysOff(month: string) {
     queryFn: async (): Promise<DayOff[]> => {
       const { data, error } = await supabase
         .from("team_days_off")
-        .select("team_member_id, day, kind, note")
+        .select("team_member_id, day, kind, note, fraction")
         .gte("day", start)
         .lt("day", end);
       if (error) throw error;
@@ -40,7 +42,12 @@ export function useTeamDaysOff(month: string) {
 export function useSetDayOff(month: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { team_member_id: string; day: string; kind: DayOffKind | null }) => {
+    mutationFn: async (input: {
+      team_member_id: string;
+      day: string;
+      kind: DayOffKind | null;
+      fraction?: number;
+    }) => {
       if (input.kind === null) {
         const { error } = await supabase
           .from("team_days_off")
@@ -53,7 +60,7 @@ export function useSetDayOff(month: string) {
       const { error } = await supabase
         .from("team_days_off")
         .upsert(
-          { team_member_id: input.team_member_id, day: input.day, kind: input.kind },
+          { team_member_id: input.team_member_id, day: input.day, kind: input.kind, fraction: input.fraction ?? 1 },
           { onConflict: "team_member_id,day" },
         );
       if (error) throw error;

@@ -5798,6 +5798,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           day: string
+          fraction: number
           kind: string
           note: string | null
           team_member_id: string
@@ -5806,6 +5807,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           day: string
+          fraction?: number
           kind: string
           note?: string | null
           team_member_id: string
@@ -5814,6 +5816,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           day?: string
+          fraction?: number
           kind?: string
           note?: string | null
           team_member_id?: string
