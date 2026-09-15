@@ -38,6 +38,66 @@ function loadTone(pct: number): string {
   return "bg-m-error";
 }
 
+// The month as one ring (Lisa, 2026-09-15: "a visual reference which clearly
+// shows where we are in the month"). The full circle is every working hour
+// the team has this month; the faint arc is how much of it has passed; the
+// solid arc is what Conductor can account for. On track means the solid arc
+// keeps pace with the faint one. Points-based, like everything on this page.
+function CapacityRing({
+  accounted,
+  elapsed,
+  available,
+  label,
+  size = 128,
+}: {
+  accounted: number;
+  elapsed: number;
+  available: number;
+  label: string;
+  size?: number;
+}) {
+  const stroke = 14;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const frac = (n: number) => (available > 0 ? Math.min(1, Math.max(0, n / available)) : 0);
+  const ring = (n: number, colour: string) => (
+    <circle
+      cx={size / 2}
+      cy={size / 2}
+      r={r}
+      fill="none"
+      stroke={colour}
+      strokeWidth={stroke}
+      strokeDasharray={`${c * frac(n)} ${c}`}
+      transform={`rotate(-90 ${size / 2} ${size / 2})`}
+    />
+  );
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+      role="img"
+      aria-label={`${fmtH(accounted)} accounted of ${fmtH(elapsed)} elapsed, ${fmtH(available)} in the month`}
+    >
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--mcolor-surface-container-high))" strokeWidth={stroke} />
+      {ring(elapsed, "hsl(var(--mcolor-outline))")}
+      {ring(accounted, "hsl(var(--mcolor-primary))")}
+      <text
+        x="50%"
+        y="50%"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-m-on-surface font-mono"
+        style={{ fontSize: size * 0.22, fontWeight: 600 }}
+      >
+        {label}
+      </text>
+    </svg>
+  );
+}
+
 function LoadBar({ pct }: { pct: number }) {
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-m-surface-container-high">
@@ -192,15 +252,32 @@ export function RetainersDashboard() {
                 recurring, client and internal alike — not in logged time.
               </p>
             </div>
-            <div className="min-w-56">
-              <div className="flex justify-between gap-3 text-label-small text-m-on-surface-variant">
-                <span>Briefed {fmtH(data?.briefedHours ?? 0)}</span>
-                <span>Recurring {fmtH(data?.recurringHours ?? 0)}</span>
-                <span>Meetings {fmtH(data?.meetingHours ?? 0)}</span>
-                <span>Tracked {fmtH(data?.trackedHours ?? 0)}</span>
-              </div>
-              <div className="mt-2">
-                <LoadBar pct={cap.inProgress ? cap.pctOfElapsed : cap.pctOfMonth} />
+            <div className="flex items-center gap-5">
+              <CapacityRing
+                accounted={cap.accountedHours}
+                elapsed={cap.elapsedHours}
+                available={cap.availableHours}
+                label={fmtPct(cap.inProgress ? cap.pctOfElapsed : cap.pctOfMonth)}
+              />
+              <div className="space-y-1.5 text-label-small text-m-on-surface-variant">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-primary" />
+                  Accounted {fmtH(cap.accountedHours)}
+                </div>
+                {cap.inProgress && (
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-outline" />
+                    Month so far {fmtH(cap.elapsedHours)}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-surface-container-high" />
+                  Whole month {fmtH(cap.availableHours)}
+                </div>
+                <div className="pt-1.5 text-m-on-surface-variant/80">
+                  Briefed {fmtH(data?.briefedHours ?? 0)} · Recurring {fmtH(data?.recurringHours ?? 0)} · Meetings{" "}
+                  {fmtH(data?.meetingHours ?? 0)} · Tracked {fmtH(data?.trackedHours ?? 0)}
+                </div>
               </div>
             </div>
           </div>
