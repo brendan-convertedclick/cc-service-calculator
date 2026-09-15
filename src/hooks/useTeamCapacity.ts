@@ -94,7 +94,7 @@ export function useTeamCapacity(month: string) {
         // points (0169), so this page and ClickUp's points dashboard agree.
         supabase
           .from("internal_meeting_tasks")
-          .select("id, team_member_id, clickup_points, clickup_closed_at, internal_meetings(title, clients(name))")
+          .select("id, team_member_id, clickup_points, clickup_closed_at, clickup_tracked_hours, internal_meetings(title, clients(name))")
           .gte("clickup_closed_at", start)
           .lt("clickup_closed_at", end),
         supabase.from("clients").select("id, name"),
@@ -241,12 +241,14 @@ export function useTeamCapacity(month: string) {
         team_member_id: string | null;
         clickup_points: number | null;
         clickup_closed_at: string | null;
+        clickup_tracked_hours: number | null;
         internal_meetings: { title: string; clients: { name: string } | null } | null;
       }>) {
         if (!t.team_member_id) continue;
         const hours = Number(t.clickup_points ?? 0) * HOURS_PER_POINT;
         const p = bucket(t.team_member_id);
         p.meetingHours += hours;
+        p.trackedHours += Number(t.clickup_tracked_hours ?? 0);
         p.meetingCount += 1;
         p.items.push({
           id: t.id,
@@ -303,8 +305,6 @@ export function useTeamCapacity(month: string) {
       const briefedHours = people.reduce((n, p) => n + p.briefedHours, 0);
       const recurringHours = people.reduce((n, p) => n + p.recurringHours, 0);
       const meetingHours = people.reduce((n, p) => n + p.meetingHours, 0);
-      // ponytail: meetings carry no tracked time yet (internal_meeting_tasks
-      // has no actual_hours); add it when the sync starts writing one.
       const ongoingHours = people.reduce((n, p) => n + p.ongoingHours, 0);
       const trackedHours = people.reduce((n, p) => n + p.trackedHours, 0);
       return {

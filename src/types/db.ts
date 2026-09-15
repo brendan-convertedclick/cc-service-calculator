@@ -2152,6 +2152,7 @@ export type Database = {
           clickup_synced_at: string | null
           clickup_task_id: string | null
           clickup_task_url: string | null
+          clickup_tracked_hours: number | null
           created_at: string
           id: string
           meeting_id: string
@@ -2159,6 +2160,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          clickup_tracked_hours?: number | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
           clickup_task_url?: string | null
@@ -2169,6 +2171,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          clickup_tracked_hours?: number | null
           clickup_sync_error?: string | null
           clickup_task_id?: string | null
           clickup_task_url?: string | null

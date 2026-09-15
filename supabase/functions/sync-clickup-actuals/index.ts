@@ -205,10 +205,10 @@ Deno.serve(async (req: Request) => {
       .limit(30);
     let meetingUpdates = 0;
     for (const t of (meetingTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
-      let task: { status?: { status?: string }; points?: number | null; date_closed?: string | null; date_done?: string | null } | null = null;
+      let task: { status?: { status?: string }; points?: number | null; date_closed?: string | null; date_done?: string | null; time_spent?: number | null } | null = null;
       let deleted = false;
       try {
-        const res = await fetch(`https://api.clickup.com/api/v2/task/${t.clickup_task_id}?include_subtasks=false`, CU);
+        const res = await cuFetch(`https://api.clickup.com/api/v2/task/${t.clickup_task_id}?include_subtasks=false`, CU);
         if (res.status === 404) deleted = true;
         else if (res.ok) task = await res.json();
         else continue; // rate-limited or transient: leave it for the next tick
@@ -221,6 +221,9 @@ Deno.serve(async (req: Request) => {
         .update({
           clickup_status: deleted ? "deleted" : task?.status?.status?.toLowerCase() ?? null,
           clickup_points: task?.points ?? null,
+          // 0175: the meeting's tracked time, so Tracked on /retainers can
+          // include meetings the way it includes briefs.
+          clickup_tracked_hours: task?.time_spent ? Number(task.time_spent) / 3_600_000 : null,
           clickup_closed_at: closedMs ? new Date(Number(closedMs)).toISOString() : null,
           clickup_synced_at: new Date().toISOString(),
         })

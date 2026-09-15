@@ -260,7 +260,7 @@ function CapacityKey() {
     ["Recurring", "Hours from the standing monthly tasks the provisioner creates — reports, plugin sweeps, standing meetings — that closed this month."],
     ["Ongoing", "Time logged this month on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. No points on those, so this is the one bucket counted in tracked hours. Internal and never billable, but it is real capacity used."],
     ["Accounted", "That person's Briefed, Recurring, Meetings and Ongoing added together. It is what their month contained, not how long they sat at their desk."],
-    ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same closed tasks, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
+    ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same tasks: briefs, recurring, meetings and ongoing, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
     ["Days off", "Leave, sick days and public holidays in the grid at the bottom. Each whole day takes 7 hours off that person's capacity and off the team total, a half day 3.5, so a month with leave or a holiday in it is judged against the hours people actually had."],
