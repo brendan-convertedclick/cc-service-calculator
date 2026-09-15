@@ -22,6 +22,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { collectProvisionedActuals } from "../_shared/retainer-actuals-logic.ts";
+import { cuFetch } from "../_shared/clickup.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -226,6 +227,56 @@ Deno.serve(async (req: Request) => {
         .eq("id", t.id);
       if (error) console.error("[meeting-sync]", t.id, error.message);
       else meetingUpdates++;
+    }
+
+    // Ongoing tasks — perpetual per-person overhead tasks, and since 0174 the
+    // adopted open tasks Rize logs against. Pull current time entries and
+    // append a snapshot. No "all done" rollup; these tasks never close.
+    // Placed BEFORE the projects loop for the same reason the meeting block
+    // is: after a few hundred per-task fetches the token is over ClickUp's
+    // per-minute limit and every one of these came back 429 (ongoing_inserted
+    // 0 on 2026-09-15 with 42 rows). cuFetch retries, but not through a
+    // window that is already spent.
+    const { data: ongoing } = await supabase
+      .from("ongoing_tasks")
+      .select("id, clickup_task_id, billable")
+      .is("archived_at", null);
+
+    let ongoingInserted = 0;
+    for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string; billable: boolean | null }>) {
+      const teRes = await cuFetch(
+        `https://api.clickup.com/api/v2/task/${ot.clickup_task_id}/time`,
+        CU,
+      );
+      if (!teRes.ok) continue;
+      type RawTimeEntry = { time?: number | string; billable?: boolean; [key: string]: unknown };
+      const rawEntries: RawTimeEntry[] = (await teRes.json()).data ?? [];
+      // ClickUp's /task/{id}/time response should include `billable` per entry,
+      // but defend against omissions by falling back to the row's resolved
+      // billable (or false if the row override is null — only possible on
+      // ongoing_tasks rows provisioned before migration 0050).
+      const taskBillableFallback = ot.billable ?? false;
+      const timeEntries = rawEntries.map((e) => ({
+        ...e,
+        billable: e.billable ?? taskBillableFallback,
+      }));
+      const cumulativeHours = timeEntries.reduce(
+        (acc: number, e: { time?: number | string }) =>
+          acc + Number(e.time ?? 0) / 3_600_000,
+        0,
+      );
+
+      const { error: insErr } = await supabase.from("ongoing_actuals").insert({
+        ongoing_task_id: ot.id,
+        clickup_task_id: ot.clickup_task_id,
+        cumulative_hours: cumulativeHours,
+        time_entries: timeEntries,
+      });
+      if (insErr) {
+        console.error("ongoing_actuals insert failed:", insErr.message);
+        continue;
+      }
+      ongoingInserted++;
     }
 
     let projectsQuery = supabase.from("projects").select("*");
@@ -472,51 +523,6 @@ Deno.serve(async (req: Request) => {
           // Continue — other steps should still sync
         }
       }
-    }
-
-    // Ongoing tasks — perpetual per-person overhead tasks. Pull current
-    // time entries and append a snapshot. No "all done" rollup; these
-    // tasks never close.
-    const { data: ongoing } = await supabase
-      .from("ongoing_tasks")
-      .select("id, clickup_task_id, billable")
-      .is("archived_at", null);
-
-    let ongoingInserted = 0;
-    for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string; billable: boolean | null }>) {
-      const teRes = await fetch(
-        `https://api.clickup.com/api/v2/task/${ot.clickup_task_id}/time`,
-        CU,
-      );
-      if (!teRes.ok) continue;
-      type RawTimeEntry = { time?: number | string; billable?: boolean; [key: string]: unknown };
-      const rawEntries: RawTimeEntry[] = (await teRes.json()).data ?? [];
-      // ClickUp's /task/{id}/time response should include `billable` per entry,
-      // but defend against omissions by falling back to the row's resolved
-      // billable (or false if the row override is null — only possible on
-      // ongoing_tasks rows provisioned before migration 0050).
-      const taskBillableFallback = ot.billable ?? false;
-      const timeEntries = rawEntries.map((e) => ({
-        ...e,
-        billable: e.billable ?? taskBillableFallback,
-      }));
-      const cumulativeHours = timeEntries.reduce(
-        (acc: number, e: { time?: number | string }) =>
-          acc + Number(e.time ?? 0) / 3_600_000,
-        0,
-      );
-
-      const { error: insErr } = await supabase.from("ongoing_actuals").insert({
-        ongoing_task_id: ot.id,
-        clickup_task_id: ot.clickup_task_id,
-        cumulative_hours: cumulativeHours,
-        time_entries: timeEntries,
-      });
-      if (insErr) {
-        console.error("ongoing_actuals insert failed:", insErr.message);
-        continue;
-      }
-      ongoingInserted++;
     }
 
     // Brief-created tasks — refresh the last-known ClickUp status so the
