@@ -2432,6 +2432,7 @@ export type Database = {
       }
       ongoing_tasks: {
         Row: {
+          adopted: boolean
           archived_at: string | null
           billable: boolean | null
           clickup_task_id: string
@@ -2444,6 +2445,7 @@ export type Database = {
           time_category_id: string
         }
         Insert: {
+          adopted?: boolean
           archived_at?: string | null
           billable?: boolean | null
           clickup_task_id: string
@@ -2456,6 +2458,7 @@ export type Database = {
           time_category_id: string
         }
         Update: {
+          adopted?: boolean
           archived_at?: string | null
           billable?: boolean | null
           clickup_task_id?: string
@@ -6364,6 +6367,7 @@ export type Database = {
       }
       ongoing_actuals_current: {
         Row: {
+          time_entries: Json | null
           clickup_task_id: string | null
           cumulative_hours: number | null
           ongoing_task_id: string | null

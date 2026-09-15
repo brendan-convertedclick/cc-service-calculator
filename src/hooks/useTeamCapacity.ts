@@ -9,6 +9,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { HOURS_PER_POINT } from "@/hooks/useRetainerAllocation";
+import { ongoingHoursInMonth, type OngoingTimeEntry } from "@/lib/capacity";
 
 /** One task behind a person's hours. Lisa, 2026-09-10: "How can I review the
  *  unassigned work?" — a row saying 30.3h across 25 tasks is a finding you
@@ -18,7 +19,7 @@ export interface CapacityItem {
   name: string;
   clientName: string;
   hours: number;
-  kind: "brief" | "recurring" | "meeting";
+  kind: "brief" | "recurring" | "meeting" | "ongoing";
   closedAt: string | null;
 }
 
@@ -29,6 +30,10 @@ export interface PersonLoad {
   recurringHours: number;
   /** Internal and client meetings Conductor put in the calendar, by duration. */
   meetingHours: number;
+  /** Time logged this month on perpetual tasks that never close (Ops
+   *  Development, Finance, the Team page's [Ongoing] rows). No points on
+   *  those, so this is the one bucket measured in tracked time (0174). */
+  ongoingHours: number;
   totalHours: number;
   /** Time actually tracked on the same closed tasks (Rize → ClickUp →
    *  actual_hours), beside the points figure. Lisa, 2026-09-15: the
@@ -37,6 +42,7 @@ export interface PersonLoad {
   briefCount: number;
   recurringCount: number;
   meetingCount: number;
+  ongoingCount: number;
   items: CapacityItem[];
 }
 
@@ -46,6 +52,7 @@ export interface CapacityMonth {
   briefedHours: number;
   recurringHours: number;
   meetingHours: number;
+  ongoingHours: number;
   trackedHours: number;
   people: PersonLoad[];
 }
@@ -64,8 +71,8 @@ export function useTeamCapacity(month: string) {
       const start = `${month}-01`;
       const end = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`;
 
-      const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes] = await Promise.all([
-        supabase.from("team_members").select("id, full_name").is("archived_at", null),
+      const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes, ongoingRes, ongoingActualsRes] = await Promise.all([
+        supabase.from("team_members").select("id, full_name, clickup_user_id").is("archived_at", null),
         supabase
           .from("briefs")
           .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points, actual_hours")
@@ -91,12 +98,22 @@ export function useTeamCapacity(month: string) {
           .gte("clickup_closed_at", start)
           .lt("clickup_closed_at", end),
         supabase.from("clients").select("id, name"),
+        // Perpetual tasks (0174): the Team page's [Ongoing] rows and the
+        // adopted open tasks Rize logs against. They never close, so the
+        // month is read off the time entries, not off a close date.
+        supabase
+          .from("ongoing_tasks")
+          .select("id, task_name, team_member_id, client_id, clickup_task_id")
+          .is("archived_at", null),
+        supabase.from("ongoing_actuals_current").select("ongoing_task_id, time_entries"),
       ]);
       if (teamRes.error) throw teamRes.error;
       if (briefsRes.error) throw briefsRes.error;
       if (deliveryRes.error) throw deliveryRes.error;
       if (meetingsRes.error) throw meetingsRes.error;
       if (clientsRes.error) throw clientsRes.error;
+      if (ongoingRes.error) throw ongoingRes.error;
+      if (ongoingActualsRes.error) throw ongoingActualsRes.error;
 
       // provisioned_tasks carries the assignee; the delivery view carries
       // whether the task closed and what it was worth. Joined here rather
@@ -112,8 +129,11 @@ export function useTeamCapacity(month: string) {
         : { data: [], error: null };
       if (provRes.error) throw provRes.error;
 
-      const team = (teamRes.data ?? []) as Array<{ id: string; full_name: string }>;
+      const team = (teamRes.data ?? []) as Array<{ id: string; full_name: string; clickup_user_id: number | null }>;
       const nameById = new Map(team.map((t) => [t.id, t.full_name]));
+      const memberByClickupUser = new Map(
+        team.filter((t) => t.clickup_user_id != null).map((t) => [String(t.clickup_user_id), t.id]),
+      );
 
       const byPerson = new Map<string, PersonLoad>();
       const bucket = (id: string | null): PersonLoad => {
@@ -126,11 +146,13 @@ export function useTeamCapacity(month: string) {
           briefedHours: 0,
           recurringHours: 0,
           meetingHours: 0,
+          ongoingHours: 0,
           totalHours: 0,
           trackedHours: 0,
           briefCount: 0,
           recurringCount: 0,
           meetingCount: 0,
+          ongoingCount: 0,
           items: [],
         };
         byPerson.set(key, made);
@@ -236,9 +258,42 @@ export function useTeamCapacity(month: string) {
         });
       }
 
+      // Time on a perpetual task is credited to whoever logged it, not to the
+      // row's owner: Dashboard Development is one ClickUp task four people
+      // have logged against. Counted in hours, and it is tracked time, so it
+      // lands in both Accounted and Tracked.
+      const entriesByTask = new Map(
+        ((ongoingActualsRes.data ?? []) as Array<{ ongoing_task_id: string | null; time_entries: unknown }>)
+          .map((a) => [a.ongoing_task_id ?? "", (a.time_entries ?? []) as OngoingTimeEntry[]]),
+      );
+      for (const t of (ongoingRes.data ?? []) as Array<{
+        id: string;
+        task_name: string;
+        team_member_id: string;
+        client_id: string | null;
+        clickup_task_id: string;
+      }>) {
+        const byUser = ongoingHoursInMonth(entriesByTask.get(t.id) ?? [], month);
+        for (const [uid, hours] of byUser) {
+          if (hours <= 0) continue;
+          const p = bucket(memberByClickupUser.get(uid) ?? null);
+          p.ongoingHours += hours;
+          p.trackedHours += hours;
+          p.ongoingCount += 1;
+          p.items.push({
+            id: `${t.clickup_task_id}-${uid}`,
+            name: t.task_name,
+            clientName: t.client_id ? clientNameById.get(t.client_id) ?? "Unknown" : "Internal",
+            hours,
+            kind: "ongoing",
+            closedAt: null,
+          });
+        }
+      }
+
       const people = [...byPerson.values()].map((p) => ({
         ...p,
-        totalHours: p.briefedHours + p.recurringHours + p.meetingHours,
+        totalHours: p.briefedHours + p.recurringHours + p.meetingHours + p.ongoingHours,
         // Biggest first: reviewing a person's month starts with what took the
         // most of it.
         items: [...p.items].sort((a, b) => b.hours - a.hours),
@@ -250,13 +305,15 @@ export function useTeamCapacity(month: string) {
       const meetingHours = people.reduce((n, p) => n + p.meetingHours, 0);
       // ponytail: meetings carry no tracked time yet (internal_meeting_tasks
       // has no actual_hours); add it when the sync starts writing one.
+      const ongoingHours = people.reduce((n, p) => n + p.ongoingHours, 0);
       const trackedHours = people.reduce((n, p) => n + p.trackedHours, 0);
       return {
         headcount: team.length,
-        accountedHours: briefedHours + recurringHours + meetingHours,
+        accountedHours: briefedHours + recurringHours + meetingHours + ongoingHours,
         briefedHours,
         recurringHours,
         meetingHours,
+        ongoingHours,
         trackedHours,
         people,
       };

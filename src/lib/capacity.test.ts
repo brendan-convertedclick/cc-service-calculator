@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { teamCapacity, personCapacityHours, HOURS_PER_WORKING_DAY } from "./capacity";
+import { teamCapacity, personCapacityHours, ongoingHoursInMonth, HOURS_PER_WORKING_DAY } from "./capacity";
 
 // August 2026 has 21 working days — the month Lisa quoted her 588 from
 // (4 people × 7h × 21). September has 22, which is why this uses real working
@@ -74,5 +74,21 @@ describe("half days (0173)", () => {
     });
     expect(r.elapsedHours).toBe((32 - 0.5) * HOURS_PER_WORKING_DAY);
     expect(r.availableHours).toBe((88 - 1.5) * HOURS_PER_WORKING_DAY);
+  });
+});
+
+describe("ongoingHoursInMonth", () => {
+  it("buckets a perpetual task's intervals by the month they were logged, per user", () => {
+    const aug = Date.UTC(2026, 7, 12, 8); // 12 Aug 2026 10:00 SAST
+    const sep = Date.UTC(2026, 8, 3, 8);
+    const entries = [
+      { user: { id: 1 }, intervals: [{ start: String(aug), time: String(2 * 3_600_000) }, { start: String(sep), time: String(3_600_000) }] },
+      { user: { id: 2 }, intervals: [{ start: String(aug), time: String(30 * 60_000) }] },
+    ];
+    const m = ongoingHoursInMonth(entries, "2026-08");
+    expect(m.get("1")).toBe(2);
+    expect(m.get("2")).toBe(0.5);
+    expect(ongoingHoursInMonth(entries, "2026-09").get("1")).toBe(1);
+    expect(ongoingHoursInMonth(entries, "2026-09").has("2")).toBe(false);
   });
 });

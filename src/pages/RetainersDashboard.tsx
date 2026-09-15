@@ -258,7 +258,8 @@ function CapacityKey() {
     ["Accounted for", "The share of the team's working hours that Conductor can see work against. Everything closed in the month — briefed, recurring, client and internal — valued at the points on the task. It is not a productivity score: a low figure usually means work that happened was never briefed here."],
     ["Briefed", "Hours from tasks somebody raised as a brief and closed this month."],
     ["Recurring", "Hours from the standing monthly tasks the provisioner creates — reports, plugin sweeps, standing meetings — that closed this month."],
-    ["Accounted", "That person's Briefed and Recurring added together. It is what their month contained, not how long they sat at their desk."],
+    ["Ongoing", "Time logged this month on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. No points on those, so this is the one bucket counted in tracked hours. Internal and never billable, but it is real capacity used."],
+    ["Accounted", "That person's Briefed, Recurring, Meetings and Ongoing added together. It is what their month contained, not how long they sat at their desk."],
     ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same closed tasks, and what share of Accounted that covers. Points stay the basis until this is close to 100% for everyone."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
@@ -441,7 +442,8 @@ export function RetainersDashboard() {
                 </div>
                 <div className="pt-1.5 text-m-on-surface-variant/80">
                   Briefed {fmtH(data?.briefedHours ?? 0)} · Recurring {fmtH(data?.recurringHours ?? 0)} · Meetings{" "}
-                  {fmtH(data?.meetingHours ?? 0)} · Tracked {fmtH(data?.trackedHours ?? 0)}
+                  {fmtH(data?.meetingHours ?? 0)} · Ongoing {fmtH(data?.ongoingHours ?? 0)} · Tracked{" "}
+                  {fmtH(data?.trackedHours ?? 0)}
                 </div>
               </div>
             </div>

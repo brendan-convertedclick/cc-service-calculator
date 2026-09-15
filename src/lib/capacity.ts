@@ -79,6 +79,37 @@ export function teamCapacity(
   };
 }
 
+/** A ClickUp time entry as the sync stores it on ongoing_actuals: one per
+ *  user per task, with the intervals that make it up. */
+export interface OngoingTimeEntry {
+  user?: { id?: number | string } | null;
+  intervals?: Array<{ start?: string | number; end?: string | number; time?: string | number }> | null;
+}
+
+/** Hours tracked on a perpetual task inside one month, per ClickUp user id.
+ *  A perpetual task never closes, so the month it belongs to is the month the
+ *  time was logged in (interval start, local). Lisa, 2026-09-15: the "open
+ *  tasks" Rize logs against (Ops Development, Finance, admin) have to reach
+ *  capacity, and they have no points, so this is the one bucket on time. */
+export function ongoingHoursInMonth(
+  entries: OngoingTimeEntry[],
+  month: string,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of entries) {
+    const uid = String(e.user?.id ?? "");
+    for (const iv of e.intervals ?? []) {
+      const start = Number(iv.start ?? 0);
+      if (!start) continue;
+      const d = new Date(start);
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (m !== month) continue;
+      out.set(uid, (out.get(uid) ?? 0) + Number(iv.time ?? 0) / 3_600_000);
+    }
+  }
+  return out;
+}
+
 /** One person's share. Everyone is assumed full-time — there is nothing in
  *  team_members to say otherwise, and inventing a part-time flag nobody
  *  maintains would make the number less trustworthy, not more. */
