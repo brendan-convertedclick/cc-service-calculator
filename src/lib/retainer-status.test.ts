@@ -20,7 +20,18 @@ describe("retainerStatus", () => {
     const r = retainerStatus({ planned: 22, completed: 2, month: "2026-09", today: new Date(2026, 8, 2) });
     expect(r.inProgress).toBe(true);
     expect(r.expected).toBeCloseTo(2, 5);
-    expect(r.status).toBe("on_track");
+    expect(r.status).toBe("on_pace");
+  });
+
+  it("says ahead, not over, when a running month is merely ahead of pace", () => {
+    // Pimms, 16 Sept 2026: 2.5h of 3.2h used with 12 of 22 working days gone.
+    const r = retainerStatus({ planned: 3.2, completed: 2.5, month: "2026-09", today: new Date(2026, 8, 16) });
+    expect(r.status).toBe("ahead");
+  });
+
+  it("says over the moment a running month passes its whole allowance", () => {
+    const r = retainerStatus({ planned: 3.2, completed: 3.5, month: "2026-09", today: new Date(2026, 8, 16) });
+    expect(r.status).toBe("over");
   });
 
   it("does not call a two-day-old month a failure just because nothing has closed", () => {

@@ -43,7 +43,8 @@ import {
 import { formatZar, cn, errorMessage } from "@/lib/utils";
 import { todayISO } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/project-status";
-import { retainerStatus, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
+import { retainerStatus, workingDays, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
+import { ProgressRing } from "@/components/retainers/ProgressRing";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
 // uses "complete". Normalise both so the badge never shows a raw lowercase token.
@@ -148,7 +149,7 @@ function briefedHoursOf(a: AllocationRow): number {
 function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destructive" | "outline" {
   // Over is the one that costs money, so it is the one that shouts.
   if (s === "over") return "destructive";
-  if (s === "under") return "outline";
+  if (s === "under" || s === "behind") return "outline";
   return "secondary";
 }
 
@@ -232,12 +233,20 @@ function ColumnKey({
       "Still due",
       `What the retainer still has to deliver this month: ${showPlanned ? "Planned" : "Scheduled"} minus Completed, never below zero. A dash means there is no ${showPlanned ? "planned" : "scheduled"} figure to measure against.`,
     ],
+    // The badge follows whichever basis the tab shows, so the key has to say
+    // which one — an Under measured against a column that is not on screen is
+    // the thing this whole key exists to prevent.
     [
-      "Under · On track · Over",
-      // The badge follows whichever basis the tab shows, so the key has to say
-      // which one — an Under measured against a column that is not on screen is
-      // the thing this whole key exists to prevent.
-      `Completed measured against ${showPlanned ? "Planned" : "Scheduled"}, judged on the share of the month that has actually passed — so nothing reads as behind on the 2nd.`,
+      "Ahead · On pace · Behind",
+      `While the month is running: Completed against the share of ${showPlanned ? "Planned" : "Scheduled"} expected by today, counted in working days. Behind on the 16th means behind the pace, not short for the month.`,
+    ],
+    [
+      "Over · Under · On track",
+      `Over means Completed has passed ${showPlanned ? "Planned" : "Scheduled"} for the whole month. Under and On track are only said once the month has ended.`,
+    ],
+    [
+      "Progress ring",
+      "Completed as a share of the month's allowance. The grey arc is how far the month has run, so the two should roughly keep pace.",
     ],
   ];
 
@@ -768,6 +777,36 @@ export function RetainersList() {
           showInvoiced={showInvoiced}
         />
 
+        {/* Lisa, 2026-09-16: "halfway through the month we should be at 50%
+            of planned work". One ring for the tab: Completed against the
+            allowance, with the month's own progress as the grey arc. */}
+        {(() => {
+          const sec = sections.find((s) => s.key === tab);
+          const basis = sec ? (showPlanned ? sec.sold : sec.committed) : 0;
+          if (!sec || basis <= 0) return null;
+          const r = retainerStatus({ planned: basis, completed: sec.delivered, month });
+          const pct = Math.round((sec.delivered / basis) * 100);
+          return (
+            <div className="mb-4 flex items-center gap-5 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-3">
+              <ProgressRing done={sec.delivered} expected={r.expected} total={basis} label={`${pct}%`} size={96} />
+              <div className="space-y-1 text-label-small text-m-on-surface-variant">
+                <div className="text-title-small text-m-on-surface">
+                  {fmtHours(sec.delivered)} completed of {fmtHours(basis)} {showPlanned ? "planned" : "scheduled"}
+                </div>
+                {r.inProgress ? (
+                  <div>
+                    {fmtHours(r.expected)} expected by today, {workingDays(month, new Date())} of {workingDays(month)} working
+                    days in. {DELIVERY_LABEL[r.status]}.
+                  </div>
+                ) : (
+                  <div>Month complete. {DELIVERY_LABEL[r.status]}.</div>
+                )}
+                <div>Grey arc: how far the month has run. Coloured arc: what has been completed.</div>
+              </div>
+            </div>
+          );
+        })()}
+
         {retainers.length === 0 ? (
           <div className="text-body-medium text-m-on-surface-variant">
             No retainers yet. Create one with the “New retainer” button to set up monthly hours,
@@ -942,17 +981,20 @@ export function RetainersList() {
                             });
                             if (r.status === "none") return null;
                             return (
-                              <Badge
-                                variant={deliveryVariant(r.status)}
-                                className="whitespace-nowrap"
-                                title={
-                                  r.inProgress
-                                    ? `${fmtHours(r.expected)} expected by today of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"}`
-                                    : `${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"} for the month`
-                                }
-                              >
-                                {DELIVERY_LABEL[r.status]}
-                              </Badge>
+                              <span className="inline-flex items-center gap-2">
+                                <ProgressRing done={group.delivered} expected={r.expected} total={basis} size={24} />
+                                <Badge
+                                  variant={deliveryVariant(r.status)}
+                                  className="whitespace-nowrap"
+                                  title={
+                                    r.inProgress
+                                      ? `${fmtHours(group.delivered)} completed, ${fmtHours(r.expected)} expected by today of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"}`
+                                      : `${fmtHours(group.delivered)} completed of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"} for the month`
+                                  }
+                                >
+                                  {DELIVERY_LABEL[r.status]}
+                                </Badge>
+                              </span>
                             );
                           })()}
                         </TableCell>

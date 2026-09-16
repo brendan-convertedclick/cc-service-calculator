@@ -12,7 +12,21 @@
 // Working days, not calendar days: retainer work happens Monday to Friday, and
 // pro-rating by calendar days makes every client look behind on a Monday.
 
-export type RetainerStatus = "none" | "under" | "on_track" | "over" | "not_started";
+// Two vocabularies, deliberately (Lisa, 2026-09-16: Pimms read "Over" on the
+// 16th with 2.5h of 3.2h used, and "Over" was taken as over the month). While
+// the month is RUNNING the badge is about pace: ahead / on pace / behind the
+// share of Planned expected by today. "Over" is a fact about the month, not the
+// pace: Completed has passed what the fee buys. Under and On track are only
+// said once the month has ended and can be judged whole.
+export type RetainerStatus =
+  | "none"
+  | "not_started"
+  | "ahead"
+  | "on_pace"
+  | "behind"
+  | "under"
+  | "on_track"
+  | "over";
 
 export interface StatusInput {
   /** Hours the fee buys this month. */
@@ -59,25 +73,37 @@ export function retainerStatus({ planned, completed, month, today = new Date() }
   const total = workingDays(month);
   const elapsed = inProgress ? workingDays(month, today) : total;
   const expected = total > 0 ? (planned * elapsed) / total : planned;
+  const ratio = expected > 0 ? completed / expected : null;
 
-  if (completed <= 0) {
-    // A month that has barely started has not gone wrong yet; one that is over
-    // and delivered nothing has.
-    return { status: inProgress && elapsed <= 2 ? "not_started" : "under", expected, ratio: 0, inProgress };
+  if (inProgress) {
+    // Past the whole month's allowance is Over whatever the date is.
+    if (completed > planned) return { status: "over", expected, ratio, inProgress };
+    if (completed <= 0) {
+      // A month that has barely started has not gone wrong yet.
+      return { status: elapsed <= 2 ? "not_started" : "behind", expected, ratio: 0, inProgress };
+    }
+    if (ratio === null) return { status: "none", expected, ratio, inProgress };
+    // 10% either way is noise on a book where a single task is often a whole
+    // hour of a two-hour retainer.
+    if (ratio > 1.1) return { status: "ahead", expected, ratio, inProgress };
+    if (ratio < 0.9) return { status: "behind", expected, ratio, inProgress };
+    return { status: "on_pace", expected, ratio, inProgress };
   }
 
-  const ratio = expected > 0 ? completed / expected : null;
-  if (ratio === null) return { status: "none", expected, ratio, inProgress };
-  // 10% either way is noise on a book where a single task is often a whole
-  // hour of a two-hour retainer.
-  if (ratio > 1.1) return { status: "over", expected, ratio, inProgress };
-  if (ratio < 0.9) return { status: "under", expected, ratio, inProgress };
+  // A finished month is judged whole.
+  if (completed <= 0) return { status: "under", expected, ratio: 0, inProgress };
+  const whole = completed / planned;
+  if (whole > 1.1) return { status: "over", expected, ratio, inProgress };
+  if (whole < 0.9) return { status: "under", expected, ratio, inProgress };
   return { status: "on_track", expected, ratio, inProgress };
 }
 
 export const STATUS_LABEL: Record<RetainerStatus, string> = {
   none: "—",
   not_started: "Just started",
+  ahead: "Ahead",
+  on_pace: "On pace",
+  behind: "Behind",
   under: "Under",
   on_track: "On track",
   over: "Over",
