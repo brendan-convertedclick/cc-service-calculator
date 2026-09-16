@@ -190,6 +190,70 @@ Deno.serve(async (req: Request) => {
     );
     const waitMap = await fetchWaitMap([...byTaskId.keys()]);
 
+    // ---------------------------------------------------------------------
+    // RECENTLY CHANGED TASKS, in bulk, before anything expensive.
+    // ---------------------------------------------------------------------
+    // Lisa, 2026-09-16: tasks she had closed at noon still read open on the
+    // sign-offs page. Two reasons. The per-brief refresh further down rotates
+    // 60 stale rows a tick, so a task in one of OUR statuses can wait five
+    // hours for its turn; and this function dies on a worker resource limit
+    // or a gateway timeout on about half its runs (546/504 in the edge logs),
+    // and that refresh sits near the end. So: ask ClickUp for every task in
+    // the clients space updated in the last two hours (a page or two of 100,
+    // closed ones included) and patch status, points and completed_at on the
+    // matching briefs FIRST. Cheap, and it lands even on a tick that later
+    // dies. The late/over-budget flags are left to the main loop, which now
+    // sees these rows as freshly synced and reaches them in its rotation.
+    let recentTaskUpdates = 0;
+    {
+      const teamId = settings?.clickup_workspace_id;
+      const spaceId = settings?.clickup_clients_space_id;
+      if (teamId && spaceId) {
+        const since = Date.now() - 2 * 60 * 60_000;
+        type RecentTask = {
+          id: string;
+          status?: { status?: string };
+          points?: number | null;
+          date_closed?: string | null;
+          date_done?: string | null;
+        };
+        const recent: RecentTask[] = [];
+        for (let page = 0; page < 5; page++) {
+          const res = await cuFetch(
+            `https://api.clickup.com/api/v2/team/${teamId}/task?page=${page}&subtasks=true&include_closed=true` +
+              `&space_ids[]=${spaceId}&date_updated_gt=${since}`,
+            CU,
+          );
+          if (!res.ok) break;
+          const body = await res.json() as { tasks?: RecentTask[]; last_page?: boolean };
+          recent.push(...(body.tasks ?? []));
+          if (body.last_page || (body.tasks ?? []).length === 0) break;
+        }
+        if (recent.length > 0) {
+          const { data: hits } = await supabase
+            .from("briefs")
+            .select("id, clickup_task_id")
+            .eq("status", "briefed")
+            .in("clickup_task_id", recent.map((t) => t.id));
+          const byId = new Map(recent.map((t) => [t.id, t]));
+          for (const b of (hits ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+            const t = byId.get(b.clickup_task_id);
+            const status = t?.status?.status?.toLowerCase() ?? null;
+            if (!t || !status) continue;
+            const closedMs = t.date_done ?? t.date_closed ?? null;
+            const { error } = await supabase.from("briefs").update({
+              clickup_task_status: status,
+              clickup_points: t.points ?? null,
+              completed_at: DONE_STATUSES.has(status) && closedMs ? new Date(Number(closedMs)).toISOString() : null,
+              clickup_status_synced_at: new Date().toISOString(),
+            }).eq("id", b.id);
+            if (!error) recentTaskUpdates++;
+          }
+        }
+        console.log(`[recent] ${recent.length} tasks updated in the last 2h, ${recentTaskUpdates} briefs patched`);
+      }
+    }
+
     // Meeting tasks (0169): the capacity page values a meeting at the points on
     // its ClickUp task once that task is closed, the same rule as a brief, so
     // it needs the same status/points snapshot. It sits HERE, before the
@@ -677,6 +741,7 @@ Deno.serve(async (req: Request) => {
       inserted,
       ongoing_inserted: ongoingInserted,
       brief_status_updates: briefStatusUpdates,
+      recent_task_updates: recentTaskUpdates,
       briefs_archived_as_deleted: briefsArchivedAsDeleted,
       meeting_updates: meetingUpdates,
     });
