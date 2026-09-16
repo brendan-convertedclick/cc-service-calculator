@@ -285,6 +285,10 @@ export function useClientReviewPreview(clientId: string | undefined) {
             .not("clickup_task_id", "is", null)
             // Internal work (0165) stays off their page; mirrors the edge fn.
             .neq("billing_type", "internal")
+            // A brief archived because its ClickUp task was deleted is not
+            // waiting on anyone; it sat here as "(untitled) · with the client"
+            // for two weeks (Lisa, 2026-09-16). Mirrors the edge fn.
+            .neq("status", "archived")
             .is("completed_at", null)
             .order("created_at", { ascending: false }),
           supabase

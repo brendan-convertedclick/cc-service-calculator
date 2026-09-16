@@ -607,6 +607,8 @@ async function handleList(
     // we absorb, and a client watching our routine tick past is the bug this
     // line fixes. In the query, not in JS, like every other client-side filter.
     .neq("billing_type", "internal")
+    // Archived = its ClickUp task is gone; not waiting on anyone.
+    .neq("status", "archived")
     .is("completed_at", null)
     .not("id", "in", `(${excluded.join(",")})`)
     .order("created_at", { ascending: false });
