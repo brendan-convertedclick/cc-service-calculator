@@ -45,6 +45,7 @@ export function useSignoffCandidates() {
           .from("briefs")
           .select("id, client_id, raw_subject, original_due_date, clickup_task_status, clients!inner(name)")
           .is("completed_at", null)
+          .neq("status", "archived")
           .not("client_id", "is", null)
           .in("clickup_task_status", [...WAITING_STATUSES]),
         supabase.from("client_approvals").select("brief_id").not("brief_id", "is", null),

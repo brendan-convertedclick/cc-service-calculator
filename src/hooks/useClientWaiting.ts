@@ -44,6 +44,9 @@ export function useClientWaiting() {
           "id, client_id, raw_subject, clickup_task_url, clickup_task_status, clickup_status_synced_at, client_wait_ms, internal_wait_ms, completed_at, original_due_date, original_points, created_at, clients!inner(name)",
         )
         .not("clickup_task_id", "is", null)
+        // Archived = the ClickUp task is gone. Its frozen status made deleted
+        // tasks read "With us, 41d" for weeks (Lisa, 2026-09-16).
+        .neq("status", "archived")
         .order("created_at", { ascending: false });
       if (error) throw new Error(errorMessage(error));
 
