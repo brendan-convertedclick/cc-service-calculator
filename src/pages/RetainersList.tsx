@@ -152,23 +152,27 @@ function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destruct
   return "secondary";
 }
 
-// What is left of the month: the recurring tasks provisioned for it that have
-// not closed, plus the briefs raised against it that are still open. Lisa,
-// 2026-09-16: Completed used to carry this as a "+5.5h" tag in the same cell,
-// coloured by how far behind it was, and read as messy. The Status badge is
-// where over/under lives, so Completed is a plain number and this is its own
-// column.
-function stillDueOf(a: AllocationRow): number {
-  return a.scheduledOpenHours + a.openPoints * HOURS_PER_POINT;
+// What the retainer still has to deliver this month: Planned minus Completed,
+// floored at zero. Lisa, 2026-09-16: "Still Due should be the hours of work
+// based on the retainer, so Planned minus Completed". Completed used to carry
+// the open work as a "+5.5h" tag in the same cell, coloured by how far behind
+// it was, and read as messy; the Status badge is where over/under lives, so
+// Completed is a plain number and this is its own column. On a tab with no
+// Planned column the basis is Scheduled, the same rule the Status badge uses.
+// No basis at all (ad hoc, internal lumps) is a dash, not a zero.
+function stillDue(basis: number, completed: number): number | null {
+  if (basis <= 0) return null;
+  return Math.max(0, basis - completed);
 }
 
-function stillDueTitle(a: AllocationRow | undefined): string | undefined {
-  if (!a) return undefined;
-  const parts: string[] = [];
-  if (a.scheduledOpenHours > 0) parts.push(`${fmtHours(a.scheduledOpenHours)} scheduled, not yet closed`);
-  const open = a.openPoints * HOURS_PER_POINT;
-  if (open > 0) parts.push(`${fmtHours(open)} briefs still open`);
-  return parts.length ? parts.join(" · ") : undefined;
+function stillDueCell(basis: number, completed: number): string {
+  const v = stillDue(basis, completed);
+  return v == null ? "—" : fmtHours(v);
+}
+
+function stillDueTitle(basis: number, completed: number, basisLabel: string): string | undefined {
+  if (basis <= 0) return undefined;
+  return `${fmtHours(basis)} ${basisLabel}, ${fmtHours(completed)} completed`;
 }
 
 // Client is the group header; every row is a retainer — so strip the redundant
@@ -226,7 +230,7 @@ function ColumnKey({
     ],
     [
       "Still due",
-      "What is left of the month: scheduled tasks not yet closed, plus briefs raised this month and still open. Hover a number for the split.",
+      `What the retainer still has to deliver this month: ${showPlanned ? "Planned" : "Scheduled"} minus Completed, never below zero. A dash means there is no ${showPlanned ? "planned" : "scheduled"} figure to measure against.`,
     ],
     [
       "Under · On track · Over",
@@ -558,12 +562,6 @@ export function RetainersList() {
       delivered:
         retainerRows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0) +
         extras.reduce((sum, r) => sum + r.deliveredHours, 0),
-      // Still due: scheduled tasks not yet closed plus briefs still open.
-      open:
-        retainerRows.reduce((sum, r) => {
-          const a = alloc.get(r.id);
-          return sum + (a ? stillDueOf(a) : 0);
-        }, 0) + extras.reduce((sum, r) => sum + stillDueOf(r), 0),
       };
     });
   }, [sortedRetainers, alloc, extrasByClient]);
@@ -605,7 +603,6 @@ export function RetainersList() {
         briefed:
           hours([...rows, ...unbilled], briefedHoursOf) +
           extras.reduce((n, x) => n + briefedHoursOf(x), 0),
-        open: hours([...rows, ...unbilled], stillDueOf) + extras.reduce((n, x) => n + stillDueOf(x), 0),
       };
     };
   }, [alloc]);
@@ -617,7 +614,6 @@ export function RetainersList() {
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
       briefed: groups.reduce((n, g) => n + g.briefed, 0),
-      open: groups.reduce((n, g) => n + g.open, 0),
       // Summed from the same per-client lookup the rows use, so the total can
       // never disagree with the rows under it.
       invoicedCents: groups.reduce((n, g) => {
@@ -799,7 +795,7 @@ export function RetainersList() {
                       <TableHead className="whitespace-nowrap text-right" title="Work that came in as a brief this month — the closed ones plus whatever is still running. Scheduled is the work that repeats on its own; this is the work someone asked for.">Briefed</TableHead>
                     )}
                     <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month — briefs and recurring tasks both, valued at logged time where anyone logged it and at the estimate where nobody did. Hover a number for the split.">Completed</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="Scheduled tasks for the month not yet closed, plus briefs raised this month and still open. Hover a number for the split.">Still due</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title={`${showPlanned ? "Planned" : "Scheduled"} minus Completed: what the retainer still has to deliver this month.`}>Still due</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -842,7 +838,7 @@ export function RetainersList() {
                           {fmtHours(section.delivered)}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                          {fmtHours(section.open)}
+                          {stillDueCell(showPlanned ? section.sold : section.committed, section.delivered)}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4" />
                         <TableCell className="bg-m-surface-container pb-1 pt-4" />
@@ -920,8 +916,11 @@ export function RetainersList() {
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(group.delivered)}
                         </TableCell>
-                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                          {fmtHours(group.open)}
+                        <TableCell
+                          title={stillDueTitle(showPlanned ? group.sold : group.committed, group.delivered, showPlanned ? "planned" : "scheduled")}
+                          className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                        >
+                          {stillDueCell(showPlanned ? group.sold : group.committed, group.delivered)}
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low">
                           {(() => {
@@ -1019,15 +1018,19 @@ export function RetainersList() {
                             >
                               {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                             </TableCell>
-                            <TableCell
-                              title={stillDueTitle(alloc.get(r.id))}
-                              className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
-                            >
-                              {(() => {
-                                const a = alloc.get(r.id);
-                                return fmtHours(a ? stillDueOf(a) : 0);
-                              })()}
-                            </TableCell>
+                            {(() => {
+                              const a = alloc.get(r.id);
+                              const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
+                              const done = a?.deliveredHours ?? 0;
+                              return (
+                                <TableCell
+                                  title={stillDueTitle(basis, done, showPlanned ? "planned" : "scheduled")}
+                                  className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                                >
+                                  {stillDueCell(basis, done)}
+                                </TableCell>
+                              );
+                            })()}
                             <TableCell>
                               <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">
                                 {statusLabel(r.status)}
@@ -1153,15 +1156,19 @@ export function RetainersList() {
                           >
                             {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                           </TableCell>
-                          <TableCell
-                            title={stillDueTitle(alloc.get(r.id))}
-                            className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
-                          >
-                            {(() => {
-                              const a = alloc.get(r.id);
-                              return fmtHours(a ? stillDueOf(a) : 0);
-                            })()}
-                          </TableCell>
+                          {(() => {
+                            const a = alloc.get(r.id);
+                            const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
+                            const done = a?.deliveredHours ?? 0;
+                            return (
+                              <TableCell
+                                title={stillDueTitle(basis, done, showPlanned ? "planned" : "scheduled")}
+                                className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                              >
+                                {stillDueCell(basis, done)}
+                              </TableCell>
+                            );
+                          })()}
                           <TableCell>
                             <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">
                               {statusLabel(r.status)}
@@ -1237,11 +1244,9 @@ export function RetainersList() {
                           >
                             {fmtHours(x.deliveredHours)}
                           </TableCell>
-                          <TableCell
-                            title={stillDueTitle(x)}
-                            className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
-                          >
-                            {fmtHours(stillDueOf(x))}
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {/* Nobody planned or scheduled ad hoc work, so there is nothing to be due against. */}
+                            —
                           </TableCell>
                           <TableCell className="text-label-small text-m-on-surface-variant">
                             {/* Counts what expanding actually shows. briefCount

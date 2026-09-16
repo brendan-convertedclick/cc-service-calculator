@@ -71,7 +71,6 @@ vi.mock("@/hooks/useRetainerAllocation", async (importOriginal) => ({
             deliveredPoints: 24,
             briefCount: 3,
             openPoints: 0,
-            scheduledOpenHours: 0,
           },
         ],
       },
@@ -297,7 +296,6 @@ describe("RetainersList client vs internal", () => {
         briefCount: 11,
         isInternal: true,
         openPoints: 0,
-        scheduledOpenHours: 0,
       },
       // A paying client with ad hoc work and no retainer stays off the page —
       // that rule is unchanged, and this row is here to prove the fix above
@@ -316,7 +314,6 @@ describe("RetainersList client vs internal", () => {
         briefCount: 4,
         isInternal: false,
         openPoints: 0,
-        scheduledOpenHours: 0,
       },
     ];
     render(<RetainersList />);
