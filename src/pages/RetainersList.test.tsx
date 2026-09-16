@@ -71,6 +71,7 @@ vi.mock("@/hooks/useRetainerAllocation", async (importOriginal) => ({
             deliveredPoints: 24,
             briefCount: 3,
             openPoints: 0,
+            scheduledOpenHours: 0,
           },
         ],
       },
@@ -238,6 +239,7 @@ describe("RetainersList client vs internal", () => {
     // Scheduled and Completed are on both — Lisa kept Scheduled explicitly.
     expect(screen.getByRole("columnheader", { name: "Scheduled" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Completed" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Still due" })).toBeInTheDocument();
 
     // The key follows the columns. Explaining a column that is not on screen is
     // how a key stops being trusted.
@@ -295,6 +297,7 @@ describe("RetainersList client vs internal", () => {
         briefCount: 11,
         isInternal: true,
         openPoints: 0,
+        scheduledOpenHours: 0,
       },
       // A paying client with ad hoc work and no retainer stays off the page —
       // that rule is unchanged, and this row is here to prove the fix above
@@ -313,6 +316,7 @@ describe("RetainersList client vs internal", () => {
         briefCount: 4,
         isInternal: false,
         openPoints: 0,
+        scheduledOpenHours: 0,
       },
     ];
     render(<RetainersList />);

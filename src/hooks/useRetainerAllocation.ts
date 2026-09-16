@@ -125,6 +125,9 @@ export interface AllocationRow {
   /** Points raised against this row and not yet closed. A "now" figure, so it
    *  is only meaningful on the current month. */
   openPoints: number;
+  /** Hours of recurring tasks provisioned for the month and not yet closed,
+   *  at their estimate. With openPoints this is what is still due. */
+  scheduledOpenHours: number;
 }
 
 export interface AllocationMonth {
@@ -319,6 +322,20 @@ export function useRetainerAllocation(monthsBack = 6) {
         );
       }
 
+      // STILL DUE, the recurring half: what the provisioner made for the month
+      // that has not closed yet, at its estimate. Lisa, 2026-09-16: Completed
+      // carried the open work as a "+5.5h" tag in the same cell and she wanted
+      // "actual completed vs still due" as two numbers.
+      const scheduledOpenByProjectMonth = new Map<string, number>();
+      for (const r of recurring) {
+        if (r.is_closed) continue;
+        const k = `${r.project_id}|${r.month}`;
+        scheduledOpenByProjectMonth.set(
+          k,
+          (scheduledOpenByProjectMonth.get(k) ?? 0) + Number(r.planned_hours ?? 0),
+        );
+      }
+
       const clientRows = (clientsRes.data ?? []) as Array<{ id: string; name: string; is_internal: boolean }>;
       const clientNameById = new Map(clientRows.map((c) => [c.id, c.name]));
       const internalClientIds = new Set(clientRows.filter((c) => c.is_internal).map((c) => c.id));
@@ -487,6 +504,7 @@ export function useRetainerAllocation(monthsBack = 6) {
               // so the number and the rows behind it cannot disagree.
               openPoints:
                 openForMonth(month, openItemsByProject.get(p.id) ?? []).hours / HOURS_PER_POINT,
+              scheduledOpenHours: scheduledOpenByProjectMonth.get(`${p.id}|${month}`) ?? 0,
             };
           });
 
@@ -530,6 +548,8 @@ export function useRetainerAllocation(monthsBack = 6) {
             isInternal,
             openPoints:
               openForMonth(month, openItemsByClient.get(k) ?? []).hours / HOURS_PER_POINT,
+            // Recurring tasks only ever hang off a retainer.
+            scheduledOpenHours: 0,
           });
         }
 

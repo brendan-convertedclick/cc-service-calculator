@@ -152,12 +152,23 @@ function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destruct
   return "secondary";
 }
 
-function deliveredTone(delivered: number, basis: number): string {
-  if (!basis || !delivered) return "text-m-on-surface-variant";
-  const ratio = delivered / basis;
-  if (ratio > 1.25) return "text-m-error";
-  if (ratio < 0.6) return "text-amber-600";
-  return "text-m-tertiary";
+// What is left of the month: the recurring tasks provisioned for it that have
+// not closed, plus the briefs raised against it that are still open. Lisa,
+// 2026-09-16: Completed used to carry this as a "+5.5h" tag in the same cell,
+// coloured by how far behind it was, and read as messy. The Status badge is
+// where over/under lives, so Completed is a plain number and this is its own
+// column.
+function stillDueOf(a: AllocationRow): number {
+  return a.scheduledOpenHours + a.openPoints * HOURS_PER_POINT;
+}
+
+function stillDueTitle(a: AllocationRow | undefined): string | undefined {
+  if (!a) return undefined;
+  const parts: string[] = [];
+  if (a.scheduledOpenHours > 0) parts.push(`${fmtHours(a.scheduledOpenHours)} scheduled, not yet closed`);
+  const open = a.openPoints * HOURS_PER_POINT;
+  if (open > 0) parts.push(`${fmtHours(open)} briefs still open`);
+  return parts.length ? parts.join(" · ") : undefined;
 }
 
 // Client is the group header; every row is a retainer — so strip the redundant
@@ -213,7 +224,10 @@ function ColumnKey({
       "Completed",
       "What actually closed this month, scheduled tasks and briefs both. Each one counts its logged time where somebody tracked it and its estimate where nobody did — hover any figure for the split.",
     ],
-    ["+2.5h", "Sitting beside Completed: work raised this month and still open."],
+    [
+      "Still due",
+      "What is left of the month: scheduled tasks not yet closed, plus briefs raised this month and still open. Hover a number for the split.",
+    ],
     [
       "Under · On track · Over",
       // The badge follows whichever basis the tab shows, so the key has to say
@@ -544,9 +558,12 @@ export function RetainersList() {
       delivered:
         retainerRows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0) +
         extras.reduce((sum, r) => sum + r.deliveredHours, 0),
+      // Still due: scheduled tasks not yet closed plus briefs still open.
       open:
-        retainerRows.reduce((sum, r) => sum + (alloc.get(r.id)?.openPoints ?? 0) * 0.25, 0) +
-        extras.reduce((sum, r) => sum + r.openPoints * 0.25, 0),
+        retainerRows.reduce((sum, r) => {
+          const a = alloc.get(r.id);
+          return sum + (a ? stillDueOf(a) : 0);
+        }, 0) + extras.reduce((sum, r) => sum + stillDueOf(r), 0),
       };
     });
   }, [sortedRetainers, alloc, extrasByClient]);
@@ -588,9 +605,7 @@ export function RetainersList() {
         briefed:
           hours([...rows, ...unbilled], briefedHoursOf) +
           extras.reduce((n, x) => n + briefedHoursOf(x), 0),
-        open:
-          hours([...rows, ...unbilled], (a) => a.openPoints * 0.25) +
-          extras.reduce((n, x) => n + x.openPoints * 0.25, 0),
+        open: hours([...rows, ...unbilled], stillDueOf) + extras.reduce((n, x) => n + stillDueOf(x), 0),
       };
     };
   }, [alloc]);
@@ -602,6 +617,7 @@ export function RetainersList() {
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
       briefed: groups.reduce((n, g) => n + g.briefed, 0),
+      open: groups.reduce((n, g) => n + g.open, 0),
       // Summed from the same per-client lookup the rows use, so the total can
       // never disagree with the rows under it.
       invoicedCents: groups.reduce((n, g) => {
@@ -673,12 +689,12 @@ export function RetainersList() {
   // Ad Hoc or Recurring: everything on the first is briefed by definition and
   // nothing on the second is, so both would print a column that never varies.
   const showBriefed = tab === "internal" || tab === "client";
-  // Six columns every tab has — chevron, Name, Scheduled, Completed, Status and
+  // Six columns every tab has — chevron, Name, Completed, Still due, Status and
   // the trailing actions cell — plus whichever optional ones this tab shows.
   // The expanded panel spans it, and a wrong count leaves a white step down the
   // right of every open row.
   const columnCount =
-    5 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
+    6 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
     Number(showBriefed) + Number(showInvoiced);
 
 
@@ -783,6 +799,7 @@ export function RetainersList() {
                       <TableHead className="whitespace-nowrap text-right" title="Work that came in as a brief this month — the closed ones plus whatever is still running. Scheduled is the work that repeats on its own; this is the work someone asked for.">Briefed</TableHead>
                     )}
                     <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month — briefs and recurring tasks both, valued at logged time where anyone logged it and at the estimate where nobody did. Hover a number for the split.">Completed</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Scheduled tasks for the month not yet closed, plus briefs raised this month and still open. Hover a number for the split.">Still due</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -823,6 +840,9 @@ export function RetainersList() {
                         )}
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(section.delivered)}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(section.open)}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4" />
                         <TableCell className="bg-m-surface-container pb-1 pt-4" />
@@ -897,18 +917,11 @@ export function RetainersList() {
                             {fmtHours(group.briefed)}
                           </TableCell>
                         )}
-                        <TableCell
-                          className={cn(
-                            "border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold",
-                            deliveredTone(group.delivered, group.sold || group.committed),
-                          )}
-                        >
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(group.delivered)}
-                          {group.open > 0 && (
-                            <span className="ml-1 text-label-small font-normal text-m-on-surface-variant" title="Raised and still open">
-                              +{fmtHours(group.open)}
-                            </span>
-                          )}
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                          {fmtHours(group.open)}
                         </TableCell>
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low">
                           {(() => {
@@ -1002,15 +1015,18 @@ export function RetainersList() {
                             )}
                             <TableCell
                               title={completedTitle(alloc.get(r.id))}
-                              className={cn(
-                                "text-right font-mono tabular-nums text-body-medium font-semibold",
-                                deliveredTone(
-                                  alloc.get(r.id)?.deliveredHours ?? 0,
-                                  (alloc.get(r.id)?.soldHours || alloc.get(r.id)?.committedHours) ?? 0,
-                                ),
-                              )}
+                              className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                             >
                               {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
+                            </TableCell>
+                            <TableCell
+                              title={stillDueTitle(alloc.get(r.id))}
+                              className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                            >
+                              {(() => {
+                                const a = alloc.get(r.id);
+                                return fmtHours(a ? stillDueOf(a) : 0);
+                              })()}
                             </TableCell>
                             <TableCell>
                               <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">
@@ -1137,6 +1153,15 @@ export function RetainersList() {
                           >
                             {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                           </TableCell>
+                          <TableCell
+                            title={stillDueTitle(alloc.get(r.id))}
+                            className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                          >
+                            {(() => {
+                              const a = alloc.get(r.id);
+                              return fmtHours(a ? stillDueOf(a) : 0);
+                            })()}
+                          </TableCell>
                           <TableCell>
                             <Badge variant={statusVariant(r.status)} className="whitespace-nowrap">
                               {statusLabel(r.status)}
@@ -1211,11 +1236,12 @@ export function RetainersList() {
                             className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                           >
                             {fmtHours(x.deliveredHours)}
-                            {x.openPoints > 0 && (
-                              <span className="ml-1 text-label-small font-normal text-m-on-surface-variant" title="Raised and still open">
-                                +{fmtHours(x.openPoints * 0.25)}
-                              </span>
-                            )}
+                          </TableCell>
+                          <TableCell
+                            title={stillDueTitle(x)}
+                            className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
+                          >
+                            {fmtHours(stillDueOf(x))}
                           </TableCell>
                           <TableCell className="text-label-small text-m-on-surface-variant">
                             {/* Counts what expanding actually shows. briefCount
