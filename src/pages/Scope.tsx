@@ -289,8 +289,10 @@ export function Scope() {
 
   return (
     <div className="container mx-auto max-w-5xl p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
+      {/* Header. The title owns its row: sharing one with the action
+          buttons cut it off after a few words on a laptop screen. */}
+      <div className="space-y-3">
+      <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/briefs"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
@@ -344,6 +346,8 @@ export function Scope() {
             )}
           </div>
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pl-12">
         {briefed && brief.clickup_task_url && !editingTask && (
           <Button variant="outline" size="sm" onClick={() => setEditingTask(true)}>
             <Pencil className="mr-1.5 h-3.5 w-3.5" />
@@ -397,6 +401,7 @@ export function Scope() {
             Link to project
           </Button>
         )}
+      </div>
       </div>
 
       {brief.client_id && (
