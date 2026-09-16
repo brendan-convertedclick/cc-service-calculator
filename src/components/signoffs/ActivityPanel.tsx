@@ -149,11 +149,15 @@ export function ActivityPanel({
 
   // Reset when the selected item changes — a half-typed chase must never
   // follow the reader onto a different item and get sent about the wrong thing.
+  // Keyed on the first contact's id, not the array: the `= []` default above is
+  // a new array on every render while the query loads, and depending on it
+  // looped this effect ("Maximum update depth exceeded", 200 times a page).
+  const firstContactId = contacts[0]?.id ?? null;
   useEffect(() => {
     setMode("message");
     setBody("");
-    setPicked(new Set(contacts[0] ? [contacts[0].id] : []));
-  }, [approvalId, contacts]);
+    setPicked(new Set(firstContactId ? [firstContactId] : []));
+  }, [approvalId, firstContactId]);
 
   const recipients = useMemo(
     () =>
