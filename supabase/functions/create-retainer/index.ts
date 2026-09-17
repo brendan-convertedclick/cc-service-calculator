@@ -32,17 +32,20 @@ import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 
 const VALID_CADENCES = ["daily", "weekly", "biweekly", "monthly", "custom"];
 
-// Strip a redundant leading client name from a retainer name so the
-// "[Retainer] {client} — {name}" umbrella label doesn't show the client twice
-// (e.g. client "Trellidor UK" + retainer "Trellidor UK - Paid Media" → "Paid Media").
+// Reduce a retainer name to the bare service for the "[Retainer] {name}"
+// umbrella label. The client is dropped because the list already says whose it
+// is (Lisa, 2026-09-17), and a trailing "Retainer" is dropped because the tag
+// already says what it is: client "Trellidor UK" + retainer
+// "Trellidor UK - Paid Media Retainer" → "Paid Media".
 export function dedupeRetainerName(retainerName: string, clientName: string): string {
   const name = retainerName.trim();
   const client = clientName.trim();
+  let rest = name;
   if (client && name.toLowerCase().startsWith(client.toLowerCase())) {
-    const rest = name.slice(client.length).replace(/^\s*[-:—]\s*/, "").trim();
-    if (rest) return rest;
+    rest = name.slice(client.length).replace(/^\s*[-:—]\s*/, "").trim();
   }
-  return name;
+  rest = rest.replace(/\s+retainer$/i, "").trim();
+  return rest || name;
 }
 
 type ServiceInput = {
@@ -174,7 +177,7 @@ Deno.serve(async (req: Request) => {
 
     // --- Step 2: create the ClickUp parent task (omit status → CRTSK_001) ---
     const parentTaskId = await createClickupTask(clickupPat, clickup_list_id, {
-      name: `[Retainer] ${client.name} — ${dedupeRetainerName(name, client.name)}`,
+      name: `[Retainer] ${dedupeRetainerName(name, client.name)}`,
       description:
         `Retainer parent task for ${client.name}.\n` +
         `Recurring services provisioned monthly by the Phase 8 provisioner.`,

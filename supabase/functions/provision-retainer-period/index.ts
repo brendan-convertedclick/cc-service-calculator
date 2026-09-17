@@ -17,8 +17,10 @@
 //   if tracking_mode='live' AND service.is_live_eligible: ensure ONE perpetual task
 //   else: seed N discrete dated tasks (N = occurrences_per_month)
 //
-// Each task is named "{Client} - {Service} - Week # - {Month Year} - DFT V1.1"
-// (the "Week #" segment is dropped for monthly-cadence services) and carries the
+// Each task is named "{Service} - Week # - DFT V1.1". The client and the month
+// are deliberately absent (Lisa, 2026-09-17): the list already says whose it is
+// and the due date already says when, so repeating them was noise. The
+// "Week #" segment is dropped for monthly-cadence services. Each task carries the
 // ClickUp custom fields Client Name / Engagement Type / Work Stream / Date of
 // Engagement plus native sprint points — matching the /brief task convention.
 //
@@ -38,10 +40,6 @@ import type { CuField } from "../_shared/clickup.ts";
 
 const POINT_TO_MIN = 15;
 const REVISION_SUFFIX = "DFT V1.1";
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 type CustomField = { id: string; value: string | number };
 
@@ -196,15 +194,15 @@ Deno.serve(async (req: Request) => {
       // labelAsName: the label IS the task name — drop the service name entirely
       // (for services whose labels are full task descriptions).
       if (labelAsName && hasLabel) {
-        return `${clientName} - ${label!.trim()} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
+        return `${label!.trim()} - ${week}${REVISION_SUFFIX}`;
       }
-      // Otherwise the optional label sits between the client and the service name.
+      // Otherwise the optional label sits in front of the service name.
       const labelPart = hasLabel ? `${label!.trim()} - ` : "";
-      return `${clientName} - ${labelPart}${serviceName} - ${week}${monthYear(d)} - ${REVISION_SUFFIX}`;
+      return `${labelPart}${serviceName} - ${week}${REVISION_SUFFIX}`;
     };
     const liveTaskName = (serviceId: string): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
-      return `[Live] ${clientName} - ${serviceName} - ${REVISION_SUFFIX}`;
+      return `[Live] ${serviceName} - ${REVISION_SUFFIX}`;
     };
     const pointsFor = (svc: { points_per_occurrence: number }): number =>
       Math.max(1, Math.round(svc.points_per_occurrence));
@@ -726,9 +724,6 @@ function dayInPeriod(periodStart: Date, day: number): Date {
   const last = lastOfMonth(periodStart).getUTCDate();
   const clamped = Math.min(Math.max(1, Math.round(day)), last);
   return new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), clamped));
-}
-function monthYear(d: Date): string {
-  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 function weekOfMonth(d: Date): number {
   return Math.floor((d.getUTCDate() - 1) / 7) + 1;
