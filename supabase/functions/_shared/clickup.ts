@@ -143,13 +143,13 @@ export type BriefTaskInput = {
   billingType?: string | null;
 };
 
+const ADHOC_PREFIX = "[Ad Hoc] ";
+
 /** "[Ad Hoc] " in front of an ad hoc task's name, once. */
-export function taskNameFor(name: string, billingType?: string | null): string {
+function taskNameFor(name: string, billingType?: string | null): string {
   if (billingType !== "adhoc") return name;
   return name.startsWith(ADHOC_PREFIX) ? name : `${ADHOC_PREFIX}${name}`;
 }
-
-const ADHOC_PREFIX = "[Ad Hoc] ";
 
 /**
  * Build the ClickUp task-create body for a single brief task: name,
