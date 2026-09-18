@@ -223,3 +223,24 @@ Deno.test("cuFetch does NOT retry a 5xx — a POST may have already landed", asy
   assertEquals(res.status, 500);
   assertEquals(calls.length, 1);
 });
+
+Deno.test("buildBriefTaskBody tags an ad hoc task's name, once, and leaves the rest alone", () => {
+  const base = {
+    description: "d", clientName: "Trellidor", workStream: "Development",
+    engagementType: "Task", sprintPoints: 4, dateOfEngagement: "2026-07-08",
+    dueDateMs: null,
+  };
+  const nameOf = (input: Parameters<typeof buildBriefTaskBody>[1]) =>
+    buildBriefTaskBody([], input).name;
+
+  assertEquals(nameOf({ ...base, name: "Pull report", billingType: "adhoc" }), "[Ad Hoc] Pull report");
+  // Retainer, internal and an unset billing type are untouched.
+  assertEquals(nameOf({ ...base, name: "Pull report", billingType: "retainer" }), "Pull report");
+  assertEquals(nameOf({ ...base, name: "Pull report", billingType: "internal" }), "Pull report");
+  assertEquals(nameOf({ ...base, name: "Pull report" }), "Pull report");
+  // Re-running a create on an already-tagged name must not stack the tag.
+  assertEquals(
+    nameOf({ ...base, name: "[Ad Hoc] Pull report", billingType: "adhoc" }),
+    "[Ad Hoc] Pull report",
+  );
+});

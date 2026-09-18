@@ -135,7 +135,21 @@ export type BriefTaskInput = {
   // (e.g. a process step) already have — e.g. a 4h step rounds to 1 point,
   // which would otherwise produce a 15-minute estimate.
   timeEstimateMs?: number | null;
+  // The billing_type the caller is about to write to `briefs`. Only "adhoc"
+  // changes anything: the task name gains the "[Ad Hoc] " tag, the sibling of
+  // the "[Retainer] " and "[Ongoing] " prefixes (Lisa, 2026-09-17). It lives
+  // here rather than at each call site so the ClickUp name and
+  // briefs.billing_type cannot drift apart across the five creators.
+  billingType?: string | null;
 };
+
+/** "[Ad Hoc] " in front of an ad hoc task's name, once. */
+export function taskNameFor(name: string, billingType?: string | null): string {
+  if (billingType !== "adhoc") return name;
+  return name.startsWith(ADHOC_PREFIX) ? name : `${ADHOC_PREFIX}${name}`;
+}
+
+const ADHOC_PREFIX = "[Ad Hoc] ";
 
 /**
  * Build the ClickUp task-create body for a single brief task: name,
@@ -184,7 +198,7 @@ export function buildBriefTaskBody(
   if (pts) cf.push({ id: pts.id, value: input.sprintPoints });
 
   const body: Record<string, unknown> = {
-    name: input.name,
+    name: taskNameFor(input.name, input.billingType),
     description: input.description,
     // Sprint points are a NATIVE ClickUp field (`points`), not a custom field —
     // the same mechanism push-to-clickup uses. (A list may also expose a custom

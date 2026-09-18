@@ -148,6 +148,7 @@ Deno.serve(async (req: Request) => {
       name: b.task_name, description,
       clientName: client.clickup_client_name ?? client.name, workStream: b.work_stream, engagementType: "Task",
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
+      billingType: b.billing_type,
     });
     // buildBriefTaskBody deliberately omits status (avoids CRTSK_001 on the
     // default list status). Only set it when the caller passed a valid status

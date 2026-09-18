@@ -256,6 +256,9 @@ Deno.serve(async (req: Request) => {
         dateOfEngagement,
         assigneeClickupId: o?.assignee_clickup_id ?? null,
         dueDateMs: dueDateToMs(o?.due_date),
+        // Scheduled work is new_billable by definition, which is why the brief
+        // is stamped billing_type 'adhoc' below. The name says so too.
+        billingType: "adhoc",
       });
       // Stage-5 status choice — omitted → ClickUp uses the list default.
       if (b.status) taskBody.status = b.status;

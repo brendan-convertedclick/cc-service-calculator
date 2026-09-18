@@ -114,6 +114,16 @@ Deno.serve(async (req: Request) => {
     // Only retainer work carries a project; the other two are deliberately
     // unattached, which is what makes them visible as off-retainer work.
     const projectForBrief = destination === "retainer" ? allocatedProjectId : null;
+    // internal is billed to nobody, but adhoc is what the invoice run reads.
+    // Was computed inline on the mirror insert below, which meant the ClickUp
+    // task name could not see it; the "[Ad Hoc] " tag needs it, so it is
+    // derived once here and both the task and the brief row read the same
+    // value.
+    const billingType = destination === "retainer"
+      ? "retainer"
+      : destination === "internal"
+        ? "internal"
+        : "adhoc";
 
     const { data: submitter, error: subErr } = await supabase
       .from("team_members")
@@ -197,6 +207,7 @@ Deno.serve(async (req: Request) => {
       sprintPoints: brief.sprint_points,
       dateOfEngagement,
       assigneeClickupId: member.clickup_user_id,
+      billingType,
       dueDateMs: null,
     });
 
@@ -303,15 +314,11 @@ Deno.serve(async (req: Request) => {
       raw_subject: brief.task_name,
       raw_body: brief.goal,
       original_points: brief.sprint_points,
-      // internal is billed to nobody, but adhoc is what the invoice run reads.
-      // Was `destination === "retainer" ? "retainer" : "adhoc"`, which filed
-      // every internal staff brief as adhoc because the check constraint had no
-      // third value. 0165 added one, so this can now say what it means.
-      billing_type: destination === "retainer"
-        ? "retainer"
-        : destination === "internal"
-          ? "internal"
-          : "adhoc",
+      // Derived above, beside `destination` — the ClickUp task name reads the
+      // same value. (It was once `destination === "retainer" ? "retainer" :
+      // "adhoc"`, which filed every internal staff brief as adhoc because the
+      // check constraint had no third value. 0165 added one.)
+      billing_type: billingType,
       clickup_task_id: created.id,
       // The ClickUp task above is assigned to the submitter; the mirror was not,
       // so every staff brief read as "Unassigned" on the capacity page.
