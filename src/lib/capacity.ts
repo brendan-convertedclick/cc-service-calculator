@@ -17,14 +17,14 @@
 // bought", where the real figure is the truer one. Here the question is "what
 // was allocated", and the allocation is the points. Same task, two questions,
 // and each page says which it is showing.
-import { workingDays } from "@/lib/retainer-status";
+import { type Period, periodInProgress, workingDaysBetween } from "@/lib/capacity-period";
 
 /** A normal day: 09:00–17:00 less an hour. Lisa's number, not a derived one. */
 export const HOURS_PER_WORKING_DAY = 7;
 
 export interface CapacityInput {
-  /** "YYYY-MM". */
-  month: string;
+  /** The month, week or day being shown. See @/lib/capacity-period. */
+  period: Period;
   /** People available that month. */
   headcount: number;
   /** Hours of work Conductor can account for, in points-derived hours. */
@@ -38,33 +38,37 @@ export interface CapacityInput {
 }
 
 export interface CapacityResult {
-  /** Every working hour the team had in the whole month. */
+  /** Every working hour the team had in the whole period. */
   availableHours: number;
   /** The share of those that have happened yet — equals availableHours once
-   *  the month is over. */
+   *  the period is over. */
   elapsedHours: number;
   accountedHours: number;
-  /** Against the whole month. The headline Lisa asked for. */
+  /** Against the whole period. The headline Lisa asked for. */
   pctOfMonth: number;
-  /** Against the part of the month that has actually passed — the only fair
-   *  read on the 3rd, and identical to pctOfMonth on a finished month. */
+  /** Against the part of the period that has actually passed — the only fair
+   *  read on the 3rd, and identical to pctOfMonth on a finished one. A day
+   *  still running has one elapsed working day, not a fraction of one: the
+   *  work lands when a task closes, so half a day of clock is not half a day
+   *  of capacity. */
   pctOfElapsed: number;
-  /** Whether the month is still running; the labels differ if so. */
+  /** Whether the period is still running; the labels differ if so. */
   inProgress: boolean;
 }
 
 export function teamCapacity(
-  { month, headcount, accountedHours, today = new Date(), daysOff = { elapsed: 0, total: 0 } }: CapacityInput,
+  { period, headcount, accountedHours, today = new Date(), daysOff = { elapsed: 0, total: 0 } }: CapacityInput,
 ): CapacityResult {
-  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  const inProgress = month === currentMonth;
+  const inProgress = periodInProgress(period, today);
 
   // Actual Mon–Fri days, not a flat 21. Twenty-one is the average Lisa quoted
   // and no real month is 21 — August 2026 has 21, September 22 — so the flat
-  // figure would quietly misstate every month by a day either way. workingDays
-  // already exists for the retainer status badge and is tested there.
-  const totalDays = workingDays(month);
-  const elapsedDays = inProgress ? workingDays(month, today) : totalDays;
+  // figure would quietly misstate every month by a day either way. The same
+  // count answers a week (always 5) and a day (1, or 0 on a weekend).
+  const totalDays = workingDaysBetween(period.startDate, period.endDate);
+  const elapsedDays = inProgress
+    ? workingDaysBetween(period.startDate, period.endDate, today)
+    : totalDays;
 
   const availableHours = Math.max(0, totalDays * headcount - daysOff.total) * HOURS_PER_WORKING_DAY;
   const elapsedHours = Math.max(0, elapsedDays * headcount - daysOff.elapsed) * HOURS_PER_WORKING_DAY;
@@ -86,24 +90,28 @@ export interface OngoingTimeEntry {
   intervals?: Array<{ start?: string | number; end?: string | number; time?: string | number }> | null;
 }
 
-/** Hours tracked on a perpetual task inside one month, per ClickUp user id.
- *  A perpetual task never closes, so the month it belongs to is the month the
- *  time was logged in (interval start, local). Lisa, 2026-09-15: the "open
- *  tasks" Rize logs against (Ops Development, Finance, admin) have to reach
- *  capacity, and they have no points, so this is the one bucket on time. */
-export function ongoingHoursInMonth(
+/** Hours tracked on a perpetual task inside one period, per ClickUp user id.
+ *  A perpetual task never closes, so the period it belongs to is the one the
+ *  time was logged in (interval start). Lisa, 2026-09-15: the "open tasks"
+ *  Rize logs against (Ops Development, Finance, admin) have to reach capacity,
+ *  and they have no points, so this is the one bucket on time.
+ *
+ *  The comparison is on instants, not on a reconstructed local month string —
+ *  that is what keeps this bucket on the same boundary as the three that are
+ *  filtered in Postgres. */
+export function ongoingHoursInRange(
   entries: OngoingTimeEntry[],
-  month: string,
+  startISO: string,
+  endISO: string,
 ): Map<string, number> {
+  const from = new Date(startISO).getTime();
+  const to = new Date(endISO).getTime();
   const out = new Map<string, number>();
   for (const e of entries) {
     const uid = String(e.user?.id ?? "");
     for (const iv of e.intervals ?? []) {
       const start = Number(iv.start ?? 0);
-      if (!start) continue;
-      const d = new Date(start);
-      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      if (m !== month) continue;
+      if (!start || start < from || start >= to) continue;
       out.set(uid, (out.get(uid) ?? 0) + Number(iv.time ?? 0) / 3_600_000);
     }
   }
@@ -113,8 +121,9 @@ export function ongoingHoursInMonth(
 /** One person's share. Everyone is assumed full-time — there is nothing in
  *  team_members to say otherwise, and inventing a part-time flag nobody
  *  maintains would make the number less trustworthy, not more. */
-export function personCapacityHours(month: string, today = new Date(), daysOff = 0): number {
-  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  const days = month === currentMonth ? workingDays(month, today) : workingDays(month);
+export function personCapacityHours(period: Period, today = new Date(), daysOff = 0): number {
+  const days = periodInProgress(period, today)
+    ? workingDaysBetween(period.startDate, period.endDate, today)
+    : workingDaysBetween(period.startDate, period.endDate);
   return Math.max(0, days - daysOff) * HOURS_PER_WORKING_DAY;
 }

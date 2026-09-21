@@ -9,7 +9,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { HOURS_PER_POINT } from "@/hooks/useRetainerAllocation";
-import { ongoingHoursInMonth, type OngoingTimeEntry } from "@/lib/capacity";
+import { ongoingHoursInRange, type OngoingTimeEntry } from "@/lib/capacity";
+import type { Period } from "@/lib/capacity-period";
 
 /** One task behind a person's hours. Lisa, 2026-09-10: "How can I review the
  *  unassigned work?" — a row saying 30.3h across 25 tasks is a finding you
@@ -67,13 +68,15 @@ export interface CapacityMonth {
  *  went out with nobody's name on them. */
 export const UNASSIGNED = "Unassigned";
 
-export function useTeamCapacity(month: string) {
+export function useTeamCapacity(period: Period) {
   return useQuery({
-    queryKey: ["team_capacity", month],
+    queryKey: ["team_capacity", period.kind, period.anchor],
     queryFn: async (): Promise<CapacityMonth> => {
-      const [y, m] = month.split("-").map(Number);
-      const start = `${month}-01`;
-      const end = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`;
+      // Local-midnight instants, not bare dates: a bare "2026-09-01" is read
+      // as UTC midnight, which is 02:00 SAST, and at day granularity that
+      // puts a task closed at 01:00 on the wrong side of the boundary. See
+      // @/lib/capacity-period.
+      const { startISO: start, endISO: end } = period;
 
       const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes, ongoingRes, ongoingActualsRes] = await Promise.all([
         supabase.from("team_members").select("id, full_name, clickup_user_id").is("archived_at", null),
@@ -83,15 +86,19 @@ export function useTeamCapacity(month: string) {
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
-        // closed_month, not month: the delivery view's `month` is the fee
-        // month a recurring task was provisioned for, which is the retainer
-        // question. Here the question is when the person spent the time, and
-        // Lisa's July GMB weeks closed in August belong to August (0168).
+        // closed_at, not the view's `month`: that month is the fee month a
+        // recurring task was provisioned for, which is the retainer question.
+        // Here the question is when the person spent the time, and Lisa's July
+        // GMB weeks closed in August belong to August (0168). It used to read
+        // closed_month, which cannot answer a week or a day. Seven closed rows
+        // carry no closed_at at all — all of them June and July 2026 — so they
+        // drop out of those two months and out of nothing Lisa looks at.
         supabase
           .from("retainer_recurring_delivery")
           .select("clickup_task_id, is_closed, planned_hours, points, actual_hours")
-          .eq("closed_month", month)
-          .eq("is_closed", true),
+          .eq("is_closed", true)
+          .gte("closed_at", start)
+          .lt("closed_at", end),
         // Meetings live in their own table and were invisible here; five of
         // Lisa's August tasks were [Meeting] rows. Same rule as a brief: the
         // meeting counts when its ClickUp task is closed, at that task's
@@ -286,7 +293,7 @@ export function useTeamCapacity(month: string) {
         client_id: string | null;
         clickup_task_id: string;
       }>) {
-        const byUser = ongoingHoursInMonth(entriesByTask.get(t.id) ?? [], month);
+        const byUser = ongoingHoursInRange(entriesByTask.get(t.id) ?? [], start, end);
         for (const [uid, hours] of byUser) {
           if (hours <= 0) continue;
           const p = bucket(memberByClickupUser.get(uid) ?? null);

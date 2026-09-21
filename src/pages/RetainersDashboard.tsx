@@ -20,7 +20,8 @@ import {
   type CapacityItem,
 } from "@/hooks/useTeamCapacity";
 import { teamCapacity, personCapacityHours, HOURS_PER_WORKING_DAY } from "@/lib/capacity";
-import { useTeamDaysOff, useSetDayOff, type DayOff, type DayOffKind } from "@/hooks/useTeamDaysOff";
+import { useTeamDaysOff, useTeamDaysOffBetween, useSetDayOff, type DayOff, type DayOffKind } from "@/hooks/useTeamDaysOff";
+import { anchorFor, periodFor, type PeriodKind } from "@/lib/capacity-period";
 import { todayISO } from "@/lib/dates";
 import { cn, errorMessage } from "@/lib/utils";
 import { toast } from "sonner";
@@ -270,12 +271,35 @@ function CapacityItems({ items }: { items: CapacityItem[] }) {
 
 export function RetainersDashboard() {
   const navigate = useNavigate();
-  const [month, setMonth] = useState(() => currentMonthKey());
-  const { data, isLoading } = useTeamCapacity(month);
-  const { data: daysOff = [] } = useTeamDaysOff(month);
+  // Month > Week > Day (Lisa, 2026-09-21). The anchor is whatever the picker
+  // for that granularity holds; switching granularity keeps you on the same
+  // point in time rather than jumping to today.
+  const [kind, setKind] = useState<PeriodKind>("month");
+  const [anchor, setAnchor] = useState(() => currentMonthKey());
+  const period = useMemo(() => periodFor(kind, anchor), [kind, anchor]);
+  const month = period.startDate.slice(0, 7);
+  const { data, isLoading } = useTeamCapacity(period);
+  // Two reads, two jobs. The maths deducts only the days off inside the
+  // period; the grid at the bottom is a MONTH grid and always shows the whole
+  // month, so a week view does not blank out the rest of it.
+  const { data: daysOff = [] } = useTeamDaysOffBetween(period.startDate, period.endDate);
+  const { data: monthDaysOff = [] } = useTeamDaysOff(month);
 
-  // Days off per person, split into the part of the month that has passed
-  // and the whole month (0172). A day off is not capacity.
+  function changeKind(next: PeriodKind) {
+    // Narrowing from the current month should land on THIS week, not on the
+    // week the 1st fell in — that one is usually half in the previous month
+    // and is never the week you meant. Narrowing from a past period has no
+    // "today" in it, so it keeps that period's first day.
+    const today = todayISO();
+    const inside = today >= period.startDate && today < period.endDate;
+    setAnchor(anchorFor(next, inside ? today : period.startDate));
+    setKind(next);
+  }
+
+  // Days off per person, split into the part of the period that has passed
+  // and the whole of it (0172). A day off is not capacity, at any
+  // granularity — a week somebody is on leave in is exactly the week this
+  // page gets opened for.
   const off = useMemo(() => {
     const today = todayISO();
     const perPerson = new Map<string, { elapsed: number; total: number }>();
@@ -298,15 +322,19 @@ export function RetainersDashboard() {
   const cap = useMemo(
     () =>
       teamCapacity({
-        month,
+        period,
         headcount: data?.headcount ?? 0,
         accountedHours: data?.accountedHours ?? 0,
         daysOff: { elapsed: off.elapsed, total: off.total },
       }),
-    [month, data?.headcount, data?.accountedHours, off],
+    [period, data?.headcount, data?.accountedHours, off],
   );
   const perPersonHours = (id: string | null) =>
-    personCapacityHours(month, new Date(), id ? off.perPerson.get(id)?.elapsed ?? 0 : 0);
+    personCapacityHours(period, new Date(), id ? off.perPerson.get(id)?.elapsed ?? 0 : 0);
+
+  // "Week so far", not CSS `capitalize`, which would title-case every word of
+  // it into "Week So Far".
+  const kindLabel = kind[0].toUpperCase() + kind.slice(1);
 
   const people: PersonLoad[] = data?.people ?? [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -317,15 +345,36 @@ export function RetainersDashboard() {
         <div>
           <h1 className="text-headline-medium">Retainers</h1>
           <p className="text-body-medium text-m-on-surface-variant">
-            How much of the month the team has accounted for.
+            How much of the {kind} the team has accounted for.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* One control, three granularities. Native pickers rather than a
+              calendar library: the browser already knows what a week is, and
+              <input type="week"> is Monday-start, which is the week this page
+              means. */}
+          <div className="flex h-10 items-center rounded-md border border-m-outline-variant p-0.5">
+            {(["month", "week", "day"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => changeKind(k)}
+                aria-pressed={kind === k}
+                className={`h-full rounded px-3 text-label-small capitalize transition-colors ${
+                  kind === k
+                    ? "bg-m-secondary-container text-m-on-secondary-container"
+                    : "text-m-on-surface-variant hover:text-m-on-surface"
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
           <input
-            type="month"
-            aria-label="Select month"
-            value={month}
-            onChange={(e) => e.target.value && setMonth(e.target.value)}
+            type={kind === "month" ? "month" : kind === "week" ? "week" : "date"}
+            aria-label={`Select ${kind}`}
+            value={anchor}
+            onChange={(e) => e.target.value && setAnchor(e.target.value)}
             className="h-10 rounded-md border border-m-outline-variant bg-transparent px-3 py-1.5 text-body-small text-m-on-surface"
           />
           {/* Lisa: "recommend button for this it must be visible and easy to
@@ -360,10 +409,11 @@ export function RetainersDashboard() {
                 {data?.headcount ?? 0} people × {HOURS_PER_WORKING_DAY}h a day,
                 Monday to Friday
                 {cap.inProgress
-                  ? ` — measured against the part of ${month} that has happened. The whole month is ${fmtH(cap.availableHours)}.`
-                  : "."}{" "}
-                Counted in the points on every task closed in the month — briefed,
+                  ? `. Measured against the part of ${period.label} that has happened; the whole ${kind} is ${fmtH(cap.availableHours)}.`
+                  : `, across ${period.label}.`}{" "}
+                Counted in the points on every task closed in the {kind} — briefed,
                 recurring, client and internal alike — not in logged time.
+                {kind === "day" && " A task lands on the day it closed, so single days swing hard: the week view is the smoother read."}
               </p>
             </div>
             <div className="flex items-center gap-5">
@@ -378,15 +428,19 @@ export function RetainersDashboard() {
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-primary" />
                   Accounted {fmtH(cap.accountedHours)}
                 </div>
-                {cap.inProgress && (
+                {/* A day that is still running has one elapsed working day —
+                    the whole of it — because work lands when a task closes,
+                    not by the clock. So the "so far" line would repeat the
+                    one under it. */}
+                {cap.inProgress && cap.elapsedHours !== cap.availableHours && (
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-outline" />
-                    Month so far {fmtH(cap.elapsedHours)}
+                    {kindLabel} so far {fmtH(cap.elapsedHours)}
                   </div>
                 )}
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-m-surface-container-high" />
-                  Whole month {fmtH(cap.availableHours)}
+                  Whole {kind} {fmtH(cap.availableHours)}
                 </div>
                 <div className="pt-1.5 text-m-on-surface-variant/80">
                   Briefed {fmtH(data?.briefedHours ?? 0)} · Recurring {fmtH(data?.recurringHours ?? 0)} · Meetings{" "}
@@ -503,11 +557,17 @@ export function RetainersDashboard() {
         </CardContent>
       </Card>
 
-      <DaysOffGrid
-        month={month}
-        people={people.filter((p): p is PersonLoad & { id: string } => !!p.id)}
-        daysOff={daysOff}
-      />
+      {/* A month grid, so it belongs to the month view. Its marks still count
+          against a week or a day — the deduction reads the period, this is
+          only where you edit them — but showing August's grid under a week
+          that starts on 31 August reads as the page having changed month. */}
+      {kind === "month" && (
+        <DaysOffGrid
+          month={month}
+          people={people.filter((p): p is PersonLoad & { id: string } => !!p.id)}
+          daysOff={monthDaysOff}
+        />
+      )}
 
       <p className="mt-4 max-w-3xl text-label-small text-m-on-surface-variant">
         A low figure is not the same as a quiet month — it usually means work

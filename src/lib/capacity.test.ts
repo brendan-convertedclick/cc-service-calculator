@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { teamCapacity, personCapacityHours, ongoingHoursInMonth, HOURS_PER_WORKING_DAY } from "./capacity";
+import { teamCapacity, personCapacityHours, ongoingHoursInRange, HOURS_PER_WORKING_DAY } from "./capacity";
+import { periodFor } from "./capacity-period";
 
 // August 2026 has 21 working days — the month Lisa quoted her 588 from
 // (4 people × 7h × 21). September has 22, which is why this uses real working
@@ -10,13 +11,13 @@ const IN_SEP = new Date(2026, 8, 10); // 10 September, a Thursday
 
 describe("teamCapacity", () => {
   it("reproduces the 588 hours Lisa quoted for a 21-day month", () => {
-    const r = teamCapacity({ month: AUG, headcount: 4, accountedHours: 0, today: IN_SEP });
+    const r = teamCapacity({ period: periodFor("month", AUG), headcount: 4, accountedHours: 0, today: IN_SEP });
     expect(r.availableHours).toBe(588);
   });
 
   it("judges a finished month whole", () => {
     // August's real figure: 201.3 accounted of 588.
-    const r = teamCapacity({ month: AUG, headcount: 4, accountedHours: 201.3, today: IN_SEP });
+    const r = teamCapacity({ period: periodFor("month", AUG), headcount: 4, accountedHours: 201.3, today: IN_SEP });
     expect(r.inProgress).toBe(false);
     expect(Math.round(r.pctOfMonth)).toBe(34);
     // A finished month has fully elapsed, so the two readings agree.
@@ -26,14 +27,14 @@ describe("teamCapacity", () => {
   it("judges a running month against the part that has happened", () => {
     // Without this, every month reads as a catastrophe on the 2nd — the same
     // trap retainer-status.ts documents for the retainer badge.
-    const r = teamCapacity({ month: SEP, headcount: 4, accountedHours: 69.3, today: IN_SEP });
+    const r = teamCapacity({ period: periodFor("month", SEP), headcount: 4, accountedHours: 69.3, today: IN_SEP });
     expect(r.inProgress).toBe(true);
     expect(r.elapsedHours).toBeLessThan(r.availableHours);
     expect(r.pctOfElapsed).toBeGreaterThan(r.pctOfMonth);
   });
 
   it("does not divide by zero when nobody is on the team", () => {
-    const r = teamCapacity({ month: AUG, headcount: 0, accountedHours: 10, today: IN_SEP });
+    const r = teamCapacity({ period: periodFor("month", AUG), headcount: 0, accountedHours: 10, today: IN_SEP });
     expect(r.pctOfMonth).toBe(0);
     expect(r.pctOfElapsed).toBe(0);
   });
@@ -41,11 +42,11 @@ describe("teamCapacity", () => {
 
 describe("personCapacityHours", () => {
   it("is one person's share of a finished month", () => {
-    expect(personCapacityHours(AUG, IN_SEP)).toBe(21 * HOURS_PER_WORKING_DAY);
+    expect(personCapacityHours(periodFor("month", AUG), IN_SEP)).toBe(21 * HOURS_PER_WORKING_DAY);
   });
 
   it("is pro-rated inside the running month", () => {
-    expect(personCapacityHours(SEP, IN_SEP)).toBeLessThan(22 * HOURS_PER_WORKING_DAY);
+    expect(personCapacityHours(periodFor("month", SEP), IN_SEP)).toBeLessThan(22 * HOURS_PER_WORKING_DAY);
   });
 });
 
@@ -54,22 +55,22 @@ describe("days off (0172)", () => {
     // 10 September: 8 working days have passed. One person off 2 of them,
     // and off 5 in the whole month.
     const r = teamCapacity({
-      month: SEP, headcount: 4, accountedHours: 0, today: IN_SEP,
+      period: periodFor("month", SEP), headcount: 4, accountedHours: 0, today: IN_SEP,
       daysOff: { elapsed: 2, total: 5 },
     });
     expect(r.elapsedHours).toBe((8 * 4 - 2) * HOURS_PER_WORKING_DAY);
     expect(r.availableHours).toBe((22 * 4 - 5) * HOURS_PER_WORKING_DAY);
-    expect(personCapacityHours(SEP, IN_SEP, 2)).toBe(6 * HOURS_PER_WORKING_DAY);
+    expect(personCapacityHours(periodFor("month", SEP), IN_SEP, 2)).toBe(6 * HOURS_PER_WORKING_DAY);
     // More days off than days does not go negative.
-    expect(personCapacityHours(SEP, IN_SEP, 30)).toBe(0);
+    expect(personCapacityHours(periodFor("month", SEP), IN_SEP, 30)).toBe(0);
   });
 });
 
 describe("half days (0173)", () => {
   it("a half day is half of 7h", () => {
-    expect(personCapacityHours(SEP, IN_SEP, 0.5)).toBe(7.5 * HOURS_PER_WORKING_DAY);
+    expect(personCapacityHours(periodFor("month", SEP), IN_SEP, 0.5)).toBe(7.5 * HOURS_PER_WORKING_DAY);
     const r = teamCapacity({
-      month: SEP, headcount: 4, accountedHours: 0, today: IN_SEP,
+      period: periodFor("month", SEP), headcount: 4, accountedHours: 0, today: IN_SEP,
       daysOff: { elapsed: 0.5, total: 1.5 },
     });
     expect(r.elapsedHours).toBe((32 - 0.5) * HOURS_PER_WORKING_DAY);
@@ -77,7 +78,7 @@ describe("half days (0173)", () => {
   });
 });
 
-describe("ongoingHoursInMonth", () => {
+describe("ongoingHoursInRange", () => {
   it("buckets a perpetual task's intervals by the month they were logged, per user", () => {
     const aug = Date.UTC(2026, 7, 12, 8); // 12 Aug 2026 10:00 SAST
     const sep = Date.UTC(2026, 8, 3, 8);
@@ -85,10 +86,10 @@ describe("ongoingHoursInMonth", () => {
       { user: { id: 1 }, intervals: [{ start: String(aug), time: String(2 * 3_600_000) }, { start: String(sep), time: String(3_600_000) }] },
       { user: { id: 2 }, intervals: [{ start: String(aug), time: String(30 * 60_000) }] },
     ];
-    const m = ongoingHoursInMonth(entries, "2026-08");
+    const m = ongoingHoursInRange(entries, periodFor("month", "2026-08").startISO, periodFor("month", "2026-08").endISO);
     expect(m.get("1")).toBe(2);
     expect(m.get("2")).toBe(0.5);
-    expect(ongoingHoursInMonth(entries, "2026-09").get("1")).toBe(1);
-    expect(ongoingHoursInMonth(entries, "2026-09").has("2")).toBe(false);
+    expect(ongoingHoursInRange(entries, periodFor("month", "2026-09").startISO, periodFor("month", "2026-09").endISO).get("1")).toBe(1);
+    expect(ongoingHoursInRange(entries, periodFor("month", "2026-09").startISO, periodFor("month", "2026-09").endISO).has("2")).toBe(false);
   });
 });

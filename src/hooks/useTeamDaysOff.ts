@@ -22,20 +22,29 @@ function monthBounds(month: string): { start: string; end: string } {
   return { start, end };
 }
 
-export function useTeamDaysOff(month: string) {
-  const { start, end } = monthBounds(month);
+/** Days off inside any period, not just a month: a week with leave in it has
+ *  less capacity than one without, and that is exactly the week Lisa looks
+ *  at. `day` is a plain date column, so the period's local bounds are the
+ *  right comparison — no instant conversion here. */
+export function useTeamDaysOffBetween(startDate: string, endDate: string) {
   return useQuery({
-    queryKey: ["team_days_off", month],
+    queryKey: ["team_days_off", startDate, endDate],
     queryFn: async (): Promise<DayOff[]> => {
       const { data, error } = await supabase
         .from("team_days_off")
         .select("team_member_id, day, kind, note, fraction")
-        .gte("day", start)
-        .lt("day", end);
+        .gte("day", startDate)
+        .lt("day", endDate);
       if (error) throw error;
       return (data ?? []) as DayOff[];
     },
   });
+}
+
+/** The month-shaped call the days-off grid still makes. */
+export function useTeamDaysOff(month: string) {
+  const { start, end } = monthBounds(month);
+  return useTeamDaysOffBetween(start, end);
 }
 
 /** Set a person's day to a kind, or clear it with null. */
