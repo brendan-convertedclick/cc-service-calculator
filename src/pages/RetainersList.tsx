@@ -45,6 +45,7 @@ import { todayISO } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/project-status";
 import { retainerStatus, workingDays, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
 import { ProgressRing } from "@/components/retainers/ProgressRing";
+import { SplitTab, type SplitContributor } from "@/components/retainers/SplitTab";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
 // uses "complete". Normalise both so the badge never shows a raw lowercase token.
@@ -663,8 +664,48 @@ export function RetainersList() {
     ];
   }, [clientGroups, asSection]);
 
-  const [tab, setTab] = useState<"client" | "adhoc" | "internal" | "recurring">("client");
+  type BookTab = "client" | "adhoc" | "internal" | "recurring" | "split";
+  const [tab, setTab] = useState<BookTab>("client");
   const section = sections.find((s) => s.key === tab) ?? sections[0];
+
+  // The split reads ACROSS the tabs rather than being one of them, so it is
+  // built from their totals and never from the rows again: the two can't
+  // disagree. Unlinked is pulled out of ad hoc by kind because on a three-way
+  // bar it would otherwise read as ad hoc creeping up, when it is retainer
+  // work briefed against no retainer.
+  const split = useMemo(() => {
+    const totalOf = (key: string) => sections.find((s) => s.key === key)?.delivered ?? 0;
+    const contributorsOf = (key: string): SplitContributor[] =>
+      (sections.find((s) => s.key === key)?.groups ?? [])
+        .map((g) => ({ clientName: g.clientName, hours: g.delivered }))
+        .filter((c) => c.hours > 0)
+        .sort((a, b) => b.hours - a.hours);
+    // Retainer absorbs the recurring tab, so its client list has to as well.
+    const merged = new Map<string, number>();
+    for (const c of [...contributorsOf("client"), ...contributorsOf("recurring")]) {
+      merged.set(c.clientName, (merged.get(c.clientName) ?? 0) + c.hours);
+    }
+    return {
+      retainer: totalOf("client"),
+      recurring: totalOf("recurring"),
+      adhoc: totalOf("adhoc"),
+      adhocUnlinked: clientGroups
+        .filter((g) => !g.isInternal)
+        .reduce(
+          (n, g) => n + g.extras.filter((x) => x.kind === "unlinked")
+            .reduce((m, x) => m + x.deliveredHours, 0),
+          0,
+        ),
+      internal: totalOf("internal"),
+      contributors: {
+        retainer: [...merged.entries()]
+          .map(([clientName, hours]) => ({ clientName, hours }))
+          .sort((a, b) => b.hours - a.hours),
+        adhoc: contributorsOf("adhoc"),
+        internal: contributorsOf("internal"),
+      },
+    };
+  }, [sections, clientGroups]);
   // The Internal tab answers a different question, so it gets a different set
   // of columns (Lisa, 2026-09-08). Monthly fee and Planned are both facts about
   // an invoice — a notional fee we pay ourselves, and the hours that fee buys —
@@ -754,7 +795,7 @@ export function RetainersList() {
             the page answering one question at a time. */}
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as "client" | "adhoc" | "internal" | "recurring")}
+          onValueChange={(v) => setTab(v as BookTab)}
           className="mb-4"
         >
           <TabsList>
@@ -766,9 +807,16 @@ export function RetainersList() {
                 </span>
               </TabsTrigger>
             ))}
+            {/* Not a section: it reads across all four rather than being one
+                of them, so it carries no Completed figure of its own. */}
+            <TabsTrigger value="split">Split</TabsTrigger>
           </TabsList>
         </Tabs>
 
+        {tab === "split" ? (
+          <SplitTab {...split} />
+        ) : (
+        <>
         <ColumnKey
           showFee={showFee}
           showPlanned={showPlanned}
@@ -1321,6 +1369,8 @@ export function RetainersList() {
           <div className="text-body-medium text-m-on-surface-variant">
             Nothing on this tab for the month you picked.
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
