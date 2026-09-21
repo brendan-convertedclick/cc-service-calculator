@@ -2,12 +2,21 @@
 //
 // Request:  POST { client_id: string }
 // Response: 200 {
-//   lists: [{ id: string, name: string, statuses: Array<{ status: string, color: string | null, type: string, orderindex: number }> }],
+//   lists: [{ id: string, name: string, work_stream: string | null, statuses: Array<{ status: string, color: string | null, type: string, orderindex: number }> }],
 //   work_stream_options: Array<{ id: string, name: string }>
 // }
 //
-// Returns the ClickUp lists inside a client's folder. Used by the Phase 1
-// staff brief form's "List / department" dropdown.
+// Returns the ClickUp lists inside a client's folder. Used by every "List"
+// dropdown in the app (staff brief, quick brief, meeting, new project, the
+// schedule stage).
+//
+// `work_stream` is resolved HERE rather than in the browser (Lisa, 2026-09-21).
+// The aliases already exist and `resolveListAlias` already reads them for the
+// edge functions that create tasks; resolving once on the way out means all
+// five dropdowns group identically and none of them needs its own copy of the
+// rule, or RLS on list_aliases. It is additive: the id and name are untouched,
+// so a caller that ignores it behaves exactly as before. Nothing is filtered —
+// a list with no stream is still a real ClickUp list somebody may need.
 //
 // ClickUp client lists INHERIT their statuses from the parent Space (each
 // status's `status_group` is the space, e.g. `proj_55422995`), so the
@@ -21,7 +30,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
-import { cuFetch } from "../_shared/clickup.ts";
+import { cuFetch, resolveListAlias, type AliasRow, type OverrideRow } from "../_shared/clickup.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -92,10 +101,32 @@ Deno.serve(async (req: Request) => {
       listsWithStatuses.push(...await Promise.all(bareLists.slice(i, i + 4).map(fetchStatuses)));
     }
 
+    // resolveListAlias answers "which list is this work stream", so it is run
+    // once per stream and the answer inverted into list name -> stream. That
+    // keeps one definition of the mapping rather than a second one that reads
+    // the arrays directly and drifts from it.
+    const [aliasRes, overrideRes] = await Promise.all([
+      supabase.from("list_aliases").select("work_stream, aliases"),
+      supabase.from("list_alias_overrides").select("client_id, work_stream, list_name"),
+    ]);
+    const aliasRows = (aliasRes.data ?? []) as AliasRow[];
+    const overrideRows = (overrideRes.data ?? []) as OverrideRow[];
+    const streamOfList = new Map<string, string>();
+    for (const row of aliasRows) {
+      const resolved = resolveListAlias(row.work_stream, aliasRows, overrideRows, client_id);
+      // The override names the ONE list that wins for this client; without one
+      // every alias of the stream maps to it.
+      const names = resolved?.source === "override"
+        ? [resolved.list_name]
+        : (row.aliases ?? []);
+      for (const n of names) streamOfList.set(n.trim().toLowerCase(), row.work_stream);
+    }
+
     const lists = listsWithStatuses
       .map((l) => ({
         id: l.id,
         name: l.name,
+        work_stream: streamOfList.get(l.name.trim().toLowerCase()) ?? null,
         statuses: (l.statuses ?? []).map((s) => ({
           status: s.status,
           color: s.color ?? null,

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ClickUpListSelect } from "@/components/ClickUpListSelect";
 import {
   Select,
   SelectContent,
@@ -40,7 +41,13 @@ const CLIENT = "__client__";
 const STATUS_DEFAULT = "__default__";
 
 type QuickBriefListStatus = { status: string; color: string | null; type: string; orderindex: number };
-type QuickBriefListOption = { id: string; name: string; statuses: QuickBriefListStatus[] };
+type QuickBriefListOption = {
+  id: string;
+  name: string;
+  /** Resolved server-side from list_aliases; groups the dropdown. */
+  work_stream?: string | null;
+  statuses: QuickBriefListStatus[];
+};
 type QuickBriefWorkStreamOption = { id: string; name: string };
 
 export interface QuickBriefSheetBrief {
@@ -595,36 +602,31 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="qb-list">List</Label>
-              <Select value={listId} onValueChange={setListId} disabled={!hasClient || loadingLists}>
-                <SelectTrigger id="qb-list">
-                  <SelectValue
-                    placeholder={
-                      !hasClient
-                        ? "Assign a client first"
-                        : loadingLists
-                          ? "Loading lists…"
-                          : lists.length === 0
-                            ? "Server will auto-pick"
-                            : "Choose a list…"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {lists.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <ClickUpListSelect
+              id="qb-list"
+              label="List"
+              lists={lists}
+              value={listId}
+              onValueChange={setListId}
+              hasClient={hasClient}
+              loading={loadingLists}
+              disabled={!hasClient || loadingLists}
+              placeholder={
+                !hasClient
+                  ? "Assign a client first"
+                  : loadingLists
+                    ? "Loading lists…"
+                    : lists.length === 0
+                      ? "Server will auto-pick"
+                      : "Choose a list…"
+              }
+            >
               {listsError && (
                 <p className="text-body-small text-destructive">
                   Couldn't load lists ({listsError}) — Create will still work, using the server's default list.
                 </p>
               )}
-            </div>
+            </ClickUpListSelect>
             <div className="space-y-2">
               <Label htmlFor="qb-status">Status</Label>
               <Select

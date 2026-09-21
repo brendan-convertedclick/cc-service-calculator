@@ -8,20 +8,14 @@ import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ClickUpListSelect } from "@/components/ClickUpListSelect";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
 import { ClientSelectField } from "./ClientSelectField";
 import { useStaffClients } from "./useStaffClients";
 
-type ListOption = { id: string; name: string };
+type ListOption = { id: string; name: string; work_stream?: string | null };
 
 /**
  * Phase 1 staff brief form body. Used inside StaffPortal's "New brief" tab.
@@ -138,30 +132,15 @@ export function BriefFormBody() {
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <ClientSelectField id="brief-client" clients={clients} value={clientId} onValueChange={setClientId} />
-        <div className="space-y-2">
-          <Label htmlFor="brief-list">List / department</Label>
-          <Select value={listId} onValueChange={setListId} disabled={!clientId}>
-            <SelectTrigger id="brief-list">
-              <SelectValue
-                placeholder={
-                  !clientId
-                    ? "Pick a client first"
-                    : loadingLists
-                      ? "Loading lists…"
-                      : lists.length === 0
-                        ? "No lists found"
-                        : "Pick a list"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {lists.map((l) => (
-                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {listsError && <p className="text-body-small text-destructive">{listsError}</p>}
-        </div>
+        <ClickUpListSelect
+          id="brief-list"
+          lists={lists}
+          value={listId}
+          onValueChange={setListId}
+          hasClient={!!clientId}
+          loading={loadingLists}
+          error={listsError}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-[1fr,140px]">

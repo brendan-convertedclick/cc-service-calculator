@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ClickUpListSelect } from "@/components/ClickUpListSelect";
 import {
   Select,
   SelectContent,
@@ -63,6 +64,8 @@ const STATUS_DEFAULT = "__default__";
 type ListOption = {
   id: string;
   name: string;
+  /** Resolved server-side from list_aliases; groups the dropdown. */
+  work_stream?: string | null;
   statuses: Array<{ status: string }>;
 };
 
@@ -338,21 +341,15 @@ export function ApproveScheduleStage({ briefId, briefStatus }: Props) {
         <div className="space-y-3">
           {unpushed.length > 0 && (
             <div className="flex flex-wrap items-end gap-3">
-              <div className="w-64 space-y-1.5">
-                <Label>ClickUp list</Label>
-                <Select value={listId} onValueChange={setListId}>
-                  <SelectTrigger aria-label="ClickUp list">
-                    <SelectValue placeholder="Choose a list…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {listOptions.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>
-                        {l.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <ClickUpListSelect
+                id="schedule-clickup-list"
+                label="ClickUp list"
+                className="w-64 space-y-1.5"
+                lists={listOptions}
+                value={listId}
+                onValueChange={setListId}
+                placeholder="Choose a list…"
+              />
               <div className="w-48 space-y-1.5">
                 <Label>Status</Label>
                 <Select value={cuStatus} onValueChange={setCuStatus}>
