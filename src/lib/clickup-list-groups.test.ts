@@ -54,3 +54,39 @@ describe("groupListsByWorkStream", () => {
     expect(groups.map((g) => g.label)).toEqual([OTHER_GROUP]);
   });
 });
+
+describe("standing categories (the newer template)", () => {
+  it("gives Delivery, Meetings and Non-Billable their own headings, after the streams", () => {
+    // Kings College's real shape: three of its lists used to land in Other.
+    const groups = groupListsByWorkStream([
+      l("Meetings"),
+      l("SEO", "SEO"),
+      l("Non-Billable"),
+      l("Delivery"),
+      l("Administration", "Admin"),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual([
+      "Admin", "SEO", "Delivery", "Meetings", "Non-Billable",
+    ]);
+  });
+
+  it("treats Overhead as Non-Billable — ClickUp has both names for it", () => {
+    const groups = groupListsByWorkStream([l("Overhead"), l("Non-Billable")]);
+    expect(groups.map((g) => g.label)).toEqual(["Non-Billable"]);
+    expect(groups[0].options.map((o) => o.name)).toEqual(["Non-Billable", "Overhead"]);
+  });
+
+  it("a work stream always wins over a standing name", () => {
+    // Nothing here should be able to drag a stream-resolved list out of it.
+    const groups = groupListsByWorkStream([{ id: "1", name: "Delivery", work_stream: "Development" }]);
+    expect(groups.map((g) => g.label)).toEqual(["Development"]);
+  });
+
+  it("still sends genuine one-offs to Other lists, last", () => {
+    const groups = groupListsByWorkStream([
+      l("Schools Account Management"),
+      l("Meetings"),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Meetings", OTHER_GROUP]);
+  });
+});

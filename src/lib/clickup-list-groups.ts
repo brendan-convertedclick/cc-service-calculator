@@ -27,6 +27,28 @@ export const WORK_STREAM_ORDER = [
   "Social Media",
 ] as const;
 
+// The newer client template uses a second set of lists that are not work
+// streams at all: they answer "is this billable", which is the `task_groups`
+// taxonomy, not "what kind of work is this". Conflating the two in
+// `list_aliases` would corrupt the mapping the task-creating edge functions
+// read, so they are matched here on the list name instead, and given their own
+// headings AFTER the work streams (Lisa, 2026-09-21 — leaving them in "Other
+// lists" beside a one-off campaign plan made the dropdown look broken, and on
+// Kings College it buried three of its lists).
+//
+// ClickUp has both "Overhead" and "Non-Billable" in the wild for the same
+// thing; task_groups calls that group Non-Billable, so that is the heading.
+export const STANDING_GROUP_ORDER = ["Delivery", "Meetings", "Non-Billable"] as const;
+
+const STANDING_BY_NAME = new Map<string, string>([
+  ["delivery", "Delivery"],
+  ["meetings", "Meetings"],
+  ["meeting", "Meetings"],
+  ["non-billable", "Non-Billable"],
+  ["non billable", "Non-Billable"],
+  ["overhead", "Non-Billable"],
+]);
+
 export const OTHER_GROUP = "Other lists";
 
 /** A list as `list-client-clickup-lists` returns it. `work_stream` is resolved
@@ -54,27 +76,34 @@ export interface ListGroup {
  * to make silently.
  */
 export function groupListsByWorkStream(lists: ClickUpListOption[]): ListGroup[] {
-  const byStream = new Map<string, ClickUpListOption[]>();
+  const byGroup = new Map<string, ClickUpListOption[]>();
   const other: ClickUpListOption[] = [];
+  const put = (label: string, l: ClickUpListOption) => {
+    const bucket = byGroup.get(label) ?? [];
+    bucket.push(l);
+    byGroup.set(label, bucket);
+  };
 
   for (const l of lists) {
     const stream = l.work_stream ?? null;
     // An unknown stream name is treated as no stream: better in "Other lists"
     // than inventing a heading nobody chose.
     if (stream && (WORK_STREAM_ORDER as readonly string[]).includes(stream)) {
-      const bucket = byStream.get(stream) ?? [];
-      bucket.push(l);
-      byStream.set(stream, bucket);
-    } else {
-      other.push(l);
+      put(stream, l);
+      continue;
     }
+    // A work stream always wins: a list is only a standing category when it
+    // answered to no stream, so this can never pull SEO out of SEO.
+    const standing = STANDING_BY_NAME.get(l.name.trim().toLowerCase());
+    if (standing) put(standing, l);
+    else other.push(l);
   }
 
   const groups: ListGroup[] = [];
-  for (const stream of WORK_STREAM_ORDER) {
-    const options = byStream.get(stream);
+  for (const label of [...WORK_STREAM_ORDER, ...STANDING_GROUP_ORDER]) {
+    const options = byGroup.get(label);
     if (options?.length) {
-      groups.push({ label: stream, options: [...options].sort(byName) });
+      groups.push({ label, options: [...options].sort(byName) });
     }
   }
   if (other.length) groups.push({ label: OTHER_GROUP, options: [...other].sort(byName) });
