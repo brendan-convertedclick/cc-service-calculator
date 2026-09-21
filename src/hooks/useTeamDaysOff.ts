@@ -47,8 +47,16 @@ export function useTeamDaysOff(month: string) {
   return useTeamDaysOffBetween(start, end);
 }
 
-/** Set a person's day to a kind, or clear it with null. */
-export function useSetDayOff(month: string) {
+/** Set a person's day to a kind, or clear it with null.
+ *
+ *  Takes no period: it invalidates EVERY days-off query, on the prefix alone.
+ *  It used to invalidate `["team_days_off", month]`, which stopped matching
+ *  the moment the read key became a date range — the write still landed, the
+ *  grid never refetched, and a cell looked frozen on its old mark while the
+ *  database had already moved on. Keying the invalidation to one period is
+ *  the bug; there are only ever a couple of these cached, and a day off can
+ *  belong to a month, a week and a day at once. */
+export function useSetDayOff() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
@@ -75,7 +83,7 @@ export function useSetDayOff(month: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["team_days_off", month] });
+      qc.invalidateQueries({ queryKey: ["team_days_off"] });
     },
   });
 }

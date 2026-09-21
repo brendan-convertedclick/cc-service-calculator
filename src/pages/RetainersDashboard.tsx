@@ -76,7 +76,7 @@ function DaysOffGrid({
 }) {
   const dates = workingDates(month);
   const today = todayISO();
-  const set = useSetDayOff(month);
+  const set = useSetDayOff();
   const byKey = new Map(daysOff.map((d) => [`${d.team_member_id}|${d.day}`, d]));
   // A holiday everyone has is a column, not four cells: the header names it.
   const holidayName = new Map<string, string>();
