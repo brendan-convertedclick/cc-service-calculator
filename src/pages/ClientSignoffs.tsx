@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Handshake,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   Library,
   Lightbulb,
@@ -50,7 +51,30 @@ import { useSetItemState } from "@/hooks/useClientActivity";
 import { TYPE_LABEL, calendarEntriesFor, eventDateLabel } from "@/lib/client-review";
 import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
 import { todayISO } from "@/lib/dates";
-import { errorMessage } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
+
+const RAIL_KEY = "conductor.signoffs-rail-open";
+
+/** Whether the client rail is open. Remembered, because this page puts three
+ *  columns to the right of it and somebody who collapsed it once wants it
+ *  collapsed tomorrow too (Lisa, 2026-09-22: "can you do the same for the
+ *  client list so we can make the rest of the view not so squashed"). Storage
+ *  throws in a private window, and the honest default there is open. */
+function readRailOpen(): boolean {
+  try {
+    return localStorage.getItem(RAIL_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function writeRailOpen(open: boolean) {
+  try {
+    localStorage.setItem(RAIL_KEY, open ? "1" : "0");
+  } catch {
+    /* private window: the choice still holds for this session */
+  }
+}
 
 /** How long the Refresh button stays disabled after a press. Two minutes is
  *  longer than the sync itself takes and short enough that a real "I just
@@ -313,6 +337,7 @@ export function ClientSignoffs() {
   // state because a cooldown you can reload away is not a cooldown. It is
   // per-browser, not per-team, which is the honest limit of doing this in the
   // client: it stops a person drumming on the button, not four people at once.
+  const [railOpen, setRailOpen] = useState(readRailOpen);
   const sync = useSyncActuals();
   const [refreshedAt, setRefreshedAt] = useState(() => readRefreshedAt());
   const cooling = now < refreshedAt + REFRESH_COOLDOWN_MS;
@@ -461,16 +486,51 @@ export function ClientSignoffs() {
 
   return (
     <div className="flex h-full">
-      <aside className="w-64 shrink-0 border-r border-m-outline-variant">
-        <div className="p-3">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sign-offs…"
-            aria-label="Search sign-offs"
-          />
+      {/* Collapsible, because this page is the only one with THREE columns to
+          the right of the rail: the client's own page, their queue, and the
+          activity panel. At laptop width that left a title rendering one word
+          per line. The nav rail already collapses, so this borrows the same
+          chevron rather than inventing a second gesture. */}
+      <aside
+        className={cn(
+          "shrink-0 border-r border-m-outline-variant",
+          railOpen ? "w-64" : "w-10",
+        )}
+      >
+        <div className={cn("flex items-center gap-2 p-3", !railOpen && "justify-center px-1")}>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !railOpen;
+              setRailOpen(next);
+              writeRailOpen(next);
+            }}
+            aria-label={railOpen ? "Collapse the client list" : "Show the client list"}
+            aria-expanded={railOpen}
+            title={railOpen ? "Collapse the client list" : "Show the client list"}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-m-on-surface-variant transition-colors hover:bg-m-surface-container hover:text-m-on-surface"
+          >
+            {railOpen ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+          {railOpen && (
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search sign-offs…"
+              aria-label="Search sign-offs"
+            />
+          )}
         </div>
-        <div className="space-y-4 border-t border-m-outline-variant p-3">
+        <div
+          className={cn(
+            "space-y-4 border-t border-m-outline-variant p-3",
+            !railOpen && "hidden",
+          )}
+        >
           <FilterGroup label="Client">
             <FilterOption
               label="All clients"
