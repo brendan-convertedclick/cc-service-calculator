@@ -21,6 +21,10 @@ export function useSyncActuals() {
       // Unscoped on purpose: "Sync all" has no projectId, and an expanded
       // sub-items panel stays mounted, so it only refreshes via invalidation.
       qc.invalidateQueries({ queryKey: ["retainerSubItems"] });
+      // The two waiting clocks on /client-signoffs are written by this same
+      // function, so a sync that did not refresh them leaves the page showing
+      // the figures it was already showing (Lisa, 2026-09-22).
+      qc.invalidateQueries({ queryKey: ["client-waiting"] });
     },
   });
 }

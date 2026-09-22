@@ -13,6 +13,7 @@ import {
   MessageCircleQuestion,
   Pencil,
   Presentation,
+  RefreshCw,
   Send,
   Wand2,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import { EditItemDialog } from "@/components/signoffs/EditItemDialog";
 import { ActivityPanel } from "@/components/signoffs/ActivityPanel";
 import { MonthCalendar } from "@/components/review/MonthCalendar";
 import { useSignoffCandidates } from "@/hooks/useSignoffCandidates";
+import { useSyncActuals } from "@/hooks/useSyncActuals";
 import { ClientReview } from "@/pages/ClientReview";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +51,31 @@ import { TYPE_LABEL, calendarEntriesFor, eventDateLabel } from "@/lib/client-rev
 import { currentMonth, type CalendarEntry } from "@/lib/calendar-month";
 import { todayISO } from "@/lib/dates";
 import { errorMessage } from "@/lib/utils";
+
+/** How long the Refresh button stays disabled after a press. Two minutes is
+ *  longer than the sync itself takes and short enough that a real "I just
+ *  briefed something" retry is not blocked. */
+const REFRESH_COOLDOWN_MS = 120_000;
+const REFRESH_KEY = "conductor.clickup-refresh-at";
+
+/** Reads the cooldown deadline. Storage throws in a private window and comes
+ *  back empty after a data clear, and neither is a reason to break the page:
+ *  the worst case is one extra sync. */
+function readRefreshedAt(): number {
+  try {
+    return Number(localStorage.getItem(REFRESH_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeRefreshedAt(at: number) {
+  try {
+    localStorage.setItem(REFRESH_KEY, String(at));
+  } catch {
+    /* private window: the in-memory deadline still holds for this session */
+  }
+}
 
 const STATE_LABEL: Record<string, string> = {
   pending: "Waiting on client",
@@ -274,6 +301,21 @@ export function ClientSignoffs() {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  // "Refresh from ClickUp" (Lisa, 2026-09-22). The two waiting clocks are
+  // written by sync-clickup-actuals on a half-hourly cron, so a task briefed
+  // just after a tick shows no wait at all until the next one.
+  //
+  // Behind a cooldown on purpose. That function is the heaviest reader we have
+  // against ClickUp's ONE shared token, and it has been rate limited into
+  // returning nothing for weeks at a time; a button that can be held down is
+  // how that happens again. The deadline is kept in localStorage rather than
+  // state because a cooldown you can reload away is not a cooldown. It is
+  // per-browser, not per-team, which is the honest limit of doing this in the
+  // client: it stops a person drumming on the button, not four people at once.
+  const sync = useSyncActuals();
+  const [refreshedAt, setRefreshedAt] = useState(() => readRefreshedAt());
+  const cooling = now < refreshedAt + REFRESH_COOLDOWN_MS;
 
   // "Waiting on this client" has ONE definition and every count on the page
   // uses it: an undecided ask they owe us, or a task sitting in their court.
@@ -529,6 +571,39 @@ export function ClientSignoffs() {
                   <Presentation className="h-4 w-4" />
                 </Button>
               )}
+              {/* Page-wide, so no client needed. Sits last because it is the
+                  one button here that changes nothing: it only asks ClickUp
+                  for the newest figures. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-8 px-0"
+                disabled={sync.isPending || cooling}
+                title={
+                  sync.isPending
+                    ? "Refreshing from ClickUp…"
+                    : cooling
+                      ? "Just refreshed. Try again in a minute or two."
+                      : "Refresh from ClickUp"
+                }
+                aria-label="Refresh from ClickUp"
+                onClick={() => {
+                  const at = Date.now();
+                  writeRefreshedAt(at);
+                  setRefreshedAt(at);
+                  sync.mutate(undefined, {
+                    onSuccess: () => toast.success("Refreshed from ClickUp"),
+                    // The sync often outlives the gateway and finishes anyway,
+                    // so this is a "check back", not a "nothing happened".
+                    onError: (e) =>
+                      toast.error("ClickUp did not answer in time", {
+                        description: `${errorMessage(e)}. It may still finish. The half-hourly sync will pick it up either way.`,
+                      }),
+                  });
+                }}
+              >
+                <RefreshCw className={`h-4 w-4 ${sync.isPending ? "animate-spin" : ""}`} />
+              </Button>
               {candidatesHere.length > 0 && (
                 <Button
                   variant="outline"
