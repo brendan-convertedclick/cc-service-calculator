@@ -699,6 +699,7 @@ export function ClientSignoffs() {
                     tasks={visibleTasks}
                     now={now}
                     clientName={selected?.name ?? null}
+                    closedOnly={scope === "closed"}
                   />
                   <RunwayChart tasks={visibleTasks} now={now} />
                   <WaitingTable tasks={visibleTasks} now={now} />

@@ -32,11 +32,18 @@ export function TurnaroundStatement({
   tasks,
   now,
   clientName,
+  closedOnly = false,
 }: {
   tasks: WaitingTask[];
   now: number;
   /** Null on the all-clients view, where "you" has no referent. */
   clientName: string | null;
+  /** The Closed filter is on, so everything here is finished BY CHOICE. The
+   *  component cannot tell that from "this client happens to owe us nothing"
+   *  by looking at the rows, and the two want opposite sentences: one is a
+   *  deliberate look at history, the other is news (Lisa, 2026-09-22, having
+   *  to ask why closed work was "still showing" on the Closed tab). */
+  closedOnly?: boolean;
 }) {
   const { clocks, summary, worstDue } = useMemo(() => {
     const clocks: StopClock[] = tasks.map((t) => stopClock(t, now));
@@ -57,7 +64,9 @@ export function TurnaroundStatement({
     return (
       <div className="border-b border-m-outline-variant px-6 py-5">
         <p className="text-body-medium text-m-on-surface-variant">
-          Nothing open here. The closed rows below are the record.
+          {closedOnly
+            ? "Finished work, and how long each one took. Switch to Open for what is still running."
+            : "Nothing open here. The closed rows below are the record."}
         </p>
       </div>
     );
