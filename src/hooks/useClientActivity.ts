@@ -28,6 +28,13 @@ const KEY = (approvalId: string) => ["client-activity", approvalId] as const;
 function invalidate(qc: ReturnType<typeof useQueryClient>, approvalId: string) {
   void qc.invalidateQueries({ queryKey: KEY(approvalId) });
   void qc.invalidateQueries({ queryKey: ["client-signoffs"] });
+  // The "What <client> sees" preview reads its own copy of the list, so a
+  // decision taken in this panel left the client's page beside it showing the
+  // old bucket and the old overdue badge until a reload (Lisa, 2026-09-22:
+  // "I've marked September Social Calendar as signed off, should it not fall
+  // off this list?"). It should, and now it does. Every mutation in this file
+  // routes through here, so the fix is one line rather than one per caller.
+  void qc.invalidateQueries({ queryKey: ["client-review-preview"] });
 }
 
 export function useApprovalTimeline(approvalId: string | undefined) {

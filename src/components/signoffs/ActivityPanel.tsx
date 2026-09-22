@@ -204,7 +204,9 @@ export function ActivityPanel({
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         {hasItems ? (
           <p className="text-body-medium text-m-on-surface-variant">
-            Pick something from {clientName}&apos;s list to see how it has gone — and to chase it.
+            Pick a sign-off, question or agreement from {clientName}&apos;s list to see how it has
+            gone and to chase it. Briefed tasks are on that list too so the client can see what is
+            in their court, but they carry no sign-off history, so picking one lands you back here.
           </p>
         ) : (
           <>
