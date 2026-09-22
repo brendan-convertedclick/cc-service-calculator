@@ -33,9 +33,17 @@ Deno.serve(async (req: Request) => {
     // Optional body: { project_id } to force-sync a specific project
     // regardless of status (used by the "Sync now" button).
     let requestedProjectId: string | null = null;
+    // How far back the recent-task sweep looks, and how many pages it will
+    // pull. The defaults are the half-hourly cron's: two hours is plenty to
+    // cover the last tick. Both are widened only for a one-off baseline
+    // backfill, which is why they are inputs rather than constants.
+    let sweepHours = 2;
+    let sweepPages = 5;
     try {
       const body = await req.json();
       requestedProjectId = body?.project_id ?? null;
+      if (Number.isFinite(body?.sweep_hours)) sweepHours = Math.max(1, Number(body.sweep_hours));
+      if (Number.isFinite(body?.sweep_pages)) sweepPages = Math.max(1, Math.min(50, Number(body.sweep_pages)));
     } catch { /* empty body from pg_cron is fine */ }
 
     const clickupPat = Deno.env.get("CLICKUP_PAT");
@@ -209,16 +217,20 @@ Deno.serve(async (req: Request) => {
       const teamId = settings?.clickup_workspace_id;
       const spaceId = settings?.clickup_clients_space_id;
       if (teamId && spaceId) {
-        const since = Date.now() - 2 * 60 * 60_000;
+        const since = Date.now() - sweepHours * 60 * 60_000;
         type RecentTask = {
           id: string;
           status?: { status?: string };
           points?: number | null;
           date_closed?: string | null;
           date_done?: string | null;
+          /** Epoch ms, as ClickUp sends it. Read here because this ONE paged
+           *  call carries the whole task, and it is the cheap way to freeze a
+           *  baseline. See the patch below. */
+          due_date?: string | null;
         };
         const recent: RecentTask[] = [];
-        for (let page = 0; page < 5; page++) {
+        for (let page = 0; page < sweepPages; page++) {
           const res = await cuFetch(
             `https://api.clickup.com/api/v2/team/${teamId}/task?page=${page}&subtasks=true&include_closed=true` +
               `&space_ids[]=${spaceId}&date_updated_gt=${since}`,
@@ -232,21 +244,49 @@ Deno.serve(async (req: Request) => {
         if (recent.length > 0) {
           const { data: hits } = await supabase
             .from("briefs")
-            .select("id, clickup_task_id")
+            .select("id, clickup_task_id, original_due_date, original_points")
             .eq("status", "briefed")
             .in("clickup_task_id", recent.map((t) => t.id));
           const byId = new Map(recent.map((t) => [t.id, t]));
-          for (const b of (hits ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+          for (
+            const b of (hits ?? []) as Array<{
+              id: string;
+              clickup_task_id: string;
+              original_due_date: string | null;
+              original_points: number | null;
+            }>
+          ) {
             const t = byId.get(b.clickup_task_id);
             const status = t?.status?.status?.toLowerCase() ?? null;
             if (!t || !status) continue;
             const closedMs = t.date_done ?? t.date_closed ?? null;
-            const { error } = await supabase.from("briefs").update({
+            const patch: Record<string, unknown> = {
               clickup_task_status: status,
               clickup_points: t.points ?? null,
               completed_at: DONE_STATUSES.has(status) && closedMs ? new Date(Number(closedMs)).toISOString() : null,
               clickup_status_synced_at: new Date().toISOString(),
-            }).eq("id", b.id);
+            };
+            // Freeze the accountability baseline HERE as well as in the main
+            // loop below (Lisa, 2026-09-22). The main loop reads it off the
+            // one-call-per-task fetch, which is the call ClickUp rate limits,
+            // and when that fails the run still looks healthy: the bulk call
+            // supplies a status and both waiting clocks, so nothing downstream
+            // complains. What is quietly lost is original_due_date, and the
+            // stop-clock chart on /client-signoffs drops any row without one.
+            // The result was 106 briefed tasks that carry a due date in ClickUp
+            // and are invisible on the page meant to chase them.
+            //
+            // This sweep is ONE paged call for the whole space and already has
+            // the full task, so the baseline costs nothing extra here.
+            //
+            // Only ever fills a blank. A frozen baseline is the thing an
+            // extension is measured against; overwriting it with today's
+            // (possibly already extended) date would erase the fact it moved.
+            if (b.original_due_date == null && t.due_date) {
+              patch.original_due_date = new Date(Number(t.due_date)).toISOString().slice(0, 10);
+            }
+            if (b.original_points == null && t.points != null) patch.original_points = t.points;
+            const { error } = await supabase.from("briefs").update(patch).eq("id", b.id);
             if (!error) recentTaskUpdates++;
           }
         }
