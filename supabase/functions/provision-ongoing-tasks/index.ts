@@ -5,7 +5,8 @@
 //   Legacy (Team page, single member, overhead-only):
 //     POST { team_member_id: string }
 //
-//   Matrix (Planner page, four-axis fan-out):
+//   Matrix (Planner page): one task per client × category, with every
+//   member assigned to it. No clients = the per-person overhead flow.
 //     POST {
 //       member_ids:        string[],
 //       client_ids:        string[],     // empty = overhead-only flow
@@ -34,10 +35,10 @@ export function buildTaskName(
   category: { label: string; label_key: string },
   client?: { short_name?: string | null; name?: string } | null,
 ): string {
-  if (client) {
-    const short = client.short_name ?? client.name ?? "Client";
-    return `[Ongoing] ${member.full_name} — ${short} — ${category.label}`;
-  }
+  // A client task sits in that client's list and is shared by everyone on
+  // it, so neither the client nor a person belongs in the title (Lisa's
+  // 2026-09-17 naming rule).
+  if (client) return `[Ongoing] ${category.label}`;
   return `[Internal] ${member.full_name} — ${category.label}`;
 }
 
@@ -179,15 +180,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Existing ongoing_tasks rows so we skip already-provisioned cells.
+    // Existing ongoing_tasks rows so we skip already-provisioned cells. A
+    // client task is shared, so it is keyed on client × category with no
+    // member in it; filtering by member here would hide a task Lisa made from
+    // Brendan's run and mint a second one. Overhead stays per person.
     const { data: existing } = await supabase
       .from("ongoing_tasks")
       .select("team_member_id, client_id, time_category_id")
-      .in("team_member_id", activeMembers.map((m) => m.id))
-      .is("archived_at", null);
+      .is("archived_at", null)
+      .eq("adopted", false);
     const existingKeys = new Set(
-      (existing ?? []).map(
-        (r) => `${r.team_member_id}|${r.client_id ?? ""}|${r.time_category_id}`,
+      (existing ?? []).map((r) =>
+        r.client_id
+          ? `${r.client_id}|${r.time_category_id}`
+          : `${r.team_member_id}||${r.time_category_id}`
       ),
     );
 
@@ -200,141 +206,158 @@ Deno.serve(async (req: Request) => {
     const created: Created[] = [];
     const failed: Failed[] = [];
 
-    // Build the cell list (clientIds=[] → single null-client iteration).
-    const clientCells: Array<{ id: string; row: { id: string; name: string; short_name: string } | null }> =
-      clientIds.length > 0
-        ? Array.from(clientsById.values()).map((c) => ({ id: c.id, row: c }))
-        : [{ id: "__overhead__", row: null }];
-
-    for (const member of activeMembers) {
-      for (const cell of clientCells) {
-        const isOverhead = cell.row === null;
-        const clientIdKey = isOverhead ? "" : cell.id;
-        const clientForKey = isOverhead ? null : cell.id;
-
-        // Resolve target list once per cell.
-        let listId: string | null;
-        let clientListId: string | null;
-        if (isOverhead) {
-          listId = settings.clickup_internal_list_id ?? null;
-          clientListId = null;
-          if (!listId) {
-            for (const tmpl of templates) {
-              failed.push({
-                member_id: member.id,
-                client_id: null,
-                task_template_id: tmpl.id,
-                reason: "settings.clickup_internal_list_id not set",
-              });
-            }
-            continue;
-          }
-        } else {
-          const mapped = clientListByClient.get(cell.id);
-          if (!mapped) {
-            for (const tmpl of templates) {
-              failed.push({
-                member_id: member.id,
-                client_id: cell.id,
-                task_template_id: tmpl.id,
-                reason: `no client_lists row for group on ${cell.row?.short_name ?? cell.id} — map a list first`,
-              });
-            }
-            continue;
-          }
-          listId = mapped.clickup_list_id;
-          clientListId = mapped.id;
-        }
-
+    type Cell = {
+      key: string;
+      owner: (typeof activeMembers)[number];
+      assignees: typeof activeMembers;
+      client: { id: string; name: string; short_name: string } | null;
+      listId: string;
+      clientListId: string | null;
+      tmpl: (typeof templates)[number];
+    };
+    const cells: Cell[] = [];
+    const failAll = (clientId: string | null, reason: string, members = activeMembers) => {
+      for (const m of members) {
         for (const tmpl of templates) {
-          const key = `${member.id}|${clientIdKey}|${tmpl.id}`;
-          if (existingKeys.has(key)) {
-            skipped++;
-            continue;
-          }
+          failed.push({ member_id: m.id, client_id: clientId, task_template_id: tmpl.id, reason });
+        }
+      }
+    };
 
-          // Refuse custom templates against the wrong client.
-          if (tmpl.is_custom && tmpl.client_id !== clientForKey) {
-            failed.push({
-              member_id: member.id,
-              client_id: clientForKey,
-              task_template_id: tmpl.id,
-              reason: "custom template not scoped to this client",
-            });
-            continue;
-          }
-
-          const name = buildTaskName(member, tmpl, cell.row);
-          // Resolve effective billable: ongoing_tasks override is null at create
-          // time, so the template default rules.
-          const billable = !!tmpl.billable;
-          const cuRes = await cuFetch(
-            `https://api.clickup.com/api/v2/list/${listId}/task`,
-            {
-              ...CU,
-              method: "POST",
-              body: JSON.stringify({
-                name,
-                description: isOverhead
-                  ? `Ongoing time bucket for ${member.full_name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`
-                  : `Ongoing time bucket for ${member.full_name} on ${cell.row?.name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`,
-                assignees: member.clickup_user_id ? [member.clickup_user_id] : [],
-                // Omit `status` — let ClickUp use the list's default. Client
-                // spaces use custom status sets, so hardcoding a status name
-                // fails with CRTSK_001 "Status not found". (Rize matches time
-                // entries by task id, not status, so this is safe.)
-                billable,
-              }),
-            },
-          );
-          if (!cuRes.ok) {
-            failed.push({
-              member_id: member.id,
-              client_id: clientForKey,
-              task_template_id: tmpl.id,
-              reason: `CU task create failed: ${await cuRes.text()}`,
-            });
-            continue;
-          }
-          const cuTask = await cuRes.json() as { id?: string };
-          if (!cuTask?.id) {
-            failed.push({
-              member_id: member.id,
-              client_id: clientForKey,
-              task_template_id: tmpl.id,
-              reason: "CU returned no task id",
-            });
-            continue;
-          }
-
-          const { error: insErr } = await supabase.from("ongoing_tasks").insert({
-            team_member_id: member.id,
-            time_category_id: tmpl.id,
-            client_id: clientForKey,
-            client_list_id: clientListId,
-            clickup_task_id: cuTask.id,
-            task_name: name,
-            billable,
-          });
-          if (insErr) {
-            failed.push({
-              member_id: member.id,
-              client_id: clientForKey,
-              task_template_id: tmpl.id,
-              reason: insErr.message,
-            });
-            continue;
-          }
-
-          provisioned++;
-          created.push({
-            member_id: member.id,
-            client_id: clientForKey,
-            task_template_id: tmpl.id,
-            clickup_task_id: cuTask.id,
+    if (clientIds.length > 0) {
+      // One task per client × category, everyone picked assigned to it. The
+      // first person picked owns the row (team_member_id is NOT NULL); time is
+      // attributed per logger from the entries, as for a shared adopted task.
+      const owner = activeMembers[0];
+      for (const client of clientsById.values()) {
+        const mapped = clientListByClient.get(client.id);
+        if (!mapped) {
+          failAll(client.id, `no client_lists row for group on ${client.short_name ?? client.id} — map a list first`, [owner]);
+          continue;
+        }
+        for (const tmpl of templates) {
+          cells.push({
+            key: `${client.id}|${tmpl.id}`,
+            owner,
+            assignees: activeMembers,
+            client,
+            listId: mapped.clickup_list_id,
+            clientListId: mapped.id,
+            tmpl,
           });
         }
       }
+    } else {
+      const listId = settings.clickup_internal_list_id ?? null;
+      if (!listId) {
+        failAll(null, "settings.clickup_internal_list_id not set");
+      } else {
+        for (const member of activeMembers) {
+          for (const tmpl of templates) {
+            cells.push({
+              key: `${member.id}||${tmpl.id}`,
+              owner: member,
+              assignees: [member],
+              client: null,
+              listId,
+              clientListId: null,
+              tmpl,
+            });
+          }
+        }
+      }
+    }
+
+    for (const { key, owner, assignees, client, listId, clientListId, tmpl } of cells) {
+      const clientId = client?.id ?? null;
+      if (existingKeys.has(key)) {
+        skipped++;
+        continue;
+      }
+
+      // Refuse custom templates against the wrong client.
+      if (tmpl.is_custom && tmpl.client_id !== clientId) {
+        failed.push({
+          member_id: owner.id,
+          client_id: clientId,
+          task_template_id: tmpl.id,
+          reason: "custom template not scoped to this client",
+        });
+        continue;
+      }
+
+      const name = buildTaskName(owner, tmpl, client);
+      // Resolve effective billable: ongoing_tasks override is null at create
+      // time, so the template default rules.
+      const billable = !!tmpl.billable;
+      const cuRes = await cuFetch(
+        `https://api.clickup.com/api/v2/list/${listId}/task`,
+        {
+          ...CU,
+          method: "POST",
+          body: JSON.stringify({
+            name,
+            description: client
+              ? `Ongoing time bucket for ${client.name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`
+              : `Ongoing time bucket for ${owner.full_name}. Category: ${tmpl.label}. Rize posts time entries here. Do not close — this task is perpetual.`,
+            assignees: assignees
+              .map((m) => m.clickup_user_id)
+              .filter((id): id is number => id != null),
+            // Omit `status` — let ClickUp use the list's default. Client
+            // spaces use custom status sets, so hardcoding a status name
+            // fails with CRTSK_001 "Status not found". (Rize matches time
+            // entries by task id, not status, so this is safe.)
+            billable,
+          }),
+        },
+      );
+      if (!cuRes.ok) {
+        failed.push({
+          member_id: owner.id,
+          client_id: clientId,
+          task_template_id: tmpl.id,
+          reason: `CU task create failed: ${await cuRes.text()}`,
+        });
+        continue;
+      }
+      const cuTask = await cuRes.json() as { id?: string };
+      if (!cuTask?.id) {
+        failed.push({
+          member_id: owner.id,
+          client_id: clientId,
+          task_template_id: tmpl.id,
+          reason: "CU returned no task id",
+        });
+        continue;
+      }
+
+      const { error: insErr } = await supabase.from("ongoing_tasks").insert({
+        team_member_id: owner.id,
+        time_category_id: tmpl.id,
+        client_id: clientId,
+        client_list_id: clientListId,
+        clickup_task_id: cuTask.id,
+        task_name: name,
+        billable,
+      });
+      if (insErr) {
+        failed.push({
+          member_id: owner.id,
+          client_id: clientId,
+          task_template_id: tmpl.id,
+          reason: insErr.message,
+        });
+        continue;
+      }
+
+      existingKeys.add(key);
+      provisioned++;
+      created.push({
+        member_id: owner.id,
+        client_id: clientId,
+        task_template_id: tmpl.id,
+        clickup_task_id: cuTask.id,
+      });
     }
 
     return json({ provisioned, skipped, created, failed });

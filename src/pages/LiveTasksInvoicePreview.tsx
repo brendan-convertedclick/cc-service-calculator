@@ -59,7 +59,7 @@ export function LiveTasksInvoicePreview() {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-headline-medium">Live tasks — invoice preview</h1>
+      <h1 className="text-headline-medium">Ongoing tasks invoice preview</h1>
 
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1">

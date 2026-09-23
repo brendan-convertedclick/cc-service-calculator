@@ -84,7 +84,7 @@ const projects: NavItem       = { to: "/projects",      label: "Projects",      
 const clientTime: NavItem   = { to: "/time",          label: "Time per client",icon: Clock3,            end: false }
 const retainers: NavItem      = { to: "/retainers",     label: "Retainers",     icon: Repeat,            end: false }
 const sow: NavItem            = { to: "/sow",           label: "Scope Composer",icon: ScrollText,        end: false }
-const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Live tasks", icon: ListTodo,       end: false }
+const liveTasks: NavItem      = { to: "/scaffold/live-tasks", label: "Ongoing tasks", icon: ListTodo,       end: false }
 const foundations: NavItem    = { to: "/scaffold/foundations", label: "Foundations", icon: LayoutTemplate, end: false }
 const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoice preview", icon: Receipt, end: false }
 

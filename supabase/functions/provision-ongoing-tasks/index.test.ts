@@ -13,24 +13,14 @@ Deno.test("buildTaskName formats overhead tasks predictably", () => {
   );
 });
 
-Deno.test("buildTaskName formats client-scoped tasks with short_name", () => {
+Deno.test("buildTaskName names a client task by its category alone", () => {
+  // The list says which client; the assignees say who.
   assertEquals(
     buildTaskName(
       { full_name: "Brendan Gunn" },
-      { label: "Client Meeting", label_key: "client-meeting" },
+      { label: "Sales", label_key: "client-sales" },
       { short_name: "Acme", name: "Acme Industrial (Pty) Ltd" },
     ),
-    "[Ongoing] Brendan Gunn — Acme — Client Meeting",
-  );
-});
-
-Deno.test("buildTaskName falls back to name when short_name missing", () => {
-  assertEquals(
-    buildTaskName(
-      { full_name: "Brendan Gunn" },
-      { label: "Reactive", label_key: "reactive" },
-      { name: "Acme" },
-    ),
-    "[Ongoing] Brendan Gunn — Acme — Reactive",
+    "[Ongoing] Sales",
   );
 });

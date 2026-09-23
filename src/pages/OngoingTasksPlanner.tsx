@@ -101,11 +101,13 @@ export function OngoingTasksPlanner() {
 
   const unmappedClients = clientIdsList.filter((cid) => !mappingReady.get(cid));
 
+  // One task per client × task, shared by everyone picked, so the team does
+  // not multiply the count. Still required: a task nobody is on is noise.
   const cellCount =
-    selectedClients.size * selectedTemplates.size * selectedMembers.size;
+    selectedMembers.size > 0 ? selectedClients.size * selectedTemplates.size : 0;
   const readyClients = clientIdsList.length - unmappedClients.length;
   const readyCellCount =
-    readyClients * selectedTemplates.size * selectedMembers.size;
+    selectedMembers.size > 0 ? readyClients * selectedTemplates.size : 0;
 
   const handleCreate = () => {
     if (selectedMembers.size === 0) {
@@ -149,10 +151,11 @@ export function OngoingTasksPlanner() {
   return (
     <div className="container mx-auto max-w-7xl p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Live tasks</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Ongoing tasks</h1>
         <p className="text-body-medium text-m-on-surface-variant">
-          Bulk-provision perpetual ClickUp tasks across the matrix of clients,
-          lists, tasks, and team members.
+          Create standing ClickUp tasks for clients. Each client gets one
+          task per category, named like "[Ongoing] Sales", with everyone you
+          pick assigned to it.
         </p>
       </div>
 
@@ -264,6 +267,7 @@ export function OngoingTasksPlanner() {
             <CardTitle className="text-title-small">
               Team ({selectedMembers.size})
             </CardTitle>
+            <CardDescription>Everyone picked is assigned to each task.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 max-h-96 overflow-y-auto">
             {team.map((m) => (
@@ -292,7 +296,7 @@ export function OngoingTasksPlanner() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-body-medium">
-            <span className="font-semibold">{cellCount}</span> cell(s) selected
+            <span className="font-semibold">{cellCount}</span> task(s) to create
             {unmappedClients.length > 0 && (
               <>
                 {" — "}
