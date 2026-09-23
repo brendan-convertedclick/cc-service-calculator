@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { teamCapacity, personCapacityHours, ongoingHoursInRange, HOURS_PER_WORKING_DAY } from "./capacity";
+import { teamCapacity, personCapacityHours, HOURS_PER_WORKING_DAY } from "./capacity";
 import { periodFor } from "./capacity-period";
 
 // August 2026 has 21 working days — the month Lisa quoted her 588 from
@@ -78,18 +78,3 @@ describe("half days (0173)", () => {
   });
 });
 
-describe("ongoingHoursInRange", () => {
-  it("buckets a perpetual task's intervals by the month they were logged, per user", () => {
-    const aug = Date.UTC(2026, 7, 12, 8); // 12 Aug 2026 10:00 SAST
-    const sep = Date.UTC(2026, 8, 3, 8);
-    const entries = [
-      { user: { id: 1 }, intervals: [{ start: String(aug), time: String(2 * 3_600_000) }, { start: String(sep), time: String(3_600_000) }] },
-      { user: { id: 2 }, intervals: [{ start: String(aug), time: String(30 * 60_000) }] },
-    ];
-    const m = ongoingHoursInRange(entries, periodFor("month", "2026-08").startISO, periodFor("month", "2026-08").endISO);
-    expect(m.get("1")).toBe(2);
-    expect(m.get("2")).toBe(0.5);
-    expect(ongoingHoursInRange(entries, periodFor("month", "2026-09").startISO, periodFor("month", "2026-09").endISO).get("1")).toBe(1);
-    expect(ongoingHoursInRange(entries, periodFor("month", "2026-09").startISO, periodFor("month", "2026-09").endISO).has("2")).toBe(false);
-  });
-});

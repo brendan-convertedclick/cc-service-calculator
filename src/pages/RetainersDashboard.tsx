@@ -202,18 +202,18 @@ function LoadBar({ pct }: { pct: number }) {
 // Same native <details> as the Retainers book, open by default.
 function CapacityKey() {
   const terms: Array<[string, string]> = [
-    ["Accounted for", "The share of the team's working hours that Conductor can see work against. Everything closed in the month — briefed, recurring, client and internal — valued at the points on the task. It is not a productivity score: a low figure usually means work that happened was never briefed here."],
-    ["Briefed", "Hours from tasks somebody raised as a brief and closed this month."],
-    ["Recurring", "Hours from the standing monthly tasks the provisioner creates — reports, plugin sweeps, standing meetings — that closed this month."],
-    ["Ongoing", "Time logged this month on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. No points on those, so this is the one bucket counted in tracked hours. Internal and never billable, but it is real capacity used."],
-    ["Meetings", "Hours from that person's meeting tasks closed this month, at the points on the task."],
-    ["Total hours", "That person's Briefed, Recurring, Meetings and Ongoing added together, in points. It is what their month contained, not how long they sat at their desk. Tracked is not added on top: it is the same work measured the other way, so adding it would count it twice."],
-    ["Tracked", "Every hour logged in ClickUp (via Rize) inside this period, whatever state its task is in. It is not limited to work that closed here, so a week spent on something still in flight shows up. Expand the row and those tasks are listed too, marked tracked. Points are the basis and stay the basis; this column is the comparison."],
-    ["Total points", "The sprint points on everything that person closed this month: briefs, recurring and meetings. This is the number ClickUp's points dashboard shows, so the two should match. Ongoing tasks carry no points and are not in it."],
-    ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
+    ["Accounted for", "The share of the team's working hours that Conductor can see work against. Every hour logged in ClickUp inside the period, whatever state its task is in. It is not a productivity score: a low figure usually means time is going untracked, not that nobody was busy."],
+    ["Briefed", "Hours logged on tasks somebody raised as a brief."],
+    ["Recurring", "Hours logged on the standing monthly tasks the provisioner creates: reports, plugin sweeps, standing meetings."],
+    ["Meetings", "Hours logged on that person's meeting tasks."],
+    ["Ongoing", "Hours logged on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. Internal and never billable, but it is real capacity used."],
+    ["Other", "Hours logged on a task that is none of the above: an ad hoc ClickUp card, a daily stand-up, a meeting whose task has not closed. This column is where the surprises are. If it is large, work is happening outside everything Conductor knows about."],
+    ["Total hours", "The five columns to its left added together, and the basis for Of capacity. Every one of them is the same thing measured the same way, so they reconcile exactly."],
+    ["Total points", "The sprint points on everything that person closed in the period: briefs, recurring and meetings. This is the number ClickUp's points dashboard shows, so the two should match. It is deliberately NOT mixed into the hours: points go to whoever the task is assigned to, hours to whoever logged them, and a perpetual task carries no points at all."],
+    ["Of capacity","Their tracked hours against what one person's period holds: working days × 7 hours. Over 100% means they worked more than a normal week."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
-    ["Days off", "Leave, sick days and public holidays in the grid at the bottom. Each whole day takes 7 hours off that person's capacity and off the team total, a half day 3.5, so a month with leave or a holiday in it is judged against the hours people actually had."],
-    ["Unassigned", "Work closed this month with nobody's name on it. It has no capacity to be a share of, so it shows no percentage — but the hours are real and are in the total."],
+    ["Days off", "Leave, sick days and public holidays in the grid at the bottom. Each whole day takes 7 hours off that person's capacity and off the team total, a half day 3.5, so a period with leave or a holiday in it is judged against the hours people actually had."],
+    ["Unassigned", "Time logged by a ClickUp user with no team member row. It has no capacity to be a share of, so it shows no percentage — but the hours are real and are in the total."],
   ];
   return (
     <details className="mb-6 rounded-md border border-m-outline-variant bg-m-surface-container-low px-4 py-2" open>
@@ -234,7 +234,9 @@ function CapacityKey() {
 
 // What one person's month was actually made of. The Unassigned row is the
 // reason this exists: "30.3h across 25 tasks" is a finding nobody can act on
-// until they can see which tasks.
+// until they can see which tasks. It carries both currencies because the row
+// above it does — a dash in Hours means it closed here but was worked earlier,
+// a dash in Points means it is still in flight.
 function CapacityItems({ items }: { items: CapacityItem[] }) {
   return (
     <Table>
@@ -242,7 +244,8 @@ function CapacityItems({ items }: { items: CapacityItem[] }) {
         <TableRow>
           <TableHead className="pl-12">Task</TableHead>
           <TableHead>Client</TableHead>
-          <TableHead className="whitespace-nowrap text-right">Hours</TableHead>
+          <TableHead className="whitespace-nowrap text-right" title="Hours this person logged on it inside the period">Hours</TableHead>
+          <TableHead className="whitespace-nowrap text-right" title="Points it was worth, if it closed in the period">Points</TableHead>
           <TableHead className="whitespace-nowrap">Closed</TableHead>
         </TableRow>
       </TableHeader>
@@ -257,7 +260,10 @@ function CapacityItems({ items }: { items: CapacityItem[] }) {
             </TableCell>
             <TableCell className="text-body-medium text-m-on-surface-variant">{it.clientName}</TableCell>
             <TableCell className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-              {fmtH(it.hours)}
+              {it.hours > 0 ? fmtH(it.hours) : "—"}
+            </TableCell>
+            <TableCell className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+              {it.points > 0 ? Math.round(it.points * 10) / 10 : "—"}
             </TableCell>
             <TableCell className="whitespace-nowrap text-label-small text-m-on-surface-variant">
               {it.closedAt ? it.closedAt.slice(0, 10) : "—"}
@@ -411,9 +417,9 @@ export function RetainersDashboard() {
                 {cap.inProgress
                   ? `. Measured against the part of ${period.label} that has happened; the whole ${kind} is ${fmtH(cap.availableHours)}.`
                   : `, across ${period.label}.`}{" "}
-                Counted in the points on every task closed in the {kind} — briefed,
-                recurring, client and internal alike — not in logged time.
-                {kind === "day" && " A task lands on the day it closed, so single days swing hard: the week view is the smoother read."}
+                Counted in hours logged in ClickUp inside the {kind}, whatever
+                state the task is in. Points are still reported, in their own
+                column, on what closed.
               </p>
             </div>
             <div className="flex items-center gap-5">
@@ -444,8 +450,8 @@ export function RetainersDashboard() {
                 </div>
                 <div className="pt-1.5 text-m-on-surface-variant/80">
                   Briefed {fmtH(data?.briefedHours ?? 0)} · Recurring {fmtH(data?.recurringHours ?? 0)} · Meetings{" "}
-                  {fmtH(data?.meetingHours ?? 0)} · Ongoing {fmtH(data?.ongoingHours ?? 0)} · Tracked{" "}
-                  {fmtH(data?.trackedHours ?? 0)}
+                  {fmtH(data?.meetingHours ?? 0)} · Ongoing {fmtH(data?.ongoingHours ?? 0)} · Other{" "}
+                  {fmtH(data?.otherHours ?? 0)} · {Math.round((data?.totalPoints ?? 0) * 10) / 10} points closed
                 </div>
               </div>
             </div>
@@ -463,17 +469,17 @@ export function RetainersDashboard() {
                 <TableHead className="whitespace-nowrap text-right">Briefed</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Recurring</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Meetings</TableHead>
-                <TableHead className="whitespace-nowrap text-right" title="Hours logged this month on standing tasks that never close">Ongoing</TableHead>
-                <TableHead className="whitespace-nowrap text-right" title="Briefed, Recurring, Meetings and Ongoing added together">Total hours</TableHead>
-                <TableHead className="whitespace-nowrap text-right" title="Time logged in ClickUp inside this period, whatever state its task is in">Tracked</TableHead>
-                <TableHead className="whitespace-nowrap text-right" title="Sprint points on everything closed this month, as ClickUp's dashboard counts them">Total points</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Hours logged on standing tasks that never close">Ongoing</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Hours logged on a task that is none of the other four: ad hoc cards, stand-ups, meetings whose task has not closed">Other</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Every hour logged in ClickUp inside this period. The five columns to the left, added up">Total hours</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Sprint points on everything closed in this period, as ClickUp's dashboard counts them. Not mixed into the hours">Total points</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Of capacity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-6 text-center text-body-medium text-m-on-surface-variant">
+                  <TableCell colSpan={11} className="py-6 text-center text-body-medium text-m-on-surface-variant">
                     Loading…
                   </TableCell>
                 </TableRow>
@@ -507,7 +513,7 @@ export function RetainersDashboard() {
                       </button>
                       {!isPerson && (
                         <span className="ml-2 text-label-small text-m-on-surface-variant">
-                          {p.briefCount} task{p.briefCount === 1 ? "" : "s"} with nobody's name on
+                          {p.items.length} task{p.items.length === 1 ? "" : "s"} with nobody's name on
                         </span>
                       )}
                     </TableCell>
@@ -524,16 +530,11 @@ export function RetainersDashboard() {
                     <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                       {fmtH(p.ongoingHours)}
                     </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                      {fmtH(p.otherHours)}
+                    </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                       {fmtH(p.totalHours)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                      {fmtH(p.trackedHours)}
-                      {p.totalHours > 0 && (
-                        <span className="ml-1 text-label-small">
-                          ({Math.round((p.trackedHours / p.totalHours) * 100)}%)
-                        </span>
-                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                       {Math.round(p.totalPoints * 10) / 10}
@@ -544,7 +545,7 @@ export function RetainersDashboard() {
                   </TableRow>
                   {open[key] && p.items.length > 0 && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={10} className="bg-m-surface-container-low p-0">
+                      <TableCell colSpan={11} className="bg-m-surface-container-low p-0">
                         <CapacityItems items={p.items} />
                       </TableCell>
                     </TableRow>

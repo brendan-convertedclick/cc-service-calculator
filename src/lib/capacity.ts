@@ -4,19 +4,13 @@
 // worked against the tasks completed … based on normal monday - friday 9am -5pm
 // hours ie. 21 days per month on average, 7 hours per day."
 //
-// COUNTED IN POINTS, NOT LOGGED TIME, and that is the whole design. "You should
-// only be checking points allocated to tasks not time. All tasks briefed in via
-// retainers or any type of brief briefed in via Conductor count. Internal too.
-// Adhoc, recurring." Time logging is patchy — 108 of August's 181 finished
-// briefs carried any — so a capacity view built on logged time would measure
-// timer discipline rather than work. Points are on nearly every task and need
-// nobody to remember anything.
-//
-// This is deliberately a DIFFERENT basis from the Retainers page, where
-// Completed prefers logged time: that page answers "did we deliver what the fee
-// bought", where the real figure is the truer one. Here the question is "what
-// was allocated", and the allocation is the points. Same task, two questions,
-// and each page says which it is showing.
+// COUNTED IN TRACKED HOURS since 2026-09-23. It was points, on the argument
+// that time logging was too patchy to measure anybody by; that stopped being
+// true, and points had a worse problem — they only exist on briefed, recurring
+// and meeting tasks, so a week spent on perpetual work read as almost nothing.
+// Brendan's 57 hour week of 14 September showed as 79% of 35. See
+// @/hooks/useTeamCapacity for the full argument and for why points survive as
+// their own column rather than as the basis.
 import { type Period, periodInProgress, workingDaysBetween } from "@/lib/capacity-period";
 
 /** A normal day: 09:00–17:00 less an hour. Lisa's number, not a derived one. */
@@ -81,41 +75,6 @@ export function teamCapacity(
     pctOfElapsed: elapsedHours > 0 ? (accountedHours / elapsedHours) * 100 : 0,
     inProgress,
   };
-}
-
-/** A ClickUp time entry as the sync stores it on ongoing_actuals: one per
- *  user per task, with the intervals that make it up. */
-export interface OngoingTimeEntry {
-  user?: { id?: number | string } | null;
-  intervals?: Array<{ start?: string | number; end?: string | number; time?: string | number }> | null;
-}
-
-/** Hours tracked on a perpetual task inside one period, per ClickUp user id.
- *  A perpetual task never closes, so the period it belongs to is the one the
- *  time was logged in (interval start). Lisa, 2026-09-15: the "open tasks"
- *  Rize logs against (Ops Development, Finance, admin) have to reach capacity,
- *  and they have no points, so this is the one bucket on time.
- *
- *  The comparison is on instants, not on a reconstructed local month string —
- *  that is what keeps this bucket on the same boundary as the three that are
- *  filtered in Postgres. */
-export function ongoingHoursInRange(
-  entries: OngoingTimeEntry[],
-  startISO: string,
-  endISO: string,
-): Map<string, number> {
-  const from = new Date(startISO).getTime();
-  const to = new Date(endISO).getTime();
-  const out = new Map<string, number>();
-  for (const e of entries) {
-    const uid = String(e.user?.id ?? "");
-    for (const iv of e.intervals ?? []) {
-      const start = Number(iv.start ?? 0);
-      if (!start || start < from || start >= to) continue;
-      out.set(uid, (out.get(uid) ?? 0) + Number(iv.time ?? 0) / 3_600_000);
-    }
-  }
-  return out;
 }
 
 /** One person's share. Everyone is assumed full-time — there is nothing in
