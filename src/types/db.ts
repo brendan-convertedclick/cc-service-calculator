@@ -6658,9 +6658,14 @@ export type Database = {
         Args: { p_revision_id: string }
         Returns: undefined
       }
-      tracked_hours_by_user: {
+      tracked_by_user_task: {
         Args: { p_end: string; p_start: string }
-        Returns: { clickup_user_id: number; hours: number }[]
+        Returns: {
+          clickup_user_id: number
+          clickup_task_id: string | null
+          task_name: string | null
+          hours: number
+        }[]
       }
     }
     Enums: {

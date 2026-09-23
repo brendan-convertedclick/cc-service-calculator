@@ -207,8 +207,8 @@ function CapacityKey() {
     ["Recurring", "Hours from the standing monthly tasks the provisioner creates — reports, plugin sweeps, standing meetings — that closed this month."],
     ["Ongoing", "Time logged this month on standing tasks that never close: Ops Development, Finance, admin, the [Ongoing] overhead tasks. No points on those, so this is the one bucket counted in tracked hours. Internal and never billable, but it is real capacity used."],
     ["Meetings", "Hours from that person's meeting tasks closed this month, at the points on the task."],
-    ["Total hours", "That person's Briefed, Recurring, Meetings and Ongoing added together. It is what their month contained, not how long they sat at their desk. Tracked is not added on top: it is time logged on these same tasks, so adding it would count the work twice."],
-    ["Tracked", "Time actually tracked in ClickUp (via Rize) on the same tasks: briefs, recurring, meetings and ongoing, and what share of Accounted that covers. Points are the basis and stay the basis; this column is the comparison."],
+    ["Total hours", "That person's Briefed, Recurring, Meetings and Ongoing added together, in points. It is what their month contained, not how long they sat at their desk. Tracked is not added on top: it is the same work measured the other way, so adding it would count it twice."],
+    ["Tracked", "Every hour logged in ClickUp (via Rize) inside this period, whatever state its task is in. It is not limited to work that closed here, so a week spent on something still in flight shows up. Expand the row and those tasks are listed too, marked tracked. Points are the basis and stay the basis; this column is the comparison."],
     ["Total points", "The sprint points on everything that person closed this month: briefs, recurring and meetings. This is the number ClickUp's points dashboard shows, so the two should match. Ongoing tasks carry no points and are not in it."],
     ["Of capacity","Their accounted hours against what one person's month holds: working days × 7 hours. Under 100% is normal; very low means work is going unrecorded, not that nobody was busy."],
     ["Load", "The same percentage as a bar. Red under 40%, amber to 80%, green above — low is what this page is looking for, so low is what shouts."],
@@ -465,7 +465,7 @@ export function RetainersDashboard() {
                 <TableHead className="whitespace-nowrap text-right">Meetings</TableHead>
                 <TableHead className="whitespace-nowrap text-right" title="Hours logged this month on standing tasks that never close">Ongoing</TableHead>
                 <TableHead className="whitespace-nowrap text-right" title="Briefed, Recurring, Meetings and Ongoing added together">Total hours</TableHead>
-                <TableHead className="whitespace-nowrap text-right" title="Time tracked in ClickUp on the same closed tasks">Tracked</TableHead>
+                <TableHead className="whitespace-nowrap text-right" title="Time logged in ClickUp inside this period, whatever state its task is in">Tracked</TableHead>
                 <TableHead className="whitespace-nowrap text-right" title="Sprint points on everything closed this month, as ClickUp's dashboard counts them">Total points</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Of capacity</TableHead>
               </TableRow>

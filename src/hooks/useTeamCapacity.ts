@@ -20,7 +20,10 @@ export interface CapacityItem {
   name: string;
   clientName: string;
   hours: number;
-  kind: "brief" | "recurring" | "meeting" | "ongoing";
+  /** "tracked" is a task the person logged time against in this period that
+   *  did not close in it. It carries tracked hours, not points, and is NOT in
+   *  totalHours — it is there so the Tracked column has a list under it. */
+  kind: "brief" | "recurring" | "meeting" | "ongoing" | "tracked";
   closedAt: string | null;
 }
 
@@ -88,7 +91,7 @@ export function useTeamCapacity(period: Period) {
         supabase.from("team_members").select("id, full_name, clickup_user_id").is("archived_at", null),
         supabase
           .from("briefs")
-          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points")
+          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points, clickup_task_id")
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
@@ -111,7 +114,7 @@ export function useTeamCapacity(period: Period) {
         // points (0169), so this page and ClickUp's points dashboard agree.
         supabase
           .from("internal_meeting_tasks")
-          .select("id, team_member_id, clickup_points, clickup_closed_at, internal_meetings(title, clients(name))")
+          .select("id, team_member_id, clickup_points, clickup_closed_at, clickup_task_id, internal_meetings(title, clients(name))")
           .gte("clickup_closed_at", start)
           .lt("clickup_closed_at", end),
         supabase.from("clients").select("id, name"),
@@ -125,7 +128,7 @@ export function useTeamCapacity(period: Period) {
         supabase.from("ongoing_actuals_current").select("ongoing_task_id, time_entries"),
         // Summed in Postgres: a month is tens of thousands of intervals and
         // this wants one number per person.
-        supabase.rpc("tracked_hours_by_user", { p_start: start, p_end: end }),
+        supabase.rpc("tracked_by_user_task", { p_start: start, p_end: end }),
       ]);
       if (teamRes.error) throw teamRes.error;
       if (briefsRes.error) throw briefsRes.error;
@@ -180,6 +183,18 @@ export function useTeamCapacity(period: Period) {
         byPerson.set(key, made);
         return made;
       };
+      // Which ClickUp tasks already have a row on a person's list, so the
+      // tracked-time pass below only adds what is NOT already there. Keyed the
+      // same way the buckets are, Unassigned included.
+      const shownTasks = new Map<string, Set<string>>();
+      const markTask = (id: string | null, taskId: string | null | undefined) => {
+        if (!taskId) return;
+        const key = id ?? UNASSIGNED;
+        const set = shownTasks.get(key) ?? new Set<string>();
+        set.add(taskId);
+        shownTasks.set(key, set);
+      };
+
       // Everyone appears, including whoever closed nothing — a capacity view
       // whose whole job is finding people with no work against their name
       // cannot leave them off.
@@ -197,6 +212,7 @@ export function useTeamCapacity(period: Period) {
         assignee_id: string | null;
         original_points: number | null;
         clickup_points: number | null;
+        clickup_task_id: string | null;
       }>) {
         const p = bucket(b.assignee_id);
         // Live points first (0170): original_points is the frozen estimate,
@@ -206,6 +222,7 @@ export function useTeamCapacity(period: Period) {
         p.briefedHours += hours;
         p.totalPoints += points;
         p.briefCount += 1;
+        markTask(b.assignee_id, b.clickup_task_id);
         p.items.push({
           id: b.id,
           name: b.raw_subject ?? "Untitled brief",
@@ -243,6 +260,7 @@ export function useTeamCapacity(period: Period) {
           p.recurringHours += hours;
           p.totalPoints += pointsByTask.get(taskId) ?? 0;
           p.recurringCount += 1;
+          markTask(row.assignee_id, taskId);
           p.items.push({
             id: taskId,
             // A recurring task's own ClickUp name is not on this view; the
@@ -262,6 +280,7 @@ export function useTeamCapacity(period: Period) {
         team_member_id: string | null;
         clickup_points: number | null;
         clickup_closed_at: string | null;
+        clickup_task_id: string | null;
         internal_meetings: { title: string; clients: { name: string } | null } | null;
       }>) {
         if (!t.team_member_id) continue;
@@ -270,6 +289,7 @@ export function useTeamCapacity(period: Period) {
         p.meetingHours += hours;
         p.totalPoints += Number(t.clickup_points ?? 0);
         p.meetingCount += 1;
+        markTask(t.team_member_id, t.clickup_task_id);
         p.items.push({
           id: t.id,
           name: t.internal_meetings?.title ?? "Meeting",
@@ -301,6 +321,7 @@ export function useTeamCapacity(period: Period) {
           const p = bucket(memberByClickupUser.get(uid) ?? null);
           p.ongoingHours += hours;
           p.ongoingCount += 1;
+          markTask(p.id, t.clickup_task_id);
           p.items.push({
             id: `${t.clickup_task_id}-${uid}`,
             name: t.task_name,
@@ -316,8 +337,59 @@ export function useTeamCapacity(period: Period) {
       // an id with no team_members row lands in Unassigned rather than being
       // dropped — the same rule the ongoing bucket follows, and the reason a
       // person who left still shows the hours they worked.
-      for (const r of (trackedRes.data ?? []) as Array<{ clickup_user_id: number; hours: number }>) {
-        bucket(memberByClickupUser.get(String(r.clickup_user_id)) ?? null).trackedHours += Number(r.hours ?? 0);
+      //
+      // A task they logged against that is NOT already on their list gets a row
+      // of its own. That list is the whole reason the page is expandable, and
+      // without this it answered "what closed" while the Tracked column beside
+      // it answered "what you did" — Sithembile's week showed 22.3h tracked
+      // over a list of closed tasks adding to 19.3h, with the difference
+      // nowhere. These rows carry HOURS, not points, and deliberately do not
+      // touch totalHours: that column is the points basis and mixing the two
+      // would double-count the moment the task closes.
+      const tracked = (trackedRes.data ?? []) as Array<{
+        clickup_user_id: number;
+        clickup_task_id: string | null;
+        task_name: string | null;
+        hours: number;
+      }>;
+      const extraIds = [...new Set(
+        tracked
+          .filter((r) => {
+            const key = memberByClickupUser.get(String(r.clickup_user_id)) ?? UNASSIGNED;
+            return r.clickup_task_id && !shownTasks.get(key)?.has(r.clickup_task_id);
+          })
+          .map((r) => r.clickup_task_id as string),
+      )];
+      // Conductor's own title and client for those tasks where it has them. A
+      // ClickUp name with no client reads like a row from another system.
+      const briefByTask = new Map<string, { name: string; clientName: string }>();
+      if (extraIds.length) {
+        const { data } = await supabase
+          .from("briefs")
+          .select("raw_subject, client_id, clickup_task_id")
+          .in("clickup_task_id", extraIds);
+        for (const b of (data ?? []) as Array<{ raw_subject: string | null; client_id: string | null; clickup_task_id: string | null }>) {
+          if (!b.clickup_task_id) continue;
+          briefByTask.set(b.clickup_task_id, {
+            name: b.raw_subject ?? "Untitled brief",
+            clientName: b.client_id ? clientNameById.get(b.client_id) ?? "Unknown" : "No client",
+          });
+        }
+      }
+      for (const r of tracked) {
+        const memberId = memberByClickupUser.get(String(r.clickup_user_id)) ?? null;
+        const p = bucket(memberId);
+        p.trackedHours += Number(r.hours ?? 0);
+        if (!r.clickup_task_id || shownTasks.get(memberId ?? UNASSIGNED)?.has(r.clickup_task_id)) continue;
+        const known = briefByTask.get(r.clickup_task_id);
+        p.items.push({
+          id: r.clickup_task_id,
+          name: known?.name ?? r.task_name ?? "Untitled task",
+          clientName: known?.clientName ?? "—",
+          hours: Number(r.hours ?? 0),
+          kind: "tracked",
+          closedAt: null,
+        });
       }
 
       const people = [...byPerson.values()].map((p) => ({
