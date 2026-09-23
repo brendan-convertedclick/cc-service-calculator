@@ -6658,6 +6658,10 @@ export type Database = {
         Args: { p_revision_id: string }
         Returns: undefined
       }
+      tracked_hours_by_user: {
+        Args: { p_end: string; p_start: string }
+        Returns: { clickup_user_id: number; hours: number }[]
+      }
     }
     Enums: {
       brief_source: "email" | "manual" | "gmail_relay"

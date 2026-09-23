@@ -39,11 +39,19 @@ Deno.serve(async (req: Request) => {
     // backfill, which is why they are inputs rather than constants.
     let sweepHours = 2;
     let sweepPages = 5;
+    // How far back the workspace time-entry pull reaches. Three weeks on the
+    // cron: long enough that time entered late (Rize writes some entries a day
+    // or two after the fact) is still picked up, short enough that a half-hourly
+    // tick is one small call. Widened only for a one-off backfill.
+    let timeEntryDays = 21;
     try {
       const body = await req.json();
       requestedProjectId = body?.project_id ?? null;
       if (Number.isFinite(body?.sweep_hours)) sweepHours = Math.max(1, Number(body.sweep_hours));
       if (Number.isFinite(body?.sweep_pages)) sweepPages = Math.max(1, Math.min(50, Number(body.sweep_pages)));
+      if (Number.isFinite(body?.time_entry_days)) {
+        timeEntryDays = Math.max(1, Math.min(400, Number(body.time_entry_days)));
+      }
     } catch { /* empty body from pg_cron is fine */ }
 
     const clickupPat = Deno.env.get("CLICKUP_PAT");
@@ -197,6 +205,94 @@ Deno.serve(async (req: Request) => {
       ((teamRows ?? []) as Array<{ id: string; clickup_user_id: number }>).map((t) => [Number(t.clickup_user_id), t.id]),
     );
     const waitMap = await fetchWaitMap([...byTaskId.keys()]);
+
+    // ---------------------------------------------------------------------
+    // Tracked time, with the date it was tracked on (0177).
+    // ---------------------------------------------------------------------
+    // The capacity page could only say "time logged on tasks that CLOSED in
+    // this period", so everything spent on work still in flight was invisible.
+    // Points cannot fix it — a point is an allocation on the whole task, and
+    // there is no such thing as three of eight points happening on a Tuesday —
+    // but a time entry carries a start, so time can.
+    //
+    // ONE CALL PER WINDOW, not one per task. The per-task `/task/{id}/time`
+    // fetches further down are what put this PAT over ClickUp's rate limit for
+    // weeks; doing that once per brief as well would guarantee it. The
+    // workspace endpoint returns every entry in a date range in a single
+    // request, which is what get-productivity already uses. It also means this
+    // covers ongoing and project tasks for free: one source for all tracked
+    // time, rather than a fourth place that has to agree with three others.
+    //
+    // It runs up here with the bulk wait call for the same reason — cheap,
+    // load-bearing, and it must land even on a tick the per-task loops 429 on.
+    let timeEntriesUpserted = 0;
+    if (settings.clickup_workspace_id) {
+      type RawEntry = {
+        id?: string;
+        task?: { id?: string; name?: string } | null;
+        user?: { id?: number } | null;
+        start?: string | number;
+        duration?: string | number;
+        billable?: boolean;
+      };
+      const CHUNK_MS = 30 * 86_400_000;
+      const windowEnd = Date.now();
+      const windowStart = windowEnd - timeEntryDays * 86_400_000;
+      const rows: Array<Record<string, unknown>> = [];
+      for (let from = windowStart; from < windowEnd; from += CHUNK_MS) {
+        const to = Math.min(from + CHUNK_MS, windowEnd);
+        try {
+          const params = new URLSearchParams({
+            start_date: String(from),
+            end_date: String(to),
+          });
+          // WITHOUT `assignee` ClickUp returns only the PAT holder's own
+          // entries, silently. The first backfill came back 1316 rows that
+          // were all Brendan's, which reads exactly like "nobody else tracks
+          // time" rather than like a missing filter. The list is every team
+          // member who has a ClickUp id; the filter needs an owner/admin PAT,
+          // which this one is.
+          const assignees = [...memberByClickupUser.keys()];
+          if (assignees.length) params.append("assignee", assignees.join(","));
+          const res = await cuFetch(
+            `https://api.clickup.com/api/v2/team/${settings.clickup_workspace_id}/time_entries?${params}`,
+            CU,
+          );
+          if (!res.ok) {
+            console.warn(`[time-entries] ${res.status}: ${(await res.text()).slice(0, 200)}`);
+            continue;
+          }
+          for (const e of ((await res.json())?.data ?? []) as RawEntry[]) {
+            const start = Number(e.start ?? 0);
+            const duration = Number(e.duration ?? 0);
+            // A running timer reports a negative duration until it is stopped,
+            // and an entry with no id cannot be upserted idempotently.
+            if (!e.id || !e.user?.id || !start || duration <= 0) continue;
+            rows.push({
+              id: String(e.id),
+              clickup_task_id: e.task?.id ?? null,
+              task_name: e.task?.name ?? null,
+              clickup_user_id: Number(e.user.id),
+              started_at: new Date(start).toISOString(),
+              duration_ms: duration,
+              billable: e.billable ?? false,
+              synced_at: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.warn(`[time-entries] threw: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      // Keyed on ClickUp's own entry id, so this is a plain upsert with no
+      // dedup logic to get wrong and re-running it changes nothing.
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error } = await supabase
+          .from("clickup_time_entries")
+          .upsert(rows.slice(i, i + 500), { onConflict: "id" });
+        if (error) console.error(`[time-entries] upsert failed: ${error.message}`);
+        else timeEntriesUpserted += Math.min(500, rows.length - i);
+      }
+    }
 
     // ---------------------------------------------------------------------
     // RECENTLY CHANGED TASKS, in bulk, before anything expensive.
@@ -784,6 +880,7 @@ Deno.serve(async (req: Request) => {
       recent_task_updates: recentTaskUpdates,
       briefs_archived_as_deleted: briefsArchivedAsDeleted,
       meeting_updates: meetingUpdates,
+      time_entries_upserted: timeEntriesUpserted,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

@@ -40,9 +40,15 @@ export interface PersonLoad {
    *  meetings). The figure ClickUp's points dashboard shows; Lisa reconciles
    *  against it. Ongoing carries no points. */
   totalPoints: number;
-  /** Time actually tracked on the same closed tasks (Rize → ClickUp →
-   *  actual_hours), beside the points figure. Lisa, 2026-09-15: the
-   *  candidate replacement basis; shown alongside until coverage is there. */
+  /** Time tracked INSIDE the period, whatever state its task is in (0177).
+   *  It used to mean "logged on tasks that closed this period", which
+   *  inherited the points bucket's blind spot: work still in flight showed as
+   *  nothing, and Sithembile had 19.6 tracked hours on 9 open tasks while her
+   *  week read 19.3. A time entry carries a start, so this one can be dated
+   *  and a point cannot. Sourced from clickup_time_entries via
+   *  tracked_hours_by_user, which is every entry in the workspace — so it
+   *  already covers briefs, recurring, meetings and ongoing without four
+   *  accumulators that have to agree. */
   trackedHours: number;
   briefCount: number;
   recurringCount: number;
@@ -78,11 +84,11 @@ export function useTeamCapacity(period: Period) {
       // @/lib/capacity-period.
       const { startISO: start, endISO: end } = period;
 
-      const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes, ongoingRes, ongoingActualsRes] = await Promise.all([
+      const [teamRes, briefsRes, deliveryRes, meetingsRes, clientsRes, ongoingRes, ongoingActualsRes, trackedRes] = await Promise.all([
         supabase.from("team_members").select("id, full_name, clickup_user_id").is("archived_at", null),
         supabase
           .from("briefs")
-          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points, actual_hours")
+          .select("id, raw_subject, client_id, completed_at, assignee_id, original_points, clickup_points")
           .in("status", ["briefed", "accepted", "quoted", "scoped"])
           .gte("completed_at", start)
           .lt("completed_at", end),
@@ -95,7 +101,7 @@ export function useTeamCapacity(period: Period) {
         // drop out of those two months and out of nothing Lisa looks at.
         supabase
           .from("retainer_recurring_delivery")
-          .select("clickup_task_id, is_closed, planned_hours, points, actual_hours")
+          .select("clickup_task_id, is_closed, planned_hours, points")
           .eq("is_closed", true)
           .gte("closed_at", start)
           .lt("closed_at", end),
@@ -105,7 +111,7 @@ export function useTeamCapacity(period: Period) {
         // points (0169), so this page and ClickUp's points dashboard agree.
         supabase
           .from("internal_meeting_tasks")
-          .select("id, team_member_id, clickup_points, clickup_closed_at, clickup_tracked_hours, internal_meetings(title, clients(name))")
+          .select("id, team_member_id, clickup_points, clickup_closed_at, internal_meetings(title, clients(name))")
           .gte("clickup_closed_at", start)
           .lt("clickup_closed_at", end),
         supabase.from("clients").select("id, name"),
@@ -117,6 +123,9 @@ export function useTeamCapacity(period: Period) {
           .select("id, task_name, team_member_id, client_id, clickup_task_id")
           .is("archived_at", null),
         supabase.from("ongoing_actuals_current").select("ongoing_task_id, time_entries"),
+        // Summed in Postgres: a month is tens of thousands of intervals and
+        // this wants one number per person.
+        supabase.rpc("tracked_hours_by_user", { p_start: start, p_end: end }),
       ]);
       if (teamRes.error) throw teamRes.error;
       if (briefsRes.error) throw briefsRes.error;
@@ -125,6 +134,7 @@ export function useTeamCapacity(period: Period) {
       if (clientsRes.error) throw clientsRes.error;
       if (ongoingRes.error) throw ongoingRes.error;
       if (ongoingActualsRes.error) throw ongoingActualsRes.error;
+      if (trackedRes.error) throw trackedRes.error;
 
       // provisioned_tasks carries the assignee; the delivery view carries
       // whether the task closed and what it was worth. Joined here rather
@@ -187,7 +197,6 @@ export function useTeamCapacity(period: Period) {
         assignee_id: string | null;
         original_points: number | null;
         clickup_points: number | null;
-        actual_hours: number | null;
       }>) {
         const p = bucket(b.assignee_id);
         // Live points first (0170): original_points is the frozen estimate,
@@ -196,7 +205,6 @@ export function useTeamCapacity(period: Period) {
         const hours = points * HOURS_PER_POINT;
         p.briefedHours += hours;
         p.totalPoints += points;
-        p.trackedHours += Number(b.actual_hours ?? 0);
         p.briefCount += 1;
         p.items.push({
           id: b.id,
@@ -212,19 +220,16 @@ export function useTeamCapacity(period: Period) {
       // enough to predate 0169 — the same basis as briefs and as ClickUp.
       const closedHoursByTask = new Map<string, number>();
       const pointsByTask = new Map<string, number>();
-      const trackedByTask = new Map<string, number>();
       for (const d of (deliveryRes.data ?? []) as Array<{
         clickup_task_id: string;
         is_closed: boolean;
         planned_hours: number | null;
         points: number | null;
-        actual_hours: number | null;
       }>) {
         if (!d.is_closed) continue;
         const hours = d.points != null ? Number(d.points) * HOURS_PER_POINT : Number(d.planned_hours ?? 0);
         closedHoursByTask.set(d.clickup_task_id, hours);
         pointsByTask.set(d.clickup_task_id, Number(d.points ?? 0));
-        trackedByTask.set(d.clickup_task_id, Number(d.actual_hours ?? 0));
       }
       for (const row of (provRes.data ?? []) as unknown as Array<{
         assignee_id: string | null;
@@ -237,7 +242,6 @@ export function useTeamCapacity(period: Period) {
           const p = bucket(row.assignee_id);
           p.recurringHours += hours;
           p.totalPoints += pointsByTask.get(taskId) ?? 0;
-          p.trackedHours += trackedByTask.get(taskId) ?? 0;
           p.recurringCount += 1;
           p.items.push({
             id: taskId,
@@ -258,7 +262,6 @@ export function useTeamCapacity(period: Period) {
         team_member_id: string | null;
         clickup_points: number | null;
         clickup_closed_at: string | null;
-        clickup_tracked_hours: number | null;
         internal_meetings: { title: string; clients: { name: string } | null } | null;
       }>) {
         if (!t.team_member_id) continue;
@@ -266,7 +269,6 @@ export function useTeamCapacity(period: Period) {
         const p = bucket(t.team_member_id);
         p.meetingHours += hours;
         p.totalPoints += Number(t.clickup_points ?? 0);
-        p.trackedHours += Number(t.clickup_tracked_hours ?? 0);
         p.meetingCount += 1;
         p.items.push({
           id: t.id,
@@ -298,7 +300,6 @@ export function useTeamCapacity(period: Period) {
           if (hours <= 0) continue;
           const p = bucket(memberByClickupUser.get(uid) ?? null);
           p.ongoingHours += hours;
-          p.trackedHours += hours;
           p.ongoingCount += 1;
           p.items.push({
             id: `${t.clickup_task_id}-${uid}`,
@@ -309,6 +310,14 @@ export function useTeamCapacity(period: Period) {
             closedAt: null,
           });
         }
+      }
+
+      // Tracked time is credited to whoever logged it, by ClickUp user id, and
+      // an id with no team_members row lands in Unassigned rather than being
+      // dropped — the same rule the ongoing bucket follows, and the reason a
+      // person who left still shows the hours they worked.
+      for (const r of (trackedRes.data ?? []) as Array<{ clickup_user_id: number; hours: number }>) {
+        bucket(memberByClickupUser.get(String(r.clickup_user_id)) ?? null).trackedHours += Number(r.hours ?? 0);
       }
 
       const people = [...byPerson.values()].map((p) => ({
