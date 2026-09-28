@@ -172,6 +172,15 @@ const Pipeline = lazy(() =>
 const PipelinePlanner = lazy(() =>
   import("@/pages/PipelinePlanner").then((m) => ({ default: m.PipelinePlanner })),
 );
+const ResultsIndex = lazy(() =>
+  import("@/pages/ResultsIndex").then((m) => ({ default: m.ResultsIndex })),
+);
+const ResultsTemplates = lazy(() =>
+  import("@/pages/ResultsTemplates").then((m) => ({ default: m.ResultsTemplates })),
+);
+const ResultsPlanner = lazy(() =>
+  import("@/pages/ResultsPlanner").then((m) => ({ default: m.ResultsPlanner })),
+);
 
 /**
  * Role gates. Everything an admin/owner-only route needs sits behind
@@ -258,6 +267,9 @@ export default function App() {
                 <Route path="client-signoffs" element={<ClientSignoffs />} />
                 <Route path="pipeline" element={<Pipeline />} />
                 <Route path="pipeline/:yearId" element={<PipelinePlanner />} />
+                <Route path="results" element={<ResultsIndex />} />
+                <Route path="results/templates" element={<ResultsTemplates />} />
+                <Route path="results/:clientId" element={<ResultsPlanner />} />
                 <Route path="time" element={<ClientTimeView />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps

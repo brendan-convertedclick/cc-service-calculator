@@ -444,6 +444,42 @@ export function useAddTemplate() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Index (/results) — which clients have a results board to open
+// ---------------------------------------------------------------------------
+
+export interface ResultsClient {
+  id: string;
+  name: string;
+}
+
+/** Clients with a school year or any results_groups, for /results — the two
+ * are separate tables (a school can have a pipeline year but no results yet,
+ * or results without an active pipeline year), so this is a union of both,
+ * deduped and name-sorted. */
+export function useResultsClients() {
+  return useQuery({
+    queryKey: ["results-clients"],
+    queryFn: async (): Promise<ResultsClient[]> => {
+      const [yearsRes, groupsRes] = await Promise.all([
+        supabase.from("school_years").select("client_id"),
+        supabase.from("results_groups").select("client_id"),
+      ]);
+      if (yearsRes.error) throw new Error(errorMessage(yearsRes.error));
+      if (groupsRes.error) throw new Error(errorMessage(groupsRes.error));
+
+      const clientIds = [
+        ...new Set([...(yearsRes.data ?? []), ...(groupsRes.data ?? [])].map((r) => r.client_id as string)),
+      ];
+      if (!clientIds.length) return [];
+
+      const { data: clients, error } = await supabase.from("clients").select("id, name").in("id", clientIds).order("name");
+      if (error) throw new Error(errorMessage(error));
+      return clients ?? [];
+    },
+  });
+}
+
 /** Which of a template's fields have any recorded value, for the editor's
  * type-lock UI (rule 4 — a type can't change once data exists). */
 export function useFieldValueCounts(templateId: string | undefined) {

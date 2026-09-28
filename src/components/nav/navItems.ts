@@ -24,6 +24,7 @@ import {
   Rocket,
   ScrollText,
   Settings as SettingsIcon,
+  LineChart,
   ShieldAlert,
   SlidersHorizontal,
   TrendingUp,
@@ -77,6 +78,7 @@ const myWork: NavItem       = { to: "/staff",         label: "My work",       ic
 const profile: NavItem      = { to: "/profile",       label: "Profile",       icon: UserCircle2,       end: false, roles: ALL_ROLES }
 
 const pipeline: NavItem       = { to: "/pipeline",      label: "Pipeline",      icon: GitBranch,         end: false }
+const results: NavItem        = { to: "/results",       label: "Year results",  icon: LineChart,         end: false }
 const services: NavItem       = { to: "/services",      label: "Services",      icon: PackageSearch,     end: false }
 const systems: NavItem        = { to: "/systems",       label: "Systems",       icon: Waypoints,         end: false, roles: ALL_ROLES }
 const briefs: NavItem         = { to: "/briefs",        label: "Briefs",        icon: FileText,          end: false }
@@ -108,7 +110,7 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, pipeline, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, pipeline, results, escalations],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

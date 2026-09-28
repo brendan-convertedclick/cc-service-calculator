@@ -150,6 +150,9 @@ export function SchoolCard({
             </span>
           </Button>
         ) : null}
+        <Button asChild size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
+          <Link to={`/results/${school.clientId}`}>Results</Link>
+        </Button>
         <Button asChild size="sm" variant="secondary" onClick={(e) => e.stopPropagation()}>
           <Link to={`/pipeline/${school.yearId}`}>PLAN</Link>
         </Button>
