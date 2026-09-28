@@ -230,4 +230,29 @@ describe("entryDay", () => {
     const d = entryDay(EVENT, { day: null, values: {} }, 2026, 9);
     expect(d).toBeNull();
   });
+
+  it("a linked task's day wins over the day column and any date metric", () => {
+    const d = entryDay(EVENT, { day: 12, values: { date: "2026-09-07" } }, 2026, 9, [3]);
+    expect(d).toBe(3);
+  });
+
+  it("with several linked tasks, the earliest day wins", () => {
+    const d = entryDay(EVENT, { day: null, values: {} }, 2026, 9, [14, 3, 9]);
+    expect(d).toBe(3);
+  });
+});
+
+describe("cellState with linked tasks", () => {
+  it("a linked task alone makes an otherwise-empty cell at least planned", () => {
+    expect(cellState(2026, 10, PAID, undefined, NOW, true)).toBe("plan");
+  });
+  it("a linked task on a past month with no results reads as due", () => {
+    expect(cellState(2026, 7, PAID, undefined, NOW, true)).toBe("due");
+  });
+  it("with no linked task and no entry, still empty", () => {
+    expect(cellState(2026, 10, PAID, undefined, NOW, false)).toBe("empty");
+  });
+  it("a linked task doesn't override done once a result value exists", () => {
+    expect(cellState(2026, 9, PAID, { spend: 100 }, NOW, true)).toBe("done");
+  });
 });

@@ -17,6 +17,7 @@ import {
   hasValue,
   planHeadline,
   starredFields,
+  type LinkedTask,
   type ResultsTemplate,
 } from "@/lib/results-grid";
 import type { ResultsBoard, ResultsBoardEntry } from "@/hooks/useResults";
@@ -25,9 +26,12 @@ import { GROUP_COLOUR_CLASSES } from "@/components/results/groupColours";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import type { SelectedCell } from "@/components/results/ResultsGrid";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const EMPTY_ENTRY: ResultsBoardEntry = { entryId: "", values: {}, updatedBy: null, day: null };
 
 interface ChipData {
   rowId: string;
@@ -36,6 +40,7 @@ interface ChipData {
   colour: (typeof GROUP_COLOUR_CLASSES)[keyof typeof GROUP_COLOUR_CLASSES];
   template: ResultsTemplate;
   entry: ResultsBoardEntry;
+  linkedTasks: LinkedTask[];
 }
 
 export function ResultsMonthView({
@@ -92,16 +97,21 @@ export function ResultsMonthView({
       const template = templateFor(group.id, row.templateId);
       if (!template) continue;
       const entry = board.entries[`${row.id}|${year}|${month}`];
-      if (!entry) continue;
+      const linkedTasks = board.linkedTasks[`${row.id}|${year}|${month}`] ?? [];
+      // A linked pipeline task alone makes this row's month a chip, even
+      // with no results_entries row at all (0180).
+      if (!entry && linkedTasks.length === 0) continue;
       const chip: ChipData = {
         rowId: row.id,
         rowName: row.name,
         groupName: group.name,
         colour: GROUP_COLOUR_CLASSES[group.colour],
         template,
-        entry,
+        entry: entry ?? EMPTY_ENTRY,
+        linkedTasks,
       };
-      const d = entryDay(template, entry, year, month);
+      const linkedDays = linkedTasks.map((t) => t.day).filter((d): d is number => d != null);
+      const d = entryDay(template, chip.entry, year, month, linkedDays);
       if (d) {
         const list = byDay.get(d);
         if (list) list.push(chip);
@@ -116,7 +126,7 @@ export function ResultsMonthView({
   const weeks = monthGrid(monthKey, []);
 
   function renderChip(chip: ChipData) {
-    const state = cellState(year, month, chip.template, chip.entry.values, now);
+    const state = cellState(year, month, chip.template, chip.entry.values, now, chip.linkedTasks.length > 0);
     const stars = starredFields(chip.template).filter((f) => hasValue(chip.entry.values[f.id]));
     const line =
       state === "done" && stars.length
@@ -143,6 +153,14 @@ export function ResultsMonthView({
           {state === "done" ? "results in" : state === "due" ? "results due" : "planned"}
         </span>
         <span className={cn("block truncate font-semibold", chip.colour.text)}>{chip.rowName}</span>
+        {chip.linkedTasks.map((t) => (
+          <span key={t.taskId} className="flex items-center gap-1 truncate text-m-on-surface-variant">
+            <Badge variant={t.side === "school" ? "warning" : "muted"} className="shrink-0 px-1 py-0 text-[10px] leading-tight">
+              {t.side === "school" ? "School" : "Ours"}
+            </Badge>
+            <span className="truncate">{t.label}</span>
+          </span>
+        ))}
         {line && <span className="block truncate text-m-on-surface-variant">{line}</span>}
       </button>
     );
@@ -161,7 +179,8 @@ export function ResultsMonthView({
             groupName: group.name,
             colour: GROUP_COLOUR_CLASSES[group.colour],
             template,
-            entry: board.entries[`${rowId}|${year}|${month}`] ?? { entryId: "", values: {}, updatedBy: null, day: null },
+            entry: board.entries[`${rowId}|${year}|${month}`] ?? EMPTY_ENTRY,
+            linkedTasks: board.linkedTasks[`${rowId}|${year}|${month}`] ?? [],
           };
         }
         break;

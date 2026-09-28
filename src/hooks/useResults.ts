@@ -16,6 +16,7 @@ import {
   type FieldPhase,
   type FieldType,
   type GroupColour,
+  type LinkedTask,
   type ResultsTemplate,
   type ResultsTemplateField,
 } from "@/lib/results-grid";
@@ -23,6 +24,7 @@ import {
 export const RESULTS_TEMPLATES_KEY = ["results-templates"] as const;
 export const RESULTS_BOARD_KEY = (clientId: string) => ["results-board", clientId] as const;
 const FIELD_VALUE_COUNTS_KEY = (templateId: string) => ["results-field-value-counts", templateId] as const;
+export const TASK_LINKS_KEY = (yearId: string) => ["results-task-links", yearId] as const;
 
 // ---------------------------------------------------------------------------
 // Templates (master library, read on both the planner and the editor)
@@ -100,12 +102,17 @@ export interface ResultsBoard {
   groups: ResultsBoardGroup[];
   /** keyed `${rowId}|${year}|${month}` */
   entries: Record<string, ResultsBoardEntry>;
+  /** keyed `${rowId}|${year}|${month}` — pipeline tasks linked to this row for
+   * that month (results_task_links via the results_linked_tasks view, 0180).
+   * Several tasks may link to the same row/month; results stay one entry. */
+  linkedTasks: Record<string, LinkedTask[]>;
 }
 
-/** Groups → rows → entries+values for the requested years, in three round
- * trips regardless of how many rows/years there are. A field's value column
- * (num/text/date) is fixed by its type at write time, so reading is a plain
- * coalesce — no need to re-look-up the field's type here. */
+/** Groups → rows → entries+values → linked pipeline tasks for the requested
+ * years, in four round trips regardless of how many rows/years there are. A
+ * field's value column (num/text/date) is fixed by its type at write time,
+ * so reading is a plain coalesce — no need to re-look-up the field's type
+ * here. */
 export function useResultsBoard(clientId: string | undefined, years: number[]) {
   const sortedYears = [...years].sort((a, b) => a - b);
   return useQuery({
@@ -139,6 +146,15 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
         : { data: [], error: null };
       if (entryErr) throw new Error(errorMessage(entryErr));
 
+      const { data: linked, error: linkedErr } = rowIds.length
+        ? await supabase
+            .from("results_linked_tasks")
+            .select("task_id, row_id, year_id, label, side, state, done_at, year, month, day")
+            .in("row_id", rowIds)
+            .in("year", sortedYears)
+        : { data: [], error: null };
+      if (linkedErr) throw new Error(errorMessage(linkedErr));
+
       const entryMap: Record<string, ResultsBoardEntry> = {};
       for (const e of entries ?? []) {
         const values: EntryValues = {};
@@ -146,6 +162,23 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
           values[v.field_id] = v.num_value ?? v.text_value ?? v.date_value ?? null;
         }
         entryMap[`${e.row_id}|${e.year}|${e.month}`] = { entryId: e.id, values, updatedBy: e.updated_by, day: e.day };
+      }
+
+      const linkedMap: Record<string, LinkedTask[]> = {};
+      for (const l of linked ?? []) {
+        if (l.row_id == null || l.year == null || l.month == null) continue; // view columns are nullable by shape
+        const key = `${l.row_id}|${l.year}|${l.month}`;
+        const task: LinkedTask = {
+          taskId: l.task_id!,
+          rowId: l.row_id,
+          yearId: l.year_id!,
+          label: l.label ?? "",
+          side: l.side as "us" | "school",
+          state: l.state as "planned" | "scheduled" | "done",
+          doneAt: l.done_at,
+          day: l.day,
+        };
+        (linkedMap[key] ??= []).push(task);
       }
 
       return {
@@ -162,6 +195,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
           }),
         ),
         entries: entryMap,
+        linkedTasks: linkedMap,
       };
     },
   });
@@ -452,6 +486,122 @@ export function useSeedStandardGroups() {
       }
     },
     onSuccess: (_d, clientId) => invalidateBoard(qc, clientId),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline task links (0180) — the pipeline side of "tasks as plans"
+// ---------------------------------------------------------------------------
+
+export interface TaskLink {
+  rowId: string;
+  rowName: string;
+  groupName: string;
+}
+
+/** task id -> the results row it's linked to (label, for the pipeline card's
+ * "In Year results: <row name>"), scoped to one school year. One round trip
+ * via the `!inner` join filter (see useStepProcedures.ts for the same
+ * pattern) rather than fetching every task id first. */
+export function useTaskLinks(yearId: string | undefined) {
+  return useQuery({
+    queryKey: TASK_LINKS_KEY(yearId ?? ""),
+    enabled: !!yearId,
+    queryFn: async (): Promise<Map<string, TaskLink>> => {
+      const { data, error } = await supabase
+        .from("results_task_links")
+        .select("school_task_id, row_id, results_rows(name, results_groups(name)), school_tasks!inner(year_id)")
+        .eq("school_tasks.year_id", yearId!);
+      if (error) throw new Error(errorMessage(error));
+
+      const map = new Map<string, TaskLink>();
+      for (const r of data ?? []) {
+        map.set(r.school_task_id, {
+          rowId: r.row_id,
+          rowName: r.results_rows?.name ?? "",
+          groupName: r.results_rows?.results_groups?.name ?? "",
+        });
+      }
+      return map;
+    },
+  });
+}
+
+/** A client's results rows grouped by group, no entries — the "Show in Year
+ * results" picker's data. Lighter than useResultsBoard (which requires
+ * years and fetches entries/links too). */
+export interface ResultsPickerRow {
+  id: string;
+  name: string;
+}
+export interface ResultsPickerGroup {
+  id: string;
+  name: string;
+  colour: GroupColour;
+  rows: ResultsPickerRow[];
+}
+
+export function useResultsPickerGroups(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ["results-picker-groups", clientId ?? ""],
+    enabled: !!clientId,
+    queryFn: async (): Promise<ResultsPickerGroup[]> => {
+      const { data: groups, error: groupErr } = await supabase
+        .from("results_groups")
+        .select("id, name, colour, ordinal")
+        .eq("client_id", clientId!)
+        .order("ordinal");
+      if (groupErr) throw new Error(errorMessage(groupErr));
+
+      const groupIds = (groups ?? []).map((g) => g.id);
+      const { data: rows, error: rowErr } = groupIds.length
+        ? await supabase.from("results_rows").select("id, group_id, name, ordinal").in("group_id", groupIds).order("ordinal")
+        : { data: [], error: null };
+      if (rowErr) throw new Error(errorMessage(rowErr));
+
+      return (groups ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        colour: g.colour as GroupColour,
+        rows: (rows ?? []).filter((r) => r.group_id === g.id).map((r) => ({ id: r.id, name: r.name })),
+      }));
+    },
+  });
+}
+
+/** Links a task to a results row — upsert on the task id (a task links to at
+ * most one row, so re-picking moves the link rather than erroring). */
+export function useLinkTask() {
+  const qc = useQueryClient();
+  const { currentUserId } = useAuth();
+  return useMutation({
+    mutationFn: async (vars: { yearId: string; clientId: string; taskId: string; rowId: string }) => {
+      const { error } = await supabase
+        .from("results_task_links")
+        .upsert(
+          { school_task_id: vars.taskId, row_id: vars.rowId, created_by: currentUserId },
+          { onConflict: "school_task_id" },
+        );
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) });
+      return invalidateBoard(qc, vars.clientId);
+    },
+  });
+}
+
+export function useUnlinkTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { yearId: string; clientId: string; taskId: string }) => {
+      const { error } = await supabase.from("results_task_links").delete().eq("school_task_id", vars.taskId);
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) });
+      return invalidateBoard(qc, vars.clientId);
+    },
   });
 }
 

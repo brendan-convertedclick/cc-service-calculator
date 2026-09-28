@@ -22,6 +22,7 @@ import { errorMessage } from "@/lib/utils";
 import { currentMonthNo, hoursByMonth } from "@/lib/pipeline-move";
 import type { PlanningAnswers } from "@/lib/pipeline-year";
 import { useSchoolYear, useMoveTask } from "@/hooks/useSchoolYear";
+import { useTaskLinks } from "@/hooks/useResults";
 import { usePipelineTemplate } from "@/hooks/usePipelineBoard";
 import { useTeam, memberColors } from "@/hooks/useTeam";
 import { YearComb } from "@/components/pipeline/YearComb";
@@ -36,6 +37,7 @@ export function PipelinePlanner() {
   const { data: template } = usePipelineTemplate();
   const { data: team } = useTeam();
   const moveTask = useMoveTask();
+  const { data: taskLinks } = useTaskLinks(yearId);
   const [replanOpen, setReplanOpen] = useState(false);
 
   // A yearId that doesn't resolve (bad link, deleted year) bounces to the
@@ -106,6 +108,7 @@ export function PipelinePlanner() {
           .map((m) => (
             <PlannerColumn
               key={m.month_no}
+              clientId={year.clientId}
               yearId={year.id}
               month={m}
               tasks={year.tasks.filter((t) => t.month_no === m.month_no).sort((a, b) => a.ordinal - b.ordinal)}
@@ -113,6 +116,7 @@ export function PipelinePlanner() {
               isCurrent={m.month_no === current}
               move={move}
               colorById={colorById}
+              taskLinks={taskLinks}
             />
           ))}
       </div>

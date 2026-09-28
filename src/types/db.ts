@@ -4327,6 +4327,49 @@ export type Database = {
           },
         ]
       }
+      results_task_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          row_id: string
+          school_task_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          row_id: string
+          school_task_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          row_id?: string
+          school_task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_task_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_task_links_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "results_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_task_links_school_task_id_fkey"
+            columns: ["school_task_id"]
+            isOneToOne: true
+            referencedRelation: "school_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       results_entries: {
         Row: {
           created_at: string
@@ -6547,6 +6590,38 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_foundations_coverage"
             referencedColumns: ["client_id"]
+          },
+        ]
+      }
+      results_linked_tasks: {
+        Row: {
+          client_id: string | null
+          day: number | null
+          done_at: string | null
+          effective_date: string | null
+          label: string | null
+          month: number | null
+          row_id: string | null
+          side: string | null
+          state: string | null
+          task_id: string | null
+          year: number | null
+          year_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_task_links_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "results_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_task_links_school_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "school_tasks"
+            referencedColumns: ["id"]
           },
         ]
       }

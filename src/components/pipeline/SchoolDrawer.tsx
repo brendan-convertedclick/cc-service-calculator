@@ -47,7 +47,9 @@ import {
   useToggleTaskDone,
   type SchoolYearTask,
 } from "@/hooks/useSchoolYear";
+import { useTaskLinks, type TaskLink } from "@/hooks/useResults";
 import { YearComb } from "@/components/pipeline/YearComb";
+import { TaskResultsLink } from "@/components/pipeline/TaskResultsLink";
 
 function isLate(t: SchoolYearTask, today: string): boolean {
   return t.state !== "planned" && t.state !== "done" && t.due_date !== null && t.due_date < today;
@@ -71,6 +73,7 @@ export function SchoolDrawer({
   const toggleDone = useToggleTaskDone();
   const closeMonth = useCloseMonth();
   const reopenMonth = useReopenMonth();
+  const { data: taskLinks } = useTaskLinks(yearId);
 
   const [selectedMonth, setSelectedMonth] = useState<number | null>(initialMonth ?? null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -226,8 +229,8 @@ export function SchoolDrawer({
                   </div>
                 ) : null}
 
-                <TaskGroup title="Ours" tasks={monthTasks.filter((t) => t.side === "us")} month={month} current={current} toggleDone={toggleDone} yearId={year.id} />
-                <TaskGroup title="Theirs" tasks={monthTasks.filter((t) => t.side === "school")} month={month} current={current} toggleDone={toggleDone} yearId={year.id} />
+                <TaskGroup title="Ours" tasks={monthTasks.filter((t) => t.side === "us")} month={month} current={current} toggleDone={toggleDone} yearId={year.id} clientId={year.clientId} taskLinks={taskLinks} />
+                <TaskGroup title="Theirs" tasks={monthTasks.filter((t) => t.side === "school")} month={month} current={current} toggleDone={toggleDone} yearId={year.id} clientId={year.clientId} taskLinks={taskLinks} />
               </div>
             ) : null}
           </>
@@ -293,6 +296,8 @@ function TaskGroup({
   current,
   toggleDone,
   yearId,
+  clientId,
+  taskLinks,
 }: {
   title: string;
   tasks: SchoolYearTask[];
@@ -300,6 +305,8 @@ function TaskGroup({
   current: number | null;
   toggleDone: ReturnType<typeof useToggleTaskDone>;
   yearId: string;
+  clientId: string;
+  taskLinks?: Map<string, TaskLink>;
 }) {
   const setHours = useSetTaskHours();
   if (tasks.length === 0) return null;
@@ -356,6 +363,7 @@ function TaskGroup({
                 {title === "Theirs" && t.state !== "done" ? <Badge variant="warning">Waiting on them</Badge> : null}
                 {t.assigneeName ? <span className="text-label-small text-m-on-surface-variant">· {t.assigneeName}</span> : null}
               </div>
+              <TaskResultsLink clientId={clientId} yearId={yearId} taskId={t.id} link={taskLinks?.get(t.id)} />
             </div>
             {/* D2: the one place a task's estimate is editable — not the
                 planner card, which is the drag pick-up target. */}

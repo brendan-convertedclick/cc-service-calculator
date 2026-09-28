@@ -41,6 +41,20 @@ export interface YearMonth {
 
 export type CellState = "empty" | "plan" | "due" | "done";
 
+/** A pipeline task (school_tasks) linked to a results row (results_task_links,
+ * 0180) — read live off results_linked_tasks, never copied. See the pipeline
+ * addendum spec. */
+export interface LinkedTask {
+  taskId: string;
+  rowId: string;
+  yearId: string;
+  label: string;
+  side: "us" | "school";
+  state: "planned" | "scheduled" | "done";
+  doneAt: string | null;
+  day: number | null;
+}
+
 /** The one blank check for a field value — never undefined/null/"" — used by
  * every module that reads an EntryValues (grid, hooks, panel, cell). */
 export const hasValue = (v: number | string | null | undefined): boolean =>
@@ -64,17 +78,21 @@ function hasResults(template: ResultsTemplate, values: EntryValues): boolean {
   return template.fields.some((f) => f.phase === "result" && hasValue(values[f.id]));
 }
 
-/** empty (no entry) · plan (entry, no results yet, month not past) ·
- * due (entry, no results, month is over) · done (any result field has a value). */
+/** empty (no entry, no linked task) · plan (entry or linked task, no results
+ * yet, month not past) · due (no results, month is over) · done (any result
+ * field has a value). A linked pipeline task alone makes a cell at least
+ * "planned" (pipeline addendum: "a linked task alone makes the cell at least
+ * planned") — `hasLinkedTasks` carries that without needing an entry row. */
 export function cellState(
   year: number,
   month: number,
   template: ResultsTemplate,
   values: EntryValues | undefined,
   now: YearMonth,
+  hasLinkedTasks = false,
 ): CellState {
-  if (!values) return "empty";
-  if (hasResults(template, values)) return "done";
+  if (values && hasResults(template, values)) return "done";
+  if (!values && !hasLinkedTasks) return "empty";
   return isPast(year, month, now) ? "due" : "plan";
 }
 
@@ -219,12 +237,18 @@ export const STANDARD_GROUPS: StandardGroup[] = [
  * (the item sits in the "Anytime this month" strip). Dates are parsed from
  * their 'YYYY-MM-DD' parts directly — never via Date/toISOString (see
  * formatValue above and CLAUDE.md). */
+/** `linkedDays`: the day(s) of any pipeline tasks linked to this row for this
+ * year+month (pipeline addendum: "the task's date wins and the entry day is
+ * ignored for display"). Several tasks can link to the same row/month — the
+ * earliest wins the chip's day. */
 export function entryDay(
   template: ResultsTemplate,
   entry: { day?: number | null; values: EntryValues },
   year: number,
   month: number,
+  linkedDays: number[] = [],
 ): number | null {
+  if (linkedDays.length) return Math.min(...linkedDays);
   if (entry.day) return entry.day;
   for (const field of liveFields(template)) {
     if (field.type !== "date") continue;

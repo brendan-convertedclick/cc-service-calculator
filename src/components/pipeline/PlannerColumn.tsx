@@ -19,8 +19,10 @@ import { useAddServiceToMonth } from "@/hooks/useSchoolYear";
 import type { SchoolYearMonth, SchoolYearTask } from "@/hooks/useSchoolYear";
 import { TaskCard } from "@/components/pipeline/TaskCard";
 import type { TaskMoveApi } from "@/components/pipeline/useTaskMove";
+import type { TaskLink } from "@/hooks/useResults";
 
 export function PlannerColumn({
+  clientId,
   yearId,
   month,
   tasks,
@@ -28,7 +30,9 @@ export function PlannerColumn({
   isCurrent,
   move,
   colorById,
+  taskLinks,
 }: {
+  clientId: string;
   yearId: string;
   month: SchoolYearMonth;
   /** Already filtered to this month, in ordinal order. */
@@ -37,6 +41,8 @@ export function PlannerColumn({
   isCurrent: boolean;
   move: TaskMoveApi;
   colorById?: Map<string, string>;
+  /** "Show in Year results" (0180) — task id -> its results row link. */
+  taskLinks?: Map<string, TaskLink>;
 }) {
   const closed = month.closed_at !== null;
   const verdict = move.pickedId ? move.legalFor(month.month_no) : null;
@@ -97,7 +103,16 @@ export function PlannerColumn({
 
       <div className="flex flex-col gap-2">
         {tasks.map((t) => (
-          <TaskCard key={t.id} task={t} move={move} colorById={colorById} locked={closed || t.state === "done"} />
+          <TaskCard
+            key={t.id}
+            task={t}
+            move={move}
+            colorById={colorById}
+            locked={closed || t.state === "done"}
+            clientId={clientId}
+            yearId={yearId}
+            resultsLink={taskLinks?.get(t.id)}
+          />
         ))}
         {tasks.length === 0 ? <p className="py-2 text-center text-label-small text-m-on-surface-variant">Nothing here yet.</p> : null}
       </div>

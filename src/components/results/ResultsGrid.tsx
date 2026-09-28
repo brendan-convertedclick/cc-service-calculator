@@ -62,6 +62,12 @@ export function ResultsGrid({
     return board.entries[`${rowId}|${y}|${m}`];
   }
 
+  /** Whether a row has anything at all for a month — an entry, or a linked
+   * pipeline task alone (0180: a linked task makes the cell at least planned). */
+  function hasContent(rowId: string, y: number, m: number): boolean {
+    return !!entryFor(rowId, y, m) || !!board.linkedTasks[`${rowId}|${y}|${m}`]?.length;
+  }
+
   return (
     <div className="overflow-x-auto rounded-xl border border-m-outline-variant bg-m-surface">
       <table className="w-full min-w-[1180px] table-fixed border-separate border-spacing-0">
@@ -101,7 +107,7 @@ export function ResultsGrid({
             const open = !collapsed.has(group.id);
             const colour = GROUP_COLOUR_CLASSES[group.colour];
             const template = templatesById.get(group.templateId);
-            const counts = MONTHS.map((m) => group.rows.filter((r) => entryFor(r.id, year, m)).length);
+            const counts = MONTHS.map((m) => group.rows.filter((r) => hasContent(r.id, year, m)).length);
             const span = 1 + (hasHistory ? 1 : 0) + 12;
 
             return (
@@ -188,6 +194,7 @@ export function ResultsGrid({
                                     month={m}
                                     template={rowTemplate}
                                     values={values}
+                                    linkedTasks={board.linkedTasks[`${row.id}|${y}|${m}`]}
                                     now={now}
                                     colour={group.colour}
                                     label={`${group.name} · ${row.name} · ${MONTH_NAMES[m - 1]} ${y}`}

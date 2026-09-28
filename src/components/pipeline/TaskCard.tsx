@@ -13,12 +13,17 @@ import { todayISO } from "@/lib/dates";
 import { initials } from "@/components/systems/SystemBlockNode";
 import type { SchoolYearTask } from "@/hooks/useSchoolYear";
 import type { TaskMoveApi } from "@/components/pipeline/useTaskMove";
+import { TaskResultsLink } from "@/components/pipeline/TaskResultsLink";
+import type { TaskLink } from "@/hooks/useResults";
 
 export function TaskCard({
   task,
   move,
   colorById,
   locked = false,
+  clientId,
+  yearId,
+  resultsLink,
 }: {
   task: SchoolYearTask;
   move: TaskMoveApi;
@@ -26,6 +31,10 @@ export function TaskCard({
   colorById?: Map<string, string>;
   /** This task's own month is closed, or the task is done — no drag, no pick-up. */
   locked?: boolean;
+  /** "Show in Year results" (0180) — omitted where the caller hasn't wired it up. */
+  clientId?: string;
+  yearId?: string;
+  resultsLink?: TaskLink;
 }) {
   const picked = move.isPicked(task.id);
   const moved = task.month_no !== task.home_month_no;
@@ -134,6 +143,8 @@ export function TaskCard({
           <span className="truncate">{task.departmentName ?? "No department"}</span>
         </div>
       ) : null}
+
+      {clientId && yearId ? <TaskResultsLink clientId={clientId} yearId={yearId} taskId={task.id} link={resultsLink} /> : null}
     </div>
   );
 }

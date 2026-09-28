@@ -5,12 +5,15 @@
 // Save (no autosave, see CLAUDE.md).
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { Check } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { cn, errorMessage } from "@/lib/utils";
 import {
   compareLine,
@@ -18,6 +21,7 @@ import {
   resultsOpen,
   type EntryValues,
   type FieldPhase,
+  type LinkedTask,
   type ResultsTemplate,
   type ResultsTemplateField,
 } from "@/lib/results-grid";
@@ -55,6 +59,7 @@ export function EntryPanel({
   template,
   values,
   day,
+  linkedTasks,
   lastYearValues,
   now,
   onClose,
@@ -68,6 +73,8 @@ export function EntryPanel({
   template: ResultsTemplate;
   values: EntryValues | undefined;
   day?: number | null;
+  /** Pipeline tasks linked to this row for this month (0180), read-only here. */
+  linkedTasks?: LinkedTask[];
   lastYearValues: EntryValues | undefined;
   now: { year: number; month: number };
   onClose: () => void;
@@ -189,6 +196,22 @@ export function EntryPanel({
               className="w-24"
             />
           </div>
+
+          {linkedTasks && linkedTasks.length > 0 && (
+            <div className="grid gap-1.5 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-3">
+              <h3 className="text-title-small">From the pipeline</h3>
+              {linkedTasks.map((t) => (
+                <div key={t.taskId} className="flex items-center gap-2 text-body-medium">
+                  <Badge variant={t.side === "school" ? "warning" : "muted"}>{t.side === "school" ? "School" : "Ours"}</Badge>
+                  <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                  {t.state === "done" && <Check className="h-4 w-4 flex-none text-m-primary" aria-hidden />}
+                </div>
+              ))}
+              <Link to={`/pipeline/${linkedTasks[0].yearId}`} className="text-label-medium text-m-primary hover:underline">
+                Open in Pipeline
+              </Link>
+            </div>
+          )}
 
           <FieldGroup title="Plan" hint={values ? "Planned" : "Not planned yet"}>
             {fieldsFor("plan").map((f) => (

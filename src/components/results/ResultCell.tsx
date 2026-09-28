@@ -4,6 +4,7 @@
 // rendering lives inline in ResultsGrid since it's simpler and has no
 // separate state machine — just "has a starred value or not").
 
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   cellState,
@@ -12,8 +13,10 @@ import {
   planHeadline,
   starredFields,
   type EntryValues,
+  type LinkedTask,
   type ResultsTemplate,
 } from "@/lib/results-grid";
+import { Badge } from "@/components/ui/badge";
 import { GROUP_COLOUR_CLASSES } from "@/components/results/groupColours";
 import type { GroupColour } from "@/lib/results-grid";
 
@@ -22,6 +25,7 @@ export function ResultCell({
   month,
   template,
   values,
+  linkedTasks,
   now,
   colour,
   label,
@@ -32,13 +36,16 @@ export function ResultCell({
   month: number;
   template: ResultsTemplate;
   values: EntryValues | undefined;
+  /** Pipeline tasks linked to this row for this month (0180) — a task alone
+   * makes the cell read as at least planned. */
+  linkedTasks?: LinkedTask[];
   now: { year: number; month: number };
   colour: GroupColour;
   label: string;
   selected: boolean;
   onClick: () => void;
 }) {
-  const state = cellState(year, month, template, values, now);
+  const state = cellState(year, month, template, values, now, !!linkedTasks?.length);
   const c = GROUP_COLOUR_CLASSES[colour];
 
   return (
@@ -58,6 +65,19 @@ export function ResultCell({
       {/* Row/month context read first, then the cell's own visible content —
           an aria-label here would replace that content for screen readers. */}
       <span className="sr-only">{label}</span>
+      {linkedTasks && linkedTasks.length > 0 && (
+        <span className="mb-0.5 grid gap-0.5">
+          {linkedTasks.map((t) => (
+            <span key={t.taskId} className="flex items-center gap-1 truncate">
+              <Badge variant={t.side === "school" ? "warning" : "muted"} className="shrink-0 px-1 py-0 text-[10px] leading-tight">
+                {t.side === "school" ? "School" : "Ours"}
+              </Badge>
+              <span className="truncate">{t.label}</span>
+              {t.state === "done" && <Check className="h-3 w-3 flex-none text-m-primary" aria-hidden />}
+            </span>
+          ))}
+        </span>
+      )}
       {state === "empty" && (
         <span className="hidden text-m-on-surface-variant group-hover:inline group-focus-visible:inline">+ Plan</span>
       )}

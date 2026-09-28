@@ -297,6 +297,7 @@ export function ResultsPlanner() {
           template={selectedCellData.template}
           values={board?.entries[`${selected.rowId}|${selected.year}|${selected.month}`]?.values}
           day={board?.entries[`${selected.rowId}|${selected.year}|${selected.month}`]?.day}
+          linkedTasks={board?.linkedTasks[`${selected.rowId}|${selected.year}|${selected.month}`]}
           lastYearValues={board?.entries[`${selected.rowId}|${selected.year - 1}|${selected.month}`]?.values}
           now={now}
           onClose={() => setSelected(null)}
