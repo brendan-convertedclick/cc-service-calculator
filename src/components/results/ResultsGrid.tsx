@@ -7,8 +7,8 @@
 
 import { Fragment, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { laneShade, type ResultsTemplate } from "@/lib/results-grid";
+import { cn, toggleInSet } from "@/lib/utils";
+import { isPast as isPastMonth, laneShade, type ResultsTemplate } from "@/lib/results-grid";
 import type { ResultsBoard, ResultsBoardEntry } from "@/hooks/useResults";
 import { GROUP_COLOUR_CLASSES, LANE_SHADE_CLASSES } from "@/components/results/groupColours";
 import { ResultCell, HistoryCell } from "@/components/results/ResultCell";
@@ -80,13 +80,13 @@ export function ResultsGrid({
             {hasHistory && <th className="border-b border-m-outline-variant" />}
             {MONTHS.map((m) => {
               const isNow = year === now.year && m === now.month;
-              const isPast = year < now.year || (year === now.year && m < now.month);
+              const past = isPastMonth(year, m, now);
               return (
                 <th
                   key={m}
                   className={cn(
                     "border-b border-m-outline-variant p-2.5 text-left text-label-small uppercase tracking-wide",
-                    isNow ? "text-m-on-surface" : isPast ? "text-m-on-surface-variant/60" : "text-m-on-surface-variant",
+                    isNow ? "text-m-on-surface" : past ? "text-m-on-surface-variant/60" : "text-m-on-surface-variant",
                   )}
                 >
                   {MONTH_NAMES[m - 1]}
@@ -114,13 +114,7 @@ export function ResultsGrid({
                     <button
                       type="button"
                       aria-expanded={open}
-                      onClick={() =>
-                        setCollapsed((prev) => {
-                          const next = new Set(prev);
-                          next.has(group.id) ? next.delete(group.id) : next.add(group.id);
-                          return next;
-                        })
-                      }
+                      onClick={() => setCollapsed((prev) => toggleInSet(prev, group.id))}
                       className="flex w-full items-start gap-2 px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <ChevronRight className={cn("mt-0.5 h-3.5 w-3.5 shrink-0 text-m-on-surface-variant transition-transform", open && "rotate-90")} />
@@ -173,8 +167,13 @@ export function ResultsGrid({
                             </th>
                           )}
                           {hasHistory && (
-                            <td className={cn("border-b border-m-outline-variant p-1 text-center align-middle font-mono text-label-small", isCurrent ? "" : "text-m-on-surface-variant")}>
-                              {isCurrent ? "" : y}
+                            <td
+                              className={cn(
+                                "border-b border-m-outline-variant p-1 text-center align-middle font-mono text-label-small",
+                                isCurrent ? "font-semibold text-m-on-surface" : "text-m-on-surface-variant",
+                              )}
+                            >
+                              {y}
                             </td>
                           )}
                           {MONTHS.map((m) => {

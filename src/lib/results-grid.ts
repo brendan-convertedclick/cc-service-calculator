@@ -41,7 +41,10 @@ export interface YearMonth {
 
 export type CellState = "empty" | "plan" | "due" | "done";
 
-const has = (v: number | string | null | undefined): boolean => v !== undefined && v !== null && v !== "";
+/** The one blank check for a field value — never undefined/null/"" — used by
+ * every module that reads an EntryValues (grid, hooks, panel, cell). */
+export const hasValue = (v: number | string | null | undefined): boolean =>
+  v !== undefined && v !== null && v !== "";
 
 /** Rule 7: results open from the start of the month, so "past" for the due/done
  * split means strictly before now's month — the current month is open, not due. */
@@ -49,7 +52,7 @@ export function resultsOpen(year: number, month: number, now: YearMonth): boolea
   return year < now.year || (year === now.year && month <= now.month);
 }
 
-function isPast(year: number, month: number, now: YearMonth): boolean {
+export function isPast(year: number, month: number, now: YearMonth): boolean {
   return year < now.year || (year === now.year && month < now.month);
 }
 
@@ -58,7 +61,7 @@ function liveFields(template: ResultsTemplate): ResultsTemplateField[] {
 }
 
 function hasResults(template: ResultsTemplate, values: EntryValues): boolean {
-  return template.fields.some((f) => f.phase === "result" && has(values[f.id]));
+  return template.fields.some((f) => f.phase === "result" && hasValue(values[f.id]));
 }
 
 /** empty (no entry) · plan (entry, no results yet, month not past) ·
@@ -81,7 +84,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-ZA", { weekday: "short", day: 
  * 'YYYY-MM-DD' parts directly — never via `new Date(str).toISOString()`,
  * which shifts a SAST date across midnight (see @/lib/dates). */
 export function formatValue(field: Pick<ResultsTemplateField, "type">, value: number | string | null | undefined): string {
-  if (!has(value)) return "";
+  if (!hasValue(value)) return "";
   if (field.type === "money") return formatZar(Number(value));
   if (field.type === "number") return formatNumber(Number(value));
   if (field.type === "percent") return `${value}%`;
@@ -106,7 +109,7 @@ export function planHeadline(template: ResultsTemplate, values: EntryValues): st
   const field = liveFields(template)
     .filter((f) => f.phase === "plan")
     .sort((a, b) => a.ordinal - b.ordinal)
-    .find((f) => has(values[f.id]));
+    .find((f) => hasValue(values[f.id]));
   return field ? formatValue(field, values[field.id]) : "";
 }
 
@@ -128,21 +131,21 @@ export function compareLine(
 ): CompareLine | null {
   const nowValue = now[field.id];
   const wasValue = lastYear[field.id];
-  if (!has(nowValue) && !has(wasValue)) return null;
+  if (!hasValue(nowValue) && !hasValue(wasValue)) return null;
 
   const line: CompareLine = { value: formatValue(field, nowValue) };
 
   if (field.target_field_id) {
     const targetValue = target[field.target_field_id];
-    if (has(targetValue) && has(nowValue)) {
+    if (hasValue(targetValue) && hasValue(nowValue)) {
       line.target = { value: formatValue(field, targetValue), met: Number(nowValue) >= Number(targetValue) };
     }
   }
 
-  if (has(wasValue)) {
+  if (hasValue(wasValue)) {
     const lastYearLine: CompareLine["lastYear"] = { value: formatValue(field, wasValue) };
     const wasNum = Number(wasValue);
-    if (has(nowValue) && wasNum !== 0) {
+    if (hasValue(nowValue) && wasNum !== 0) {
       lastYearLine.deltaPct = Math.round(((Number(nowValue) - wasNum) / wasNum) * 100);
     }
     line.lastYear = lastYearLine;

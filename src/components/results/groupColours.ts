@@ -56,9 +56,14 @@ export const GROUP_COLOUR_CLASSES: Record<GroupColour, GroupColourClasses> = {
 
 /** Grey lanes for compared years: shade 1 (last year) is lightest, 3 (three+
  * years back) is darkest — same shade in every row for a given year, per the
- * mockup. Built from the M3 surface-container ramp, not a hex. */
+ * mockup. Built from the M3 surface-container ramp, not a hex.
+ *
+ * Starts at `-container` (skipping `-low`, which sits only ~1.5L% off the
+ * page's plain `surface` white and was indistinguishable from the current
+ * year's row) so shade 1 already reads as a band, and ends at `-highest` for
+ * real separation between all three steps in both themes. */
 export const LANE_SHADE_CLASSES: Record<1 | 2 | 3, string> = {
-  1: "bg-m-surface-container-low",
-  2: "bg-m-surface-container",
-  3: "bg-m-surface-container-high",
+  1: "bg-m-surface-container",
+  2: "bg-m-surface-container-high",
+  3: "bg-m-surface-container-highest",
 };

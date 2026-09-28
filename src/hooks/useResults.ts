@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/utils";
 import {
+  hasValue,
   STANDARD_GROUPS,
   type EntryValues,
   type FieldPhase,
@@ -18,8 +19,6 @@ import {
   type ResultsTemplate,
   type ResultsTemplateField,
 } from "@/lib/results-grid";
-
-const has = (v: number | string | null | undefined): boolean => v !== undefined && v !== null && v !== "";
 
 export const RESULTS_TEMPLATES_KEY = ["results-templates"] as const;
 export const RESULTS_BOARD_KEY = (clientId: string) => ["results-board", clientId] as const;
@@ -175,11 +174,16 @@ function invalidateBoard(qc: QueryClient, clientId: string) {
 // Saving a cell
 // ---------------------------------------------------------------------------
 
-/** Upserts one month's entry for a row, then its values: a non-blank live
- * field's value lands in the column its type owns (num/text/date), a
- * now-blank one is deleted. Only touches fields that are live or that the
- * caller explicitly passed a value for — a retired field nobody edited is
- * left alone. */
+/** Upserts one month's entry for a row, then its values. `vars.values` is a
+ * changeset, not the entry's full state: only fields present as a key are
+ * touched (a non-blank value upserted, `null`/blank deleted) — a field the
+ * caller left out, live or retired, is left exactly as stored. Callers
+ * therefore only pass fields whose draft actually changed (see EntryPanel),
+ * so an untouched field is never blindly resent or deleted for being absent.
+ * An entry left with nothing stored (every field cleared, or a save where
+ * every field came back blank) is deleted rather than kept as an empty row —
+ * an empty entry still reads as "planned" to `cellState`, so it would sit
+ * forever. */
 export function useSaveEntry() {
   const qc = useQueryClient();
   const { currentUserId } = useAuth();
@@ -201,14 +205,41 @@ export function useSaveEntry() {
         .maybeSingle();
       if (selErr) throw new Error(errorMessage(selErr));
 
+      const fieldsToTouch = vars.template.fields.filter((f) => f.id in vars.values);
+      const toDelete: string[] = [];
+      const toUpsert: {
+        entry_id: string;
+        field_id: string;
+        num_value: number | null;
+        text_value: string | null;
+        date_value: string | null;
+      }[] = [];
+      for (const field of fieldsToTouch) {
+        const v = vars.values[field.id];
+        if (!hasValue(v)) {
+          toDelete.push(field.id);
+          continue;
+        }
+        toUpsert.push({
+          entry_id: "", // filled in once the entry row exists, below
+          field_id: field.id,
+          num_value: field.type === "number" || field.type === "money" || field.type === "percent" ? Number(v) : null,
+          text_value: field.type === "text" ? String(v) : null,
+          date_value: field.type === "date" ? String(v) : null,
+        });
+      }
+
+      // Nothing to store and no entry to clear — don't create an empty row.
+      if (!existing && toUpsert.length === 0) return;
+
       let entryId: string;
       if (existing) {
+        entryId = existing.id;
         const { error } = await supabase
           .from("results_entries")
           .update({ updated_by: currentUserId })
-          .eq("id", existing.id);
+          .eq("id", entryId);
         if (error) throw new Error(errorMessage(error));
-        entryId = existing.id;
       } else {
         const { data: created, error } = await supabase
           .from("results_entries")
@@ -224,30 +255,7 @@ export function useSaveEntry() {
         if (error) throw new Error(errorMessage(error));
         entryId = created.id;
       }
-
-      const fieldsToTouch = vars.template.fields.filter((f) => !f.retired_at || f.id in vars.values);
-      const toDelete: string[] = [];
-      const toUpsert: {
-        entry_id: string;
-        field_id: string;
-        num_value: number | null;
-        text_value: string | null;
-        date_value: string | null;
-      }[] = [];
-      for (const field of fieldsToTouch) {
-        const v = vars.values[field.id];
-        if (!has(v)) {
-          toDelete.push(field.id);
-          continue;
-        }
-        toUpsert.push({
-          entry_id: entryId,
-          field_id: field.id,
-          num_value: field.type === "number" || field.type === "money" || field.type === "percent" ? Number(v) : null,
-          text_value: field.type === "text" ? String(v) : null,
-          date_value: field.type === "date" ? String(v) : null,
-        });
-      }
+      for (const row of toUpsert) row.entry_id = entryId;
 
       if (toDelete.length) {
         const { error } = await supabase
@@ -259,6 +267,18 @@ export function useSaveEntry() {
       }
       if (toUpsert.length) {
         const { error } = await supabase.from("results_entry_values").upsert(toUpsert, { onConflict: "entry_id,field_id" });
+        if (error) throw new Error(errorMessage(error));
+      }
+
+      // If nothing survives on the entry (everything just deleted, or a
+      // pre-existing entry that came in with no upserts), drop the row too.
+      const { count, error: cntErr } = await supabase
+        .from("results_entry_values")
+        .select("field_id", { count: "exact", head: true })
+        .eq("entry_id", entryId);
+      if (cntErr) throw new Error(errorMessage(cntErr));
+      if (!count) {
+        const { error } = await supabase.from("results_entries").delete().eq("id", entryId);
         if (error) throw new Error(errorMessage(error));
       }
     },
@@ -379,11 +399,16 @@ export interface EditableField {
 /** Saves a template's name + its full edited field list: existing fields are
  * updated in place (ordinal = position in the list), new ones inserted.
  * Un-stars are written before stars so the DB's max-two-stars trigger never
- * sees a transient third star mid-save (rule 5). */
+ * sees a transient third star mid-save (rule 5).
+ *
+ * Returns the new rows' ids keyed by their index in `vars.fields` — a freshly
+ * inserted field has no id in the caller's draft, and without patching one in
+ * a second save re-inserts it (duplicates, and can trip the max-two-stars
+ * trigger mid-save on a field that was never meant to be a third row). */
 export function useSaveTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { templateId: string; name: string; fields: EditableField[] }) => {
+    mutationFn: async (vars: { templateId: string; name: string; fields: EditableField[] }): Promise<Record<number, string>> => {
       const { error: nameErr } = await supabase
         .from("results_templates")
         .update({ name: vars.name })
@@ -411,19 +436,26 @@ export function useSaveTemplate() {
         }
       }
 
+      const insertedIds: Record<number, string> = {};
       for (const f of created) {
-        const { error } = await supabase.from("results_template_fields").insert({
-          template_id: vars.templateId,
-          label: f.label,
-          short_label: f.short_label,
-          type: f.type,
-          phase: f.phase,
-          star: f.star,
-          target_field_id: f.target_field_id,
-          ordinal: vars.fields.indexOf(f),
-        });
+        const { data, error } = await supabase
+          .from("results_template_fields")
+          .insert({
+            template_id: vars.templateId,
+            label: f.label,
+            short_label: f.short_label,
+            type: f.type,
+            phase: f.phase,
+            star: f.star,
+            target_field_id: f.target_field_id,
+            ordinal: vars.fields.indexOf(f),
+          })
+          .select("id")
+          .single();
         if (error) throw new Error(errorMessage(error));
+        insertedIds[vars.fields.indexOf(f)] = data.id;
       }
+      return insertedIds;
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: RESULTS_TEMPLATES_KEY });

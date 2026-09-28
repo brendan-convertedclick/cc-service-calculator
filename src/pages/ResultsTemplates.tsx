@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { errorMessage } from "@/lib/utils";
-import { todayISO } from "@/lib/dates";
 import { useAddTemplate, useFieldValueCounts, useResultTemplates, useSaveTemplate } from "@/hooks/useResults";
 import type { ResultsTemplate, ResultsTemplateField } from "@/lib/results-grid";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -45,7 +44,13 @@ function snapshot(t: ResultsTemplate): Draft {
 
 /** Content equality, ignoring `id`/`_key` — a freshly saved field has no id
  * in the draft until the next reselect, but its content already matches what
- * was written, so it must read as clean rather than permanently dirty. */
+ * was written, so it must read as clean rather than permanently dirty.
+ *
+ * `retired_at` compares as a boolean, not the raw string: the draft stamps it
+ * with a timestamp at the moment of toggling, and the freshly reloaded row
+ * echoes back whatever Postgres normalised that timestamptz to — never
+ * byte-identical to what was sent, so a string compare read the editor as
+ * dirty forever right after retiring something. */
 function normalize(d: Draft) {
   return {
     name: d.name,
@@ -56,9 +61,20 @@ function normalize(d: Draft) {
       phase: f.phase,
       star: f.star,
       target_field_id: f.target_field_id,
-      retired_at: f.retired_at,
+      retired_at: !!f.retired_at,
     })),
   };
+}
+
+/** "New template", then "New template 2", "New template 3", ... — the name
+ * is unique, so re-clicking "+ New template" without renaming the first one
+ * used to fail the DB's unique constraint on the second click. */
+function nextTemplateName(templates: ResultsTemplate[]): string {
+  const base = "New template";
+  if (!templates.some((t) => t.name === base)) return base;
+  let n = 2;
+  while (templates.some((t) => t.name === `${base} ${n}`)) n++;
+  return `${base} ${n}`;
 }
 
 let newFieldSeq = 0;
@@ -102,11 +118,12 @@ export function ResultsTemplates() {
 
   function newTemplate() {
     guard(() => {
-      addTemplate.mutate("New template", {
+      const name = nextTemplateName(templates);
+      addTemplate.mutate(name, {
         onSuccess: (id) => {
           setSelectedId(id);
           setDraft({
-            name: "New template",
+            name,
             fields: [
               {
                 id: undefined,
@@ -173,7 +190,9 @@ export function ResultsTemplates() {
         fields: d.fields.map((f) => {
           if (f._key !== key) return f;
           const retiring = !f.retired_at;
-          return { ...f, retired_at: retiring ? todayISO() : null, star: retiring ? false : f.star };
+          // A real timestamp, not a calendar date — retired_at is a
+          // timestamptz stamping the moment of retirement, not a due date.
+          return { ...f, retired_at: retiring ? new Date().toISOString() : null, star: retiring ? false : f.star };
         }),
       };
     });
@@ -203,11 +222,21 @@ export function ResultsTemplates() {
     );
   }
 
+  // Patches newly-inserted fields' ids into the draft by their position in
+  // the array that was sent (same order as draft.fields), so a second save
+  // updates them in place instead of re-inserting duplicates.
+  function applyInsertedIds(insertedIds: Record<number, string>) {
+    setDraft((d) => (d ? { ...d, fields: d.fields.map((f, i) => (insertedIds[i] ? { ...f, id: insertedIds[i] } : f)) } : d));
+  }
+
   function save() {
     if (!draft || !selectedId) return;
     saveTemplate.mutate(
       { templateId: selectedId, name: draft.name, fields: draft.fields.map(({ _key: _k, ...f }) => f) },
-      { onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`) },
+      {
+        onSuccess: applyInsertedIds,
+        onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
+      },
     );
   }
 
@@ -243,9 +272,9 @@ export function ResultsTemplates() {
         )}
       </div>
 
-      <aside className="grid gap-3 rounded-lg border border-m-outline-variant bg-m-surface-container p-4 text-body-small">
+      <aside className="grid content-start gap-3 self-start rounded-lg border border-m-outline-variant bg-m-surface-container p-4 text-body-small">
         <h3 className="text-title-small">How templates stay comparable</h3>
-        <ul className="grid gap-2 text-m-on-surface-variant">
+        <ul className="grid content-start gap-2 text-m-on-surface-variant">
           <li>
             <b className="text-m-on-surface">One master, every client.</b> A template is edited here once and every
             client's rows pick it up. There are no per-client copies to drift apart.
@@ -300,7 +329,8 @@ export function ResultsTemplates() {
                 saveTemplate.mutate(
                   { templateId: selectedId, name: draft.name, fields: draft.fields.map(({ _key: _k, ...f }) => f) },
                   {
-                    onSuccess: () => {
+                    onSuccess: (insertedIds) => {
+                      applyInsertedIds(insertedIds);
                       if (exit?.kind === "href") navigate(exit.href);
                       else exit?.run();
                     },

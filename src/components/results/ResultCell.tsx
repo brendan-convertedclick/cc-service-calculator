@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   cellState,
   formatValue,
+  hasValue,
   planHeadline,
   starredFields,
   type EntryValues,
@@ -44,7 +45,6 @@ export function ResultCell({
     <button
       type="button"
       onClick={onClick}
-      aria-label={label}
       className={cn(
         "group block min-h-[54px] w-full rounded-md border border-transparent p-1.5 text-left text-label-small leading-snug",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -55,8 +55,11 @@ export function ResultCell({
         state === "done" && cn(c.bgSoft, c.border, "border"),
       )}
     >
+      {/* Row/month context read first, then the cell's own visible content —
+          an aria-label here would replace that content for screen readers. */}
+      <span className="sr-only">{label}</span>
       {state === "empty" && (
-        <span className="hidden text-m-on-surface-variant group-hover:inline">+ Plan</span>
+        <span className="hidden text-m-on-surface-variant group-hover:inline group-focus-visible:inline">+ Plan</span>
       )}
       {(state === "plan" || state === "due") && (
         <>
@@ -74,7 +77,7 @@ export function ResultCell({
       {state === "done" && values && (
         <span className="grid gap-0.5">
           {starredFields(template).map((f) =>
-            values[f.id] !== undefined && values[f.id] !== null && values[f.id] !== "" ? (
+            hasValue(values[f.id]) ? (
               <span key={f.id} className="block truncate text-m-on-surface-variant">
                 <b className="text-m-on-surface">{formatValue(f, values[f.id])}</b> {f.short_label ?? f.label}
               </span>
@@ -86,29 +89,28 @@ export function ResultCell({
   );
 }
 
-/** A compared-year lane cell: dotted, shows only the first starred metric. */
+/** A compared-year lane cell: dotted, shows only the first starred metric.
+ * Not a button — it isn't clickable, so a disabled button (unreadable by
+ * most AT, and semantically wrong for static content) was the wrong element. */
 export function HistoryCell({ template, values, label }: { template: ResultsTemplate; values: EntryValues | undefined; label: string }) {
   if (!values) return <div className="min-h-[28px]" />;
   const field = starredFields(template)[0];
   const value = field ? values[field.id] : undefined;
-  const has = value !== undefined && value !== null && value !== "";
+  const has = hasValue(value);
 
   return (
-    <button
-      type="button"
-      aria-label={label}
+    <div
       className={cn(
         "block min-h-[28px] w-full rounded-md border border-dotted border-m-outline-variant px-1.5 py-1 text-left text-label-small text-m-on-surface-variant",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         !has && "opacity-70",
       )}
-      disabled
     >
+      <span className="sr-only">{label}</span>
       {has ? (
         <span className="truncate">
           {formatValue(field!, value)} {field!.short_label ?? ""}
         </span>
       ) : null}
-    </button>
+    </div>
   );
 }

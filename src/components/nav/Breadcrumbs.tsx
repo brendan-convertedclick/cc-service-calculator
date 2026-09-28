@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
 import { useSystemDefinition } from "@/hooks/useSystemDefinitions";
+import { useClientName } from "@/hooks/useClients";
 
 const SEGMENT_LABELS: Record<string, string> = {
   inbox: "Inbox",
@@ -63,6 +64,9 @@ export function Breadcrumbs() {
   const { data: system } = useSystemDefinition(
     segments[0] === "systems" ? segments[1] : undefined
   );
+  const { data: clientName } = useClientName(
+    segments[0] === "results" ? segments[1] : undefined
+  );
 
   // Root path is the Dashboard — surface it as the current-page crumb so the
   // dashboard carries the same breadcrumb bar as every other page.
@@ -74,7 +78,9 @@ export function Breadcrumbs() {
           const label =
             i === 1 && segments[0] === "systems" && system
               ? system.name
-              : labelFor(seg, segments[i - 1]);
+              : i === 1 && segments[0] === "results" && clientName
+                ? clientName
+                : labelFor(seg, segments[i - 1]);
           return { to, label, isLast: i === segments.length - 1 };
         });
 

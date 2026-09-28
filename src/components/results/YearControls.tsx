@@ -5,7 +5,7 @@
 // swatch previewing its lane shade so the picker teaches the grid's grey
 // bands before you even open a row.
 
-import { cn } from "@/lib/utils";
+import { cn, toggleInSet } from "@/lib/utils";
 import { laneShade } from "@/lib/results-grid";
 import { LANE_SHADE_CLASSES } from "@/components/results/groupColours";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,7 @@ export function YearControls({
   const shown = [...compareYears].filter((y) => y !== year).sort((a, b) => b - a);
 
   function toggle(y: number) {
-    const next = new Set(compareYears);
-    next.has(y) ? next.delete(y) : next.add(y);
-    onCompareChange(next);
+    onCompareChange(toggleInSet(compareYears, y));
   }
 
   return (

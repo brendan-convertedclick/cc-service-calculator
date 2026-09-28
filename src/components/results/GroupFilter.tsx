@@ -4,6 +4,7 @@
 // Ticking only one group hides every row not in it.
 
 import { Check } from "lucide-react";
+import { toggleInSet } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,9 +29,7 @@ export function GroupFilter({
           : `${selected.size} groups`;
 
   function toggle(id: string) {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    onChange(next);
+    onChange(toggleInSet(selected, id));
   }
 
   return (

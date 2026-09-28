@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { cn, errorMessage } from "@/lib/utils";
 import {
   compareLine,
+  hasValue,
   resultsOpen,
   type EntryValues,
   type FieldPhase,
@@ -24,7 +25,19 @@ import { useSaveEntry } from "@/hooks/useResults";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const has = (v: number | string | null | undefined) => v !== undefined && v !== null && v !== "";
+/** Stored values are in their DB unit (money = cents); the draft is in the
+ * unit the input displays (money = rand) — this is the one place that
+ * conversion happens, so displaying and saving never touch %100 again. */
+function seedDraft(template: ResultsTemplate, values: EntryValues | undefined): EntryValues {
+  const draft: EntryValues = {};
+  if (!values) return draft;
+  for (const field of template.fields) {
+    const v = values[field.id];
+    if (!hasValue(v)) continue;
+    draft[field.id] = field.type === "money" ? Number(v) / 100 : v;
+  }
+  return draft;
+}
 
 export function EntryPanel({
   clientId,
@@ -51,15 +64,15 @@ export function EntryPanel({
   now: { year: number; month: number };
   onClose: () => void;
 }) {
-  const [draft, setDraft] = useState<EntryValues>(values ?? {});
+  const [draft, setDraft] = useState<EntryValues>(() => seedDraft(template, values));
   const save = useSaveEntry();
 
   useEffect(() => {
-    setDraft(values ?? {});
-  }, [values, rowId, year, month]);
+    setDraft(seedDraft(template, values));
+  }, [values, template, rowId, year, month]);
 
   const open = resultsOpen(year, month, now);
-  const resultsStarted = template.fields.some((f) => f.phase === "result" && has((values ?? {})[f.id]));
+  const resultsStarted = template.fields.some((f) => f.phase === "result" && hasValue((values ?? {})[f.id]));
 
   function setField(fieldId: string, raw: string) {
     setDraft((d) => ({ ...d, [fieldId]: raw === "" ? null : raw }));
@@ -67,7 +80,7 @@ export function EntryPanel({
 
   function fieldsFor(phase: FieldPhase) {
     return template.fields
-      .filter((f) => f.phase === phase && (!f.retired_at || has((values ?? {})[f.id])))
+      .filter((f) => f.phase === phase && (!f.retired_at || hasValue((values ?? {})[f.id])))
       .sort((a, b) => a.ordinal - b.ordinal);
   }
 
@@ -77,12 +90,26 @@ export function EntryPanel({
     .filter((x): x is { field: ResultsTemplateField; line: NonNullable<ReturnType<typeof compareLine>> } => !!x.line);
 
   function handleSave() {
-    // Coerce numeric-typed fields' string drafts to numbers, money entered as
-    // rand converted to cents (project convention: money is int cents).
+    // draft is already in display units (money = rand) — convert once, here,
+    // on the way out. toSave is a changeset, not the full entry: only a field
+    // whose draft actually differs from the seeded (stored) value gets a key
+    // at all (useSaveEntry only touches fields present as a key), so an
+    // untouched money field is never re-multiplied and a retired field's kept
+    // value is never rewritten. A field cleared back to blank still needs an
+    // explicit `null` — omitting it entirely would read as "unchanged", not
+    // "delete this".
+    const stored = seedDraft(template, values);
     const toSave: EntryValues = {};
     for (const field of template.fields) {
       const raw = draft[field.id];
-      if (!has(raw)) continue;
+      const prev = stored[field.id];
+      const rawNorm = hasValue(raw) ? raw : null;
+      const prevNorm = hasValue(prev) ? prev : null;
+      if (rawNorm === prevNorm) continue;
+      if (!hasValue(raw)) {
+        toSave[field.id] = null;
+        continue;
+      }
       if (field.type === "money") toSave[field.id] = Math.round(Number(raw) * 100);
       else if (field.type === "number" || field.type === "percent") toSave[field.id] = Number(raw);
       else toSave[field.id] = raw;
@@ -197,8 +224,9 @@ function FieldInput({
   onChange: (fieldId: string, raw: string) => void;
 }) {
   const id = `results-field-${field.id}`;
-  const displayValue =
-    field.type === "money" && has(value) ? String(Number(value) / 100) : has(value) ? String(value) : "";
+  // draft values are already in display units (money = rand, see seedDraft) —
+  // no per-render conversion here.
+  const displayValue = hasValue(value) ? String(value) : "";
 
   return (
     <div className="grid gap-1">

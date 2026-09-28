@@ -27,6 +27,22 @@ export function useClients() {
   });
 }
 
+/** One client's name, for the breadcrumb on routes keyed by client id
+ * (e.g. /results/:clientId) — mirrors useSystemDefinition's pattern for
+ * /systems/:id: disabled everywhere else, and cheap where it runs. */
+export function useClientName(id: string | undefined) {
+  return useQuery({
+    queryKey: [...LIST, id, "name"],
+    enabled: !!id,
+    queryFn: async (): Promise<string | null> => {
+      if (!id) return null;
+      const { data, error } = await supabase.from("clients").select("name").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return data?.name ?? null;
+    },
+  });
+}
+
 export function useCreateClient() {
   const qc = useQueryClient();
   return useMutation({

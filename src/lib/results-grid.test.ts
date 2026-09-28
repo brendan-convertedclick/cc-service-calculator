@@ -3,6 +3,8 @@ import {
   cellState,
   compareLine,
   formatValue,
+  hasValue,
+  isPast,
   laneShade,
   planHeadline,
   resultsOpen,
@@ -164,5 +166,30 @@ describe("laneShade", () => {
     expect(laneShade(2026, 2024)).toBe(2);
     expect(laneShade(2026, 2023)).toBe(3);
     expect(laneShade(2026, 2020)).toBe(3);
+  });
+});
+
+describe("hasValue", () => {
+  it("is false for undefined, null and empty string", () => {
+    expect(hasValue(undefined)).toBe(false);
+    expect(hasValue(null)).toBe(false);
+    expect(hasValue("")).toBe(false);
+  });
+  it("is true for 0, a non-empty string and a number", () => {
+    expect(hasValue(0)).toBe(true);
+    expect(hasValue("0")).toBe(true);
+    expect(hasValue(44)).toBe(true);
+  });
+});
+
+describe("isPast", () => {
+  it("is false for the current month and any future month", () => {
+    expect(isPast(2026, 9, NOW)).toBe(false);
+    expect(isPast(2026, 10, NOW)).toBe(false);
+    expect(isPast(2027, 1, NOW)).toBe(false);
+  });
+  it("is true for any earlier month, including a prior year", () => {
+    expect(isPast(2026, 8, NOW)).toBe(true);
+    expect(isPast(2025, 12, NOW)).toBe(true);
   });
 });
