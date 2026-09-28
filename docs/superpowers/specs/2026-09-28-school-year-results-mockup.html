@@ -227,12 +227,46 @@ td.gcount span{display:inline-grid;place-items:center;min-width:20px;height:20px
 .rules ul{margin:0;padding-left:18px;display:grid;gap:8px;color:var(--muted)}
 .rules b{color:var(--ink)}
 .tpl-edit .phase{overflow-x:auto}
+
+.month-nav{display:inline-flex;align-items:center;gap:8px}
+.month-nav strong{min-width:120px;text-align:center;font-size:.9rem}
+.month-wrap{display:grid;gap:14px;padding:14px}
+.anytime{display:grid;gap:8px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:10px}
+.any-list{display:flex;flex-wrap:wrap;gap:6px}
+.cal{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.wd{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--sunk)}
+.wd span{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:8px}
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.day{min-height:110px;border-top:1px solid var(--line);border-left:1px solid var(--line);padding:6px;display:grid;align-content:start;gap:4px;min-width:0}
+.day:nth-child(7n+1){border-left:0}
+.day.out{background:var(--h1)}
+.day .dn{font-size:.75rem;color:var(--muted);font-weight:600}
+.day.today .dn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--now);color:#16121F}
+.chip{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:center;padding:4px 7px;border-radius:6px;font-size:.72rem;line-height:1.3;min-width:0;max-width:100%}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--cc);grid-row:span 2}
+.chip .cn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .cl{grid-column:2;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.plan{border:1.5px dashed var(--cc)}
+.chip.due{border:1.5px dashed var(--due);background:var(--due-soft)}
+.chip.done{background:var(--ccs);border:1px solid var(--cc)}
+.chip.sel{box-shadow:0 0 0 2px var(--primary)}
+.chip:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.any-list .chip{max-width:260px}
+
+.dh{display:flex;justify-content:space-between;align-items:center}
+/* same dashed "+ Plan" box as an empty cell in the year grid */
+.day-add{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;min-height:30px;padding:5px 7px;border-radius:6px;border:1.5px dashed var(--line-strong);color:var(--faint);font-size:.72rem;opacity:0}
+.day:hover .day-add,.day-add:focus-visible{opacity:1}
+.day-add:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.day-form{display:grid;gap:6px;padding:6px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface)}
+.day-form select{font:inherit;font-size:.78rem;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:4px 6px;max-width:100%}
+@media (hover:none){.day-add{opacity:1}}
 </style>
 
 <div class="wrap">
   <header class="top">
     <div style="display:grid;gap:6px">
-      <span class="eyebrow">Mockup · iteration 7 · templates</span>
+      <span class="eyebrow">Mockup · iteration 10 · plan from the month</span>
       <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><h1>Kings College · School year</h1><span class="pill">Example data</span></div>
       <p class="muted">Every row answers a master template of fixed metrics, so this year and last year line up number for number.</p>
     </div>
@@ -245,7 +279,9 @@ td.gcount span{display:inline-grid;place-items:center;min-width:20px;height:20px
   <section id="view-plan" style="display:grid;gap:20px">
     <div class="toolbar">
       <div class="tb-left">
+        <div class="seg" role="group" aria-label="View" id="viewSeg"><button type="button" data-view="year">Year</button><button type="button" data-view="month">Month</button></div>
         <div class="seg" role="group" aria-label="Year" id="years"></div>
+        <div class="month-nav" id="monthNav" hidden><button type="button" class="btn ghost tiny" data-mstep="-1" aria-label="Previous month">‹</button><strong id="monthLabel"></strong><button type="button" class="btn ghost tiny" data-mstep="1" aria-label="Next month">›</button></div>
         <details class="picker" id="picker"><summary id="pickerSum"></summary><div class="pick-menu" role="group" aria-label="Compare with" id="pickMenu"></div></details>
         <details class="picker" id="filter"><summary id="filterSum"></summary><div class="pick-menu" role="group" aria-label="Show groups" id="filterMenu"></div></details>
         <span class="summary" id="summary"></span>
@@ -379,6 +415,9 @@ put(2026,"ig",3,{theme:"Open Day recap",posts:10,out:10,reach:12900,eng:3.5});
 put(2026,"ig",10,{theme:"Grade 8 final push",posts:12});
 put(2026,"fb",3,{theme:"Open Day recap",posts:6,out:5,reach:6900,eng:1.7});
 put(2026,"li",9,{theme:"Staff and alumni",posts:4});
+put(2026,"blog",3,{title:"Open Day recap blog",pub:"2026-03-12",visits:540,enq:4});
+put(2026,"pmax",3,{what:"PMax retargeting after Open Day",budget:1500});
+put(2026,"ug",3,{title:"How to choose a high school (2026)",kw:"choosing a high school",pub:"2026-03-24",visits:890,enq:6});
 put(2026,"ug",4,{title:"Boarding vs day (refresh)",kw:"boarding school",pub:"2026-04-08",visits:1810,enq:11});
 put(2026,"ug",10,{title:"Grade 8 subject choices",kw:"grade 8 subjects"});
 put(2026,"od1",3,{date:"2026-03-07",tfam:80,fam:84,apps:23,note:"Two sessions worked"},"client",NT);
@@ -390,7 +429,7 @@ put(2027,"gs",1,{what:"Start 6 weeks out",budget:7500,tleads:45});
 put(2027,"pmax",2,{what:"PMax alongside Search",budget:4000});
 put(2027,"od1",3,{date:"2027-03-06",tfam:90});
 
-let tab="plan", year=2026, cmp=new Set([2025]), show=new Set(groups.map(g=>g.id)), collapsed=new Set(), sel="2026|od3|8", tplSel="openday", addingRowIn=null, addingGroup=false;
+let dayAdd=null, view="month", viewMonth=3, tab="plan", year=2026, cmp=new Set([2025]), show=new Set(groups.map(g=>g.id)), collapsed=new Set(), sel="2026|od3|8", tplSel="openday", addingRowIn=null, addingGroup=false;
 
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const cv=c=>`--cc:var(--c-${c});--ccs:var(--c-${c}-s)`;
@@ -436,7 +475,41 @@ function lanes(g,r){
   return ys.map((y,i)=>`<tr class="lane${i?` hl h${Math.min(3,Math.abs(year-y))}`:""}${i===ys.length-1?" last":""}">${i===0?`<th class="lab-cell" scope="row" rowspan="${ys.length}">${label}</th>`:""}${hist?`<td class="yrcell">${y}</td>`:""}${MONTHS.map((_,k)=>`<td class="m">${i?hcell(y,g,r,k+1):cell(y,g,r,k+1)}</td>`).join("")}</tr>`).join("");
 }
 
+// ---- month view: items sit on the day their template's Date metric gives them ----
+const WD=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function dayOf(t,e,y,m){
+  if(e.day) return e.day;
+  for(const f of live(t)) if(f.type==="date"&&has(e.v[f.id])){const [yy,mm,dd]=String(e.v[f.id]).split("-").map(Number);if(yy===y&&mm===m)return dd;}
+  return null;
+}
+function chip(g,r,t,e,y,m){
+  const st=state(y,m,t,e), key=`${y}|${r.id}|${m}`, s=stars(t).filter(f=>has(e.v[f.id]));
+  const line=st==="done"&&s.length?s.map(f=>`${fmt(f,e.v[f.id])} ${f.short||""}`).join(" · "):planHead(t,e);
+  return `<button type="button" class="chip ${st}${sel===key?" sel":""}" style="${cv(g.colour)}" data-key="${key}" aria-label="${esc(`${r.name}, ${g.name}, ${st}`)}"><span class="dot"></span><span class="cn">${esc(r.name)}</span><span class="cl">${esc(line)}</span></button>`;
+}
+function addForm(d){
+  const opts=groups.filter(g=>show.has(g.id)).map(g=>`<optgroup label="${esc(g.name)}">${g.rows.map(r=>`<option value="${r.id}">${esc(r.name)}${get(year,r.id,viewMonth)?" (move here)":""}</option>`).join("")}</optgroup>`).join("");
+  return `<form class="day-form" data-dayform="${d}"><label class="sr" for="da-row">What's on ${d} ${MONTHS[viewMonth-1]}</label><select id="da-row">${opts}</select><div class="actions"><button type="submit" class="btn primary tiny">Plan it</button><button type="button" class="btn ghost tiny" data-daycancel>Cancel</button></div></form>`;
+}
+function renderMonth(){
+  const y=year, m=viewMonth, first=new Date(y,m-1,1), days=new Date(y,m,0).getDate(), lead=(first.getDay()+6)%7;
+  const byDay={}, anytime=[];
+  for(const g of groups.filter(g=>show.has(g.id))) for(const r of g.rows){
+    const t=tplOf(g,r), e=get(y,r.id,m); if(!e) continue;
+    const d=dayOf(t,e,y,m); (d?(byDay[d]=byDay[d]||[]):anytime).push(chip(g,r,t,e,y,m));
+  }
+  const cells=[]; for(let i=0;i<lead;i++)cells.push(`<div class="day out"></div>`);
+  for(let d=1;d<=days;d++){const today=y===NOW.y&&m===NOW.m&&d===new Date().getDate();cells.push(`<div class="day${today?" today":""}"><span class="dn">${d}</span>${(byDay[d]||[]).join("")}${dayAdd===d?addForm(d):`<button type="button" class="day-add" data-dayadd="${d}" aria-label="Plan something on ${d} ${MONTHS[m-1]}">+ Plan</button>`}</div>`);}
+  while(cells.length%7)cells.push(`<div class="day out"></div>`);
+  document.getElementById("grid").innerHTML=`<div class="month-wrap">
+    <div class="anytime"><span class="eyebrow">Anytime this month</span><div class="any-list">${anytime.length?anytime.join(""):'<span class="muted" style="font-size:.8rem">Everything this month has a date.</span>'}</div></div>
+    <div class="cal"><div class="wd">${WD.map(w=>`<span>${w}</span>`).join("")}</div><div class="days">${cells.join("")}</div></div>
+    <p class="muted" style="font-size:.78rem">Items land on the day from their template's Date metric (Open day: Date, Guide: Published on). Anything without one sits in "Anytime this month".</p></div>`;
+  const n=Object.values(byDay).flat().length;
+  document.getElementById("summary").innerHTML=`${n} on a date · ${anytime.length} anytime`;
+}
 function renderGrid(){
+  if(view==="month") return renderMonth();
   const hist=shown().length>0, span=13+(hist?1:0);
   let h=`<table class="yr"><colgroup><col class="lab">${hist?'<col class="yr">':""}${MONTHS.map(()=>"<col>").join("")}</colgroup><thead><tr><th class="lab-cell">Group</th>${hist?"<th></th>":""}${MONTHS.map((n,i)=>{const m=i+1;const cls=year===NOW.y&&m===NOW.m?"now":isPast(year,m)?"past":"";return `<th class="${cls}">${n}</th>`}).join("")}</tr></thead><tbody>`;
   for(const g of groups.filter(g=>show.has(g.id))){
@@ -481,13 +554,18 @@ function renderPanel(){
     if(has(was)) s+=` · ${+y-1}: ${esc(fmt(f,was))}`+(has(now)&&Number(was)?` <span class="${Number(now)>=Number(was)?"up":"down"}">${Number(now)>=Number(was)?"+":""}${Math.round((now-was)/was*100)}%</span>`:"");
     return `<li>${s}</li>`;}).join("");
   p.innerHTML=`<div style="display:grid;gap:4px"><span class="eyebrow">${MONTHS[m-1]} ${y}</span><h3 style="display:flex;gap:8px;align-items:center"><span class="swatch" style="${cv(g.colour)};margin:0"></span>${esc(r.name)}</h3><span class="muted" style="font-size:.8rem">${esc(g.name)} · ${esc(t.name)} template</span></div>
-  <div class="phase p-plan"><div class="phase-h"><h3>Plan</h3><span class="snap">${e?"Planned by Converted Click":"Not planned yet"}</span></div>${fields("plan").map(f=>input(f,v[f.id],f.retired)).join("")}</div>
+  <div class="phase p-plan"><div class="phase-h"><h3>Plan</h3><span class="snap">${e?"Planned by Converted Click":"Not planned yet"}</span></div><div class="field"><label for="entry-day">Day in ${MONTHS[m-1]} (optional)</label><input id="entry-day" type="number" min="1" max="31" value="${e?.day||""}" placeholder="No fixed day"></div>${fields("plan").map(f=>input(f,v[f.id],f.retired)).join("")}</div>
   <div class="phase"><div class="phase-h"><h3>Results</h3><span class="snap">${st==="done"?(e.by==="client"?`Added by ${esc(e.who)}`:"Added by Converted Click"):past?"Due now":`Opens after ${MONTHS[m-1]}`}</span></div>${fields("result").map(f=>input(f,v[f.id],f.retired||(!past&&!hasResults(t,e)))).join("")}</div>
   ${lines?`<div class="phase cmp-box"><h3>How it compares</h3><ul class="cmp">${lines}</ul></div>`:""}
   <div class="actions"><button type="button" class="btn primary" data-save>Save</button><button type="button" class="btn ghost" data-close>Close</button></div>`;
 }
 
 function renderYears(){
+  document.querySelectorAll("#viewSeg [data-view]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.view===view));
+  const mn=document.getElementById("monthNav"); mn.hidden=view!=="month";
+  document.getElementById("monthLabel").textContent=`${new Date(year,viewMonth-1,1).toLocaleDateString("en-ZA",{month:"long"})} ${year}`;
+  document.getElementById("picker").hidden=view==="month";
+  document.getElementById("years").hidden=view==="month";
   document.getElementById("years").innerHTML=[2025,2026,2027].map(y=>`<button type="button" data-year="${y}" aria-pressed="${y===year}">${y}</button>`).join("");
   const s=shown();
   document.getElementById("pickerSum").textContent=s.length?`Compare with ${s.join(", ")}`:"Compare with…";
@@ -538,19 +616,24 @@ document.addEventListener("click",ev=>{
   const q=s=>ev.target.closest(s); let t;
   if(t=q("[data-tab]")){tab=t.dataset.tab;return render();}
   if(t=q("[data-year]")){year=+t.dataset.year;sel=null;return render();}
+  if(t=q("[data-dayadd]")){dayAdd=+t.dataset.dayadd;renderGrid();document.getElementById("da-row")?.focus();return;}
+  if(q("[data-daycancel]")){dayAdd=null;return renderGrid();}
+  if(t=q("[data-view]")){view=t.dataset.view;return render();}
+  if(t=q("[data-mstep]")){viewMonth+=+t.dataset.mstep;if(viewMonth<1){viewMonth=12;year--;}if(viewMonth>12){viewMonth=1;year++;}sel=null;return render();}
   if(q("[data-showall]")){show=new Set(groups.map(g=>g.id));renderYears();return renderGrid();}
   if(t=q("[data-grp]")){const id=t.dataset.grp;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);return renderGrid();}
   if(t=q("[data-addrow]")){addingRowIn=t.dataset.addrow;renderGrid();document.getElementById(`nr-${addingRowIn}`).focus();return;}
   if(q("[data-cancelrow]")){addingRowIn=null;return renderGrid();}
   if(q("[data-addgroup]")){addingGroup=true;renderGrid();document.getElementById("ng-name").focus();return;}
   if(q("[data-cancelgroup]")){addingGroup=false;return renderGrid();}
-  if(t=q(".cell[data-key]")){sel=t.dataset.key;renderGrid();renderPanel();return;}
+  if(t=q(".cell[data-key],.chip[data-key]")){sel=t.dataset.key;renderGrid();renderPanel();return;}
   if(q("[data-close]")){sel=null;renderGrid();return renderPanel();}
   if(q("[data-save]")){
     const [y,rid,m]=sel.split("|"); const {g,r}=find(rid); const tp=tplOf(g,r); const prev=get(+y,rid,+m);
     const v={...(prev?.v||{})};
     for(const f of live(tp)){const el=document.getElementById(`fv-${f.id}`);if(!el||el.disabled)continue;const x=el.value.trim();if(x==="")delete v[f.id];else v[f.id]=["number","money","percent"].includes(f.type)?Number(x):x;}
-    if(Object.keys(v).length) put(+y,rid,+m,v,prev?.by,prev?.who);
+    const dv=Number(document.getElementById("entry-day")?.value)||null;
+    if(Object.keys(v).length||dv){ put(+y,rid,+m,v,prev?.by,prev?.who); D[`${y}|${rid}|${m}`].day=dv&&dv<=new Date(+y,+m,0).getDate()?dv:null; }
     renderGrid();renderPanel();return;
   }
   // template editor
@@ -577,6 +660,14 @@ document.addEventListener("change",ev=>{
 });
 document.addEventListener("submit",ev=>{
   ev.preventDefault();
+  if(ev.target.dataset.dayform){
+    const d=+ev.target.dataset.dayform, rid=document.getElementById("da-row").value, k=`${year}|${rid}|${viewMonth}`;
+    if(!D[k]) put(year,rid,viewMonth,{});
+    D[k].day=d;
+    const {g,r}=find(rid), df=live(tplOf(g,r)).find(f=>f.type==="date"&&f.phase==="plan");
+    if(df) D[k].v[df.id]=`${year}-${String(viewMonth).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    dayAdd=null; sel=k; renderGrid(); renderPanel(); return;
+  }
   if("groupform" in ev.target.dataset){
     const name=document.getElementById("ng-name").value.trim(); if(!name) return;
     const id="g"+Date.now();
