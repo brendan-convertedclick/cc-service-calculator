@@ -4153,6 +4153,274 @@ export type Database = {
         }
         Relationships: []
       }
+      results_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      results_template_fields: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          ordinal: number
+          phase: string
+          retired_at: string | null
+          short_label: string | null
+          star: boolean
+          target_field_id: string | null
+          template_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          ordinal?: number
+          phase: string
+          retired_at?: string | null
+          short_label?: string | null
+          star?: boolean
+          target_field_id?: string | null
+          template_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          ordinal?: number
+          phase?: string
+          retired_at?: string | null
+          short_label?: string | null
+          star?: boolean
+          target_field_id?: string | null
+          template_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_template_fields_target_field_id_fkey"
+            columns: ["target_field_id"]
+            isOneToOne: false
+            referencedRelation: "results_template_fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_template_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "results_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      results_groups: {
+        Row: {
+          client_id: string
+          colour: string
+          created_at: string
+          id: string
+          name: string
+          ordinal: number
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          colour: string
+          created_at?: string
+          id?: string
+          name: string
+          ordinal?: number
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          colour?: string
+          created_at?: string
+          id?: string
+          name?: string
+          ordinal?: number
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_groups_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_groups_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "results_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      results_rows: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          name: string
+          ordinal: number
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          name: string
+          ordinal?: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          name?: string
+          ordinal?: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_rows_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "results_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_rows_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "results_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      results_entries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          row_id: string
+          updated_at: string
+          updated_by: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month: number
+          row_id: string
+          updated_at?: string
+          updated_by?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month?: number
+          row_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_entries_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_entries_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "results_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      results_entry_values: {
+        Row: {
+          date_value: string | null
+          entry_id: string
+          field_id: string
+          num_value: number | null
+          text_value: string | null
+        }
+        Insert: {
+          date_value?: string | null
+          entry_id: string
+          field_id: string
+          num_value?: number | null
+          text_value?: string | null
+        }
+        Update: {
+          date_value?: string | null
+          entry_id?: string
+          field_id?: string
+          num_value?: number | null
+          text_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "results_entry_values_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "results_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_entry_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "results_template_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retainer_recurring_services: {
         Row: {
           cadence: string
