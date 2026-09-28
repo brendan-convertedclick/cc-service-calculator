@@ -128,7 +128,28 @@ export function EntryPanel({
     const trimmedDay = dayDraft.trim();
     const clampedDay = trimmedDay === "" ? null : Math.min(Math.max(1, Math.round(Number(trimmedDay))), daysInMonth(year, month));
     const storedDay = day ?? null;
-    const dayToSave = clampedDay === storedDay ? undefined : clampedDay;
+    let dayToSave = clampedDay === storedDay ? undefined : clampedDay;
+
+    // Keep Day and the plan phase's own Date metric in sync (review finding
+    // 2) rather than letting entryDay's "day column wins" rule silently
+    // strand a chip on the number the Day field last held. Day, explicitly
+    // touched here, wins and the date follows it; otherwise a Date edit that
+    // lands in this year+month sets Day; a Date edit that moves outside this
+    // month is left alone — day is not cleared just because the date moved.
+    const dateField = template.fields
+      .filter((f) => f.phase === "plan" && f.type === "date" && !f.retired_at)
+      .sort((a, b) => a.ordinal - b.ordinal)[0];
+    if (dateField) {
+      if (dayToSave !== undefined && dayToSave !== null) {
+        toSave[dateField.id] = `${year}-${String(month).padStart(2, "0")}-${String(dayToSave).padStart(2, "0")}`;
+      } else if (dayToSave === undefined && dateField.id in toSave) {
+        const rawDate = toSave[dateField.id];
+        if (hasValue(rawDate)) {
+          const [dy, dm, dd] = String(rawDate).split("-").map(Number);
+          if (dy === year && dm === month) dayToSave = dd;
+        }
+      }
+    }
 
     save.mutate(
       { clientId, rowId, year, month, template, values: toSave, day: dayToSave },

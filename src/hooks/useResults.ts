@@ -167,8 +167,14 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
   });
 }
 
+/** Returns the invalidation's promise (review finding 3) so every caller's
+ * `onSuccess: (_d, vars) => invalidateBoard(qc, vars.clientId)` — an implicit
+ * arrow return — hands that promise back to the mutation. React Query awaits
+ * `onSuccess`'s return before settling the mutation, so `mutate`'s own
+ * `onSuccess` (e.g. opening the panel, or a template re-seed) now runs after
+ * the refetch lands rather than racing it on the still-stale cache. */
 function invalidateBoard(qc: QueryClient, clientId: string) {
-  qc.invalidateQueries({ queryKey: RESULTS_BOARD_KEY(clientId) });
+  return qc.invalidateQueries({ queryKey: RESULTS_BOARD_KEY(clientId) });
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +404,18 @@ export function useSeedStandardGroups() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (clientId: string) => {
+      // Defensive (review finding 5): the UI only offers this button when the
+      // board query came back with zero groups, but that check and this
+      // mutation run against two different reads — refuse rather than lay a
+      // second standard set over one a concurrent call (or a stale button
+      // click) already created.
+      const { count: existingCount, error: existingErr } = await supabase
+        .from("results_groups")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId);
+      if (existingErr) throw new Error(errorMessage(existingErr));
+      if (existingCount) throw new Error("This client already has results groups.");
+
       const names = [
         ...new Set(STANDARD_GROUPS.flatMap((g) => [g.templateName, ...g.rows.map((r) => r.templateName).filter(Boolean)])),
       ] as string[];

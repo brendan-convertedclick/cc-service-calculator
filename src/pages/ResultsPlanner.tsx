@@ -30,9 +30,14 @@ export function ResultsPlanner() {
   const view = searchParams.get("view") === "month" ? "month" : "year";
   const urlMonth = Number(searchParams.get("m"));
   const urlYear = Number(searchParams.get("y"));
+  // Review finding 5: a malformed or out-of-range URL (m=3.5, y=abc, y=1)
+  // falls back to "now" rather than feeding a fractional or nonsense year/
+  // month into MONTH_NAMES indexing and the calendar-month math.
+  const validMonth = Number.isInteger(urlMonth) && urlMonth >= 1 && urlMonth <= 12;
+  const validYear = Number.isInteger(urlYear) && urlYear >= 2000 && urlYear <= 2100;
 
-  const [year, setYear] = useState(urlYear >= 1 ? urlYear : now.year);
-  const [viewMonth, setViewMonth] = useState(urlMonth >= 1 && urlMonth <= 12 ? urlMonth : now.month);
+  const [year, setYear] = useState(validYear ? urlYear : now.year);
+  const [viewMonth, setViewMonth] = useState(validMonth ? urlMonth : now.month);
   const [compareYears, setCompareYears] = useState<Set<number>>(new Set([now.year - 1]));
   const [visibleGroupIds, setVisibleGroupIds] = useState<Set<string> | null>(null); // null = all
   const [selected, setSelected] = useState<SelectedCell | null>(null);
@@ -84,7 +89,7 @@ export function ResultsPlanner() {
   );
 
   const { data: templates } = useResultTemplates();
-  const { data: board, isLoading } = useResultsBoard(clientId, boardYears);
+  const { data: board, isLoading, error: boardError } = useResultsBoard(clientId, boardYears);
   const seedStandard = useSeedStandardGroups();
 
   const templatesById = useMemo(() => new Map((templates ?? []).map((t) => [t.id, t])), [templates]);
@@ -179,6 +184,11 @@ export function ResultsPlanner() {
 
       {isLoading ? (
         <p className="text-body-medium text-m-on-surface-variant">Loading…</p>
+      ) : boardError ? (
+        <div className="grid gap-1 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-body-medium text-destructive">
+          <p className="font-semibold">Could not load results.</p>
+          <p>{errorMessage(boardError)}</p>
+        </div>
       ) : !board?.groups.length ? (
         <div className="grid gap-3 rounded-xl border border-m-outline-variant bg-m-surface-container-low p-8 text-center">
           <p className="text-body-large">No results groups yet for {client.name}.</p>

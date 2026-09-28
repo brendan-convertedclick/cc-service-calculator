@@ -6,7 +6,7 @@
 // opens an inline form to plant a row on that day.
 // See docs/superpowers/specs/2026-09-28-school-year-results-month-view.md.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn, errorMessage } from "@/lib/utils";
 import { monthGrid, WEEKDAY_LABELS } from "@/lib/calendar-month";
@@ -59,6 +59,25 @@ export function ResultsMonthView({
 }) {
   const [dayFormOpen, setDayFormOpen] = useState<number | null>(null);
   const planOnDay = usePlanOnDay();
+
+  // Focus management (review finding 4): remember the "+ Plan" button that
+  // opened the form so Cancel/success can hand focus back to it — the button
+  // itself unmounts while the form is open, so a stored DOM ref would go
+  // stale; track it by day number and refocus once that day's button remounts.
+  const planButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const refocusDayRef = useRef<number | null>(null);
+
+  function closeDayForm(day: number) {
+    refocusDayRef.current = day;
+    setDayFormOpen(null);
+  }
+
+  useEffect(() => {
+    if (dayFormOpen === null && refocusDayRef.current !== null) {
+      planButtonRefs.current.get(refocusDayRef.current)?.focus();
+      refocusDayRef.current = null;
+    }
+  }, [dayFormOpen]);
 
   function templateFor(groupId: string, rowTemplateId: string | null): ResultsTemplate | undefined {
     if (rowTemplateId) return templatesById.get(rowTemplateId);
@@ -153,7 +172,7 @@ export function ResultsMonthView({
       { clientId, rowId, year, month, day, template: picked.template, existingValues: picked.entry.values },
       {
         onSuccess: () => {
-          setDayFormOpen(null);
+          closeDayForm(day);
           onSelectCell({ rowId, year, month });
         },
         onError: (e) => toast.error(`Could not plan: ${errorMessage(e)}`),
@@ -202,15 +221,20 @@ export function ResultsMonthView({
                     {showForm ? (
                       <DayAddForm
                         board={board}
+                        year={year}
                         day={day.dayOfMonth}
                         month={month}
                         pending={planOnDay.isPending}
                         onSubmit={(rowId) => submitPlan(day.dayOfMonth, rowId)}
-                        onCancel={() => setDayFormOpen(null)}
+                        onCancel={() => closeDayForm(day.dayOfMonth)}
                       />
                     ) : (
                       <button
                         type="button"
+                        ref={(el) => {
+                          if (el) planButtonRefs.current.set(day.dayOfMonth, el);
+                          else planButtonRefs.current.delete(day.dayOfMonth);
+                        }}
                         onClick={() => setDayFormOpen(day.dayOfMonth)}
                         aria-label={`Plan something on ${day.dayOfMonth} ${MONTH_NAMES[month - 1]}`}
                         className={cn(
@@ -240,6 +264,7 @@ export function ResultsMonthView({
 
 function DayAddForm({
   board,
+  year,
   day,
   month,
   pending,
@@ -247,22 +272,31 @@ function DayAddForm({
   onCancel,
 }: {
   board: ResultsBoard;
+  year: number;
   day: number;
   month: number;
   pending: boolean;
   onSubmit: (rowId: string) => void;
   onCancel: () => void;
 }) {
+  // "(move here)" is scoped to this exact year+month — board also holds
+  // year-1 for the panel's last-year comparison, and a same-numbered month
+  // a year ago is not "already planned this month" (review finding 1).
   const rowsWithEntryThisMonth = new Set(
     Object.keys(board.entries)
       .filter((k) => {
         const [, y, m] = k.split("|");
-        return Number(m) === month && !!y;
+        return Number(y) === year && Number(m) === month;
       })
       .map((k) => k.split("|")[0]),
   );
   const firstRowId = board.groups.flatMap((g) => g.rows)[0]?.id ?? "";
   const [rowId, setRowId] = useState(firstRowId);
+
+  const selectTriggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    selectTriggerRef.current?.focus();
+  }, []);
 
   return (
     <form
@@ -270,13 +304,19 @@ function DayAddForm({
         e.preventDefault();
         if (rowId) onSubmit(rowId);
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
       className="grid gap-1.5 rounded-md border border-m-outline-variant bg-m-surface-container-low p-1.5"
     >
       <Label htmlFor={`day-add-row-${day}`} className="sr-only">
         {`What's on ${day} ${MONTH_NAMES[month - 1]}`}
       </Label>
       <Select value={rowId} onValueChange={setRowId}>
-        <SelectTrigger id={`day-add-row-${day}`} className="h-7 text-label-small">
+        <SelectTrigger ref={selectTriggerRef} id={`day-add-row-${day}`} className="h-7 text-label-small">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
