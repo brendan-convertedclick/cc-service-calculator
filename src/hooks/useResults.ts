@@ -93,6 +93,7 @@ export interface ResultsBoardEntry {
   entryId: string;
   values: EntryValues;
   updatedBy: string | null;
+  day: number | null;
 }
 
 export interface ResultsBoard {
@@ -132,7 +133,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
       const { data: entries, error: entryErr } = rowIds.length
         ? await supabase
             .from("results_entries")
-            .select("id, row_id, year, month, updated_by, values:results_entry_values(field_id, num_value, text_value, date_value)")
+            .select("id, row_id, year, month, updated_by, day, values:results_entry_values(field_id, num_value, text_value, date_value)")
             .in("row_id", rowIds)
             .in("year", sortedYears)
         : { data: [], error: null };
@@ -144,7 +145,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
         for (const v of e.values ?? []) {
           values[v.field_id] = v.num_value ?? v.text_value ?? v.date_value ?? null;
         }
-        entryMap[`${e.row_id}|${e.year}|${e.month}`] = { entryId: e.id, values, updatedBy: e.updated_by };
+        entryMap[`${e.row_id}|${e.year}|${e.month}`] = { entryId: e.id, values, updatedBy: e.updated_by, day: e.day };
       }
 
       return {
@@ -183,7 +184,12 @@ function invalidateBoard(qc: QueryClient, clientId: string) {
  * An entry left with nothing stored (every field cleared, or a save where
  * every field came back blank) is deleted rather than kept as an empty row —
  * an empty entry still reads as "planned" to `cellState`, so it would sit
- * forever. */
+ * forever. The one exception is `day` (month-view addendum rule 3): an entry
+ * with only a day and no values is a real planned item and must survive the
+ * same cleanup.
+ *
+ * `vars.day` is `undefined` to leave the stored day unchanged, `null` to
+ * clear it, or a number to set it. */
 export function useSaveEntry() {
   const qc = useQueryClient();
   const { currentUserId } = useAuth();
@@ -195,15 +201,18 @@ export function useSaveEntry() {
       month: number;
       template: ResultsTemplate;
       values: EntryValues;
+      day?: number | null;
     }) => {
       const { data: existing, error: selErr } = await supabase
         .from("results_entries")
-        .select("id")
+        .select("id, day")
         .eq("row_id", vars.rowId)
         .eq("year", vars.year)
         .eq("month", vars.month)
         .maybeSingle();
       if (selErr) throw new Error(errorMessage(selErr));
+
+      const effectiveDay = vars.day !== undefined ? vars.day : (existing?.day ?? null);
 
       const fieldsToTouch = vars.template.fields.filter((f) => f.id in vars.values);
       const toDelete: string[] = [];
@@ -229,16 +238,16 @@ export function useSaveEntry() {
         });
       }
 
-      // Nothing to store and no entry to clear — don't create an empty row.
-      if (!existing && toUpsert.length === 0) return;
+      // Nothing to store, no day to plant, and no entry to clear — don't
+      // create an empty row.
+      if (!existing && toUpsert.length === 0 && effectiveDay == null) return;
 
       let entryId: string;
       if (existing) {
         entryId = existing.id;
-        const { error } = await supabase
-          .from("results_entries")
-          .update({ updated_by: currentUserId })
-          .eq("id", entryId);
+        const update: { updated_by: string | null; day?: number | null } = { updated_by: currentUserId };
+        if (vars.day !== undefined) update.day = vars.day;
+        const { error } = await supabase.from("results_entries").update(update).eq("id", entryId);
         if (error) throw new Error(errorMessage(error));
       } else {
         const { data: created, error } = await supabase
@@ -249,6 +258,7 @@ export function useSaveEntry() {
             month: vars.month,
             created_by: currentUserId,
             updated_by: currentUserId,
+            day: vars.day ?? null,
           })
           .select("id")
           .single();
@@ -270,19 +280,65 @@ export function useSaveEntry() {
         if (error) throw new Error(errorMessage(error));
       }
 
-      // If nothing survives on the entry (everything just deleted, or a
-      // pre-existing entry that came in with no upserts), drop the row too.
-      const { count, error: cntErr } = await supabase
-        .from("results_entry_values")
-        .select("field_id", { count: "exact", head: true })
-        .eq("entry_id", entryId);
-      if (cntErr) throw new Error(errorMessage(cntErr));
-      if (!count) {
-        const { error } = await supabase.from("results_entries").delete().eq("id", entryId);
-        if (error) throw new Error(errorMessage(error));
+      // If nothing survives on the entry (no values and no day — everything
+      // just deleted, or a pre-existing entry that came in with no upserts),
+      // drop the row too. A day-only entry is a real planned item (rule 3)
+      // and must not be swept up here.
+      if (effectiveDay == null) {
+        const { count, error: cntErr } = await supabase
+          .from("results_entry_values")
+          .select("field_id", { count: "exact", head: true })
+          .eq("entry_id", entryId);
+        if (cntErr) throw new Error(errorMessage(cntErr));
+        if (!count) {
+          const { error } = await supabase.from("results_entries").delete().eq("id", entryId);
+          if (error) throw new Error(errorMessage(error));
+        }
       }
     },
     onSuccess: (_d, vars) => invalidateBoard(qc, vars.clientId),
+  });
+}
+
+/** Month view's "+ Plan" → pick a row → Plan it: sets the row's day for that
+ * month (creating the entry if none exists yet) and, if the template has a
+ * live plan-phase date field, fills it with that date too — so a chip planted
+ * via the calendar also shows up correctly if the plan phase's own date field
+ * is later checked. Built from year/month/day parts, never via `Date`, so it
+ * can't shift across a SAST midnight (CLAUDE.md). Thin wrapper over
+ * useSaveEntry — same changeset semantics, same board invalidation. */
+export function usePlanOnDay() {
+  const save = useSaveEntry();
+  return useMutation({
+    mutationFn: async (vars: {
+      clientId: string;
+      rowId: string;
+      year: number;
+      month: number;
+      day: number;
+      template: ResultsTemplate;
+      existingValues: EntryValues;
+    }) => {
+      const dateField = vars.template.fields
+        .filter((f) => f.phase === "plan" && f.type === "date" && !f.retired_at)
+        .sort((a, b) => a.ordinal - b.ordinal)[0];
+
+      const values: EntryValues = {};
+      if (dateField) {
+        const dateStr = `${vars.year}-${String(vars.month).padStart(2, "0")}-${String(vars.day).padStart(2, "0")}`;
+        if (vars.existingValues[dateField.id] !== dateStr) values[dateField.id] = dateStr;
+      }
+
+      await save.mutateAsync({
+        clientId: vars.clientId,
+        rowId: vars.rowId,
+        year: vars.year,
+        month: vars.month,
+        template: vars.template,
+        values,
+        day: vars.day,
+      });
+    },
   });
 }
 

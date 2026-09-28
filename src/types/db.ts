@@ -4331,6 +4331,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          day: number | null
           id: string
           month: number
           row_id: string
@@ -4341,6 +4342,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          day?: number | null
           id?: string
           month: number
           row_id: string
@@ -4351,6 +4353,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          day?: number | null
           id?: string
           month?: number
           row_id?: string

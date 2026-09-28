@@ -214,6 +214,28 @@ export const STANDARD_GROUPS: StandardGroup[] = [
   },
 ];
 
+/** Rule 2 of the month-view addendum: an entry's day is `day` if set, else the
+ * first live date-type field whose value falls in that year+month, else null
+ * (the item sits in the "Anytime this month" strip). Dates are parsed from
+ * their 'YYYY-MM-DD' parts directly — never via Date/toISOString (see
+ * formatValue above and CLAUDE.md). */
+export function entryDay(
+  template: ResultsTemplate,
+  entry: { day?: number | null; values: EntryValues },
+  year: number,
+  month: number,
+): number | null {
+  if (entry.day) return entry.day;
+  for (const field of liveFields(template)) {
+    if (field.type !== "date") continue;
+    const v = entry.values[field.id];
+    if (!hasValue(v)) continue;
+    const [y, m, d] = String(v).split("-").map(Number);
+    if (y === year && m === month) return d;
+  }
+  return null;
+}
+
 /** "Now", as {year, month} — the current calendar month, local time. */
 export function nowYM(): YearMonth {
   const [y, m] = todayISO().split("-").map(Number);

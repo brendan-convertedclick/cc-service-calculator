@@ -39,6 +39,12 @@ function seedDraft(template: ResultsTemplate, values: EntryValues | undefined): 
   return draft;
 }
 
+/** Days in a given year/month — local Date is fine here, this isn't a stored
+ * date, just the length of the month for the clamp. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
 export function EntryPanel({
   clientId,
   rowId,
@@ -48,6 +54,7 @@ export function EntryPanel({
   month,
   template,
   values,
+  day,
   lastYearValues,
   now,
   onClose,
@@ -60,16 +67,19 @@ export function EntryPanel({
   month: number;
   template: ResultsTemplate;
   values: EntryValues | undefined;
+  day?: number | null;
   lastYearValues: EntryValues | undefined;
   now: { year: number; month: number };
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<EntryValues>(() => seedDraft(template, values));
+  const [dayDraft, setDayDraft] = useState<string>(day ? String(day) : "");
   const save = useSaveEntry();
 
   useEffect(() => {
     setDraft(seedDraft(template, values));
-  }, [values, template, rowId, year, month]);
+    setDayDraft(day ? String(day) : "");
+  }, [values, template, rowId, year, month, day]);
 
   const open = resultsOpen(year, month, now);
   const resultsStarted = template.fields.some((f) => f.phase === "result" && hasValue((values ?? {})[f.id]));
@@ -114,8 +124,14 @@ export function EntryPanel({
       else if (field.type === "number" || field.type === "percent") toSave[field.id] = Number(raw);
       else toSave[field.id] = raw;
     }
+
+    const trimmedDay = dayDraft.trim();
+    const clampedDay = trimmedDay === "" ? null : Math.min(Math.max(1, Math.round(Number(trimmedDay))), daysInMonth(year, month));
+    const storedDay = day ?? null;
+    const dayToSave = clampedDay === storedDay ? undefined : clampedDay;
+
     save.mutate(
-      { clientId, rowId, year, month, template, values: toSave },
+      { clientId, rowId, year, month, template, values: toSave, day: dayToSave },
       {
         onSuccess: () => toast.success("Saved"),
         onError: (e) => toast.error(`Could not save: ${errorMessage(e)}`),
@@ -137,6 +153,22 @@ export function EntryPanel({
         </SheetHeader>
 
         <div className="grid gap-4">
+          <div className="grid gap-1">
+            <Label htmlFor="results-day" className="text-label-small uppercase tracking-wide text-m-on-surface-variant">
+              Day in {MONTH_NAMES[month - 1]} (optional)
+            </Label>
+            <Input
+              id="results-day"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={daysInMonth(year, month)}
+              value={dayDraft}
+              onChange={(e) => setDayDraft(e.target.value)}
+              className="w-24"
+            />
+          </div>
+
           <FieldGroup title="Plan" hint={values ? "Planned" : "Not planned yet"}>
             {fieldsFor("plan").map((f) => (
               <FieldInput key={f.id} field={f} value={draft[f.id]} disabled={!!f.retired_at} onChange={setField} />

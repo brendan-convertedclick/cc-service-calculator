@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cellState,
   compareLine,
+  entryDay,
   formatValue,
   hasValue,
   isPast,
@@ -191,5 +192,42 @@ describe("isPast", () => {
   it("is true for any earlier month, including a prior year", () => {
     expect(isPast(2026, 8, NOW)).toBe(true);
     expect(isPast(2025, 12, NOW)).toBe(true);
+  });
+});
+
+describe("entryDay", () => {
+  const EVENT: ResultsTemplate = {
+    id: "tpl-event",
+    name: "Open day",
+    fields: [
+      field({ id: "date", type: "date", phase: "plan", ordinal: 0 }),
+      field({ id: "date-old", type: "date", phase: "plan", ordinal: 1, retired_at: "2026-01-01" }),
+      field({ id: "families", type: "number", phase: "result", ordinal: 2 }),
+    ],
+  };
+
+  it("the day column wins over a date metric", () => {
+    const d = entryDay(EVENT, { day: 12, values: { date: "2026-09-07" } }, 2026, 9);
+    expect(d).toBe(12);
+  });
+
+  it("falls back to the first live date-type field in the same month", () => {
+    const d = entryDay(EVENT, { day: null, values: { date: "2026-09-07" } }, 2026, 9);
+    expect(d).toBe(7);
+  });
+
+  it("ignores a date metric that falls in a different month", () => {
+    const d = entryDay(EVENT, { day: null, values: { date: "2026-10-07" } }, 2026, 9);
+    expect(d).toBeNull();
+  });
+
+  it("ignores a retired date field", () => {
+    const d = entryDay(EVENT, { day: null, values: { "date-old": "2026-09-07" } }, 2026, 9);
+    expect(d).toBeNull();
+  });
+
+  it("is null when there is no day and no matching date metric", () => {
+    const d = entryDay(EVENT, { day: null, values: {} }, 2026, 9);
+    expect(d).toBeNull();
   });
 });
