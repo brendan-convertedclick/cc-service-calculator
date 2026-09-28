@@ -213,7 +213,10 @@ export function EntryPanel({
             </div>
           )}
 
-          <FieldGroup title="Plan" hint={values ? "Planned" : "Not planned yet"}>
+          <FieldGroup
+            title="Plan"
+            hint={values ? "Planned" : linkedTasks && linkedTasks.length > 0 ? "Planned from the pipeline" : "Not planned yet"}
+          >
             {fieldsFor("plan").map((f) => (
               <FieldInput key={f.id} field={f} value={draft[f.id]} disabled={!!f.retired_at} onChange={setField} />
             ))}

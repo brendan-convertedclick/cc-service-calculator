@@ -211,6 +211,14 @@ function invalidateBoard(qc: QueryClient, clientId: string) {
   return qc.invalidateQueries({ queryKey: RESULTS_BOARD_KEY(clientId) });
 }
 
+/** Same promise-returning shape as invalidateBoard, for the three mutations
+ * that can change which rows the "Show in Year results" picker offers
+ * (TaskResultsLink's useResultsPickerGroups) — a new group or row must show
+ * up there without a reload. */
+function invalidateBoardAndPicker(qc: QueryClient, clientId: string) {
+  return Promise.all([invalidateBoard(qc, clientId), qc.invalidateQueries({ queryKey: ["results-picker-groups", clientId] })]);
+}
+
 // ---------------------------------------------------------------------------
 // Saving a cell
 // ---------------------------------------------------------------------------
@@ -405,7 +413,7 @@ export function useAddGroup() {
       });
       if (error) throw new Error(errorMessage(error));
     },
-    onSuccess: (_d, vars) => invalidateBoard(qc, vars.clientId),
+    onSuccess: (_d, vars) => invalidateBoardAndPicker(qc, vars.clientId),
   });
 }
 
@@ -427,7 +435,7 @@ export function useAddRow() {
       });
       if (error) throw new Error(errorMessage(error));
     },
-    onSuccess: (_d, vars) => invalidateBoard(qc, vars.clientId),
+    onSuccess: (_d, vars) => invalidateBoardAndPicker(qc, vars.clientId),
   });
 }
 
@@ -485,7 +493,7 @@ export function useSeedStandardGroups() {
         if (rowErr) throw new Error(errorMessage(rowErr));
       }
     },
-    onSuccess: (_d, clientId) => invalidateBoard(qc, clientId),
+    onSuccess: (_d, clientId) => invalidateBoardAndPicker(qc, clientId),
   });
 }
 
@@ -584,10 +592,13 @@ export function useLinkTask() {
         );
       if (error) throw new Error(errorMessage(error));
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) });
-      return invalidateBoard(qc, vars.clientId);
-    },
+    // Both invalidations are awaited (Promise.all, not a fire-and-forget
+    // first call) so the mutation's own promise — and therefore a caller's
+    // `mutate(vars, { onSuccess })` — only resolves once useTaskLinks has
+    // actually refetched. TaskResultsLink's post-link/unlink focus move
+    // depends on that: it must not fire before the new `link` prop lands.
+    onSuccess: (_d, vars) =>
+      Promise.all([qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) }), invalidateBoard(qc, vars.clientId)]),
   });
 }
 
@@ -598,10 +609,8 @@ export function useUnlinkTask() {
       const { error } = await supabase.from("results_task_links").delete().eq("school_task_id", vars.taskId);
       if (error) throw new Error(errorMessage(error));
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) });
-      return invalidateBoard(qc, vars.clientId);
-    },
+    onSuccess: (_d, vars) =>
+      Promise.all([qc.invalidateQueries({ queryKey: TASK_LINKS_KEY(vars.yearId) }), invalidateBoard(qc, vars.clientId)]),
   });
 }
 

@@ -5,14 +5,18 @@
 // results rows, grouped. Linked: the row's name + Unlink. See
 // docs/superpowers/specs/2026-09-28-school-year-results-pipeline-link.md.
 //
-// TaskCard wraps the whole card in draggable + onClick (pick-up-to-move);
-// every event here stops propagation so the control never starts a drag or
-// toggles the card's pick-up state.
+// On TaskCard this renders as a SIBLING of the card's role="button" element,
+// never nested inside it (review finding: a link/button inside another
+// role="button" is invalid ARIA nesting and unreachable by a screen reader
+// operating the outer button) — TaskCard wraps drag/pick-up onto its own
+// element and this component owns its own interactive surface. Every event
+// here still stops propagation, since TaskCard's draggable div and its
+// onClick/onKeyDown listeners are further up the same DOM subtree either way.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Check, Link2, X } from "lucide-react";
+import { Check, Link2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -35,17 +39,50 @@ export function TaskResultsLink({
   link: TaskLink | undefined;
 }) {
   const [open, setOpen] = useState(false);
-  const { data: groups } = useResultsPickerGroups(open ? clientId : undefined);
+  const { data: groups, isPending: groupsPending, isError: groupsError } = useResultsPickerGroups(open ? clientId : undefined);
   const linkTask = useLinkTask();
   const unlinkTask = useUnlinkTask();
 
+  // Focus follow-through (review finding): once a link/unlink actually lands
+  // (the mutation's onSuccess resolves only after useTaskLinks has refetched
+  // — see useLinkTask/useUnlinkTask), the control this renders swaps branch
+  // entirely (Unlink button <-> the picker trigger). A mouse user sees the
+  // swap; a keyboard/screen-reader user needs focus carried to whichever
+  // control exists now, or it silently lands back on <body>.
+  const focusPendingRef = useRef(false);
+  const unlinkButtonRef = useRef<HTMLButtonElement>(null);
+  const triggerButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!focusPendingRef.current) return;
+    focusPendingRef.current = false;
+    if (link) unlinkButtonRef.current?.focus();
+    else triggerButtonRef.current?.focus();
+  }, [link]);
+
   function pick(rowId: string) {
     setOpen(false);
-    linkTask.mutate({ yearId, clientId, taskId, rowId }, { onError: (e) => toast.error(errorMessage(e)) });
+    linkTask.mutate(
+      { yearId, clientId, taskId, rowId },
+      {
+        onSuccess: () => {
+          focusPendingRef.current = true;
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
   }
 
   function unlink() {
-    unlinkTask.mutate({ yearId, clientId, taskId }, { onError: (e) => toast.error(errorMessage(e)) });
+    unlinkTask.mutate(
+      { yearId, clientId, taskId },
+      {
+        onSuccess: () => {
+          focusPendingRef.current = true;
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
   }
 
   if (link) {
@@ -60,6 +97,7 @@ export function TaskResultsLink({
         <Link2 className="h-3 w-3 flex-none" aria-hidden />
         <span className="min-w-0 flex-1 truncate">In Year results: {link.rowName}</span>
         <button
+          ref={unlinkButtonRef}
           type="button"
           onClick={unlink}
           disabled={unlinkTask.isPending}
@@ -76,12 +114,23 @@ export function TaskResultsLink({
     <div onClick={stop} onMouseDown={stop} onKeyDown={stop} draggable={false}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-label-small font-normal text-m-on-surface-variant">
+          <Button
+            ref={triggerButtonRef}
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-1.5 text-label-small font-normal text-m-on-surface-variant"
+          >
             <Link2 className="h-3 w-3" /> Show in Year results
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          {!groups || groups.length === 0 ? (
+          {groupsPending ? (
+            <p className="flex items-center gap-1.5 p-3 text-label-small text-m-on-surface-variant">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading rows…
+            </p>
+          ) : groupsError ? (
+            <p className="p-3 text-label-small text-destructive">Could not load Year results rows.</p>
+          ) : !groups || groups.length === 0 ? (
             <p className="p-3 text-label-small text-m-on-surface-variant">
               No Year results rows yet.{" "}
               <Link to={`/results/${clientId}`} className="text-m-primary hover:underline">

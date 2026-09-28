@@ -23,6 +23,13 @@ export const PIPELINE_YEAR_KEY = (yearId: string) => ["pipeline-year", yearId] a
 function invalidate(qc: QueryClient, yearId: string) {
   qc.invalidateQueries({ queryKey: PIPELINE_YEAR_KEY(yearId) });
   qc.invalidateQueries({ queryKey: PIPELINE_BOARD_KEY }); // hours/progress/comb on the card move too
+  // A move/close/reopen can change month_no, done state or due_date on a
+  // task that's linked into Year results (results_task_links, 0180) — the
+  // results board reads all of that live off school_tasks, so it's stale
+  // the moment a pipeline mutation lands. Prefix match (no years suffix)
+  // invalidates every client's board, since a pipeline write here has no
+  // client id in scope to scope it to.
+  qc.invalidateQueries({ queryKey: ["results-board"] });
 }
 
 export interface SchoolYearMonth {
