@@ -20,7 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { groupListsByWorkStream, type ClickUpListOption } from "@/lib/clickup-list-groups";
+import {
+  groupListsByWorkStream,
+  headingIsRedundant,
+  type ClickUpListOption,
+} from "@/lib/clickup-list-groups";
 
 export interface ClickUpListSelectProps {
   id: string;
@@ -77,7 +81,7 @@ export function ClickUpListSelect({
         <SelectContent>
           {groups.map((g) => (
             <SelectGroup key={g.label}>
-              <SelectLabel>{g.label}</SelectLabel>
+              {!headingIsRedundant(g) && <SelectLabel>{g.label}</SelectLabel>}
               {g.options.map((l) => (
                 <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
               ))}

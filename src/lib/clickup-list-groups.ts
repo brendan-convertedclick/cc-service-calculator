@@ -110,6 +110,19 @@ export function groupListsByWorkStream(lists: ClickUpListOption[]): ListGroup[] 
   return groups;
 }
 
+/**
+ * A heading that only repeats its one list's name ("Creative" over "Creative")
+ * reads as a duplicate entry, not a heading (Lisa, 2026-09-29). Such a group
+ * renders as its bare item; a heading over two lists, or over one differently
+ * named list, still earns its place.
+ */
+export function headingIsRedundant(group: ListGroup): boolean {
+  return (
+    group.options.length === 1 &&
+    group.options[0].name.trim().toLowerCase() === group.label.toLowerCase()
+  );
+}
+
 function byName(a: ClickUpListOption, b: ClickUpListOption) {
   return a.name.localeCompare(b.name);
 }

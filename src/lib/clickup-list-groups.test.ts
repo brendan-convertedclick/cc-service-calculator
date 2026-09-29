@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupListsByWorkStream, OTHER_GROUP } from "./clickup-list-groups";
+import { groupListsByWorkStream, headingIsRedundant, OTHER_GROUP } from "./clickup-list-groups";
 
 const l = (name: string, work_stream: string | null = null) => ({ id: name, name, work_stream });
 
@@ -88,5 +88,22 @@ describe("standing categories (the newer template)", () => {
       l("Meetings"),
     ]);
     expect(groups.map((g) => g.label)).toEqual(["Meetings", OTHER_GROUP]);
+  });
+});
+
+describe("headingIsRedundant", () => {
+  it("drops a heading that only repeats its single list's name", () => {
+    const [admin, creative, other] = groupListsByWorkStream([
+      l("Creative", "Creative"),
+      l("Admin", "Admin"),
+      l("Administration", "Admin"),
+      l("Campaign plan"),
+    ]);
+    expect(creative.label).toBe("Creative");
+    expect(headingIsRedundant(creative)).toBe(true);
+    // Two lists under one heading: the heading groups them, so it stays.
+    expect(headingIsRedundant(admin)).toBe(false);
+    // One list with a different name: the heading says something the name does not.
+    expect(headingIsRedundant(other)).toBe(false);
   });
 });
