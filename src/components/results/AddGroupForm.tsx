@@ -1,6 +1,6 @@
 // src/components/results/AddGroupForm.tsx
 //
-// Inline "+ Add group" row: name, colour (fixed six), template.
+// Inline "+ Add group" row: name, colour (fixed eight), template.
 
 import { useState } from "react";
 import { toast } from "sonner";

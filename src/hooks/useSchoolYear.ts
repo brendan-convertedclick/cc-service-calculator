@@ -45,7 +45,10 @@ export interface SchoolYearTask {
   id: string;
   month_no: number;
   home_month_no: number;
+  /** The title (0185 convention: the thing, then its state, 2 to 5 words). */
   label: string;
+  /** Why it matters and its finish line. Null when the title says it all. */
+  description: string | null;
   side: "us" | "school";
   state: "planned" | "scheduled" | "done";
   due_date: string | null;
@@ -58,6 +61,11 @@ export interface SchoolYearTask {
   service_id: string | null;
   ordinal: number;
   is_gate: boolean;
+  /** 0183: something the school receives (a guide, a page, a report), not internal work. */
+  is_deliverable: boolean;
+  /** 0184: the planner group and row this task belongs to, by name. Null when nobody has placed it. */
+  plan_group: string | null;
+  plan_row: string | null;
   moved_at: string | null;
   moved_by: string | null;
   movedByName: string | null;
@@ -105,8 +113,8 @@ export function useSchoolYear(yearId: string | undefined) {
       const { data: tasks, error: tasksErr } = await supabase
         .from("school_tasks")
         .select(
-          `id, month_no, home_month_no, label, side, state, due_date, est_hours,
-           department_id, assignee_id, source, service_id, ordinal, is_gate, moved_at, moved_by,
+          `id, month_no, home_month_no, label, description, side, state, due_date, est_hours,
+           department_id, assignee_id, source, service_id, ordinal, is_gate, is_deliverable, plan_group, plan_row, moved_at, moved_by,
            done_at, done_by, brief_id, client_approval_id,
            department:departments(name),
            assignee:team_members!school_tasks_assignee_id_fkey(full_name),
@@ -136,6 +144,7 @@ export function useSchoolYear(yearId: string | undefined) {
             month_no: t.month_no,
             home_month_no: t.home_month_no,
             label: t.label,
+            description: t.description,
             side: t.side as "us" | "school",
             state: t.state as "planned" | "scheduled" | "done",
             due_date: t.due_date,
@@ -148,6 +157,9 @@ export function useSchoolYear(yearId: string | undefined) {
             service_id: t.service_id,
             ordinal: t.ordinal,
             is_gate: t.is_gate,
+            is_deliverable: t.is_deliverable,
+            plan_group: t.plan_group,
+            plan_row: t.plan_row,
             moved_at: t.moved_at,
             moved_by: t.moved_by,
             movedByName: t.moved_by_member?.full_name ?? null,
@@ -256,6 +268,75 @@ export function useMoveTask() {
     // Always refetch on settle — the optimistic row is missing the
     // trigger-derived state/due_date the server actually landed on.
     onSettled: (_d, _e, vars) => invalidate(qc, vars.yearId),
+  });
+}
+
+/** Flips a task between deliverable and task (0183). Optimistic, like
+ *  useMoveTask, so the card's icon changes on the click rather than a round
+ *  trip later. */
+export function useSetTaskDeliverable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { yearId: string; taskId: string; isDeliverable: boolean }) => {
+      const { error } = await supabase
+        .from("school_tasks")
+        .update({ is_deliverable: vars.isDeliverable })
+        .eq("id", vars.taskId);
+      if (error) throw new Error(errorMessage(error));
+    },
+    onMutate: async ({ yearId, taskId, isDeliverable }) => {
+      await qc.cancelQueries({ queryKey: PIPELINE_YEAR_KEY(yearId) });
+      const previous = qc.getQueryData<SchoolYearDetail>(PIPELINE_YEAR_KEY(yearId));
+      if (previous) {
+        qc.setQueryData<SchoolYearDetail>(PIPELINE_YEAR_KEY(yearId), {
+          ...previous,
+          tasks: previous.tasks.map((t) => (t.id === taskId ? { ...t, is_deliverable: isDeliverable } : t)),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, { yearId }, ctx) => {
+      if (ctx?.previous) qc.setQueryData(PIPELINE_YEAR_KEY(yearId), ctx.previous);
+    },
+    onSettled: (_d, _e, vars) => invalidate(qc, vars.yearId),
+  });
+}
+
+export interface SchoolTaskEdit {
+  label: string;
+  description: string | null;
+  plan_group: string | null;
+  plan_row: string | null;
+  department_id: string | null;
+  assignee_id: string | null;
+  est_hours: number | null;
+}
+
+/** The card's settings dialog (0190). With applyToTemplate the title,
+ *  description, group, row and department also go to the template task and
+ *  every other school's copy, in one transaction on the server. */
+export function useUpdateSchoolTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { yearId: string; taskId: string; edit: SchoolTaskEdit; applyToTemplate: boolean }) => {
+      const { error } = await supabase.rpc("update_school_task", {
+        p_task_id: vars.taskId,
+        p_label: vars.edit.label,
+        p_description: vars.edit.description,
+        p_plan_group: vars.edit.plan_group,
+        p_plan_row: vars.edit.plan_row,
+        p_department_id: vars.edit.department_id,
+        p_assignee_id: vars.edit.assignee_id,
+        p_est_hours: vars.edit.est_hours,
+        p_apply_to_template: vars.applyToTemplate,
+      });
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: (_d, vars) => {
+      invalidate(qc, vars.yearId);
+      // A template change rewrote other schools' years too.
+      if (vars.applyToTemplate) qc.invalidateQueries({ queryKey: ["pipeline-year"] });
+    },
   });
 }
 

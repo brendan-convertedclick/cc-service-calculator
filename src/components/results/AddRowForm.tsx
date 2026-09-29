@@ -1,6 +1,6 @@
 // src/components/results/AddRowForm.tsx
 //
-// Inline "+ Add a row to <group>" form: name + optional template override.
+// Inline "+ Add a channel to <group>" form (a results row): name + optional template override.
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ export function AddRowForm({
       { clientId, groupId, name: name.trim(), templateId: templateId === GROUP_DEFAULT ? null : templateId },
       {
         onSuccess: onDone,
-        onError: (e) => toast.error(`Could not add row: ${errorMessage(e)}`),
+        onError: (e) => toast.error(`Could not add channel: ${errorMessage(e)}`),
       },
     );
   }
@@ -48,7 +48,7 @@ export function AddRowForm({
     <form onSubmit={submit} className="flex flex-wrap items-center gap-2 py-1 pl-8">
       <Input
         autoFocus
-        placeholder="Row name"
+        placeholder="Channel name"
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="h-8 w-48"

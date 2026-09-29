@@ -2743,37 +2743,73 @@ export type Database = {
           },
         ]
       }
+      pipeline_group_styles: {
+        Row: {
+          client_id: string
+          colour: string | null
+          icon: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          colour?: string | null
+          icon?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          colour?: string | null
+          icon?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pipeline_template_tasks: {
         Row: {
           created_at: string
           department_id: string | null
+          description: string | null
           est_hours: number | null
           id: string
+          is_deliverable: boolean
           is_gate: boolean
           label: string
           ordinal: number
+          plan_group: string | null
+          plan_row: string | null
           side: string
           theme_id: string
         }
         Insert: {
           created_at?: string
           department_id?: string | null
+          description?: string | null
           est_hours?: number | null
           id?: string
+          is_deliverable?: boolean
           is_gate?: boolean
           label: string
           ordinal?: number
+          plan_group?: string | null
+          plan_row?: string | null
           side: string
           theme_id: string
         }
         Update: {
           created_at?: string
           department_id?: string | null
+          description?: string | null
           est_hours?: number | null
           id?: string
+          is_deliverable?: boolean
           is_gate?: boolean
           label?: string
           ordinal?: number
+          plan_group?: string | null
+          plan_row?: string | null
           side?: string
           theme_id?: string
         }
@@ -4239,6 +4275,7 @@ export type Database = {
           client_id: string
           colour: string
           created_at: string
+          icon: string | null
           id: string
           name: string
           ordinal: number
@@ -4249,6 +4286,7 @@ export type Database = {
           client_id: string
           colour: string
           created_at?: string
+          icon?: string | null
           id?: string
           name: string
           ordinal?: number
@@ -4259,6 +4297,7 @@ export type Database = {
           client_id?: string
           colour?: string
           created_at?: string
+          icon?: string | null
           id?: string
           name?: string
           ordinal?: number
@@ -4757,18 +4796,22 @@ export type Database = {
           client_approval_id: string | null
           created_at: string
           department_id: string | null
+          description: string | null
           done_at: string | null
           done_by: string | null
           due_date: string | null
           est_hours: number | null
           home_month_no: number
           id: string
+          is_deliverable: boolean
           is_gate: boolean
           label: string
           month_no: number
           moved_at: string | null
           moved_by: string | null
           ordinal: number
+          plan_group: string | null
+          plan_row: string | null
           service_id: string | null
           side: string
           source: string
@@ -4781,18 +4824,22 @@ export type Database = {
           client_approval_id?: string | null
           created_at?: string
           department_id?: string | null
+          description?: string | null
           done_at?: string | null
           done_by?: string | null
           due_date?: string | null
           est_hours?: number | null
           home_month_no: number
           id?: string
+          is_deliverable?: boolean
           is_gate?: boolean
           label: string
           month_no: number
           moved_at?: string | null
           moved_by?: string | null
           ordinal?: number
+          plan_group?: string | null
+          plan_row?: string | null
           service_id?: string | null
           side: string
           source?: string
@@ -4805,18 +4852,22 @@ export type Database = {
           client_approval_id?: string | null
           created_at?: string
           department_id?: string | null
+          description?: string | null
           done_at?: string | null
           done_by?: string | null
           due_date?: string | null
           est_hours?: number | null
           home_month_no?: number
           id?: string
+          is_deliverable?: boolean
           is_gate?: boolean
           label?: string
           month_no?: number
           moved_at?: string | null
           moved_by?: string | null
           ordinal?: number
+          plan_group?: string | null
+          plan_row?: string | null
           service_id?: string | null
           side?: string
           source?: string
@@ -6905,6 +6956,20 @@ export type Database = {
       }
     }
     Functions: {
+      update_school_task: {
+        Args: {
+          p_apply_to_template?: boolean
+          p_assignee_id: string | null
+          p_department_id: string | null
+          p_description: string | null
+          p_est_hours: number | null
+          p_label: string
+          p_plan_group: string | null
+          p_plan_row: string | null
+          p_task_id: string
+        }
+        Returns: undefined
+      }
       close_school_year_month: {
         Args: { p_month_no: number; p_year_id: string }
         Returns: undefined

@@ -274,7 +274,7 @@ export function ResultsMonthView({
       </div>
 
       <p className="text-label-small text-m-on-surface-variant">
-        Items land on the day from the row's Day field, or their template's Date metric. Anything without one sits in
+        Items land on the day from the channel's Day field, or their template's Date metric. Anything without one sits in
         &ldquo;Anytime this month&rdquo;.
       </p>
     </div>

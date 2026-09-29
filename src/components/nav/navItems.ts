@@ -2,6 +2,7 @@ import {
   BadgeCheck,
   Stamp,
   BookOpen,
+  Briefcase,
   Bug,
   Building2,
   CalendarRange,
@@ -110,7 +111,14 @@ const settings: NavItem       = { to: "/settings",      label: "Settings",      
 const deliverySection: NavSection = {
   label: "Delivery",
   icon: Rocket,
-  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, clientSignoffs, pipeline, results, escalations],
+  items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, escalations],
+}
+// What the account owner runs with each school: the year's plan, its results
+// and what is waiting on the client.
+const accountOwnerSection: NavSection = {
+  label: "Account Owner",
+  icon: Briefcase,
+  items: [clientSignoffs, pipeline, results],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",
@@ -142,6 +150,7 @@ export const navEntries: NavEntry[] = [
   { kind: "item", item: compose },
   { kind: "item", item: productivity },
   { kind: "section", section: deliverySection },
+  { kind: "section", section: accountOwnerSection },
   { kind: "section", section: scaffoldSection },
   { kind: "item", item: pulse },
   { kind: "section", section: organizationSection },

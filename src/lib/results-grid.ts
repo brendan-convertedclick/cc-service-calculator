@@ -177,7 +177,7 @@ export function laneShade(year: number, compareYear: number): 1 | 2 | 3 {
   return Math.min(3, Math.max(1, Math.abs(year - compareYear))) as 1 | 2 | 3;
 }
 
-export const GROUP_COLOURS = ["violet", "teal", "amber", "rose", "blue", "green"] as const;
+export const GROUP_COLOURS = ["violet", "teal", "amber", "rose", "blue", "green", "sky", "fuchsia"] as const;
 export type GroupColour = (typeof GROUP_COLOURS)[number];
 
 export interface StandardRow {

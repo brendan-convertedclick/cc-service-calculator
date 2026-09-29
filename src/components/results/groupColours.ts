@@ -1,6 +1,6 @@
 // src/components/results/groupColours.ts
 //
-// The single sanctioned place for the six results-group colours (see
+// The single sanctioned place for the eight results-group colours (see
 // CLAUDE.md "Design tokens"). There is no M3 token per colour, so this maps
 // GROUP_COLOURS to plain Tailwind palette classes with dark: variants —
 // swatch/border for the pill and the group header, soft background for a
@@ -51,6 +51,20 @@ export const GROUP_COLOUR_CLASSES: Record<GroupColour, GroupColourClasses> = {
     border: "border-green-400 dark:border-green-500",
     bgSoft: "bg-green-100 dark:bg-green-950/50",
     text: "text-green-700 dark:text-green-300",
+  },
+  // 0192: seven and eight, so planner-only groups (Account owner, Running
+  // the account) can still take a colour no results group is using.
+  sky: {
+    swatch: "bg-sky-500 dark:bg-sky-400",
+    border: "border-sky-400 dark:border-sky-500",
+    bgSoft: "bg-sky-100 dark:bg-sky-950/50",
+    text: "text-sky-700 dark:text-sky-300",
+  },
+  fuchsia: {
+    swatch: "bg-fuchsia-500 dark:bg-fuchsia-400",
+    border: "border-fuchsia-400 dark:border-fuchsia-500",
+    bgSoft: "bg-fuchsia-100 dark:bg-fuchsia-950/50",
+    text: "text-fuchsia-700 dark:text-fuchsia-300",
   },
 };
 

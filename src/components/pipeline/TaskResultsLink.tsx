@@ -16,11 +16,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Check, Link2, Loader2, X } from "lucide-react";
+import { BarChart3, Check, Link2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { errorMessage } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLinkTask, useResultsPickerGroups, useUnlinkTask, type TaskLink } from "@/hooks/useResults";
 
 function stop(e: React.SyntheticEvent) {
@@ -32,11 +33,15 @@ export function TaskResultsLink({
   yearId,
   taskId,
   link,
+  compact = false,
 }: {
   clientId: string;
   yearId: string;
   taskId: string;
   link: TaskLink | undefined;
+  /** The planner card's icon form: one chart button, lit when linked, that
+   *  opens the same picker. Needs a TooltipProvider above it. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { data: groups, isPending: groupsPending, isError: groupsError } = useResultsPickerGroups(open ? clientId : undefined);
@@ -85,6 +90,85 @@ export function TaskResultsLink({
     );
   }
 
+  const picker = groupsPending ? (
+      <p className="flex items-center gap-1.5 p-3 text-label-small text-m-on-surface-variant">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading channels…
+      </p>
+    ) : groupsError ? (
+      <p className="p-3 text-label-small text-destructive">Could not load Year results rows.</p>
+    ) : !groups || groups.length === 0 ? (
+      <p className="p-3 text-label-small text-m-on-surface-variant">
+        No Year results channels yet.{" "}
+        <Link to={`/results/${clientId}`} className="text-m-primary hover:underline">
+          Set them up
+        </Link>
+        .
+      </p>
+    ) : (
+      <Command>
+        <CommandInput placeholder="Search channels…" />
+        <CommandList>
+          <CommandEmpty>No channels found.</CommandEmpty>
+          {groups.map((g) => (
+            <CommandGroup key={g.id} heading={g.name}>
+              {g.rows.map((r) => (
+                <CommandItem key={r.id} value={`${g.name} ${r.name}`} onSelect={() => pick(r.id)}>
+                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                  {r.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </Command>
+    );
+
+  if (compact) {
+    const tip = link ? `In Year results: ${link.groupName} · ${link.rowName}` : "Not in Year results. Click to add it.";
+    return (
+      <div onClick={stop} onMouseDown={stop} onKeyDown={stop} draggable={false} className="flex">
+        <Popover open={open} onOpenChange={setOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={tip}
+                  className={cn(
+                    "grid h-6 w-6 place-items-center rounded-md transition-colors motion-reduce:transition-none",
+                    "hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    link ? "text-m-primary" : "text-m-on-surface-variant/50 hover:text-m-on-surface",
+                  )}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{tip}</TooltipContent>
+          </Tooltip>
+          <PopoverContent className="w-64 p-0" align="start">
+            {link ? (
+              <div className="flex items-center gap-1 border-b border-m-outline-variant px-3 py-2 text-label-small">
+                <span className="min-w-0 flex-1 truncate">
+                  In Year results: <b className="font-semibold">{link.rowName}</b>
+                </span>
+                <button
+                  type="button"
+                  onClick={unlink}
+                  disabled={unlinkTask.isPending}
+                  className="flex-none rounded px-1.5 py-0.5 text-m-primary hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+            {picker}
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
   if (link) {
     return (
       <div
@@ -124,38 +208,7 @@ export function TaskResultsLink({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          {groupsPending ? (
-            <p className="flex items-center gap-1.5 p-3 text-label-small text-m-on-surface-variant">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading rows…
-            </p>
-          ) : groupsError ? (
-            <p className="p-3 text-label-small text-destructive">Could not load Year results rows.</p>
-          ) : !groups || groups.length === 0 ? (
-            <p className="p-3 text-label-small text-m-on-surface-variant">
-              No Year results rows yet.{" "}
-              <Link to={`/results/${clientId}`} className="text-m-primary hover:underline">
-                Set them up
-              </Link>
-              .
-            </p>
-          ) : (
-            <Command>
-              <CommandInput placeholder="Search rows…" />
-              <CommandList>
-                <CommandEmpty>No rows found.</CommandEmpty>
-                {groups.map((g) => (
-                  <CommandGroup key={g.id} heading={g.name}>
-                    {g.rows.map((r) => (
-                      <CommandItem key={r.id} value={`${g.name} ${r.name}`} onSelect={() => pick(r.id)}>
-                        <Check className="mr-2 h-4 w-4 opacity-0" />
-                        {r.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                ))}
-              </CommandList>
-            </Command>
-          )}
+          {picker}
         </PopoverContent>
       </Popover>
     </div>

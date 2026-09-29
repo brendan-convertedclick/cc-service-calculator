@@ -3,7 +3,7 @@
 // The single state machine behind BOTH input paths on the planner
 // (/pipeline/:yearId): HTML5 drag-and-drop and click-to-pick-then-click-a-
 // column. One instance lives on the planner page and is threaded down to
-// every TaskCard and PlannerColumn, so there is exactly one "what is
+// every TaskCard and PipelineGrid, so there is exactly one "what is
 // currently picked up" and exactly one aria-live announcer — two instances
 // would mean a dragged card and a clicked card could disagree about what is
 // in the air.

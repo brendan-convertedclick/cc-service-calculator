@@ -7,10 +7,14 @@
 
 import { Fragment, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn, toggleInSet } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { isPast as isPastMonth, laneShade, type ResultsTemplate } from "@/lib/results-grid";
 import type { ResultsBoard, ResultsBoardEntry } from "@/hooks/useResults";
 import { GROUP_COLOUR_CLASSES, LANE_SHADE_CLASSES } from "@/components/results/groupColours";
+import { CountPill, ExpandToggle, type CountItem } from "@/components/results/GridControls";
+import { GroupStylePicker } from "@/components/results/GroupStylePicker";
+import { useGridExpansion } from "@/hooks/useGridExpansion";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ResultCell, HistoryCell } from "@/components/results/ResultCell";
 import { AddGroupForm } from "@/components/results/AddGroupForm";
 import { AddRowForm } from "@/components/results/AddRowForm";
@@ -45,7 +49,15 @@ export function ResultsGrid({
   selected: SelectedCell | null;
   onSelectCell: (cell: SelectedCell) => void;
 }) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const x = useGridExpansion();
+
+  /** What one row holds in one month, for the count pill's hover list. */
+  function cellItems(rowId: string, rowName: string, y: number, m: number, withRow: boolean): CountItem[] {
+    const tasks = board.linkedTasks[`${rowId}|${y}|${m}`] ?? [];
+    const items: CountItem[] = tasks.map((t) => ({ id: t.taskId, title: t.label, side: t.side, detail: withRow ? rowName : undefined }));
+    if (entryFor(rowId, y, m)) items.unshift({ id: `${rowId}:entry`, title: withRow ? rowName : "Results entered", detail: withRow ? "Results entered" : undefined });
+    return items;
+  }
   const [addingRowIn, setAddingRowIn] = useState<string | null>(null);
   const [addingGroup, setAddingGroup] = useState(false);
 
@@ -62,17 +74,12 @@ export function ResultsGrid({
     return board.entries[`${rowId}|${y}|${m}`];
   }
 
-  /** Whether a row has anything at all for a month — an entry, or a linked
-   * pipeline task alone (0180: a linked task makes the cell at least planned). */
-  function hasContent(rowId: string, y: number, m: number): boolean {
-    return !!entryFor(rowId, y, m) || !!board.linkedTasks[`${rowId}|${y}|${m}`]?.length;
-  }
-
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="overflow-x-auto rounded-xl border border-m-outline-variant bg-m-surface">
       <table className="w-full min-w-[1180px] table-fixed border-separate border-spacing-0">
         <colgroup>
-          <col className="w-[220px]" />
+          <col className="w-[260px]" />
           {hasHistory && <col className="w-12" />}
           {MONTHS.map((m) => (
             <col key={m} />
@@ -80,8 +87,15 @@ export function ResultsGrid({
         </colgroup>
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface p-2.5 text-left text-label-small uppercase tracking-wide text-m-on-surface-variant">
-              Group
+            <th className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface p-2.5 text-left">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-label-small uppercase tracking-wide text-m-on-surface-variant">Group</span>
+                <ExpandToggle
+                  open={x.anyGroupOpen(board.groups.map((g) => g.id))}
+                  what="every group"
+                  onToggle={() => x.toggleAllGroups(board.groups.map((g) => g.id))}
+                />
+              </div>
             </th>
             {hasHistory && <th className="border-b border-m-outline-variant" />}
             {MONTHS.map((m) => {
@@ -104,10 +118,11 @@ export function ResultsGrid({
         </thead>
         <tbody>
           {board.groups.map((group) => {
-            const open = !collapsed.has(group.id);
+            const open = x.isGroupOpen(group.id);
+            const rowIds = group.rows.map((r) => r.id);
             const colour = GROUP_COLOUR_CLASSES[group.colour];
             const template = templatesById.get(group.templateId);
-            const counts = MONTHS.map((m) => group.rows.filter((r) => hasContent(r.id, year, m)).length);
+            const monthItems = MONTHS.map((m) => group.rows.flatMap((r) => cellItems(r.id, r.name, year, m, true)));
             const span = 1 + (hasHistory ? 1 : 0) + 12;
 
             return (
@@ -117,36 +132,42 @@ export function ResultsGrid({
                     scope="row"
                     className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface-container-low p-0 text-left"
                   >
+                    <div className="flex items-start">
+                    <button
+                      type="button"
+                      aria-label={open ? `Close ${group.name}` : `Open ${group.name}`}
+                      onClick={() => x.toggleGroup(group.id)}
+                      className="grid h-11 w-7 flex-none place-items-center pl-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <ChevronRight
+                        className={cn("h-3.5 w-3.5 text-m-on-surface-variant transition-transform motion-reduce:transition-none", open && "rotate-90")}
+                      />
+                    </button>
+                    <div className="flex-none py-2">
+                      <GroupStylePicker clientId={clientId} resultsGroupId={group.id} name={group.name} icon={group.icon} colour={group.colour} />
+                    </div>
                     <button
                       type="button"
                       aria-expanded={open}
-                      onClick={() => setCollapsed((prev) => toggleInSet(prev, group.id))}
-                      className="flex w-full items-start gap-2 px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => x.toggleGroup(group.id)}
+                      className="flex min-w-0 flex-1 items-start gap-2 py-2.5 pl-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <ChevronRight className={cn("mt-0.5 h-3.5 w-3.5 shrink-0 text-m-on-surface-variant transition-transform", open && "rotate-90")} />
-                      <span className={cn("mt-1 h-3 w-3 shrink-0 rounded-full", colour.swatch)} />
                       <span>
                         <span className="block text-label-large font-semibold">{group.name}</span>
                         <span className="block text-label-small text-m-on-surface-variant">
-                          {group.rows.length} row{group.rows.length === 1 ? "" : "s"} · {template?.name ?? ""} template
+                          {group.rows.length} channel{group.rows.length === 1 ? "" : "s"} · {template?.name ?? ""} template
                         </span>
                       </span>
                     </button>
+                    <div className="flex-none py-2 pr-1.5">
+                      <ExpandToggle open={x.rowsAllOpen(rowIds)} what={`every channel in ${group.name}`} onToggle={() => x.toggleGroupRows(group.id, rowIds)} />
+                    </div>
+                    </div>
                   </th>
                   {hasHistory && <td className="border-b border-m-outline-variant bg-m-surface-container-low" />}
-                  {counts.map((n, i) => (
+                  {monthItems.map((items, i) => (
                     <td key={i} className="border-b border-m-outline-variant bg-m-surface-container-low p-1.5 text-center align-middle">
-                      {n ? (
-                        <span
-                          className={cn(
-                            "inline-grid h-5 min-w-5 place-items-center rounded-full border px-1.5 text-label-small font-semibold",
-                            colour.border,
-                            colour.text,
-                          )}
-                        >
-                          {n}
-                        </span>
-                      ) : null}
+                      {items.length ? <CountPill items={items} tint={colour} /> : null}
                     </td>
                   ))}
                 </tr>
@@ -155,6 +176,48 @@ export function ResultsGrid({
                   group.rows.map((row) => {
                     const rowTemplate = templateFor(group.id, row.templateId);
                     if (!rowTemplate) return null;
+                    const rowOpen = x.isRowOpen(row.id);
+                    const rowHeader = (
+                      <button
+                        type="button"
+                        aria-expanded={rowOpen}
+                        onClick={() => x.toggleRow(row.id)}
+                        className="flex w-full items-start gap-1.5 rounded-sm py-2.5 pl-5 pr-2.5 text-left transition-colors motion-reduce:transition-none hover:bg-m-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronRight
+                          className={cn(
+                            "mt-1 h-3 w-3 shrink-0 text-m-on-surface-variant transition-transform motion-reduce:transition-none",
+                            rowOpen && "rotate-90",
+                          )}
+                        />
+                        <span>
+                          <span className="block text-body-medium">{row.name}</span>
+                          {row.templateId && (
+                            <span className="block text-label-small text-m-on-surface-variant">{rowTemplate.name} template</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                    // A closed row is one line: the current year's months as
+                    // count pills, the same as the group header.
+                    if (!rowOpen) {
+                      return (
+                        <tr key={`${row.id}-closed`}>
+                          <th scope="row" className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface p-0 text-left align-top font-normal">
+                            {rowHeader}
+                          </th>
+                          {hasHistory && <td className="border-b border-m-outline-variant" />}
+                          {MONTHS.map((m) => {
+                            const items = cellItems(row.id, row.name, year, m, false);
+                            return (
+                              <td key={m} className="border-b border-m-outline-variant p-1.5 text-center align-middle">
+                                {items.length ? <CountPill items={items} tint={colour} /> : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    }
                     return years.map((y, laneIdx) => {
                       const isCurrent = laneIdx === 0;
                       const shade = isCurrent ? null : laneShade(year, y);
@@ -164,12 +227,9 @@ export function ResultsGrid({
                             <th
                               scope="row"
                               rowSpan={years.length}
-                              className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface p-2.5 pl-8 text-left align-top"
+                              className="sticky left-0 z-10 border-b border-m-outline-variant bg-m-surface p-0 text-left align-top font-normal"
                             >
-                              <span className="block text-body-medium">{row.name}</span>
-                              {row.templateId && (
-                                <span className="block text-label-small text-m-on-surface-variant">{rowTemplate.name} template</span>
-                              )}
+                              {rowHeader}
                             </th>
                           )}
                           {hasHistory && (
@@ -234,7 +294,7 @@ export function ResultsGrid({
                           onClick={() => setAddingRowIn(group.id)}
                           className="pl-8 text-label-large font-medium text-m-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          + Add a row to {group.name}
+                          + Add a channel to {group.name}
                         </button>
                       )}
                     </td>
@@ -267,5 +327,6 @@ export function ResultsGrid({
         </tbody>
       </table>
     </div>
+    </TooltipProvider>
   );
 }

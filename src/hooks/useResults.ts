@@ -86,6 +86,8 @@ export interface ResultsBoardGroup {
   id: string;
   name: string;
   colour: GroupColour;
+  /** 0192: a GROUP_ICONS key, or null for the default by name. */
+  icon: string | null;
   templateId: string;
   ordinal: number;
   rows: ResultsBoardRow[];
@@ -121,7 +123,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
     queryFn: async (): Promise<ResultsBoard> => {
       const { data: groups, error: groupErr } = await supabase
         .from("results_groups")
-        .select("id, name, colour, template_id, ordinal")
+        .select("id, name, colour, icon, template_id, ordinal")
         .eq("client_id", clientId!)
         .order("ordinal");
       if (groupErr) throw new Error(errorMessage(groupErr));
@@ -187,6 +189,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
             id: g.id,
             name: g.name,
             colour: g.colour as GroupColour,
+            icon: g.icon,
             templateId: g.template_id,
             ordinal: g.ordinal,
             rows: (rows ?? [])
@@ -546,6 +549,7 @@ export interface ResultsPickerGroup {
   id: string;
   name: string;
   colour: GroupColour;
+  icon: string | null;
   rows: ResultsPickerRow[];
 }
 
@@ -556,7 +560,7 @@ export function useResultsPickerGroups(clientId: string | undefined) {
     queryFn: async (): Promise<ResultsPickerGroup[]> => {
       const { data: groups, error: groupErr } = await supabase
         .from("results_groups")
-        .select("id, name, colour, ordinal")
+        .select("id, name, colour, icon, ordinal")
         .eq("client_id", clientId!)
         .order("ordinal");
       if (groupErr) throw new Error(errorMessage(groupErr));
@@ -571,6 +575,7 @@ export function useResultsPickerGroups(clientId: string | undefined) {
         id: g.id,
         name: g.name,
         colour: g.colour as GroupColour,
+        icon: g.icon,
         rows: (rows ?? []).filter((r) => r.group_id === g.id).map((r) => ({ id: r.id, name: r.name })),
       }));
     },
@@ -766,6 +771,64 @@ export function useFieldValueCounts(templateId: string | undefined) {
         .in("field_id", fieldIds);
       if (valueErr) throw new Error(errorMessage(valueErr));
       return new Set((values ?? []).map((v) => v.field_id));
+    },
+  });
+}
+
+/** Planner-only groups' icon and colour (0192), keyed by group name. */
+export interface GroupStyle {
+  icon: string | null;
+  colour: GroupColour | null;
+}
+
+const GROUP_STYLES_KEY = (clientId: string) => ["pipeline-group-styles", clientId] as const;
+
+export function useGroupStyles(clientId: string | undefined) {
+  return useQuery({
+    queryKey: GROUP_STYLES_KEY(clientId ?? ""),
+    enabled: !!clientId,
+    queryFn: async (): Promise<Map<string, GroupStyle>> => {
+      const { data, error } = await supabase.from("pipeline_group_styles").select("name, icon, colour").eq("client_id", clientId!);
+      if (error) throw new Error(errorMessage(error));
+      return new Map((data ?? []).map((r) => [r.name, { icon: r.icon, colour: r.colour as GroupColour | null }]));
+    },
+  });
+}
+
+/** Sets a group's icon or colour. A results group stores it on its own row,
+ *  so Year results and the planner agree; a planner-only group has no row
+ *  and stores it in pipeline_group_styles by name. */
+export function useSetGroupStyle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      clientId: string;
+      resultsGroupId: string | null;
+      name: string;
+      patch: { icon?: string; colour?: GroupColour };
+    }) => {
+      if (vars.resultsGroupId) {
+        const { error } = await supabase.from("results_groups").update(vars.patch).eq("id", vars.resultsGroupId);
+        if (error) throw new Error(errorMessage(error));
+        return;
+      }
+      const current = qc.getQueryData<Map<string, GroupStyle>>(GROUP_STYLES_KEY(vars.clientId))?.get(vars.name);
+      const { error } = await supabase.from("pipeline_group_styles").upsert(
+        {
+          client_id: vars.clientId,
+          name: vars.name,
+          icon: vars.patch.icon ?? current?.icon ?? null,
+          colour: vars.patch.colour ?? current?.colour ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "client_id,name" },
+      );
+      if (error) throw new Error(errorMessage(error));
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: GROUP_STYLES_KEY(vars.clientId) });
+      qc.invalidateQueries({ queryKey: ["results-picker-groups", vars.clientId] });
+      qc.invalidateQueries({ queryKey: RESULTS_BOARD_KEY(vars.clientId) });
     },
   });
 }
