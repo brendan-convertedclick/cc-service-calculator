@@ -91,3 +91,17 @@ function IconTip({ label, onClick, children }: { label: string; onClick: () => v
     </Tooltip>
   );
 }
+
+/** A section band across the whole board (0194): Acquisition, Presence, Account. */
+export function SectionRow({ name, blurb, colSpan }: { name: string; blurb: string; colSpan: number }) {
+  return (
+    <tr>
+      <th colSpan={colSpan} scope="colgroup" className="border-b border-m-outline-variant bg-m-surface p-0 text-left font-normal">
+        <div className="sticky left-0 flex w-max items-baseline gap-2 px-3 pb-2 pt-5">
+          <span className="text-label-large font-semibold uppercase tracking-wider text-m-on-surface">{name}</span>
+          <span className="text-label-small text-m-on-surface-variant">{blurb}</span>
+        </div>
+      </th>
+    </tr>
+  );
+}

@@ -2855,9 +2855,11 @@ export type Database = {
           colour: string | null
           icon: string | null
           name: string
+          section: string | null
           updated_at: string
         }
         Insert: {
+          section?: string | null
           client_id: string
           colour?: string | null
           icon?: string | null
@@ -2869,6 +2871,7 @@ export type Database = {
           colour?: string | null
           icon?: string | null
           name?: string
+          section?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -4384,11 +4387,13 @@ export type Database = {
           icon: string | null
           id: string
           name: string
+          section: string | null
           ordinal: number
           template_id: string
           updated_at: string
         }
         Insert: {
+          section?: string | null
           client_id: string
           colour: string
           created_at?: string
@@ -4406,6 +4411,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name?: string
+          section?: string | null
           ordinal?: number
           template_id?: string
           updated_at?: string

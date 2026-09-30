@@ -88,6 +88,8 @@ export interface ResultsBoardGroup {
   colour: GroupColour;
   /** 0192: a GROUP_ICONS key, or null for the default by name. */
   icon: string | null;
+  /** 0194: acquisition / presence / account, or null for the default by name. */
+  section: string | null;
   templateId: string;
   ordinal: number;
   rows: ResultsBoardRow[];
@@ -123,7 +125,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
     queryFn: async (): Promise<ResultsBoard> => {
       const { data: groups, error: groupErr } = await supabase
         .from("results_groups")
-        .select("id, name, colour, icon, template_id, ordinal")
+        .select("id, name, colour, icon, section, template_id, ordinal")
         .eq("client_id", clientId!)
         .order("ordinal");
       if (groupErr) throw new Error(errorMessage(groupErr));
@@ -190,6 +192,7 @@ export function useResultsBoard(clientId: string | undefined, years: number[]) {
             name: g.name,
             colour: g.colour as GroupColour,
             icon: g.icon,
+            section: g.section,
             templateId: g.template_id,
             ordinal: g.ordinal,
             rows: (rows ?? [])
@@ -550,6 +553,7 @@ export interface ResultsPickerGroup {
   name: string;
   colour: GroupColour;
   icon: string | null;
+  section: string | null;
   rows: ResultsPickerRow[];
 }
 
@@ -560,7 +564,7 @@ export function useResultsPickerGroups(clientId: string | undefined) {
     queryFn: async (): Promise<ResultsPickerGroup[]> => {
       const { data: groups, error: groupErr } = await supabase
         .from("results_groups")
-        .select("id, name, colour, icon, ordinal")
+        .select("id, name, colour, icon, section, ordinal")
         .eq("client_id", clientId!)
         .order("ordinal");
       if (groupErr) throw new Error(errorMessage(groupErr));
@@ -576,6 +580,7 @@ export function useResultsPickerGroups(clientId: string | undefined) {
         name: g.name,
         colour: g.colour as GroupColour,
         icon: g.icon,
+        section: g.section,
         rows: (rows ?? []).filter((r) => r.group_id === g.id).map((r) => ({ id: r.id, name: r.name })),
       }));
     },
@@ -779,6 +784,7 @@ export function useFieldValueCounts(templateId: string | undefined) {
 export interface GroupStyle {
   icon: string | null;
   colour: GroupColour | null;
+  section: string | null;
 }
 
 const GROUP_STYLES_KEY = (clientId: string) => ["pipeline-group-styles", clientId] as const;
@@ -788,9 +794,9 @@ export function useGroupStyles(clientId: string | undefined) {
     queryKey: GROUP_STYLES_KEY(clientId ?? ""),
     enabled: !!clientId,
     queryFn: async (): Promise<Map<string, GroupStyle>> => {
-      const { data, error } = await supabase.from("pipeline_group_styles").select("name, icon, colour").eq("client_id", clientId!);
+      const { data, error } = await supabase.from("pipeline_group_styles").select("name, icon, colour, section").eq("client_id", clientId!);
       if (error) throw new Error(errorMessage(error));
-      return new Map((data ?? []).map((r) => [r.name, { icon: r.icon, colour: r.colour as GroupColour | null }]));
+      return new Map((data ?? []).map((r) => [r.name, { icon: r.icon, colour: r.colour as GroupColour | null, section: r.section }]));
     },
   });
 }
@@ -805,7 +811,7 @@ export function useSetGroupStyle() {
       clientId: string;
       resultsGroupId: string | null;
       name: string;
-      patch: { icon?: string; colour?: GroupColour };
+      patch: { icon?: string; colour?: GroupColour; section?: string };
     }) => {
       if (vars.resultsGroupId) {
         const { error } = await supabase.from("results_groups").update(vars.patch).eq("id", vars.resultsGroupId);
@@ -819,6 +825,7 @@ export function useSetGroupStyle() {
           name: vars.name,
           icon: vars.patch.icon ?? current?.icon ?? null,
           colour: vars.patch.colour ?? current?.colour ?? null,
+          section: vars.patch.section ?? current?.section ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "client_id,name" },

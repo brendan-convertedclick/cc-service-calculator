@@ -13,12 +13,13 @@
 
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
-import { Check, ChevronRight, ChevronsUpDown, Lock, Plus } from "lucide-react";
+import { Check, ChevronRight, ChevronsUpDown, Lock, Plus, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { CountPill, ExpandToggle } from "@/components/results/GridControls";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CountPill, ExpandToggle, SectionRow } from "@/components/results/GridControls";
+import { SECTIONS, SECTION_LABELS, sectionFor, type Section } from "@/components/results/groupSections";
 import { useGridExpansion } from "@/hooks/useGridExpansion";
 import { cn, errorMessage, formatHours } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
@@ -48,6 +49,8 @@ interface GridGroup {
   icon: string | null;
   /** The results group behind it, where its style is saved; null for a planner-only group. */
   resultsGroupId: string | null;
+  /** Null only for "Not placed yet", which sits after every section. */
+  section: Section | null;
   rows: GridRow[];
 }
 
@@ -77,6 +80,7 @@ function buildGroups(
     colour: g.colour,
     icon: g.icon,
     resultsGroupId: g.id,
+    section: sectionFor(g.section, g.name),
     rows: g.rows.map((r) => ({ id: r.id, name: r.name, tasks: [] })),
   }));
   const rowById = new Map(out.flatMap((g) => g.rows.map((r) => [r.id, r] as const)));
@@ -84,7 +88,7 @@ function buildGroups(
   function groupNamed(name: string): GridGroup {
     const found = out.find((g) => g.name.toLowerCase() === name.toLowerCase());
     if (found) return found;
-    const made: GridGroup = { id: `plan:${name}`, name, tint: null, colour: null, icon: null, resultsGroupId: null, rows: [] };
+    const made: GridGroup = { id: `plan:${name}`, name, tint: null, colour: null, icon: null, resultsGroupId: null, section: sectionFor(null, name), rows: [] };
     out.push(made);
     return made;
   }
@@ -125,9 +129,12 @@ function buildGroups(
     const style = styles.get(g.name);
     g.colour = style?.colour ?? spare[next++] ?? "violet";
     g.icon = style?.icon ?? null;
+    g.section = sectionFor(style?.section, g.name);
     g.tint = GROUP_COLOUR_CLASSES[g.colour];
   }
   out.push(...planned);
+  // Acquisition, then presence, then account; each section keeps its own order.
+  out.sort((a, b) => SECTIONS.indexOf(a.section ?? "account") - SECTIONS.indexOf(b.section ?? "account"));
 
   if (unplaced.length) {
     const byDept = new Map<string, SchoolYearTask[]>();
@@ -148,6 +155,7 @@ function buildGroups(
       colour: null,
       icon: null,
       resultsGroupId: null,
+      section: null,
       rows: names.map((n) => ({ id: `${UNPLACED}:${n}`, name: n, tasks: byDept.get(n)! })),
     });
   }
@@ -176,6 +184,17 @@ export function PipelineGrid({
   move: TaskMoveApi;
 }) {
   const x = useGridExpansion();
+  // Work that repeats nearly every month (posts, the search pass, the report)
+  // folds into one "monthly" chip per cell unless asked for, so the cards
+  // that change month to month are the ones you see.
+  const [showRoutine, setShowRoutine] = useState(false);
+  const routineLabels = new Set(
+    Object.entries(
+      tasks.reduce<Record<string, Set<number>>>((acc, t) => ((acc[t.label] ??= new Set()).add(t.month_no), acc), {}),
+    )
+      .filter(([, ms]) => ms.size >= 10)
+      .map(([label]) => label),
+  );
   const { data: groupStyles } = useGroupStyles(clientId);
   const sortedMonths = [...months].sort((a, b) => a.month_no - b.month_no);
   const groups = buildGroups(
@@ -222,11 +241,30 @@ export function PipelineGrid({
               <th className="sticky left-0 top-0 z-30 border-b border-m-outline-variant bg-m-surface p-2.5 text-left align-bottom">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-label-small uppercase tracking-wide text-m-on-surface-variant">Group</span>
-                  <ExpandToggle
-                    open={x.anyGroupOpen(groups.map((g) => g.id))}
-                    what="every group"
-                    onToggle={() => x.toggleAllGroups(groups.map((g) => g.id))}
-                  />
+                  <div className="flex items-center gap-0.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-pressed={showRoutine}
+                          aria-label={showRoutine ? "Fold monthly routine tasks" : "Show monthly routine tasks"}
+                          onClick={() => setShowRoutine((v) => !v)}
+                          className={cn(
+                            "grid h-6 w-6 place-items-center rounded-md transition-colors motion-reduce:transition-none hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            showRoutine ? "bg-m-secondary-container text-m-on-secondary-container" : "text-m-on-surface-variant",
+                          )}
+                        >
+                          <Repeat className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{showRoutine ? "Fold monthly routine tasks" : "Show monthly routine tasks"}</TooltipContent>
+                    </Tooltip>
+                    <ExpandToggle
+                      open={x.anyGroupOpen(groups.map((g) => g.id))}
+                      what="every group"
+                      onToggle={() => x.toggleAllGroups(groups.map((g) => g.id))}
+                    />
+                  </div>
                 </div>
               </th>
               {sortedMonths.map((m) => (
@@ -244,12 +282,20 @@ export function PipelineGrid({
             </tr>
           </thead>
           <tbody>
-            {groups.map((group) => {
+            {groups.map((group, gi) => {
               const open = x.isGroupOpen(group.id);
+              const newSection = group.section && group.section !== groups[gi - 1]?.section;
               const rowIds = group.rows.filter((r) => r.tasks.length > 0).map((r) => r.id);
               const taskCount = group.rows.reduce((n, r) => n + r.tasks.length, 0);
               return (
                 <Fragment key={group.id}>
+                  {newSection ? (
+                    <SectionRow
+                      name={SECTION_LABELS[group.section!].name}
+                      blurb={SECTION_LABELS[group.section!].blurb}
+                      colSpan={sortedMonths.length + 1}
+                    />
+                  ) : null}
                   <tr>
                     <th
                       scope="row"
@@ -276,6 +322,7 @@ export function PipelineGrid({
                             name={group.name}
                             icon={group.icon}
                             colour={group.colour}
+                            section={group.section}
                           />
                         </div>
                         <button
@@ -362,6 +409,8 @@ export function PipelineGrid({
                           {sortedMonths.map((m) => {
                             const here = row.tasks.filter((t) => t.month_no === m.month_no);
                             const closed = m.closed_at !== null;
+                            const routine = showRoutine ? [] : here.filter((t) => routineLabels.has(t.label));
+                            const cards = showRoutine ? here : here.filter((t) => !routineLabels.has(t.label));
                             return (
                               <td
                                 key={m.month_no}
@@ -381,7 +430,7 @@ export function PipelineGrid({
                                   ) : null
                                 ) : here.length ? (
                                   <div className="flex flex-col gap-1.5">
-                                    {here.map((t) => (
+                                    {cards.map((t) => (
                                       <TaskCard
                                         key={t.id}
                                         task={t}
@@ -395,6 +444,9 @@ export function PipelineGrid({
                                         placements={placements}
                                       />
                                     ))}
+                                    {routine.length ? (
+                                      <RoutineChip tint={group.tint} tasks={routine} />
+                                    ) : null}
                                   </div>
                                 ) : null}
                               </td>
@@ -410,6 +462,35 @@ export function PipelineGrid({
         </table>
       </div>
     </TooltipProvider>
+  );
+}
+
+/** The folded monthly routine in one cell: a quiet chip, the tasks on hover. */
+function RoutineChip({ tasks, tint }: { tasks: SchoolYearTask[]; tint: GroupColourClasses | null }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${tasks.length} monthly: ${tasks.map((t) => t.label).join(", ")}`}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border border-dashed px-2 py-1 text-left text-label-small text-m-on-surface-variant",
+            "transition-colors motion-reduce:transition-none hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            tint ? tint.border : "border-m-outline-variant",
+          )}
+        >
+          <Repeat className="h-3 w-3 flex-none" aria-hidden />
+          {tasks.length} monthly
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-64">
+        <ul className="flex flex-col gap-1">
+          {tasks.map((t) => (
+            <li key={t.id}>{t.label}</li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

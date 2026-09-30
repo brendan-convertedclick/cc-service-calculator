@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { GROUP_COLOUR_CLASSES } from "@/components/results/groupColours";
 import { GROUP_ICONS, groupIcon } from "@/components/results/groupIcons";
 import { useSetGroupStyle } from "@/hooks/useResults";
+import { SECTIONS, SECTION_LABELS, type Section } from "@/components/results/groupSections";
 
 export function GroupStylePicker({
   clientId,
@@ -22,6 +23,7 @@ export function GroupStylePicker({
   name,
   icon,
   colour,
+  section = null,
 }: {
   clientId: string;
   /** The results group to write to; null for a planner-only group. */
@@ -30,13 +32,15 @@ export function GroupStylePicker({
   icon: string | null;
   /** Null only for "Not placed yet", which is not stylable. */
   colour: GroupColour | null;
+  /** Which section the group sits under (0194). */
+  section?: Section | null;
 }) {
   const [open, setOpen] = useState(false);
   const setStyle = useSetGroupStyle();
   const Icon = groupIcon(icon, name);
   const tint = colour ? GROUP_COLOUR_CLASSES[colour] : null;
 
-  function save(patch: { icon?: string; colour?: GroupColour }) {
+  function save(patch: { icon?: string; colour?: GroupColour; section?: Section }) {
     setStyle.mutate({ clientId, resultsGroupId, name, patch }, { onError: (e) => toast.error(errorMessage(e)) });
   }
 
@@ -55,14 +59,14 @@ export function GroupStylePicker({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label={`Change the icon and colour of ${name}`}
+              aria-label={`Change the icon, colour and section of ${name}`}
               className="rounded-lg transition-colors motion-reduce:transition-none hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {badge}
             </button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Change icon and colour</TooltipContent>
+        <TooltipContent>Change icon, colour and section</TooltipContent>
       </Tooltip>
       <PopoverContent className="w-64 p-3" align="start">
         <p className="mb-2 text-label-small uppercase tracking-wide text-m-on-surface-variant">Icon</p>
@@ -105,6 +109,24 @@ export function GroupStylePicker({
                 c === colour ? "border-m-on-surface" : "border-transparent",
               )}
             />
+          ))}
+        </div>
+        <p className="mb-2 mt-3 text-label-small uppercase tracking-wide text-m-on-surface-variant">Section</p>
+        <div className="grid gap-1">
+          {SECTIONS.map((sec) => (
+            <button
+              key={sec}
+              type="button"
+              aria-pressed={sec === section}
+              onClick={() => save({ section: sec })}
+              className={cn(
+                "rounded-md px-2 py-1 text-left text-label-medium transition-colors motion-reduce:transition-none",
+                "hover:bg-m-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                sec === section && "bg-m-secondary-container font-semibold text-m-on-secondary-container",
+              )}
+            >
+              {SECTION_LABELS[sec].name}
+            </button>
           ))}
         </div>
       </PopoverContent>

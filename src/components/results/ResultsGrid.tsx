@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { isPast as isPastMonth, laneShade, type ResultsTemplate } from "@/lib/results-grid";
 import type { ResultsBoard, ResultsBoardEntry } from "@/hooks/useResults";
 import { GROUP_COLOUR_CLASSES, LANE_SHADE_CLASSES } from "@/components/results/groupColours";
-import { CountPill, ExpandToggle, type CountItem } from "@/components/results/GridControls";
+import { CountPill, ExpandToggle, SectionRow, type CountItem } from "@/components/results/GridControls";
+import { SECTIONS, SECTION_LABELS, sectionFor } from "@/components/results/groupSections";
 import { GroupStylePicker } from "@/components/results/GroupStylePicker";
 import { useGridExpansion } from "@/hooks/useGridExpansion";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -50,6 +51,10 @@ export function ResultsGrid({
   onSelectCell: (cell: SelectedCell) => void;
 }) {
   const x = useGridExpansion();
+  // Acquisition, then presence, then account (0194); each keeps its own order.
+  const sortedGroups = [...board.groups].sort(
+    (a, b) => SECTIONS.indexOf(sectionFor(a.section, a.name)) - SECTIONS.indexOf(sectionFor(b.section, b.name)),
+  );
 
   /** What one row holds in one month, for the count pill's hover list. */
   function cellItems(rowId: string, rowName: string, y: number, m: number, withRow: boolean): CountItem[] {
@@ -117,7 +122,9 @@ export function ResultsGrid({
           </tr>
         </thead>
         <tbody>
-          {board.groups.map((group) => {
+          {sortedGroups.map((group, gi) => {
+            const section = sectionFor(group.section, group.name);
+            const newSection = section !== (gi > 0 ? sectionFor(sortedGroups[gi - 1].section, sortedGroups[gi - 1].name) : null);
             const open = x.isGroupOpen(group.id);
             const rowIds = group.rows.map((r) => r.id);
             const colour = GROUP_COLOUR_CLASSES[group.colour];
@@ -127,6 +134,9 @@ export function ResultsGrid({
 
             return (
               <Fragment key={group.id}>
+                {newSection ? (
+                  <SectionRow name={SECTION_LABELS[section].name} blurb={SECTION_LABELS[section].blurb} colSpan={1 + (hasHistory ? 1 : 0) + 12} />
+                ) : null}
                 <tr>
                   <th
                     scope="row"
@@ -144,7 +154,14 @@ export function ResultsGrid({
                       />
                     </button>
                     <div className="flex-none py-2">
-                      <GroupStylePicker clientId={clientId} resultsGroupId={group.id} name={group.name} icon={group.icon} colour={group.colour} />
+                      <GroupStylePicker
+                        clientId={clientId}
+                        resultsGroupId={group.id}
+                        name={group.name}
+                        icon={group.icon}
+                        colour={group.colour}
+                        section={section}
+                      />
                     </div>
                     <button
                       type="button"
