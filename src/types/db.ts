@@ -1712,6 +1712,112 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_moment_asks: {
+        Row: {
+          asked_at: string
+          asked_by: string | null
+          moment_id: string
+          occurs_on: string
+          stage: string
+        }
+        Insert: {
+          asked_at?: string
+          asked_by?: string | null
+          moment_id: string
+          occurs_on: string
+          stage?: string
+        }
+        Update: {
+          asked_at?: string
+          asked_by?: string | null
+          moment_id?: string
+          occurs_on?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_moment_asks_moment_id_fkey"
+            columns: ["moment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_moments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_moment_asks_asked_by_fkey"
+            columns: ["asked_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_moments: {
+        Row: {
+          ask_about: string | null
+          client_id: string
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          notes: string | null
+          on_date: string
+          repeats_yearly: boolean
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          ask_about?: string | null
+          client_id: string
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          notes?: string | null
+          on_date: string
+          repeats_yearly?: boolean
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ask_about?: string | null
+          client_id?: string
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          on_date?: string
+          repeats_yearly?: boolean
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_moments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_moments_contact_fk"
+            columns: ["contact_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id", "client_id"]
+          },
+          {
+            foreignKeyName: "contact_moments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           client_id: string

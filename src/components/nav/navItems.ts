@@ -5,6 +5,7 @@ import {
   Briefcase,
   Bug,
   Building2,
+  CalendarHeart,
   CalendarRange,
   ClipboardList,
   Clock3,
@@ -93,6 +94,7 @@ const invoicePreview: NavItem = { to: "/scaffold/invoice-preview", label: "Invoi
 
 const approvals: NavItem      = { to: "/approvals",     label: "Approvals",     icon: BadgeCheck,        end: false }
 const clientSignoffs: NavItem = { to: "/client-signoffs", label: "Client sign-offs", icon: Stamp,        end: false }
+const moments: NavItem        = { to: "/moments",       label: "Moments",       icon: CalendarHeart,     end: false }
 const escalations: NavItem    = { to: "/escalations",   label: "Escalations",   icon: ShieldAlert,       end: false, roles: ["owner"] }
 
 const clients: NavItem        = { to: "/clients",       label: "Clients",       icon: Building2,         end: false }
@@ -113,12 +115,13 @@ const deliverySection: NavSection = {
   icon: Rocket,
   items: [services, systems, briefs, projects, sow, retainers, clientTime, approvals, escalations],
 }
-// What the account owner runs with each school: the year's plan, its results
-// and what is waiting on the client.
+// What the account owner runs with each school: the year's plan, its results,
+// what is waiting on the client, and the people's birthdays and big days
+// worth asking about (Moments, 0193).
 const accountOwnerSection: NavSection = {
   label: "Account Owner",
   icon: Briefcase,
-  items: [clientSignoffs, pipeline, results],
+  items: [clientSignoffs, pipeline, results, moments],
 }
 const scaffoldSection: NavSection = {
   label: "Scaffold",

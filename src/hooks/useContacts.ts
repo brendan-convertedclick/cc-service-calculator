@@ -62,9 +62,11 @@ export function useAddContact(clientId: string | undefined) {
       // only thing that can check it: sending to it.
       if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) throw new Error("That does not look like an email address.");
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("contacts")
-        .insert({ client_id: clientId, email, full_name: fullName, role: input.role.trim() || null });
+        .insert({ client_id: clientId, email, full_name: fullName, role: input.role.trim() || null })
+        .select("id")
+        .single();
       if (error) {
         throw new Error(
           error.code === "23505"
@@ -72,6 +74,9 @@ export function useAddContact(clientId: string | undefined) {
             : errorMessage(error),
         );
       }
+      // The new id, for callers that go straight on to use the person
+      // (Moments' quick add creates a contact and a date in one go).
+      return data.id;
     },
     onSuccess: () => clientId && invalidate(qc, clientId),
   });

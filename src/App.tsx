@@ -178,6 +178,7 @@ const ResultsIndex = lazy(() =>
 const ResultsTemplates = lazy(() =>
   import("@/pages/ResultsTemplates").then((m) => ({ default: m.ResultsTemplates })),
 );
+const Moments = lazy(() => import("@/pages/Moments").then((m) => ({ default: m.Moments })));
 const ResultsPlanner = lazy(() =>
   import("@/pages/ResultsPlanner").then((m) => ({ default: m.ResultsPlanner })),
 );
@@ -270,6 +271,7 @@ export default function App() {
                 <Route path="results" element={<ResultsIndex />} />
                 <Route path="results/templates" element={<ResultsTemplates />} />
                 <Route path="results/:clientId" element={<ResultsPlanner />} />
+                <Route path="moments" element={<Moments />} />
                 <Route path="time" element={<ClientTimeView />} />
                 {/* Owner-only escalations queue (>50% extension requests).
                     Inside the shell: it's a daily working surface, so it keeps
