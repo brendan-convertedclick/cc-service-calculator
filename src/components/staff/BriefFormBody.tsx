@@ -12,7 +12,6 @@ import { ClickUpListSelect } from "@/components/ClickUpListSelect";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
-import { ClientSelectField } from "./ClientSelectField";
 import { useStaffClients } from "./useStaffClients";
 
 type ListOption = { id: string; name: string; work_stream?: string | null };
@@ -30,7 +29,8 @@ export function BriefFormBody() {
   const [clientId, setClientId] = useState<string>("");
   const [listId, setListId] = useState<string>("");
   const [taskName, setTaskName] = useState("");
-  const [sprintPoints, setSprintPoints] = useState<string>("1");
+  const [clientQuery, setClientQuery] = useState("");
+  const [hours, setHours] = useState<string>("0.25");
   const [isInternal, setIsInternal] = useState(false);
   const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
   const [goal, setGoal] = useState("");
@@ -67,6 +67,11 @@ export function BriefFormBody() {
     };
   }, [clientId]);
 
+  const visibleClients = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase();
+    return q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients;
+  }, [clients, clientQuery]);
+
   const selectedList = useMemo(
     () => lists.find((l) => l.id === listId),
     [lists, listId],
@@ -77,7 +82,7 @@ export function BriefFormBody() {
     !!clientId &&
     !!listId &&
     taskName.trim().length > 0 &&
-    Number(sprintPoints) > 0 &&
+    Number(hours) > 0 &&
     goal.trim().length > 0 &&
     successCriteria.trim().length > 0 &&
     measurableOutcome.trim().length > 0 &&
@@ -94,7 +99,8 @@ export function BriefFormBody() {
         clickup_list_id: listId,
         clickup_list_name: selectedList?.name ?? "",
         task_name: taskName.trim(),
-        sprint_points: Number(sprintPoints),
+        // Staff estimate in time; the column stays points (1 pt = 15 min).
+        sprint_points: Number(hours) * 4,
         is_internal: isInternal,
         // Resolved to a ClickUp checklist at approval time, not now — steps
         // edited in /systems before approval still land on the task.
@@ -117,7 +123,7 @@ export function BriefFormBody() {
       // the submit — the request is already saved either way.
       callEdgeFn("notify-staff-brief", { staff_brief_id: (inserted as { id: string }).id }).catch(() => {});
       setTaskName("");
-      setSprintPoints("1");
+      setHours("0.25");
       setIsInternal(false);
       setSystemId(NO_WORKFLOW);
       setGoal("");
@@ -129,9 +135,43 @@ export function BriefFormBody() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ClientSelectField id="brief-client" clients={clients} value={clientId} onValueChange={setClientId} />
+    <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
+      <div className="space-y-2">
+        <Label htmlFor="brief-client-search">Client</Label>
+        <Input
+          id="brief-client-search"
+          value={clientQuery}
+          onChange={(e) => setClientQuery(e.target.value)}
+          placeholder="Search…"
+        />
+        <div
+          role="listbox"
+          aria-label="Client"
+          className="max-h-64 space-y-0.5 overflow-y-auto sm:max-h-[40rem]"
+        >
+          {visibleClients.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              role="option"
+              aria-selected={c.id === clientId}
+              onClick={() => setClientId(c.id)}
+              className={`flex w-full rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
+                c.id === clientId
+                  ? "bg-m-primary-container font-medium text-m-on-primary-container"
+                  : "text-m-on-surface hover:bg-m-surface-container"
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+          {visibleClients.length === 0 && (
+            <p className="px-2.5 py-1.5 text-label-medium text-m-on-surface-variant">No match</p>
+          )}
+        </div>
+      </div>
+
+      <div className="min-w-0 space-y-5">
         <ClickUpListSelect
           id="brief-list"
           lists={lists}
@@ -141,87 +181,87 @@ export function BriefFormBody() {
           loading={loadingLists}
           error={listsError}
         />
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-[1fr,140px]">
+        <div className="grid gap-4 sm:grid-cols-[1fr,140px]">
+          <div className="space-y-2">
+            <Label htmlFor="brief-task-name">Task name</Label>
+            <Input
+              id="brief-task-name"
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              placeholder="Short, specific, action-oriented"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brief-hours">Estimated time</Label>
+            <Input
+              id="brief-hours"
+              type="number"
+              min={0.25}
+              step={0.25}
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+            />
+            <p className="text-label-small text-m-on-surface-variant">In hours. 0.25 = 15 min</p>
+          </div>
+        </div>
+
+        <WorkflowSelect
+          id="brief-workflow"
+          value={systemId}
+          onValueChange={setSystemId}
+          hint="Optional — its process steps become the ClickUp task's checklist when this brief is approved."
+        />
+
+        <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
+          <div>
+            <Label htmlFor="brief-is-internal" className="text-body-medium text-m-on-surface">
+              Internal project
+            </Label>
+            <p className="text-label-small text-m-on-surface-variant">
+              Off = client work · On = internal initiative
+            </p>
+          </div>
+          <Switch id="brief-is-internal" checked={isInternal} onCheckedChange={setIsInternal} />
+        </div>
+
         <div className="space-y-2">
-          <Label htmlFor="brief-task-name">Task name</Label>
-          <Input
-            id="brief-task-name"
-            value={taskName}
-            onChange={(e) => setTaskName(e.target.value)}
-            placeholder="Short, specific, action-oriented"
+          <Label htmlFor="brief-goal">What do you want to achieve?</Label>
+          <Textarea
+            id="brief-goal"
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            placeholder="The outcome you're aiming for."
+            rows={3}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="brief-sprint-points">Sprint points</Label>
-          <Input
-            id="brief-sprint-points"
-            type="number"
-            min={0.25}
-            step={0.25}
-            value={sprintPoints}
-            onChange={(e) => setSprintPoints(e.target.value)}
+          <Label htmlFor="brief-success">What does success look like?</Label>
+          <Textarea
+            id="brief-success"
+            value={successCriteria}
+            onChange={(e) => setSuccessCriteria(e.target.value)}
+            placeholder="Describe the finished state."
+            rows={3}
           />
-          <p className="text-label-small text-m-on-surface-variant">1 pt = 15 minutes</p>
         </div>
-      </div>
-
-      <WorkflowSelect
-        id="brief-workflow"
-        value={systemId}
-        onValueChange={setSystemId}
-        hint="Optional — its process steps become the ClickUp task's checklist when this brief is approved."
-      />
-
-      <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
-        <div>
-          <Label htmlFor="brief-is-internal" className="text-body-medium text-m-on-surface">
-            Internal project
-          </Label>
-          <p className="text-label-small text-m-on-surface-variant">
-            Off = client work · On = internal initiative
-          </p>
+        <div className="space-y-2">
+          <Label htmlFor="brief-measurable">What's the expected output, in numbers?</Label>
+          <Textarea
+            id="brief-measurable"
+            value={measurableOutcome}
+            onChange={(e) => setMeasurableOutcome(e.target.value)}
+            placeholder="e.g. 40 creatives, 1 Excel export, 3 landing pages — a count someone can check this against later."
+            rows={3}
+          />
         </div>
-        <Switch id="brief-is-internal" checked={isInternal} onCheckedChange={setIsInternal} />
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="brief-goal">What do you want to achieve?</Label>
-        <Textarea
-          id="brief-goal"
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          placeholder="The outcome you're aiming for."
-          rows={3}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="brief-success">What does success look like?</Label>
-        <Textarea
-          id="brief-success"
-          value={successCriteria}
-          onChange={(e) => setSuccessCriteria(e.target.value)}
-          placeholder="Describe the finished state."
-          rows={3}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="brief-measurable">What's the expected output, in numbers?</Label>
-        <Textarea
-          id="brief-measurable"
-          value={measurableOutcome}
-          onChange={(e) => setMeasurableOutcome(e.target.value)}
-          placeholder="e.g. 40 creatives, 1 Excel export, 3 landing pages — a count someone can check this against later."
-          rows={3}
-        />
-      </div>
-
-      <div className="flex items-center justify-end pt-2">
-        <Button type="submit" disabled={!canSubmit} className="gap-2">
-          <Send className="h-4 w-4" />
-          {submitting ? "Submitting…" : "Submit for approval"}
-        </Button>
+        <div className="flex items-center justify-end pt-2">
+          <Button type="submit" disabled={!canSubmit} className="gap-2">
+            <Send className="h-4 w-4" />
+            {submitting ? "Submitting…" : "Submit for approval"}
+          </Button>
+        </div>
       </div>
     </form>
   );
