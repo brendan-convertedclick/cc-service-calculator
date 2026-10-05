@@ -138,36 +138,38 @@ export function BriefFormBody() {
     <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
       <div className="space-y-2">
         <Label htmlFor="brief-client-search">Client</Label>
-        <Input
-          id="brief-client-search"
-          value={clientQuery}
-          onChange={(e) => setClientQuery(e.target.value)}
-          placeholder="Search…"
-        />
-        <div
-          role="listbox"
-          aria-label="Client"
-          className="max-h-64 space-y-0.5 overflow-y-auto sm:max-h-[40rem]"
-        >
-          {visibleClients.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              role="option"
-              aria-selected={c.id === clientId}
-              onClick={() => setClientId(c.id)}
-              className={`flex w-full rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
-                c.id === clientId
-                  ? "bg-m-primary-container font-medium text-m-on-primary-container"
-                  : "text-m-on-surface hover:bg-m-surface-container"
-              }`}
-            >
-              {c.name}
-            </button>
-          ))}
-          {visibleClients.length === 0 && (
-            <p className="px-2.5 py-1.5 text-label-medium text-m-on-surface-variant">No match</p>
-          )}
+        <div className="space-y-2 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-2">
+          <Input
+            id="brief-client-search"
+            value={clientQuery}
+            onChange={(e) => setClientQuery(e.target.value)}
+            placeholder="Search…"
+          />
+          <div
+            role="listbox"
+            aria-label="Client"
+            className="max-h-64 space-y-0.5 overflow-y-auto sm:max-h-[36rem]"
+          >
+            {visibleClients.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="option"
+                aria-selected={c.id === clientId}
+                onClick={() => setClientId(c.id)}
+                className={`flex w-full rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
+                  c.id === clientId
+                    ? "bg-m-primary-container font-medium text-m-on-primary-container"
+                    : "text-m-on-surface hover:bg-m-surface-container-high"
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+            {visibleClients.length === 0 && (
+              <p className="px-2.5 py-1.5 text-label-medium text-m-on-surface-variant">No match</p>
+            )}
+          </div>
         </div>
       </div>
 
