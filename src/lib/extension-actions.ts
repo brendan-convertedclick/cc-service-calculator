@@ -42,6 +42,7 @@ export async function rejectRequest(
   if (error) return error.message;
   // supabase-js reports a no-op success when RLS filters every row out.
   if (!data || data.length === 0) return "Not permitted to update this request";
+  notifyExtension(id);
   return null;
 }
 

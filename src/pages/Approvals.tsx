@@ -182,6 +182,8 @@ export function Approvals() {
         .update({ status: "rejected", rejected_reason: rejectReason.trim() })
         .eq("id", id);
       if (error) return toast.error(error.message);
+      // Tell the submitter why — best-effort, a chat outage must not fail the reject.
+      callEdgeFn("notify-staff-brief", { staff_brief_id: id }).catch(() => {});
       toast.success("Rejected.");
       setRejectingId(null);
       setRejectReason("");
@@ -214,6 +216,7 @@ export function Approvals() {
         .update({ status: "rejected", rejected_reason: rejectReason.trim() })
         .eq("id", id);
       if (error) return toast.error(error.message);
+      callEdgeFn("notify-revision-request", { revision_request_id: id }).catch(() => {});
       toast.success("Rejected.");
       setRejectingId(null);
       setRejectReason("");

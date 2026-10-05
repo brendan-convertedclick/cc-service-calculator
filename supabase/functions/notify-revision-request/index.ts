@@ -9,6 +9,9 @@
 // auto-tier. Never blocks the requester's submit — swallow-and-log on every
 // failure path (chat and email are independent; one failing doesn't sink
 // the other).
+//
+// Re-fired after a reject: status=rejected pings the requester instead, with
+// the reason.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { APP_URL, cors, json } from "../_shared/helpers.ts";
@@ -22,6 +25,8 @@ type RevisionRow = {
   id: string;
   revision_suffix: string;
   parent_task_name: string;
+  status: string;
+  rejected_reason: string | null;
   requester_id: string;
   client_id: string;
 };
@@ -38,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: rowRaw, error: rowErr } = await sb
       .from("revision_requests")
-      .select("id, revision_suffix, parent_task_name, requester_id, client_id")
+      .select("id, revision_suffix, parent_task_name, status, rejected_reason, requester_id, client_id")
       .eq("id", revision_request_id)
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
@@ -51,15 +56,21 @@ Deno.serve(async (req: Request) => {
       .single();
     const requesterName = (requesterRaw as { full_name?: string } | null)?.full_name ?? "Someone";
 
-    const { data: approversRaw } = await sb
-      .from("team_members")
-      .select("full_name, email, clickup_user_id")
-      .eq("role", "admin")
-      .is("archived_at", null);
+    const rejected = row.status === "rejected";
+    const recipientQuery = sb.from("team_members").select("full_name, email, clickup_user_id");
+    const { data: approversRaw } = await (rejected
+      ? recipientQuery.eq("id", row.requester_id)
+      : recipientQuery.eq("role", "admin").is("archived_at", null));
     const approvers = (approversRaw ?? []) as { full_name: string; email: string | null; clickup_user_id: number | null }[];
-    if (approvers.length === 0) return json({ notified: [], chat_ok: false, warning: "No admin on the team" });
+    if (approvers.length === 0) {
+      return json({ notified: [], chat_ok: false, warning: rejected ? "Requester not found" : "No admin on the team" });
+    }
 
     const summary = `"${row.parent_task_name}" → ${row.revision_suffix}`;
+    const lead = rejected
+      ? `❌ your revision request was declined: ${summary}\nReason: ${row.rejected_reason ?? "none given"}`
+      : `🔁 revision request from ${requesterName} needs your approval: ${summary}`;
+    const page = rejected ? "/staff" : "/approvals";
 
     // Same routing as brief/extension notifications: post in the client's
     // own channel, falling back to Converted Click only if none is mapped.
@@ -80,7 +91,7 @@ Deno.serve(async (req: Request) => {
     const chatResult = await postChatMessage(
       clickupPat,
       chatChannelId,
-      `🔁 ${mentions} — revision request from ${requesterName} needs your approval: ${summary}\n${APP_URL}/approvals`,
+      `${mentions} — ${lead}\n${APP_URL}${page}`,
     );
 
     const notified = await sendNotificationEmails({
@@ -88,9 +99,9 @@ Deno.serve(async (req: Request) => {
       sb,
       composedBy: row.requester_id,
       recipientEmails: approvers.map((a) => a.email),
-      subject: `Revision request needs your approval — ${row.parent_task_name}`,
-      bodyText: `${requesterName} requested a revision: ${summary}\n\nReview: ${APP_URL}/approvals`,
-      bodyHtml: `<p>${requesterName} requested a revision: ${summary}</p><p><a href="${APP_URL}/approvals">Review in Conductor</a></p>`,
+      subject: rejected ? `Revision request declined: ${row.parent_task_name}` : `Revision request needs your approval — ${row.parent_task_name}`,
+      bodyText: `${lead}\n\nOpen: ${APP_URL}${page}`,
+      bodyHtml: `<p>${lead.replace(/\n/g, "<br>")}</p><p><a href="${APP_URL}${page}">Open in Conductor</a></p>`,
     });
 
     return json({ notified, chat_ok: chatResult.ok, chat_error: chatResult.ok ? undefined : chatResult.error });

@@ -9,6 +9,9 @@
 // needs admin (or owner) approval. Never blocks the requester's submit —
 // swallow-and-log on every failure path (chat and email are independent;
 // one failing doesn't sink the other). Mirrors notify-revision-request.
+//
+// Re-fired after a reject: status=rejected pings the submitter instead, with
+// the reason, so a declined brief doesn't just vanish from their queue.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { APP_URL, cors, json } from "../_shared/helpers.ts";
@@ -23,6 +26,8 @@ type StaffBriefRow = {
   task_name: string;
   sprint_points: number;
   is_internal: boolean;
+  status: string;
+  rejected_reason: string | null;
   submitter_id: string;
   client_id: string;
 };
@@ -39,7 +44,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: rowRaw, error: rowErr } = await sb
       .from("staff_briefs")
-      .select("id, task_name, sprint_points, is_internal, submitter_id, client_id")
+      .select("id, task_name, sprint_points, is_internal, status, rejected_reason, submitter_id, client_id")
       .eq("id", staff_brief_id)
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
@@ -52,15 +57,21 @@ Deno.serve(async (req: Request) => {
       .single();
     const submitterName = (submitterRaw as { full_name?: string } | null)?.full_name ?? "Someone";
 
-    const { data: approversRaw } = await sb
-      .from("team_members")
-      .select("full_name, email, clickup_user_id")
-      .eq("role", "admin")
-      .is("archived_at", null);
+    const rejected = row.status === "rejected";
+    const recipientQuery = sb.from("team_members").select("full_name, email, clickup_user_id");
+    const { data: approversRaw } = await (rejected
+      ? recipientQuery.eq("id", row.submitter_id)
+      : recipientQuery.eq("role", "admin").is("archived_at", null));
     const approvers = (approversRaw ?? []) as { full_name: string; email: string | null; clickup_user_id: number | null }[];
-    if (approvers.length === 0) return json({ notified: [], chat_ok: false, warning: "No admin on the team" });
+    if (approvers.length === 0) {
+      return json({ notified: [], chat_ok: false, warning: rejected ? "Submitter not found" : "No admin on the team" });
+    }
 
     const summary = `"${row.task_name}" · ${row.sprint_points}pt${row.is_internal ? " · internal" : ""}`;
+    const lead = rejected
+      ? `❌ your brief was declined: ${summary}\nReason: ${row.rejected_reason ?? "none given"}`
+      : `📝 new brief from ${submitterName} needs your approval: ${summary}`;
+    const page = rejected ? "/staff" : "/approvals";
 
     // Same routing as brief/extension/revision notifications: post in the
     // client's own channel, falling back to Converted Click only if none is mapped.
@@ -81,7 +92,7 @@ Deno.serve(async (req: Request) => {
     const chatResult = await postChatMessage(
       clickupPat,
       chatChannelId,
-      `📝 ${mentions} — new brief from ${submitterName} needs your approval: ${summary}\n${APP_URL}/approvals`,
+      `${mentions} — ${lead}\n${APP_URL}${page}`,
     );
 
     const notified = await sendNotificationEmails({
@@ -89,9 +100,9 @@ Deno.serve(async (req: Request) => {
       sb,
       composedBy: row.submitter_id,
       recipientEmails: approvers.map((a) => a.email),
-      subject: `Brief needs your approval — ${row.task_name}`,
-      bodyText: `${submitterName} submitted a new brief: ${summary}\n\nReview: ${APP_URL}/approvals`,
-      bodyHtml: `<p>${submitterName} submitted a new brief: ${summary}</p><p><a href="${APP_URL}/approvals">Review in Conductor</a></p>`,
+      subject: rejected ? `Brief declined: ${row.task_name}` : `Brief needs your approval — ${row.task_name}`,
+      bodyText: `${lead}\n\nOpen: ${APP_URL}${page}`,
+      bodyHtml: `<p>${lead.replace(/\n/g, "<br>")}</p><p><a href="${APP_URL}${page}">Open in Conductor</a></p>`,
     });
 
     return json({ notified, chat_ok: chatResult.ok, chat_error: chatResult.ok ? undefined : chatResult.error });

@@ -10,6 +10,7 @@
 //   pending_admin → admins   (/approvals)
 //   pending_owner → owner    (/escalations)  — only reached post admin sign-off
 //   needs_info    → the requester (/staff), with the approver's question
+//   rejected      → the requester (/staff), with the reason
 // Anything else is a no-op. Never blocks the requester's submit — chat and
 // email are independent; one failing doesn't sink the other.
 
@@ -30,6 +31,7 @@ type ExtensionRow = {
   requested_due_date: string | null;
   due_date_reason: string | null;
   info_request: string | null;
+  rejected_reason: string | null;
   parent_task_name: string;
   requester_id: string;
   client_id: string;
@@ -51,7 +53,7 @@ type Target =
 function notifyTarget(row: ExtensionRow): Target | null {
   if (row.status === "pending_admin") return { kind: "role", role: "admin", queuePage: "/approvals" };
   if (row.status === "pending_owner") return { kind: "role", role: "owner", queuePage: "/escalations" };
-  if (row.status === "needs_info") return { kind: "requester", queuePage: "/staff" };
+  if (row.status === "needs_info" || row.status === "rejected") return { kind: "requester", queuePage: "/staff" };
   return null;
 }
 
@@ -68,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const { data: rowRaw, error: rowErr } = await sb
       .from("extension_requests")
       .select(
-        "id, tier, status, extra_points, reason, requested_due_date, due_date_reason, info_request, parent_task_name, requester_id, client_id",
+        "id, tier, status, extra_points, reason, requested_due_date, due_date_reason, info_request, rejected_reason, parent_task_name, requester_id, client_id",
       )
       .eq("id", extension_request_id)
       .single();
@@ -103,13 +105,17 @@ Deno.serve(async (req: Request) => {
     // One lead line per audience — the owner leg is only ever reached after
     // the admin has signed off, so say so.
     const lead =
-      target.kind === "requester"
+      row.status === "rejected"
+        ? `❌ your extension request was declined: ${summary}\nReason: ${row.rejected_reason ?? "none given"}`
+        : target.kind === "requester"
         ? `❓ more information needed on your extension request: ${summary}\nQuestion: ${row.info_request ?? "—"}`
         : target.role === "owner"
           ? `⏫ admin-approved extension escalated for owner sign-off (${row.tier} tier), raised by ${requesterName}: ${summary}`
           : `⏫ extension request from ${requesterName} needs your approval (${row.tier} tier): ${summary}`;
     const subject =
-      target.kind === "requester"
+      row.status === "rejected"
+        ? `Extension request declined: ${row.parent_task_name}`
+        : target.kind === "requester"
         ? `More information needed — ${row.parent_task_name}`
         : `Extension request needs your approval — ${row.parent_task_name}`;
 
