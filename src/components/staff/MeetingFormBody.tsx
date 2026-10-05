@@ -8,6 +8,7 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateMeeting, useUpdateMeeting } from "@/hooks/useInternalMeetings";
 import type { InternalMeetingWithDetails, ManageMeetingResponse } from "@/types/internal-meetings";
 import { errorMessage } from "@/lib/utils";
+import { todayISO } from "@/lib/dates";
 import { callEdgeFn } from "@/lib/edge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,11 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MultiSelect } from "@/components/ui/multi-select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ClientListPicker } from "./ClientListPicker";
 
 const NO_PROJECT = "__none__";
 const NO_WORK_STREAM = "__none__";
 const STATUS_DEFAULT = "__default__";
+const DURATION_PRESETS = [15, 30, 45, 60];
+const DEFAULT_DURATION = "30";
+/** New meetings start on the agency's own client — most meetings are internal. */
+const DEFAULT_CLIENT_NAME = /converted click/i;
 
 /** Same priority order manage-internal-meeting's resolveMeetingListId uses to
  * pick a meeting's ClickUp list — mirrored here purely to scope the Status
@@ -58,6 +64,13 @@ function isoToSastParts(iso: string): { date: string; time: string } {
   return { date: asIso.slice(0, 10), time: asIso.slice(11, 16) };
 }
 
+/** Wall-clock SAST start + a length in minutes → the end instant, as ISO. */
+function addMinutesSast(startIso: string, minutes: number): string {
+  const end = new Date(new Date(startIso).getTime() + minutes * 60 * 1000).toISOString();
+  const { date, time } = isoToSastParts(end);
+  return sastToIso(date, time);
+}
+
 function reportSyncWarnings(res: ManageMeetingResponse) {
   if (res.google_sync_error) toast.warning(`Calendar: ${res.google_sync_error}`);
   if (res.clickup_sync_error) toast.warning(`ClickUp: ${res.clickup_sync_error}`);
@@ -87,15 +100,17 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
 
   const isEdit = !!meeting;
   const startParts = meeting ? isoToSastParts(meeting.starts_at) : null;
-  const endParts = meeting ? isoToSastParts(meeting.ends_at) : null;
+  const savedDuration = meeting
+    ? String(Math.round((new Date(meeting.ends_at).getTime() - new Date(meeting.starts_at).getTime()) / 60000))
+    : DEFAULT_DURATION;
 
   const [clientId, setClientId] = useState(meeting?.client_id ?? "");
   const [projectId, setProjectId] = useState(meeting?.project_id ?? NO_PROJECT);
   const [title, setTitle] = useState(meeting?.title ?? "");
   const [agenda, setAgenda] = useState(meeting?.agenda ?? "");
-  const [date, setDate] = useState(startParts?.date ?? "");
+  const [date, setDate] = useState(startParts?.date ?? todayISO());
   const [startTime, setStartTime] = useState(startParts?.time ?? "");
-  const [endTime, setEndTime] = useState(endParts?.time ?? "");
+  const [duration, setDuration] = useState(savedDuration);
   const [attendeeIds, setAttendeeIds] = useState<string[]>(
     meeting?.attendees.map((a) => a.team_member_id) ?? [],
   );
@@ -121,6 +136,14 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
       cancelled = true;
     };
   }, [isEdit]);
+
+  const defaultClientId = useMemo(
+    () => clients.find((c) => DEFAULT_CLIENT_NAME.test(c.name))?.id ?? "",
+    [clients],
+  );
+  useEffect(() => {
+    if (!isEdit && !clientId && defaultClientId) setClientId(defaultClientId);
+  }, [isEdit, clientId, defaultClientId]);
 
   const projectOptions = useMemo(
     () => clients.find((c) => c.id === clientId)?.projects ?? [],
@@ -186,21 +209,16 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
     if (!isEdit) setStatus(STATUS_DEFAULT);
   }, [meetingList?.id, isEdit]);
 
-  const teamOptions = useMemo(
-    () => team.map((m) => ({ value: m.id, label: m.full_name })),
-    [team],
-  );
-
   const startIso = date && startTime ? sastToIso(date, startTime) : null;
-  const endIso = date && endTime ? sastToIso(date, endTime) : null;
-  const timeOrderOk = !!startIso && !!endIso && endIso > startIso;
+  const minutes = Number(duration);
+  const endIso = startIso && minutes > 0 ? addMinutesSast(startIso, minutes) : null;
 
   const canSubmit =
     (isEdit || !!currentUserId) &&
     !!clientId &&
     title.trim().length > 0 &&
     attendeeIds.length > 0 &&
-    timeOrderOk &&
+    !!endIso &&
     !submitting;
 
   async function onSubmit(e: React.FormEvent) {
@@ -243,13 +261,13 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
         toast.success(
           res.google_meet_url ? `Meeting scheduled — ${res.google_meet_url}` : "Meeting scheduled.",
         );
-        setClientId("");
+        setClientId(defaultClientId);
         setProjectId(NO_PROJECT);
         setTitle("");
         setAgenda("");
-        setDate("");
+        setDate(todayISO());
         setStartTime("");
-        setEndTime("");
+        setDuration(DEFAULT_DURATION);
         setAttendeeIds([]);
         setWorkStream(NO_WORK_STREAM);
         setStatus(STATUS_DEFAULT);
@@ -263,40 +281,52 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
       {!isEdit && currentUserId === null && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900 sm:col-span-2">
           You're signed in as the shared team account, which can't organise a meeting. Sign out
           and sign in with your own @convertedclick.co.za account first.
         </div>
       )}
       {!isEdit && googleConnected === false && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900 sm:col-span-2">
           Your Google Calendar isn't connected — sign out and sign in with Google to let
           Conductor put meetings on your calendar.
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <ClientListPicker
+        id="meeting-client"
+        clients={clients}
+        value={clientId}
+        onValueChange={(v) => {
+          setClientId(v);
+          setProjectId(NO_PROJECT);
+        }}
+      />
+
+      <div className="min-w-0 space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="meeting-client">Client</Label>
-          <Select
-            value={clientId}
-            onValueChange={(v) => {
-              setClientId(v);
-              setProjectId(NO_PROJECT);
-            }}
-          >
-            <SelectTrigger id="meeting-client">
-              <SelectValue placeholder="Pick a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="meeting-title">Title</Label>
+          <Input
+            id="meeting-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Weekly sync"
+          />
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="meeting-agenda">Agenda</Label>
+          <Textarea
+            id="meeting-agenda"
+            value={agenda}
+            onChange={(e) => setAgenda(e.target.value)}
+            placeholder="What's on the table? (optional)"
+            rows={3}
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="meeting-project">Project (optional)</Label>
           <Select value={projectId} onValueChange={setProjectId} disabled={!clientId}>
@@ -311,132 +341,132 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="meeting-attendees">Attendees</Label>
-        <MultiSelect
-          id="meeting-attendees"
-          options={teamOptions}
-          values={attendeeIds}
-          onChange={setAttendeeIds}
-          placeholder="Pick attendees"
-          searchPlaceholder="Search team…"
-          emptyLabel="No team members found."
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="meeting-work-stream">Work stream (optional)</Label>
-          <Select
-            value={workStream}
-            onValueChange={setWorkStream}
-            disabled={!clientId || loadingLists}
-          >
-            <SelectTrigger id="meeting-work-stream">
-              <SelectValue
-                placeholder={
-                  !clientId
-                    ? "Pick a client first"
-                    : loadingLists
-                      ? "Loading…"
-                      : "Project/list default"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_WORK_STREAM}>Project/list default</SelectItem>
-              {workStreamSource.map((d) => (
-                <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {listsError && (
-            <p className="text-body-small text-m-on-surface-variant">
-              Couldn't load ClickUp's Work Stream options ({listsError}) — showing departments instead.
-            </p>
-          )}
+          <Label id="meeting-attendees-label">Attendees</Label>
+          <div role="group" aria-labelledby="meeting-attendees-label" className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {team.map((m) => (
+              <label key={m.id} className="flex cursor-pointer items-center gap-2 text-body-medium text-m-on-surface">
+                <Checkbox
+                  checked={attendeeIds.includes(m.id)}
+                  onCheckedChange={(on) =>
+                    setAttendeeIds((prev) => (on ? [...prev, m.id] : prev.filter((x) => x !== m.id)))
+                  }
+                />
+                {m.full_name}
+              </label>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="meeting-status">Status (optional)</Label>
-          <Select value={status} onValueChange={setStatus} disabled={!meetingList}>
-            <SelectTrigger id="meeting-status">
-              <SelectValue placeholder="— List default —" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={STATUS_DEFAULT}>— List default —</SelectItem>
-              {(meetingList?.statuses ?? []).map((s) => (
-                <SelectItem key={s.status} value={s.status}>{s.status}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="meeting-title">Title</Label>
-        <Input
-          id="meeting-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Weekly sync"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="meeting-agenda">Agenda</Label>
-        <Textarea
-          id="meeting-agenda"
-          value={agenda}
-          onChange={(e) => setAgenda(e.target.value)}
-          placeholder="What's on the table? (optional)"
-          rows={3}
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="meeting-date">Date</Label>
-          <Input
-            id="meeting-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="meeting-work-stream">Work stream (optional)</Label>
+            <Select
+              value={workStream}
+              onValueChange={setWorkStream}
+              disabled={!clientId || loadingLists}
+            >
+              <SelectTrigger id="meeting-work-stream">
+                <SelectValue
+                  placeholder={
+                    !clientId
+                      ? "Pick a client first"
+                      : loadingLists
+                        ? "Loading…"
+                        : "Project/list default"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_WORK_STREAM}>Project/list default</SelectItem>
+                {workStreamSource.map((d) => (
+                  <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {listsError && (
+              <p className="text-body-small text-m-on-surface-variant">
+                Couldn't load ClickUp's Work Stream options ({listsError}) — showing departments instead.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="meeting-status">Status (optional)</Label>
+            <Select value={status} onValueChange={setStatus} disabled={!meetingList}>
+              <SelectTrigger id="meeting-status">
+                <SelectValue placeholder="— List default —" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={STATUS_DEFAULT}>— List default —</SelectItem>
+                {(meetingList?.statuses ?? []).map((s) => (
+                  <SelectItem key={s.status} value={s.status}>{s.status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="meeting-start">Start</Label>
-          <Input
-            id="meeting-start"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="meeting-end">End</Label>
-          <Input
-            id="meeting-end"
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-          />
-        </div>
-      </div>
-      {date && startTime && endTime && !timeOrderOk && (
-        <p className="text-body-small text-destructive">End time must be after start time.</p>
-      )}
 
-      <div className="flex items-center justify-end pt-2">
-        <Button type="submit" disabled={!canSubmit} className="gap-2">
-          {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CalendarPlus className="h-4 w-4" />
-          )}
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Schedule meeting"}
-        </Button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="meeting-date">Date</Label>
+            <Input
+              id="meeting-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="meeting-start">Start</Label>
+            <Input
+              id="meeting-start"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="meeting-duration">Length</Label>
+          <div className="flex items-center gap-1.5">
+            {DURATION_PRESETS.map((m) => (
+              <Button
+                key={m}
+                type="button"
+                size="sm"
+                variant={Number(duration) === m ? "default" : "outline"}
+                aria-pressed={Number(duration) === m}
+                onClick={() => setDuration(String(m))}
+              >
+                {m}
+              </Button>
+            ))}
+            <Input
+              id="meeting-duration"
+              type="number"
+              min={5}
+              step={5}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-20"
+              aria-label="Length in minutes"
+            />
+            <span className="text-body-small text-m-on-surface-variant">min</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end pt-2">
+          <Button type="submit" disabled={!canSubmit} className="gap-2">
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CalendarPlus className="h-4 w-4" />
+            )}
+            {submitting ? "Saving…" : isEdit ? "Save changes" : "Schedule meeting"}
+          </Button>
+        </div>
       </div>
     </form>
   );

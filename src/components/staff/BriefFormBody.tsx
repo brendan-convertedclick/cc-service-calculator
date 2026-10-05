@@ -12,6 +12,7 @@ import { ClickUpListSelect } from "@/components/ClickUpListSelect";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
+import { ClientListPicker } from "./ClientListPicker";
 import { useStaffClients } from "./useStaffClients";
 
 type ListOption = { id: string; name: string; work_stream?: string | null };
@@ -29,7 +30,6 @@ export function BriefFormBody() {
   const [clientId, setClientId] = useState<string>("");
   const [listId, setListId] = useState<string>("");
   const [taskName, setTaskName] = useState("");
-  const [clientQuery, setClientQuery] = useState("");
   const [hours, setHours] = useState<string>("0.25");
   const [isInternal, setIsInternal] = useState(false);
   const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
@@ -66,11 +66,6 @@ export function BriefFormBody() {
       cancelled = true;
     };
   }, [clientId]);
-
-  const visibleClients = useMemo(() => {
-    const q = clientQuery.trim().toLowerCase();
-    return q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients;
-  }, [clients, clientQuery]);
 
   const selectedList = useMemo(
     () => lists.find((l) => l.id === listId),
@@ -136,42 +131,7 @@ export function BriefFormBody() {
 
   return (
     <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
-      <div className="space-y-2">
-        <Label htmlFor="brief-client-search">Client</Label>
-        <div className="space-y-2 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-2">
-          <Input
-            id="brief-client-search"
-            value={clientQuery}
-            onChange={(e) => setClientQuery(e.target.value)}
-            placeholder="Search…"
-          />
-          <div
-            role="listbox"
-            aria-label="Client"
-            className="max-h-64 space-y-0.5 overflow-y-auto sm:max-h-[36rem]"
-          >
-            {visibleClients.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="option"
-                aria-selected={c.id === clientId}
-                onClick={() => setClientId(c.id)}
-                className={`flex w-full rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
-                  c.id === clientId
-                    ? "bg-m-primary-container font-medium text-m-on-primary-container"
-                    : "text-m-on-surface hover:bg-m-surface-container-high"
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-            {visibleClients.length === 0 && (
-              <p className="px-2.5 py-1.5 text-label-medium text-m-on-surface-variant">No match</p>
-            )}
-          </div>
-        </div>
-      </div>
+      <ClientListPicker id="brief-client" clients={clients} value={clientId} onValueChange={setClientId} />
 
       <div className="min-w-0 space-y-5">
         <div className="space-y-2">

@@ -109,7 +109,7 @@ export function MyMeetingsList() {
       />
 
       <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit meeting</DialogTitle>
             <DialogDescription>
