@@ -174,25 +174,34 @@ export function BriefFormBody() {
       </div>
 
       <div className="min-w-0 space-y-5">
-        <ClickUpListSelect
-          id="brief-list"
-          lists={lists}
-          value={listId}
-          onValueChange={setListId}
-          hasClient={!!clientId}
-          loading={loadingLists}
-          error={listsError}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="brief-task-name">Task name</Label>
+          <Input
+            id="brief-task-name"
+            value={taskName}
+            onChange={(e) => setTaskName(e.target.value)}
+            placeholder="Short, specific, action-oriented"
+          />
+        </div>
 
-        <div className="grid gap-4 sm:grid-cols-[1fr,140px]">
+        <div className="grid items-start gap-4 sm:grid-cols-[1fr,auto,140px]">
+          <ClickUpListSelect
+            id="brief-list"
+            lists={lists}
+            value={listId}
+            onValueChange={setListId}
+            hasClient={!!clientId}
+            loading={loadingLists}
+            error={listsError}
+          />
           <div className="space-y-2">
-            <Label htmlFor="brief-task-name">Task name</Label>
-            <Input
-              id="brief-task-name"
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-              placeholder="Short, specific, action-oriented"
-            />
+            <Label htmlFor="brief-is-internal">Work type</Label>
+            <div className="flex h-10 items-center gap-2">
+              <Switch id="brief-is-internal" checked={isInternal} onCheckedChange={setIsInternal} />
+              <span className="w-16 text-body-medium text-m-on-surface">
+                {isInternal ? "Internal" : "Client"}
+              </span>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="brief-hours">Estimated time</Label>
@@ -214,18 +223,6 @@ export function BriefFormBody() {
           onValueChange={setSystemId}
           hint="Optional — its process steps become the ClickUp task's checklist when this brief is approved."
         />
-
-        <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface px-4 py-3">
-          <div>
-            <Label htmlFor="brief-is-internal" className="text-body-medium text-m-on-surface">
-              Internal project
-            </Label>
-            <p className="text-label-small text-m-on-surface-variant">
-              Off = client work · On = internal initiative
-            </p>
-          </div>
-          <Switch id="brief-is-internal" checked={isInternal} onCheckedChange={setIsInternal} />
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="brief-goal">What do you want to achieve?</Label>
