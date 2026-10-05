@@ -10,7 +10,7 @@ A school's marketing gets better only if every month's work and its results are 
 ## What the user sees
 
 - **Planner** at `/results/:clientId`. Rows grouped down the left (e.g. *Paid media* → Google Search, PMax, Meta ads; *Social media*; *Content* → Ultimate guides; *Events* → Open Day · Term 1; *Campaigns*). Twelve month columns, Jan–Dec, calendar year.
-- **Year picker** (single select, defaults to the current year, no "now" label) and a **"Compare with…" multi-select** of other years. Each compared year is a horizontal band under every row, filled with a grey that depends only on how many years back it is (1, 2, 3+), so a given year is the same grey in every row. The current year has no band. Compared-year cells are dotted, show only the first starred metric, and a year label appears once per band in a narrow column, never per cell.
+- **Year picker** (single select, defaults to the current year, no "now" label) and a **"Compare with…" multi-select** of other years. Each compared year is a horizontal band under every row, filled with a grey that depends only on how many years back it is (1, 2, 3+), so a given year is the same grey in every row. The current year has no band. Compared-year cells are dotted and show the same starred metrics as the current year's card (changed 2026-09-30: showing only the first star hid half of the comparison), and a year label appears once per band in a narrow column, never per cell.
 - **Group filter**: multi-select of groups with "Show all". Ticking only Social media shows only that group.
 - **Cell states**: empty (hover "+ Plan") · planned (dashed, group colour, first plan value) · results due (month is over, no results; amber dashed) · results in (filled with group colour, shows up to two starred metrics as "84 families").
 - **Side panel** on click: plan metrics, result metrics (disabled until the month starts, rule 7), and a "How it compares" list for numeric results: value, "of N target" when paired, and last year's value with % change. Explicit **Save** button (no autosave).
@@ -24,7 +24,7 @@ A school's marketing gets better only if every month's work and its results are 
 2. **Metrics have a fixed identity** (uuid). Renaming never detaches past values.
 3. **Retired, never deleted.** `retired_at` hides a metric from new entry; its values stay and still show read-only where they exist. FK from values to fields is `on delete restrict`.
 4. **Type locks once data exists.** A trigger refuses a `type` change on a field that has any value row.
-5. **Stars**: only result-phase fields; at most two per template (the editor unstars the oldest when a third is starred; a trigger also refuses a third). First star (by ordinal) is what compared years show.
+5. **Stars**: only result-phase fields; at most two per template (the editor unstars the oldest when a third is starred; a trigger also refuses a third). Compared years show every starred field, in ordinal order.
 6. **Targets**: a numeric result field may point at a numeric plan field in the same template (`target_field_id`).
 7. **Results open when the month starts** (current month and past months). Plans can be written for any month, any year.
 8. **Rows are not per-year.** A row persists across years; that is what makes years comparable. Entries are keyed `(row_id, year, month)`.

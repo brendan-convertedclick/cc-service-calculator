@@ -293,7 +293,7 @@ export function ResultsTemplates() {
           </li>
           <li>
             <b className="text-m-on-surface">Stars choose what the grid shows.</b> Up to two starred results appear
-            in each cell. The first star is the one shown for compared years.
+            in each cell, for this year and for any year you compare with.
           </li>
         </ul>
       </aside>

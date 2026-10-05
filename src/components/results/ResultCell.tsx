@@ -1,8 +1,7 @@
 // src/components/results/ResultCell.tsx
 //
-// One month × row cell, for the current year (the "hist" (compared-year)
-// rendering lives inline in ResultsGrid since it's simpler and has no
-// separate state machine — just "has a starred value or not").
+// One month × row cell for the current year, and HistoryCell for a compared
+// year: the same starred metrics, muted, with no state machine of its own.
 
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -98,7 +97,7 @@ export function ResultCell({
         <span className="grid gap-0.5">
           {starredFields(template).map((f) =>
             hasValue(values[f.id]) ? (
-              <span key={f.id} className="block truncate text-m-on-surface-variant">
+              <span key={f.id} className="block break-words text-m-on-surface-variant">
                 <b className="text-m-on-surface">{formatValue(f, values[f.id])}</b> {f.short_label ?? f.label}
               </span>
             ) : null,
@@ -109,28 +108,31 @@ export function ResultCell({
   );
 }
 
-/** A compared-year lane cell: dotted, shows only the first starred metric.
- * Not a button — it isn't clickable, so a disabled button (unreadable by
- * most AT, and semantically wrong for static content) was the wrong element. */
+/** A compared-year lane cell: the same starred metrics as this year's card,
+ * in the same layout, muted and dotted so it reads as history. It used to show
+ * only the first star on one line, which hid half of what the year was being
+ * compared on (a PMax lane showed spend and never leads). Not a button — it
+ * isn't clickable, so a disabled button (unreadable by most AT, and
+ * semantically wrong for static content) was the wrong element. */
 export function HistoryCell({ template, values, label }: { template: ResultsTemplate; values: EntryValues | undefined; label: string }) {
   if (!values) return <div className="min-h-[28px]" />;
-  const field = starredFields(template)[0];
-  const value = field ? values[field.id] : undefined;
-  const has = hasValue(value);
+  const shown = starredFields(template).filter((f) => hasValue(values[f.id]));
 
   return (
     <div
       className={cn(
-        "block min-h-[28px] w-full rounded-md border border-dotted border-m-outline-variant px-1.5 py-1 text-left text-label-small text-m-on-surface-variant",
-        !has && "opacity-70",
+        "block min-h-[28px] w-full rounded-md border-[1.5px] border-dotted border-m-outline bg-m-surface px-1.5 py-1 text-left text-label-small leading-snug text-m-on-surface-variant",
+        !shown.length && "border-m-outline-variant bg-transparent opacity-70",
       )}
     >
       <span className="sr-only">{label}</span>
-      {has ? (
-        <span className="truncate">
-          {formatValue(field!, value)} {field!.short_label ?? ""}
-        </span>
-      ) : null}
+      <span className="grid gap-0.5">
+        {shown.map((f) => (
+          <span key={f.id} className="block break-words">
+            <b className="font-semibold">{formatValue(f, values[f.id])}</b> {f.short_label ?? f.label}
+          </span>
+        ))}
+      </span>
     </div>
   );
 }
