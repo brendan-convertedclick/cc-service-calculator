@@ -23,7 +23,7 @@ import {
   initialStatusForTier,
   maxTier,
 } from "@/types/extension-requests";
-import { ClientSelectField } from "./ClientSelectField";
+import { ClientListPicker } from "./ClientListPicker";
 import { useStaffClients } from "./useStaffClients";
 
 type CuTaskOption = {
@@ -211,9 +211,10 @@ export function ExtensionFormBody() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ClientSelectField id="ext-client" clients={clients} value={clientId} onValueChange={setClientId} />
+    <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
+      <ClientListPicker id="ext-client" clients={clients} value={clientId} onValueChange={setClientId} />
+
+      <div className="min-w-0 space-y-5">
         <div className="space-y-2">
           <Label htmlFor="ext-task">Task</Label>
           <Select value={taskId} onValueChange={setTaskId} disabled={!clientId || loadingTasks}>
@@ -244,112 +245,112 @@ export function ExtensionFormBody() {
           </Select>
           {tasksError && <p className="text-body-small text-destructive">{tasksError}</p>}
         </div>
-      </div>
 
-      {selectedTask && pointsRequested && selectedTask.sprint_points === null && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
-          This task has no Sprint Points custom field set in ClickUp. Extension requests
-          need a starting budget to compute the % delta. Set it on the ClickUp task first.
-        </div>
-      )}
-      {selectedTask && dueDateRequested && selectedTask.due_date === null && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
-          This task has no due date set in ClickUp. Set one there first so the days-requested
-          delta can be computed.
-        </div>
-      )}
-      {selectedTask && dueDateRequested && daysRequested !== null && daysRequested <= 0 && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
-          The new due date must be after the current one ({toDateInputValue(selectedTask.due_date!)}).
-        </div>
-      )}
+        {selectedTask && pointsRequested && selectedTask.sprint_points === null && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+            This task has no Sprint Points custom field set in ClickUp. Extension requests
+            need a starting budget to compute the % delta. Set it on the ClickUp task first.
+          </div>
+        )}
+        {selectedTask && dueDateRequested && selectedTask.due_date === null && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+            This task has no due date set in ClickUp. Set one there first so the days-requested
+            delta can be computed.
+          </div>
+        )}
+        {selectedTask && dueDateRequested && daysRequested !== null && daysRequested <= 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
+            The new due date must be after the current one ({toDateInputValue(selectedTask.due_date!)}).
+          </div>
+        )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="ext-extra">Extra sprint points</Label>
-          <Input
-            id="ext-extra"
-            type="number"
-            min={0}
-            step={0.25}
-            aria-describedby="ext-extra-help"
-            placeholder="e.g. 4"
-            value={extraPoints}
-            onChange={(e) => setExtraPoints(e.target.value)}
-          />
-          <p id="ext-extra-help" className="text-label-small text-m-on-surface-variant">
-            Leave blank if this is only a due-date push with no extra budget needed.
-          </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="ext-extra">Extra sprint points</Label>
+            <Input
+              id="ext-extra"
+              type="number"
+              min={0}
+              step={0.25}
+              aria-describedby="ext-extra-help"
+              placeholder="e.g. 4"
+              value={extraPoints}
+              onChange={(e) => setExtraPoints(e.target.value)}
+            />
+            <p id="ext-extra-help" className="text-label-small text-m-on-surface-variant">
+              Leave blank if this is only a due-date push with no extra budget needed.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ext-reason">Reason for extra points</Label>
+            <Textarea
+              id="ext-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="What's pushed the work past its budget? Be specific."
+              rows={2}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="ext-reason">Reason for extra points</Label>
-          <Textarea
-            id="ext-reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="What's pushed the work past its budget? Be specific."
-            rows={2}
-          />
-        </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="ext-due-date">New due date</Label>
-          <Input
-            id="ext-due-date"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="ext-due-date">New due date</Label>
+            <Input
+              id="ext-due-date"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ext-due-reason">Reason for due date extension</Label>
+            <Textarea
+              id="ext-due-reason"
+              value={dueDateReason}
+              onChange={(e) => setDueDateReason(e.target.value)}
+              placeholder="What's pushed the deadline out? Be specific."
+              rows={2}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="ext-due-reason">Reason for due date extension</Label>
-          <Textarea
-            id="ext-due-reason"
-            value={dueDateReason}
-            onChange={(e) => setDueDateReason(e.target.value)}
-            placeholder="What's pushed the deadline out? Be specific."
-            rows={2}
-          />
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label>Tier preview</Label>
-        <div className="flex h-10 items-center gap-3 rounded-md border border-m-outline-variant bg-m-surface px-3">
-          {tierPreview ? (
-            <>
-              <Badge variant={tierBadgeVariant(tierPreview.tier)}>
-                {tierPreview.tier}
-              </Badge>
-              {tierPreview.deltaPct !== null && (
-                <span className="text-body-small text-m-on-surface">
-                  +{tierPreview.deltaPct}% points delta
+        <div className="space-y-2">
+          <Label>Tier preview</Label>
+          <div className="flex h-10 items-center gap-3 rounded-md border border-m-outline-variant bg-m-surface px-3">
+            {tierPreview ? (
+              <>
+                <Badge variant={tierBadgeVariant(tierPreview.tier)}>
+                  {tierPreview.tier}
+                </Badge>
+                {tierPreview.deltaPct !== null && (
+                  <span className="text-body-small text-m-on-surface">
+                    +{tierPreview.deltaPct}% points delta
+                  </span>
+                )}
+                {tierPreview.daysRequested !== null && (
+                  <span className="text-body-small text-m-on-surface">
+                    +{tierPreview.daysRequested} day{tierPreview.daysRequested === 1 ? "" : "s"}
+                  </span>
+                )}
+                <span className="text-label-small text-m-on-surface-variant">
+                  · {tierLabel(tierPreview.tier)}
                 </span>
-              )}
-              {tierPreview.daysRequested !== null && (
-                <span className="text-body-small text-m-on-surface">
-                  +{tierPreview.daysRequested} day{tierPreview.daysRequested === 1 ? "" : "s"}
-                </span>
-              )}
-              <span className="text-label-small text-m-on-surface-variant">
-                · {tierLabel(tierPreview.tier)}
+              </>
+            ) : (
+              <span className="text-body-small text-m-on-surface-variant">
+                Request extra points and/or a new due date to preview the tier.
               </span>
-            </>
-          ) : (
-            <span className="text-body-small text-m-on-surface-variant">
-              Request extra points and/or a new due date to preview the tier.
-            </span>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-end pt-2">
-        <Button type="submit" disabled={!canSubmit} className="gap-2">
-          <ArrowUpCircle className="h-4 w-4" />
-          {submitting ? "Submitting…" : "Submit request"}
-        </Button>
+        <div className="flex items-center justify-end pt-2">
+          <Button type="submit" disabled={!canSubmit} className="gap-2">
+            <ArrowUpCircle className="h-4 w-4" />
+            {submitting ? "Submitting…" : "Submit request"}
+          </Button>
+        </div>
       </div>
     </form>
   );

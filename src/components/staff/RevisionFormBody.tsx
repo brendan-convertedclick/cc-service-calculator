@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { REVISION_SUFFIXES, type RevisionSuffix } from "@/types/revision-requests";
-import { ClientSelectField } from "./ClientSelectField";
+import { ClientListPicker } from "./ClientListPicker";
 import { useStaffClients } from "./useStaffClients";
 
 type CuTaskOption = { id: string; name: string; list_name: string };
@@ -107,9 +107,10 @@ export function RevisionFormBody() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ClientSelectField id="rev-client" clients={clients} value={clientId} onValueChange={setClientId} />
+    <form onSubmit={onSubmit} className="grid gap-6 sm:grid-cols-[220px,1fr]">
+      <ClientListPicker id="rev-client" clients={clients} value={clientId} onValueChange={setClientId} />
+
+      <div className="min-w-0 space-y-5">
         <div className="space-y-2">
           <Label htmlFor="rev-task">Task</Label>
           <Select value={taskId} onValueChange={setTaskId} disabled={!clientId || loadingTasks}>
@@ -139,27 +140,27 @@ export function RevisionFormBody() {
           </Select>
           {tasksError && <p className="text-body-small text-destructive">{tasksError}</p>}
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="rev-suffix">Revision</Label>
-        <Select value={revisionSuffix} onValueChange={(v) => setRevisionSuffix(v as RevisionSuffix)}>
-          <SelectTrigger id="rev-suffix">
-            <SelectValue placeholder="Pick the revision stage" />
-          </SelectTrigger>
-          <SelectContent>
-            {REVISION_SUFFIXES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        <div className="space-y-2">
+          <Label htmlFor="rev-suffix">Revision</Label>
+          <Select value={revisionSuffix} onValueChange={(v) => setRevisionSuffix(v as RevisionSuffix)}>
+            <SelectTrigger id="rev-suffix">
+              <SelectValue placeholder="Pick the revision stage" />
+            </SelectTrigger>
+            <SelectContent>
+              {REVISION_SUFFIXES.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div className="flex items-center justify-end pt-2">
-        <Button type="submit" disabled={!canSubmit} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
-          {submitting ? "Submitting…" : "Submit revision request"}
-        </Button>
+        <div className="flex items-center justify-end pt-2">
+          <Button type="submit" disabled={!canSubmit} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            {submitting ? "Submitting…" : "Submit revision request"}
+          </Button>
+        </div>
       </div>
     </form>
   );
