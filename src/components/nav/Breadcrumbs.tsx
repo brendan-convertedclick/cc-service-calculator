@@ -87,7 +87,7 @@ export function Breadcrumbs() {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex items-center gap-1.5 px-6 py-2 text-label-small text-m-on-surface-variant border-b border-m-outline-variant bg-m-surface"
+      className="flex items-center gap-1.5 px-6 py-2 text-label-small text-m-on-surface-variant"
     >
       <Link
         to="/"

@@ -26,6 +26,8 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useRetainers, isBillableRetainer } from "@/hooks/useRetainers";
 import { useSystemSteps } from "@/hooks/useProcessSteps";
 import { useCreateQuickBriefTask } from "@/hooks/useCreateQuickBriefTask";
+import { useClients } from "@/hooks/useClients";
+import { ClientListPicker } from "@/components/staff/ClientListPicker";
 import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
 import { draftFromSuggestion, type QuickTaskSuggestion } from "@/lib/quick-brief-suggestion";
 import { callEdgeFn } from "@/lib/edge";
@@ -51,7 +53,9 @@ type QuickBriefListOption = {
 type QuickBriefWorkStreamOption = { id: string; name: string };
 
 export interface QuickBriefSheetBrief {
-  id: string;
+  /** null = there is no brief yet (the shell's + button): the sheet asks for
+   *  the client first and writes the brief row on Create. */
+  id: string | null;
   client_id: string | null;
   intent_type: string | null;
   raw_subject: string | null;
@@ -75,6 +79,13 @@ export interface QuickBriefSheetProps {
  * the operator can override before the task is created.
  */
 export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetProps) {
+  const isNew = brief.id == null;
+  const { data: clients = [] } = useClients();
+  const [pickedClientId, setPickedClientId] = useState<string | null>(null);
+  // Held across a failed Create so a retry reuses the brief it already wrote
+  // instead of leaving a second one behind.
+  const [createdBriefId, setCreatedBriefId] = useState<string | null>(null);
+  const clientId = brief.client_id ?? pickedClientId;
   const { data: team = [] } = useTeam();
   const memberColor = useMemo(() => memberColors(team), [team]);
   const { data: departments = [] } = useDepartments();
@@ -104,8 +115,8 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const clientRetainers = allRetainers.filter(
     (r) =>
       r.status === "in_progress" &&
-      brief.client_id != null &&
-      r.client_id === brief.client_id &&
+      clientId != null &&
+      r.client_id === clientId &&
       isBillableRetainer(r),
   );
   const [projectId, setProjectId] = useState<string>(brief.parent_project_id ?? NO_PROJECT);
@@ -147,7 +158,9 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   useEffect(() => {
     if (!open) return;
     const draft = draftFromSuggestion(brief.quick_task_suggestion, brief.raw_subject ?? "");
-    setTaskName(draft.task_name);
+    // A fresh brief has nothing to draft from; "Untitled task" in the box is
+    // one more thing to delete before typing.
+    setTaskName(isNew ? "" : draft.task_name);
     setDescription("");
     setSuccessCriteria("");
     setMeasurableOutcome("");
@@ -168,13 +181,15 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setSystemId(NO_WORKFLOW);
     setAttachments([]);
     setAttachmentInputKey((k) => k + 1);
-  }, [open, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type, brief.assignee_id]);
+    setPickedClientId(null);
+    setCreatedBriefId(null);
+  }, [open, isNew, brief.quick_task_suggestion, brief.raw_subject, brief.billing_type, brief.assignee_id]);
 
   // Load the client's ClickUp lists + statuses when the sheet opens. Mirrors
   // the fetch pattern in BriefFormBody.tsx. Gated on `open` so a brief that's
   // never had its sheet opened never triggers a network call.
   useEffect(() => {
-    if (!open || !brief.client_id) {
+    if (!open || !clientId) {
       setLists([]);
       setWorkStreamOptions([]);
       setListId("");
@@ -188,7 +203,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         const body = await callEdgeFn<{
           lists?: QuickBriefListOption[];
           work_stream_options?: QuickBriefWorkStreamOption[];
-        }>("list-client-clickup-lists", { client_id: brief.client_id });
+        }>("list-client-clickup-lists", { client_id: clientId });
         if (cancelled) return;
         const fetchedLists = body.lists ?? [];
         setLists(fetchedLists);
@@ -207,7 +222,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     return () => {
       cancelled = true;
     };
-  }, [open, brief.client_id]);
+  }, [open, clientId]);
 
   // Picking a workflow drops its process steps into the checklist box, where
   // they stay editable — the operator can trim or add before creating.
@@ -228,7 +243,6 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     () => (systemId === NO_WORKFLOW ? null : pointsFromSteps(systemSteps)),
     [systemId, systemSteps],
   );
-  const needsWorkflow = systemId === NO_WORKFLOW;
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
   const waitingStatus = useMemo(
@@ -248,7 +262,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setStatus(STATUS_DEFAULT);
   }, [listId]);
 
-  const hasClient = Boolean(brief.client_id);
+  const hasClient = Boolean(clientId);
   // The Work Stream picker must offer ClickUp's ACTUAL "Work Stream" custom-field
   // options (e.g. "Creative", "Content", "3D") — Conductor's department names
   // (e.g. "Creative Production") are a DIFFERENT label set and don't match, which
@@ -260,7 +274,19 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   // can be empty or a stale/mismatched string that would otherwise flow straight
   // into the ClickUp "Work Stream" dropdown + BRIEF:: audit/invoice trail.
   const workStreamValid = workStreamSource.some((d) => d.name === workStream);
-  const saving = createTask.isPending;
+  const [writingBrief, setWritingBrief] = useState(false);
+  const saving = createTask.isPending || writingBrief;
+  // The reason Create is off, first one only. Work stream carries its own
+  // hint beside the field, so it is only named here once assignee is done.
+  const blocker = !hasClient
+    ? null
+    : !taskName.trim()
+      ? "Name the task first."
+      : assignee === UNASSIGNED
+        ? "Pick an assignee first."
+        : !workStreamValid
+          ? "Pick a work stream first."
+          : null;
 
   const handleCreate = async () => {
     try {
@@ -269,16 +295,41 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         measurableOutcome.trim() && `**Expected output**\n${measurableOutcome.trim()}`,
       ].filter(Boolean) as string[];
       const composedDescription = [description.trim(), ...extras].filter(Boolean).join("\n\n");
+      let briefId = brief.id ?? createdBriefId;
+      if (!briefId) {
+        // Same shape useAgreementToBrief writes: the task is the point, the
+        // brief row is what the edge function and every report hang it off.
+        setWritingBrief(true);
+        try {
+          const name = taskName.trim();
+          const { data, error } = await supabase
+            .from("briefs")
+            .insert({
+              client_id: clientId,
+              source: "manual",
+              raw_subject: name,
+              raw_body: description.trim() || name,
+              status: "new",
+            })
+            .select("id")
+            .single();
+          if (error) throw error;
+          briefId = (data as { id: string }).id;
+          setCreatedBriefId(briefId);
+        } finally {
+          setWritingBrief(false);
+        }
+      }
       // The link lives on the brief, not on the ClickUp task — it is what makes
       // this work show up against the retainer.
       if (billingType === "retainer" && projectId !== NO_PROJECT && projectId !== brief.parent_project_id) {
-        await supabase.from("briefs").update({ parent_project_id: projectId }).eq("id", brief.id);
+        await supabase.from("briefs").update({ parent_project_id: projectId }).eq("id", briefId);
       }
       const { clickup_task_url } = await createTask.mutateAsync({
-        brief_id: brief.id,
-        task_name: taskName.trim() || "Untitled task",
+        brief_id: briefId,
+        task_name: taskName.trim(),
         description: composedDescription || undefined,
-        assignee_member_id: assignee === UNASSIGNED || assignee === CLIENT ? null : assignee,
+        assignee_member_id: assignee === CLIENT ? null : assignee,
         sprint_points: Math.max(1, Math.round(sprintPoints)),
         work_stream: workStream,
         due_date: dueDate || null,
@@ -308,10 +359,38 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>Brief as-is</SheetTitle>
+          <SheetTitle>{isNew ? "New brief" : "Brief as-is"}</SheetTitle>
         </SheetHeader>
 
+        {isNew && !clientId ? (
+          <div className="space-y-4 py-4">
+            <ClientListPicker
+              id="qb-client"
+              clients={clients}
+              value=""
+              onValueChange={(v) => {
+                setPickedClientId(v);
+                setProjectId(NO_PROJECT);
+              }}
+            />
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-5 py-4">
+          {isNew && (
+            <div className="flex items-center justify-between rounded-lg border border-m-outline-variant bg-m-surface-container px-3 py-2">
+              <span className="text-label-large text-m-on-surface">
+                {clients.find((c) => c.id === clientId)?.name ?? "Client"}
+              </span>
+              <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setPickedClientId(null)}>
+                Change
+              </Button>
+            </div>
+          )}
           {!hasClient && (
             <p className="rounded-lg border border-m-outline-variant bg-m-surface-container px-3 py-2 text-body-small text-m-on-surface-variant">
               Assign a client first.
@@ -390,7 +469,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
             />
           </div>
 
-          <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} required />
+          <WorkflowSelect id="qb-workflow" value={systemId} onValueChange={setSystemId} />
 
           {/* One row per item rather than a textarea of lines: this becomes a
               ClickUp checklist, so it should look like one while you write it
@@ -443,12 +522,13 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="qb-assignee">Assignee</Label>
-              <Select value={assignee} onValueChange={setAssignee}>
+              {/* Required, so no "Unassigned" item: offering a choice the form
+                  then refuses is a trap. Undefined lets the placeholder show. */}
+              <Select value={assignee === UNASSIGNED ? undefined : assignee} onValueChange={setAssignee}>
                 <SelectTrigger id="qb-assignee">
-                  <SelectValue placeholder="Unassigned" />
+                  <SelectValue placeholder="Who's doing it?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                   <SelectItem value={CLIENT} disabled={!waitingStatus}>
                     Client
                   </SelectItem>
@@ -652,22 +732,21 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
           <div className="flex items-center justify-end gap-2 pt-2">
             {/* Ahead of the buttons, not between them: the reason Create is off
                 belongs beside the reader's eye before they reach for it. */}
-            {needsWorkflow && (
-              <span className="mr-auto text-label-small text-m-on-surface-variant">
-                Pick a service workflow first.
-              </span>
+            {blocker && (
+              <span className="mr-auto text-label-small text-m-on-surface-variant">{blocker}</span>
             )}
             <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
-              disabled={saving || !hasClient || !workStreamValid || needsWorkflow}
+              disabled={saving || !hasClient || blocker != null}
               onClick={handleCreate}
             >
               {saving ? "Creating…" : "Create task"}
             </Button>
           </div>
         </div>
+        )}
       </SheetContent>
     </Sheet>
   );
