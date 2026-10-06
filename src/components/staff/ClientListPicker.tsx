@@ -60,7 +60,9 @@ export function ClientListPicker({
           autoFocus={autoFocus}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (!pickOnEnter || e.key !== "Enter" || !visible[0]) return;
+            // Only once something is typed: an empty search + Enter is left to
+            // the enclosing form, so it can mean "skip" rather than "pick row 1".
+            if (!pickOnEnter || e.key !== "Enter" || !query.trim() || !visible[0]) return;
             // preventDefault tells an enclosing key handler this Enter is spent.
             e.preventDefault();
             onValueChange(visible[0].id);
