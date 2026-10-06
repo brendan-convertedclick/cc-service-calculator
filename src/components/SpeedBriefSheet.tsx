@@ -27,7 +27,15 @@ import { cn, errorMessage } from "@/lib/utils";
 const CLIENT = "__client__";
 const STATUS_DEFAULT = "__default__";
 const UNITS = ["creatives", "posts", "pages", "ads", "videos", "exports"];
-const HOUR_PRESETS = [0.5, 1, 2, 4];
+// Most briefs are small; the slider covers the rest. Keys 1 to 6 pick these.
+const HOUR_PRESETS = [
+  { h: 0.25, label: "15m" },
+  { h: 0.5, label: "30m" },
+  { h: 0.75, label: "45m" },
+  { h: 1, label: "60m" },
+  { h: 1.5, label: "1.5h" },
+  { h: 2, label: "2h" },
+];
 type Billing = "retainer" | "adhoc" | "internal";
 const BILLING: { v: Billing; label: string; key: string }[] = [
   { v: "retainer", label: "Retainer", key: "r" },
@@ -320,7 +328,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
       setAssignee(id);
       setStep(6);
     } else if (step === 6 && n >= 1 && HOUR_PRESETS[n - 1]) {
-      setHours(HOUR_PRESETS[n - 1]);
+      setHours(HOUR_PRESETS[n - 1].h);
       setStep(7);
     } else if (step === 7) {
       setDueDate(n === 0 ? "" : (dueChoices()[n - 1]?.date ?? dueDate));
@@ -494,7 +502,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
             {hours == null && workflowPoints != null && (
               <p className="text-label-small text-m-on-surface-variant">From the workflow's ticked steps.</p>
             )}
-            <Chips items={HOUR_PRESETS.map((h, i) => ({ v: String(h), label: hoursLabel(h), key: String(i + 1) }))} value={hours != null ? String(hours) : ""} onPick={(v) => setHours(Number(v))} />
+            <Chips items={HOUR_PRESETS.map((p, i) => ({ v: String(p.h), label: p.label, key: String(i + 1) }))} value={hours != null ? String(hours) : ""} onPick={(v) => setHours(Number(v))} />
           </div>
         );
       case 7:
