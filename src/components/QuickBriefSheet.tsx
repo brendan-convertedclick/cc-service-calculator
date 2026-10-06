@@ -386,7 +386,15 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               <span className="text-label-large text-m-on-surface">
                 {clients.find((c) => c.id === clientId)?.name ?? "Client"}
               </span>
-              <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setPickedClientId(null)}>
+              {/* Locked once the brief row exists: it already carries this
+                  client, and a retry reuses it. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={saving || createdBriefId != null}
+                onClick={() => setPickedClientId(null)}
+              >
                 Change
               </Button>
             </div>
