@@ -41,6 +41,16 @@ export function isBillableRetainer(r: {
   return r.retainer_monthly_fee_cents != null || r.retainer_hours_target != null;
 }
 
+/** The retainers a brief for this client can be billed against: live, theirs,
+ *  and billable. Both brief sheets offer exactly this list. */
+export function billableRetainersFor<
+  R extends Parameters<typeof isBillableRetainer>[0] & { status: string; client_id: string | null },
+>(all: R[], clientId: string | null): R[] {
+  return all.filter(
+    (r) => r.status === "in_progress" && clientId != null && r.client_id === clientId && isBillableRetainer(r),
+  );
+}
+
 /** Whether a retainer belongs in the Internal book. The client flag (0152) and
  *  the retainer's own (0162) are OR-ed: a brand of ours is our own work
  *  whatever the retainer says, so the switch can move work OUT of the client

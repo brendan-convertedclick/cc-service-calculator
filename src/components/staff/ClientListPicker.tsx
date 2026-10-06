@@ -9,6 +9,12 @@ type ClientListPickerProps = {
   clients: ClientOption[];
   value: string;
   onValueChange: (value: string) => void;
+  /** Defaults to "Client"; the speed brief reuses this list for procedures. */
+  label?: string;
+  /** Enter in the search box picks the top match. Off by default: on the staff
+   *  forms the picker sits inside a form, where Enter belongs to the form. */
+  pickOnEnter?: boolean;
+  autoFocus?: boolean;
 };
 
 /**
@@ -16,7 +22,15 @@ type ClientListPickerProps = {
  * searchable, always-open list in a panel, so the client is one click rather
  * than a dropdown to open and scroll.
  */
-export function ClientListPicker({ id, clients, value, onValueChange }: ClientListPickerProps) {
+export function ClientListPicker({
+  id,
+  clients,
+  value,
+  onValueChange,
+  label = "Client",
+  pickOnEnter = false,
+  autoFocus = false,
+}: ClientListPickerProps) {
   const [query, setQuery] = useState("");
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,13 +52,25 @@ export function ClientListPicker({ id, clients, value, onValueChange }: ClientLi
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>Client</Label>
+      <Label htmlFor={id}>{label}</Label>
       <div className="space-y-2 rounded-lg border border-m-outline-variant bg-m-surface-container-low p-2">
-        <Input id={id} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" />
+        <Input
+          id={id}
+          value={query}
+          autoFocus={autoFocus}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (!pickOnEnter || e.key !== "Enter" || !visible[0]) return;
+            // preventDefault tells an enclosing key handler this Enter is spent.
+            e.preventDefault();
+            onValueChange(visible[0].id);
+          }}
+          placeholder="Search…"
+        />
         <div
           ref={listRef}
           role="listbox"
-          aria-label="Client"
+          aria-label={label}
           className="relative max-h-64 space-y-0.5 overflow-y-auto sm:max-h-[36rem]"
         >
           {visible.map((c) => (

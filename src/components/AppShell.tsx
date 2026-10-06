@@ -7,19 +7,10 @@ import { useNavOpen } from "@/hooks/useNavOpen";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { navEntriesFor } from "@/components/nav/navItems";
-import { QuickBriefSheet, type QuickBriefSheetBrief } from "@/components/QuickBriefSheet";
+import { SpeedBriefSheet } from "@/components/SpeedBriefSheet";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
-// No brief yet: the sheet asks for the client first. Module-level so the
-// sheet's prefill effect sees the same object every render.
-const NEW_BRIEF: QuickBriefSheetBrief = {
-  id: null,
-  client_id: null,
-  intent_type: null,
-  raw_subject: null,
-  quick_task_suggestion: null,
-};
 
 export function AppShell() {
   const [navOpen, toggleNav] = useNavOpen();
@@ -27,6 +18,8 @@ export function AppShell() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const { role } = useCurrentRole();
   const [briefOpen, setBriefOpen] = useState(false);
+  // Bumped on every open: remounting the sheet is what resets its answers.
+  const [briefKey, setBriefKey] = useState(0);
   // Admin/owner only: the sheet creates a ClickUp task outright, and staff
   // briefs go through approval from /staff instead.
   const canBrief = role === "admin" || role === "owner";
@@ -68,7 +61,10 @@ export function AppShell() {
                 className="h-7 w-7"
                 aria-label="New brief"
                 title="New brief"
-                onClick={() => setBriefOpen(true)}
+                onClick={() => {
+                  setBriefKey((k) => k + 1);
+                  setBriefOpen(true);
+                }}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -79,7 +75,7 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
-      {canBrief && <QuickBriefSheet open={briefOpen} onOpenChange={setBriefOpen} brief={NEW_BRIEF} />}
+      {canBrief && <SpeedBriefSheet key={briefKey} open={briefOpen} onOpenChange={setBriefOpen} />}
     </div>
   );
 }
