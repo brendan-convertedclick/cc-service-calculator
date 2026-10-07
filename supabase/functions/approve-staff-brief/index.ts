@@ -1,6 +1,8 @@
 // supabase/functions/approve-staff-brief/index.ts
 //
-// Request:  POST { staff_brief_id: string }
+// Request:  POST { staff_brief_id: string, sprint_points?: number }
+//           sprint_points approves at a different estimate than was asked;
+//           the ask stays on the row and the change is recorded beside it.
 // Response: 200 { clickup_task_id, clickup_task_url }
 //          | 400 { error } | 403 { error } | 502 { error }
 //
@@ -44,6 +46,8 @@ type Member = {
   role: string;
 };
 
+const fmtHours = (pts: number) => `${Number(pts) / 4}h`;
+
 type Client = { id: string; name: string; clickup_client_name: string | null; clickup_chat_channel_id: string | null };
 
 Deno.serve(async (req: Request) => {
@@ -51,12 +55,16 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { staff_brief_id, project_id, billing } = (await req.json()) as {
+    const { staff_brief_id, project_id, billing, sprint_points: override } = (await req.json()) as {
       staff_brief_id?: string;
       project_id?: string | null;
       billing?: "retainer" | "adhoc" | "internal";
+      sprint_points?: number;
     };
     if (!staff_brief_id) return json({ error: "staff_brief_id required" }, 400);
+    if (override !== undefined && !(Number.isFinite(override) && override > 0)) {
+      return json({ error: "sprint_points must be a positive number" }, 400);
+    }
 
     const supabase = createUserClient(req);
     const { token: clickupPat, via } = await getOperatorClickupToken(req);
@@ -81,6 +89,11 @@ Deno.serve(async (req: Request) => {
       .single();
     if (briefErr || !briefRaw) return json({ error: briefErr?.message ?? "Not found" }, 404);
     const brief = briefRaw as unknown as StaffBrief;
+    // Every downstream reader (ClickUp, the audit comment, the chat ping, the
+    // briefs mirror /retainers counts) takes the approved figure, so ClickUp
+    // and Conductor cannot disagree about the same task.
+    const points = override ?? brief.sprint_points;
+    const changed = Number(points) !== Number(brief.sprint_points);
 
     // Idempotency
     if (brief.status === "approved" && brief.clickup_task_id) {
@@ -204,7 +217,7 @@ Deno.serve(async (req: Request) => {
       clientName: cli.clickup_client_name ?? cli.name,
       workStream,
       engagementType,
-      sprintPoints: brief.sprint_points,
+      sprintPoints: points,
       dateOfEngagement,
       assigneeClickupId: member.clickup_user_id,
       billingType,
@@ -261,7 +274,7 @@ Deno.serve(async (req: Request) => {
       client_name: cli.name,
       engagement_type: engagementType,
       work_stream: workStream,
-      sprint_points: brief.sprint_points,
+      sprint_points: points,
       date_of_engagement: dateOfEngagement,
       source_quote_id: `staff_brief:${brief.id}`,
     });
@@ -279,7 +292,9 @@ Deno.serve(async (req: Request) => {
     await postChatMessage(
       clickupPat,
       chatChannelId,
-      `✅ ${mention} — your brief was approved: "${brief.task_name}" · ${brief.sprint_points}pt · ${created.url}`,
+      changed
+        ? `✅ ${mention} your brief was approved at ${fmtHours(points)}. You asked for ${fmtHours(brief.sprint_points)}. "${brief.task_name}" · ${points}pt · ${created.url}`
+        : `✅ ${mention} your brief was approved: "${brief.task_name}" · ${points}pt · ${created.url}`,
     );
 
     // Persist outcome.
@@ -292,6 +307,7 @@ Deno.serve(async (req: Request) => {
         clickup_task_id: created.id,
         clickup_task_url: created.url,
         project_id: projectForBrief,
+        approved_points: changed ? points : null,
       })
       .eq("id", brief.id);
     if (updateErr) {
@@ -313,7 +329,7 @@ Deno.serve(async (req: Request) => {
       status: "briefed",
       raw_subject: brief.task_name,
       raw_body: brief.goal,
-      original_points: brief.sprint_points,
+      original_points: points,
       // Derived above, beside `destination` — the ClickUp task name reads the
       // same value. (It was once `destination === "retainer" ? "retainer" :
       // "adhoc"`, which filed every internal staff brief as adhoc because the

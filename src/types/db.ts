@@ -5766,6 +5766,7 @@ export type Database = {
       staff_briefs: {
         Row: {
           approved_at: string | null
+          approved_points: number | null
           approved_by: string | null
           auto_approved: boolean
           clickup_list_id: string
@@ -5791,6 +5792,7 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
+          approved_points?: number | null
           approved_by?: string | null
           auto_approved?: boolean
           clickup_list_id: string
@@ -5816,6 +5818,7 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
+          approved_points?: number | null
           approved_by?: string | null
           auto_approved?: boolean
           clickup_list_id?: string

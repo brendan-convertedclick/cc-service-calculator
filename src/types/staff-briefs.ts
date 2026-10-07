@@ -13,7 +13,10 @@ export type StaffBriefRow = {
   clickup_list_id: string;
   clickup_list_name: string;
   task_name: string;
+  /** What the submitter asked for. */
   sprint_points: number;
+  /** What the approver approved, when it differs from the ask. */
+  approved_points: number | null;
   is_internal: boolean;
   goal: string;
   success_criteria: string;

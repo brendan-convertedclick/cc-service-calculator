@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { fmtPtH } from "@/lib/sprint-points";
+import { fmtPtH, hoursToPoints, pointsToHours } from "@/lib/sprint-points";
+import { TimePresetField } from "@/components/TimePresetField";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
@@ -43,6 +44,9 @@ export function Approvals() {
   // Which retainer each pending brief is being allocated to. Held here rather
   // than in the card so a re-render mid-approval cannot lose the choice.
   const [briefProject, setBriefProject] = useState<Record<string, string | null>>({});
+  // The time each brief will be approved at, in hours, when the approver has
+  // changed it. Absent means "as asked". Held here for the same reason.
+  const [briefHours, setBriefHours] = useState<Record<string, string>>({});
   const { data: allRetainers = [] } = useRetainers();
   const [exts, setExts] = useState<ExtJoined[] | null>(null);
   const [revs, setRevs] = useState<RevJoined[] | null>(null);
@@ -102,11 +106,16 @@ export function Approvals() {
     loadRevs();
   }, []);
 
-  const approveBrief = async (id: string, choice: string | null) => {
+  const approveBrief = async (row: BriefJoined, choice: string | null, hours: string | undefined) => {
+    const id = row.id;
+    const points = hours === undefined ? undefined : hoursToPoints(Number(hours));
+    if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
     setBusyId(id);
     try {
       await callEdgeFn("approve-staff-brief", {
         staff_brief_id: id,
+        // Only sent when it differs, so the row keeps "approved as asked".
+        sprint_points: points !== undefined && points !== Number(row.sprint_points) ? points : undefined,
         project_id: choice === ADHOC || choice === INTERNAL ? null : choice,
         // No choice is not a choice of "retainer": an internal brief renders no
         // picker at all, so it always arrives here with choice === null and
@@ -270,7 +279,9 @@ export function Approvals() {
                 retainers={allRetainers}
                 projectId={briefProject[row.id] ?? null}
                 onProjectChange={(pid) => setBriefProject((m) => ({ ...m, [row.id]: pid }))}
-                onApprove={() => approveBrief(row.id, briefProject[row.id] ?? null)}
+                hours={briefHours[row.id] ?? String(pointsToHours(Number(row.sprint_points)))}
+                onHoursChange={(h) => setBriefHours((m) => ({ ...m, [row.id]: h }))}
+                onApprove={() => approveBrief(row, briefProject[row.id] ?? null, briefHours[row.id])}
                 onRejectStart={() => {
                   setRejectingId(row.id);
                   setRejectReason("");
@@ -292,7 +303,11 @@ export function Approvals() {
                 .map((r) => ({
                   id: r.id,
                   title: r.task_name,
-                  subtitle: `${r.submitter?.full_name ?? "—"} · ${r.client?.name ?? "—"} · ${fmtPtH(r.sprint_points)}`,
+                  subtitle: `${r.submitter?.full_name ?? "—"} · ${r.client?.name ?? "—"} · ${
+                    r.approved_points != null
+                      ? `asked ${fmtPtH(r.sprint_points)}, approved ${fmtPtH(r.approved_points)}`
+                      : fmtPtH(r.sprint_points)
+                  }`,
                   status: r.status,
                   url: r.clickup_task_url,
                 }))}
@@ -413,6 +428,8 @@ function BriefCard({
   retainers,
   projectId,
   onProjectChange,
+  hours,
+  onHoursChange,
   busy,
   rejecting,
   rejectReason,
@@ -426,6 +443,8 @@ function BriefCard({
   retainers: { id: string; name: string; client_id: string | null; status: string }[];
   projectId: string | null;
   onProjectChange: (id: string | null) => void;
+  hours: string;
+  onHoursChange: (hours: string) => void;
   busy: boolean;
   rejecting: boolean;
   rejectReason: string;
@@ -438,6 +457,7 @@ function BriefCard({
   const clientRetainers = retainers.filter(
     (r) => r.status === "in_progress" && r.client_id === row.client?.id,
   );
+  const timeChanged = hoursToPoints(Number(hours)) !== Number(row.sprint_points);
 
   return (
     <Card className="shadow-elev-1">
@@ -482,6 +502,17 @@ function BriefCard({
           />
         ) : (
           <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label htmlFor={`hours-${row.id}`} className="text-label-small text-m-on-surface-variant">
+                Approve at
+              </label>
+              <TimePresetField id={`hours-${row.id}`} value={hours} onChange={onHoursChange} />
+            </div>
+            {timeChanged && (
+              <p className="text-right text-label-small text-m-on-surface-variant">
+                {row.submitter?.full_name?.split(" ")[0] ?? "They"} asked for {fmtPtH(row.sprint_points)}. They will be told it changed.
+              </p>
+            )}
             {/* Enforced here, not on the staff form: the submitter rarely knows
                 whether their task is covered by a retainer or is billable. */}
             {!row.is_internal && (
@@ -524,8 +555,8 @@ function BriefCard({
               onReject={onRejectStart}
               onApprove={onApprove}
               busy={busy}
-              approveDisabled={!row.is_internal && !projectId}
-              approveLabel="Approve & push to ClickUp"
+              approveDisabled={(!row.is_internal && !projectId) || !(Number(hours) > 0)}
+              approveLabel={timeChanged ? `Approve at ${Number(hours)}h & push to ClickUp` : "Approve & push to ClickUp"}
             />
           </div>
         )}

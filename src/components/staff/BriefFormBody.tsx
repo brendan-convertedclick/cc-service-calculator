@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ClickUpListSelect } from "@/components/ClickUpListSelect";
+import { TimePresetField } from "@/components/TimePresetField";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
@@ -144,7 +145,7 @@ export function BriefFormBody() {
           />
         </div>
 
-        <div className="grid items-start gap-4 sm:grid-cols-[1fr,auto,140px]">
+        <div className="grid items-start gap-4 sm:grid-cols-[1fr,auto]">
           <ClickUpListSelect
             id="brief-list"
             lists={lists}
@@ -163,18 +164,11 @@ export function BriefFormBody() {
               </span>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="brief-hours">Estimated time</Label>
-            <Input
-              id="brief-hours"
-              type="number"
-              min={0.25}
-              step={0.25}
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-            <p className="text-label-small text-m-on-surface-variant">In hours. 0.25 = 15 min</p>
-          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="brief-hours">Estimated time</Label>
+          <TimePresetField id="brief-hours" value={hours} onChange={setHours} />
         </div>
 
         <WorkflowSelect

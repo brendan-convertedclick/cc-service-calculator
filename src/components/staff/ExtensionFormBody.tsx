@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { TimePresetField } from "@/components/TimePresetField";
+import { hoursToPoints } from "@/lib/sprint-points";
 import {
   Select,
   SelectContent,
@@ -60,7 +62,9 @@ export function ExtensionFormBody() {
 
   const [clientId, setClientId] = useState<string>("");
   const [taskId, setTaskId] = useState<string>("");
-  const [extraPoints, setExtraPoints] = useState<string>("");
+  // Asked for in time like every other /staff field; stored as points.
+  const [extraHours, setExtraHours] = useState<string>("");
+  const extraPoints = extraHours.trim() === "" ? "" : String(hoursToPoints(Number(extraHours)));
   const [reason, setReason] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueDateReason, setDueDateReason] = useState("");
@@ -201,7 +205,7 @@ export function ExtensionFormBody() {
           extension_request_id: (inserted as { id: string }).id,
         }).catch(() => {});
       }
-      setExtraPoints("");
+      setExtraHours("");
       setReason("");
       setDueDate("");
       setDueDateReason("");
@@ -266,23 +270,14 @@ export function ExtensionFormBody() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="ext-extra">Extra sprint points</Label>
-            <Input
-              id="ext-extra"
-              type="number"
-              min={0}
-              step={0.25}
-              aria-describedby="ext-extra-help"
-              placeholder="e.g. 4"
-              value={extraPoints}
-              onChange={(e) => setExtraPoints(e.target.value)}
-            />
+            <Label htmlFor="ext-extra">Extra time</Label>
+            <TimePresetField id="ext-extra" value={extraHours} onChange={setExtraHours} />
             <p id="ext-extra-help" className="text-label-small text-m-on-surface-variant">
               Leave blank if this is only a due-date push with no extra budget needed.
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ext-reason">Reason for extra points</Label>
+            <Label htmlFor="ext-reason">Reason for extra time</Label>
             <Textarea
               id="ext-reason"
               value={reason}

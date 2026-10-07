@@ -13,6 +13,17 @@ export function pointsToHours(points: number): number {
   return points / POINTS_PER_HOUR;
 }
 
+// Most briefs are small; the box covers the rest. The speed brief binds keys
+// 1 to 6 to these, so keep the order.
+export const HOUR_PRESETS = [
+  { h: 0.25, label: "15m" },
+  { h: 0.5, label: "30m" },
+  { h: 0.75, label: "45m" },
+  { h: 1, label: "60m" },
+  { h: 1.5, label: "1.5h" },
+  { h: 2, label: "2h" },
+];
+
 /**
  * Maximum sprint points a project can spend before it loses money outright.
  *   max_points = project_value_cents / standard_point_rate_cents
