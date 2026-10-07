@@ -178,7 +178,13 @@ export function MyRequestsList() {
 
 function requestSummary(r: Row): string {
   const parts: string[] = [];
-  if (askedForPoints(r)) parts.push(`+${r.extra_points}pt`);
+  if (askedForPoints(r)) {
+    parts.push(
+      r.approved_extra_points != null
+        ? `+${r.approved_extra_points}pt approved (you asked +${r.extra_points}pt)`
+        : `+${r.extra_points}pt`,
+    );
+  }
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }

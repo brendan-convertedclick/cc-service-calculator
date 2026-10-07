@@ -27,6 +27,7 @@ type ExtensionRow = {
   tier: "auto" | "admin" | "owner";
   status: string;
   extra_points: number | null;
+  approved_extra_points: number | null;
   reason: string | null;
   requested_due_date: string | null;
   due_date_reason: string | null;
@@ -40,7 +41,11 @@ type ExtensionRow = {
 /** Plain-text summary of whichever of points/due-date this request carries. */
 function buildSummary(row: ExtensionRow): string {
   const parts: string[] = [];
-  if (row.extra_points) parts.push(`+${row.extra_points}pt — ${row.reason}`);
+  // An admin who trimmed the time before passing it up: the owner is told
+  // the figure they are actually approving, and what was asked.
+  if (row.approved_extra_points) {
+    parts.push(`+${row.approved_extra_points}pt (asked +${row.extra_points}pt): ${row.reason}`);
+  } else if (row.extra_points) parts.push(`+${row.extra_points}pt — ${row.reason}`);
   if (row.requested_due_date) parts.push(`due date → ${row.requested_due_date} — ${row.due_date_reason}`);
   return `"${row.parent_task_name}": ${parts.join(" · ")}`;
 }
@@ -70,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const { data: rowRaw, error: rowErr } = await sb
       .from("extension_requests")
       .select(
-        "id, tier, status, extra_points, reason, requested_due_date, due_date_reason, info_request, rejected_reason, parent_task_name, requester_id, client_id",
+        "id, tier, status, extra_points, approved_extra_points, reason, requested_due_date, due_date_reason, info_request, rejected_reason, parent_task_name, requester_id, client_id",
       )
       .eq("id", extension_request_id)
       .single();

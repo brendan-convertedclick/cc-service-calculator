@@ -7,6 +7,8 @@ import { callEdgeFn } from "@/lib/edge";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { TimePresetField } from "@/components/TimePresetField";
+import { hoursToPoints } from "@/lib/sprint-points";
 import {
   Select,
   SelectContent,
@@ -35,6 +37,9 @@ export function RevisionFormBody() {
   const [clientId, setClientId] = useState<string>("");
   const [taskId, setTaskId] = useState<string>("");
   const [revisionSuffix, setRevisionSuffix] = useState<RevisionSuffix | "">("");
+  // A revision is new work, so it states its time like a brief. Blank to
+  // start: a default would be a time nobody chose.
+  const [hours, setHours] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -71,7 +76,8 @@ export function RevisionFormBody() {
     [tasks, taskId],
   );
 
-  const canSubmit = !!currentUserId && !!clientId && !!selectedTask && !!revisionSuffix && !submitting;
+  const canSubmit =
+    !!currentUserId && !!clientId && !!selectedTask && !!revisionSuffix && Number(hours) > 0 && !submitting;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +92,7 @@ export function RevisionFormBody() {
           parent_clickup_task_id: selectedTask.id,
           parent_task_name: selectedTask.name,
           revision_suffix: revisionSuffix,
+          sprint_points: hoursToPoints(Number(hours)),
           status: "pending_admin",
         })
         .select("id")
@@ -101,6 +108,7 @@ export function RevisionFormBody() {
         revision_request_id: (inserted as { id: string }).id,
       }).catch(() => {});
       setRevisionSuffix("");
+      setHours("");
     } finally {
       setSubmitting(false);
     }
@@ -153,6 +161,11 @@ export function RevisionFormBody() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="rev-hours">Estimated time</Label>
+          <TimePresetField id="rev-hours" value={hours} onChange={setHours} />
         </div>
 
         <div className="flex items-center justify-end pt-2">

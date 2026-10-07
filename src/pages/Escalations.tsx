@@ -15,6 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EscalationTable, type ClientGroup } from "@/components/approvals/EscalationTable";
 import { EscalationDetail } from "@/components/approvals/EscalationDetail";
+import { TimePresetField } from "@/components/TimePresetField";
+import { hoursToPoints, pointsToHours } from "@/lib/sprint-points";
 import { FilterGroup, FilterOption } from "@/components/filters/FilterRail";
 import {
   askedForPoints,
@@ -49,6 +51,8 @@ export function Escalations() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [compose, setCompose] = useState<{ id: string; kind: "reject" | "ask" } | null>(null);
   const [draft, setDraft] = useState("");
+  // Extra time the owner is granting, per request, when they change it.
+  const [grantHours, setGrantHours] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedHolders, setSelectedHolders] = useState<Set<EscalationHolder>>(new Set());
@@ -184,10 +188,19 @@ export function Escalations() {
     ).length;
   }, [all, selected]);
 
-  const approve = async (id: string) => {
+  const approve = async (row: EscalationRow) => {
+    const id = row.id;
+    const h = grantHours[id];
+    const pts = h === undefined || !askedForPoints(row) ? undefined : hoursToPoints(Number(h));
+    if (pts !== undefined && !(pts > 0)) return toast.error("Extra time must be more than zero.");
     setBusyId(id);
     try {
-      await callEdgeFn("approve-extension-request", { extension_request_id: id });
+      await callEdgeFn("approve-extension-request", {
+        extension_request_id: id,
+        // Only when it differs from what is already on the row (the admin's
+        // figure, or the ask), so an unchanged approve records nothing new.
+        extra_points: pts !== undefined && pts !== Number(row.approved_extra_points ?? row.extra_points) ? pts : undefined,
+      });
       toast.success("Approved.");
       close();
       await load();
@@ -427,42 +440,59 @@ export function Escalations() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-2"
-                        disabled={busyId === selected.id}
-                        onClick={() => {
-                          setCompose({ id: selected.id, kind: "ask" });
-                          setDraft("");
-                        }}
-                      >
-                        <HelpCircle className="h-4 w-4" />
-                        Ask for info
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-2"
-                        disabled={busyId === selected.id}
-                        onClick={() => {
-                          setCompose({ id: selected.id, kind: "reject" });
-                          setDraft("");
-                        }}
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="gap-2"
-                        disabled={busyId === selected.id}
-                        onClick={() => approve(selected.id)}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        {busyId === selected.id ? "Approving…" : approveLabel(selected)}
-                      </Button>
+                    <div className="space-y-3">
+                      {askedForPoints(selected) && (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <label htmlFor={`grant-${selected.id}`} className="text-label-small text-m-on-surface-variant">
+                            Grant extra
+                          </label>
+                          <TimePresetField
+                            id={`grant-${selected.id}`}
+                            value={
+                              grantHours[selected.id] ??
+                              String(pointsToHours(Number(selected.approved_extra_points ?? selected.extra_points)))
+                            }
+                            onChange={(v) => setGrantHours((m) => ({ ...m, [selected.id]: v }))}
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-2"
+                          disabled={busyId === selected.id}
+                          onClick={() => {
+                            setCompose({ id: selected.id, kind: "ask" });
+                            setDraft("");
+                          }}
+                        >
+                          <HelpCircle className="h-4 w-4" />
+                          Ask for info
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-2"
+                          disabled={busyId === selected.id}
+                          onClick={() => {
+                            setCompose({ id: selected.id, kind: "reject" });
+                            setDraft("");
+                          }}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="gap-2"
+                          disabled={busyId === selected.id}
+                          onClick={() => approve(selected)}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          {busyId === selected.id ? "Approving…" : approveLabel(selected)}
+                        </Button>
+                      </div>
                     </div>
                   )
                 }

@@ -25,6 +25,7 @@ type RevisionRow = {
   id: string;
   revision_suffix: string;
   parent_task_name: string;
+  sprint_points: number | null;
   status: string;
   rejected_reason: string | null;
   requester_id: string;
@@ -43,7 +44,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: rowRaw, error: rowErr } = await sb
       .from("revision_requests")
-      .select("id, revision_suffix, parent_task_name, status, rejected_reason, requester_id, client_id")
+      .select("id, revision_suffix, parent_task_name, sprint_points, status, rejected_reason, requester_id, client_id")
       .eq("id", revision_request_id)
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
@@ -66,7 +67,7 @@ Deno.serve(async (req: Request) => {
       return json({ notified: [], chat_ok: false, warning: rejected ? "Requester not found" : "No admin on the team" });
     }
 
-    const summary = `"${row.parent_task_name}" → ${row.revision_suffix}`;
+    const summary = `"${row.parent_task_name}" → ${row.revision_suffix}${row.sprint_points ? ` · ${row.sprint_points}pt` : ""}`;
     const lead = rejected
       ? `❌ your revision request was declined: ${summary}\nReason: ${row.rejected_reason ?? "none given"}`
       : `🔁 revision request from ${requesterName} needs your approval: ${summary}`;

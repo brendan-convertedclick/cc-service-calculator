@@ -17,6 +17,8 @@ export type ExtensionRequestRow = {
   parent_task_name: string;
   original_points: number | null;
   extra_points: number | null;
+  /** Extra time granted, when an approver changed it. Null = as asked. */
+  approved_extra_points: number | null;
   delta_pct: number | null;
   original_due_date: string | null;
   requested_due_date: string | null;

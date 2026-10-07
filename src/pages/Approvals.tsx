@@ -44,9 +44,18 @@ export function Approvals() {
   // Which retainer each pending brief is being allocated to. Held here rather
   // than in the card so a re-render mid-approval cannot lose the choice.
   const [briefProject, setBriefProject] = useState<Record<string, string | null>>({});
-  // The time each brief will be approved at, in hours, when the approver has
-  // changed it. Absent means "as asked". Held here for the same reason.
-  const [briefHours, setBriefHours] = useState<Record<string, string>>({});
+  // The time each request will be approved at, in hours, when the approver
+  // has changed it. Absent means "as asked". Keyed by row id across all three
+  // tabs (uuids do not collide). Held here for the same reason.
+  const [approveHours, setApproveHours] = useState<Record<string, string>>({});
+  const setHoursFor = (id: string) => (h: string) => setApproveHours((m) => ({ ...m, [id]: h }));
+  /** Points to send, or undefined when the approver left the ask alone. */
+  const overrideFor = (id: string, asked: number | null): number | undefined => {
+    const h = approveHours[id];
+    if (h === undefined) return undefined;
+    const pts = hoursToPoints(Number(h));
+    return pts !== Number(asked) ? pts : undefined;
+  };
   const { data: allRetainers = [] } = useRetainers();
   const [exts, setExts] = useState<ExtJoined[] | null>(null);
   const [revs, setRevs] = useState<RevJoined[] | null>(null);
@@ -106,16 +115,16 @@ export function Approvals() {
     loadRevs();
   }, []);
 
-  const approveBrief = async (row: BriefJoined, choice: string | null, hours: string | undefined) => {
+  const approveBrief = async (row: BriefJoined, choice: string | null) => {
     const id = row.id;
-    const points = hours === undefined ? undefined : hoursToPoints(Number(hours));
+    const points = overrideFor(id, row.sprint_points);
     if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
     setBusyId(id);
     try {
       await callEdgeFn("approve-staff-brief", {
         staff_brief_id: id,
         // Only sent when it differs, so the row keeps "approved as asked".
-        sprint_points: points !== undefined && points !== Number(row.sprint_points) ? points : undefined,
+        sprint_points: points,
         project_id: choice === ADHOC || choice === INTERNAL ? null : choice,
         // No choice is not a choice of "retainer": an internal brief renders no
         // picker at all, so it always arrives here with choice === null and
@@ -133,11 +142,15 @@ export function Approvals() {
     }
   };
 
-  const approveExt = async (id: string) => {
+  const approveExt = async (row: ExtJoined) => {
+    const id = row.id;
+    const points = askedForPoints(row) ? overrideFor(id, row.approved_extra_points ?? row.extra_points) : undefined;
+    if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
     setBusyId(id);
     try {
       const body = await callEdgeFn<{ promoted?: boolean }>("approve-extension-request", {
         extension_request_id: id,
+        extra_points: points,
       });
       if (body.promoted) {
         // Owner-tier: nothing pushed to ClickUp yet, the owner signs off next.
@@ -169,10 +182,13 @@ export function Approvals() {
     }
   };
 
-  const approveRev = async (id: string) => {
+  const approveRev = async (row: RevJoined) => {
+    const id = row.id;
+    const points = overrideFor(id, row.sprint_points);
+    if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
     setBusyId(id);
     try {
-      await callEdgeFn("approve-revision-request", { revision_request_id: id });
+      await callEdgeFn("approve-revision-request", { revision_request_id: id, sprint_points: points });
       toast.success("Approved — new task created.");
       await loadRevs();
     } catch (e) {
@@ -279,9 +295,9 @@ export function Approvals() {
                 retainers={allRetainers}
                 projectId={briefProject[row.id] ?? null}
                 onProjectChange={(pid) => setBriefProject((m) => ({ ...m, [row.id]: pid }))}
-                hours={briefHours[row.id] ?? String(pointsToHours(Number(row.sprint_points)))}
-                onHoursChange={(h) => setBriefHours((m) => ({ ...m, [row.id]: h }))}
-                onApprove={() => approveBrief(row, briefProject[row.id] ?? null, briefHours[row.id])}
+                hours={approveHours[row.id] ?? String(pointsToHours(Number(row.sprint_points)))}
+                onHoursChange={setHoursFor(row.id)}
+                onApprove={() => approveBrief(row, briefProject[row.id] ?? null)}
                 onRejectStart={() => {
                   setRejectingId(row.id);
                   setRejectReason("");
@@ -328,7 +344,9 @@ export function Approvals() {
                 asking={askingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
-                onApprove={() => approveExt(row.id)}
+                hours={approveHours[row.id] ?? hoursOf(row.approved_extra_points ?? row.extra_points)}
+                onHoursChange={setHoursFor(row.id)}
+                onApprove={() => approveExt(row)}
                 onRejectStart={() => {
                   setRejectingId(row.id);
                   setRejectReason("");
@@ -379,7 +397,9 @@ export function Approvals() {
                 rejecting={rejectingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
-                onApprove={() => approveRev(row.id)}
+                hours={approveHours[row.id] ?? hoursOf(row.sprint_points)}
+                onHoursChange={setHoursFor(row.id)}
+                onApprove={() => approveRev(row)}
                 onRejectStart={() => {
                   setRejectingId(row.id);
                   setRejectReason("");
@@ -401,7 +421,15 @@ export function Approvals() {
                 .map((r) => ({
                   id: r.id,
                   title: r.parent_task_name,
-                  subtitle: `${r.requester?.full_name ?? "—"} · → ${r.revision_suffix}`,
+                  subtitle: `${r.requester?.full_name ?? "—"} · → ${r.revision_suffix}${
+                    r.approved_points != null
+                      ? r.sprint_points != null
+                        ? ` · asked ${fmtPtH(r.sprint_points)}, approved ${fmtPtH(r.approved_points)}`
+                        : ` · ${fmtPtH(r.approved_points)}`
+                      : r.sprint_points != null
+                        ? ` · ${fmtPtH(r.sprint_points)}`
+                        : ""
+                  }`,
                   status: r.status,
                   url: r.clickup_new_task_url,
                 }))}
@@ -457,7 +485,7 @@ function BriefCard({
   const clientRetainers = retainers.filter(
     (r) => r.status === "in_progress" && r.client_id === row.client?.id,
   );
-  const timeChanged = hoursToPoints(Number(hours)) !== Number(row.sprint_points);
+  const timeChanged = isChanged(hours, row.sprint_points);
 
   return (
     <Card className="shadow-elev-1">
@@ -502,17 +530,7 @@ function BriefCard({
           />
         ) : (
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <label htmlFor={`hours-${row.id}`} className="text-label-small text-m-on-surface-variant">
-                Approve at
-              </label>
-              <TimePresetField id={`hours-${row.id}`} value={hours} onChange={onHoursChange} />
-            </div>
-            {timeChanged && (
-              <p className="text-right text-label-small text-m-on-surface-variant">
-                {row.submitter?.full_name?.split(" ")[0] ?? "They"} asked for {fmtPtH(row.sprint_points)}. They will be told it changed.
-              </p>
-            )}
+            <ApproveAt id={row.id} hours={hours} onChange={onHoursChange} asked={row.sprint_points} who={row.submitter?.full_name} />
             {/* Enforced here, not on the staff form: the submitter rarely knows
                 whether their task is covered by a retainer or is billable. */}
             {!row.is_internal && (
@@ -567,6 +585,8 @@ function BriefCard({
 
 function ExtCard({
   row,
+  hours,
+  onHoursChange,
   busy,
   rejecting,
   asking,
@@ -581,6 +601,8 @@ function ExtCard({
   onAskConfirm,
 }: {
   row: ExtJoined;
+  hours: string;
+  onHoursChange: (hours: string) => void;
   busy: boolean;
   rejecting: boolean;
   asking: boolean;
@@ -597,6 +619,8 @@ function ExtCard({
   // Owner-tier rows stop here first: approving hands them on rather than
   // pushing to ClickUp. A reject here is terminal — it never reaches the owner.
   const isEscalation = row.tier === "owner";
+  const asksTime = askedForPoints(row);
+  const timeChanged = asksTime && isChanged(hours, row.extra_points);
   return (
     <Card className="shadow-elev-1">
       <CardHeader className="pb-2">
@@ -661,13 +685,31 @@ function ExtCard({
             busy={busy}
           />
         ) : (
-          <ActionRow
-            onReject={onRejectStart}
-            onApprove={onApprove}
-            onAsk={onAskStart}
-            busy={busy}
-            approveLabel={isEscalation ? "Approve & send to owner" : "Approve & push subtask"}
-          />
+          <div className="space-y-2">
+            {asksTime && (
+              <ApproveAt
+                id={row.id}
+                label="Grant extra"
+                hours={hours}
+                onChange={onHoursChange}
+                asked={row.extra_points}
+                who={row.requester?.full_name}
+                outcome={isEscalation ? "The owner approves this figure next." : undefined}
+              />
+            )}
+            <ActionRow
+              onReject={onRejectStart}
+              onApprove={onApprove}
+              onAsk={onAskStart}
+              busy={busy}
+              approveDisabled={asksTime && !(Number(hours) > 0)}
+              approveLabel={
+                isEscalation
+                  ? timeChanged ? `Approve +${Number(hours)}h & send to owner` : "Approve & send to owner"
+                  : timeChanged ? `Approve +${Number(hours)}h & push to ClickUp` : "Approve & push to ClickUp"
+              }
+            />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -676,6 +718,8 @@ function ExtCard({
 
 function RevCard({
   row,
+  hours,
+  onHoursChange,
   busy,
   rejecting,
   rejectReason,
@@ -686,6 +730,8 @@ function RevCard({
   onRejectConfirm,
 }: {
   row: RevJoined;
+  hours: string;
+  onHoursChange: (hours: string) => void;
   busy: boolean;
   rejecting: boolean;
   rejectReason: string;
@@ -707,6 +753,12 @@ function RevCard({
               <span>{row.client?.name ?? "—"}</span>
               <span>·</span>
               <Badge variant="warning" className="ml-1">→ {row.revision_suffix}</Badge>
+              {row.sprint_points !== null && (
+                <>
+                  <span>·</span>
+                  <span>{fmtPtH(row.sprint_points)}</span>
+                </>
+              )}
             </div>
           </div>
           <div className="text-label-small text-m-on-surface-variant whitespace-nowrap">
@@ -726,15 +778,69 @@ function RevCard({
             busy={busy}
           />
         ) : (
-          <ActionRow
-            onReject={onRejectStart}
-            onApprove={onApprove}
-            busy={busy}
-            approveLabel="Approve & create task"
-          />
+          <div className="space-y-2">
+            {/* Requests from before revisions carried a time start blank, and
+                may still be approved blank: the task then has no estimate. */}
+            <ApproveAt id={row.id} hours={hours} onChange={onHoursChange} asked={row.sprint_points} who={row.requester?.full_name} />
+            <ActionRow
+              onReject={onRejectStart}
+              onApprove={onApprove}
+              busy={busy}
+              approveDisabled={hours !== "" && !(Number(hours) > 0)}
+              approveLabel={hours !== "" && isChanged(hours, row.sprint_points) ? `Approve at ${Number(hours)}h & create task` : "Approve & create task"}
+            />
+          </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Hours text for a points figure; blank when there is none. */
+function hoursOf(points: number | string | null): string {
+  return points === null ? "" : String(pointsToHours(Number(points)));
+}
+
+function isChanged(hours: string, asked: number | string | null): boolean {
+  return hoursToPoints(Number(hours)) !== Number(asked);
+}
+
+/** The approver's time control, shared by all three cards. The ask is shown
+ *  beside it whenever the approver moves off it, because the requester is
+ *  told in chat that it changed. */
+function ApproveAt({
+  id,
+  label = "Approve at",
+  hours,
+  onChange,
+  asked,
+  who,
+  outcome,
+}: {
+  id: string;
+  label?: string;
+  hours: string;
+  onChange: (hours: string) => void;
+  asked: number | string | null;
+  who: string | null | undefined;
+  outcome?: string;
+}) {
+  const changed = asked !== null && hours !== "" && isChanged(hours, asked);
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <label htmlFor={`hours-${id}`} className="text-label-small text-m-on-surface-variant">
+          {label}
+        </label>
+        <TimePresetField id={`hours-${id}`} value={hours} onChange={onChange} />
+      </div>
+      {changed && (
+        <p className="text-right text-label-small text-m-on-surface-variant">
+          {who?.split(" ")[0] ?? "They"} asked for {fmtPtH(asked)}. They will be told it changed.
+          {outcome && ` ${outcome}`}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -909,7 +1015,13 @@ function RecentList({
 
 function extensionSubtitle(r: ExtensionRequestRow): string {
   const parts: string[] = [];
-  if (askedForPoints(r)) parts.push(`+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`);
+  if (askedForPoints(r)) {
+    parts.push(
+      r.approved_extra_points != null
+        ? `asked +${fmtPtH(r.extra_points)}, approved +${fmtPtH(r.approved_extra_points)}`
+        : `+${fmtPtH(r.extra_points)} (${r.delta_pct}%)`,
+    );
+  }
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
 }

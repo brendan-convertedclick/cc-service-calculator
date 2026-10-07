@@ -48,7 +48,11 @@ export function EscalationDetail({
   const { data: linkage } = useRequestLinkage(row.parent_clickup_task_id, row.client_id);
 
   const burn = aggregateBurn(linkage?.retainers ?? []);
-  const extraHours = row.extra_points ? pointsToHours(Number(row.extra_points)) : 0;
+  // What is actually being granted: the admin's trimmed figure when there is
+  // one, otherwise the ask. The verdict, burn and new budget all read it.
+  const granted = row.approved_extra_points ?? row.extra_points;
+  const trimmed = row.approved_extra_points != null;
+  const extraHours = granted ? pointsToHours(Number(granted)) : 0;
   const burnPctAfter =
     burn && burn.hoursTarget > 0
       ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
@@ -57,7 +61,7 @@ export function EscalationDetail({
   const verdict = buildVerdict({
     requesterName: row.requester?.full_name ?? null,
     clientName: row.client?.name ?? null,
-    extraPoints: row.extra_points === null ? null : Number(row.extra_points),
+    extraPoints: granted === null ? null : Number(granted),
     originalPoints: ctx?.original_points ?? (row.original_points === null ? null : Number(row.original_points)),
     pointsConsumed: ctx?.points_consumed ?? null,
     originalDueDate: row.original_due_date,
@@ -73,7 +77,7 @@ export function EscalationDetail({
   const pct = consumedPct(ctx);
   const budgetPoints = ctx?.original_points ?? null;
   const afterPoints =
-    budgetPoints !== null && row.extra_points ? budgetPoints + Number(row.extra_points) : null;
+    budgetPoints !== null && granted ? budgetPoints + Number(granted) : null;
   const dayCount = daysBetween(row.original_due_date, row.requested_due_date);
 
   return (
@@ -104,8 +108,14 @@ export function EscalationDetail({
         <Block label="Approving">
           {pointsAsked ? (
             <p>
-              <span className="font-mono tabular-nums">+{fmtPtH(row.extra_points)}</span> on top of{" "}
+              <span className="font-mono tabular-nums">+{fmtPtH(granted)}</span> on top of{" "}
               <span className="font-mono tabular-nums">{fmtPtH(budgetPoints)}</span>
+              {trimmed && (
+                <span className="block text-body-small text-m-on-surface-variant">
+                  {row.admin_approver?.full_name ?? "Admin"} cut this from the{" "}
+                  <span className="font-mono tabular-nums">+{fmtPtH(row.extra_points)}</span> asked for.
+                </span>
+              )}
               {afterPoints !== null && (
                 <span className="block text-body-small text-m-on-surface-variant">
                   New budget becomes{" "}

@@ -12,6 +12,10 @@ export type RevisionRequestRow = {
   parent_clickup_task_id: string;
   parent_task_name: string;
   revision_suffix: RevisionSuffix;
+  /** Time asked for. Null on requests from before 0199. */
+  sprint_points: number | null;
+  /** Time approved, when it differs from the ask (or no ask was recorded). */
+  approved_points: number | null;
   status: RevisionStatus;
   approver_id: string | null;
   approved_at: string | null;

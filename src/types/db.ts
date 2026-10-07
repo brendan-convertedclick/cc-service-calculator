@@ -1960,6 +1960,7 @@ export type Database = {
           admin_approved_at: string | null
           admin_approver_id: string | null
           approved_at: string | null
+          approved_extra_points: number | null
           approver_id: string | null
           clickup_subtask_id: string | null
           clickup_subtask_url: string | null
@@ -1993,6 +1994,7 @@ export type Database = {
           admin_approved_at?: string | null
           admin_approver_id?: string | null
           approved_at?: string | null
+          approved_extra_points?: number | null
           approver_id?: string | null
           clickup_subtask_id?: string | null
           clickup_subtask_url?: string | null
@@ -2026,6 +2028,7 @@ export type Database = {
           admin_approved_at?: string | null
           admin_approver_id?: string | null
           approved_at?: string | null
+          approved_extra_points?: number | null
           approver_id?: string | null
           clickup_subtask_id?: string | null
           clickup_subtask_url?: string | null
@@ -4706,6 +4709,8 @@ export type Database = {
       revision_requests: {
         Row: {
           approved_at: string | null
+          approved_points: number | null
+          sprint_points: number | null
           approver_id: string | null
           clickup_new_task_id: string | null
           clickup_new_task_url: string | null
@@ -4723,6 +4728,8 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
+          approved_points?: number | null
+          sprint_points?: number | null
           approver_id?: string | null
           clickup_new_task_id?: string | null
           clickup_new_task_url?: string | null
@@ -4740,6 +4747,8 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
+          approved_points?: number | null
+          sprint_points?: number | null
           approver_id?: string | null
           clickup_new_task_id?: string | null
           clickup_new_task_url?: string | null

@@ -164,7 +164,13 @@ function ConsumedBadge({ taskId }: { taskId: string }) {
 /** What is being asked for, in the fewest characters that stay unambiguous. */
 export function askSummary(row: EscalationRow): string {
   const parts: string[] = [];
-  if (askedForPoints(row)) parts.push(`+${fmtPtH(row.extra_points)}`);
+  if (askedForPoints(row)) {
+    parts.push(
+      row.approved_extra_points != null
+        ? `+${fmtPtH(row.approved_extra_points)} (asked +${fmtPtH(row.extra_points)})`
+        : `+${fmtPtH(row.extra_points)}`,
+    );
+  }
   if (row.requested_due_date !== null) parts.push("date push");
   return parts.join(" · ") || "—";
 }

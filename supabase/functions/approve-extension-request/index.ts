@@ -1,6 +1,11 @@
 // supabase/functions/approve-extension-request/index.ts
 //
-// Request:  POST { extension_request_id: string }
+// Request:  POST { extension_request_id: string, extra_points?: number }
+//           extra_points grants a different amount of extra time than was
+//           asked. The ask stays on the row; approved_extra_points records it.
+//           Set on the admin leg of an owner-tier row, it travels up so the
+//           owner approves the trimmed figure. Tier is NOT recomputed: an
+//           owner-tier ask still goes to the owner however far it is trimmed.
 // Response: 200 { due_date_applied? }
 //
 // Approves an extension request. Points and due-date asks are independent
@@ -44,6 +49,7 @@ type ExtensionRow = {
   parent_clickup_task_id: string;
   parent_task_name: string;
   extra_points: number | null;
+  approved_extra_points: number | null;
   requested_due_date: string | null;
   due_date_reason: string | null;
   tier: ExtensionTier;
@@ -66,8 +72,14 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { extension_request_id } = (await req.json()) as { extension_request_id?: string };
+    const { extension_request_id, extra_points: override } = (await req.json()) as {
+      extension_request_id?: string;
+      extra_points?: number;
+    };
     if (!extension_request_id) return json({ error: "extension_request_id required" }, 400);
+    if (override !== undefined && !(Number.isFinite(override) && override > 0)) {
+      return json({ error: "extra_points must be a positive number" }, 400);
+    }
 
     const supabase = createUserClient(req);
     // The approver's own ClickUp identity, not the shared PAT — otherwise the
@@ -93,6 +105,10 @@ Deno.serve(async (req: Request) => {
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
     const row = rowRaw as unknown as ExtensionRow;
+    // Time is only granted on a request that asked for some; a date-only
+    // request has nothing to override.
+    const extra = row.extra_points ? Number(override ?? row.approved_extra_points ?? row.extra_points) : null;
+    const trimmed = extra !== null && extra !== Number(row.extra_points);
 
     const decision = decideApprovalAction(row, caller);
     if (decision.action === "denied") return json({ error: decision.reason }, 403);
@@ -113,6 +129,7 @@ Deno.serve(async (req: Request) => {
           status: "pending_owner",
           admin_approver_id: caller.id,
           admin_approved_at: new Date().toISOString(),
+          approved_extra_points: trimmed ? extra : null,
         })
         .eq("id", row.id)
         .select("id");
@@ -149,7 +166,7 @@ Deno.serve(async (req: Request) => {
     // No subtask — just bump the parent task's own Sprint Points directly.
     // (Previously created a linked subtask; that buried the extra points
     // somewhere other than the task everyone's actually looking at.)
-    if (row.extra_points) {
+    if (extra) {
       const parentRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
         CU,
@@ -158,7 +175,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: `ClickUp parent ${parentRes.status}: ${await parentRes.text()}` }, 502);
       }
       const parent = (await parentRes.json()) as { points?: number | null };
-      const newPoints = (parent.points ?? 0) + row.extra_points;
+      const newPoints = (parent.points ?? 0) + extra;
 
       const pointsRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`,
@@ -176,7 +193,8 @@ Deno.serve(async (req: Request) => {
           comment_text:
             `EXTENSION:: ${JSON.stringify({
               extension_request_id: row.id,
-              extra_points: row.extra_points,
+              extra_points: extra,
+              asked_extra_points: row.extra_points,
               tier: row.tier,
               new_points: newPoints,
             })}`,
@@ -224,6 +242,7 @@ Deno.serve(async (req: Request) => {
         status: "approved",
         approver_id: caller.id,
         approved_at: new Date().toISOString(),
+        approved_extra_points: trimmed ? extra : null,
       })
       .eq("id", row.id)
       .select("id");
@@ -236,12 +255,12 @@ Deno.serve(async (req: Request) => {
     // Confirm to the requester in chat that their extension went through.
     const mention = mentionToken({ clickupUserId: member.clickup_user_id, name: member.full_name });
     const summaryParts: string[] = [];
-    if (row.extra_points) summaryParts.push(`+${row.extra_points}pt`);
+    if (extra) summaryParts.push(trimmed ? `+${extra}pt (you asked +${row.extra_points}pt)` : `+${extra}pt`);
     if (row.requested_due_date) summaryParts.push(`due → ${row.requested_due_date}`);
     await postChatMessage(
       clickupPat,
       chatChannelId,
-      `✅ ${mention} — your extension was approved on "${row.parent_task_name}": ${summaryParts.join(" · ")}`,
+      `✅ ${mention} your extension was approved on "${row.parent_task_name}": ${summaryParts.join(" · ")}`,
     );
 
     return json({

@@ -1,6 +1,8 @@
 // supabase/functions/approve-revision-request/index.ts
 //
-// Request:  POST { revision_request_id: string }
+// Request:  POST { revision_request_id: string, sprint_points?: number }
+//           sprint_points approves at a different time than was asked; the
+//           ask stays on the row and approved_points records the change.
 // Response: 200 { clickup_new_task_id, clickup_new_task_url }
 //
 // Approves a revision request: creates a NEW ClickUp task in the same list
@@ -35,6 +37,7 @@ type RevisionRow = {
   parent_clickup_task_id: string;
   parent_task_name: string;
   revision_suffix: string;
+  sprint_points: number | null;
   status: string;
   clickup_new_task_id: string | null;
   clickup_new_task_url: string | null;
@@ -42,13 +45,22 @@ type RevisionRow = {
 
 type CuCustomField = { id: string; value?: unknown };
 
+const POINT_MS = 15 * 60_000; // 1 sprint point = 15 minutes
+const fmtHours = (pts: number) => `${Number(pts) / 4}h`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const { revision_request_id } = (await req.json()) as { revision_request_id?: string };
+    const { revision_request_id, sprint_points: override } = (await req.json()) as {
+      revision_request_id?: string;
+      sprint_points?: number;
+    };
     if (!revision_request_id) return json({ error: "revision_request_id required" }, 400);
+    if (override !== undefined && !(Number.isFinite(override) && override > 0)) {
+      return json({ error: "sprint_points must be a positive number" }, 400);
+    }
 
     const supabase = createUserClient(req);
     // The approver's own ClickUp identity, not the shared PAT — see
@@ -76,6 +88,12 @@ Deno.serve(async (req: Request) => {
       .single();
     if (rowErr || !rowRaw) return json({ error: rowErr?.message ?? "Not found" }, 404);
     const row = rowRaw as unknown as RevisionRow;
+    // Null only on requests from before revisions carried a time (0199).
+    const points = override ?? row.sprint_points;
+    // `changed` drives the "you asked for" wording, so it needs an ask to
+    // compare with; `record` also stores a time given to a legacy request.
+    const changed = points !== null && row.sprint_points !== null && Number(points) !== Number(row.sprint_points);
+    const record = points !== null && (row.sprint_points === null || changed);
 
     if (row.status === "approved") {
       return json({
@@ -135,6 +153,17 @@ Deno.serve(async (req: Request) => {
         id: row.clickup_new_task_id,
         url: row.clickup_new_task_url ?? `https://app.clickup.com/t/${row.clickup_new_task_id}`,
       };
+      // The task was made on an earlier attempt, perhaps at a different time.
+      // Put this attempt's figure on it so the override is never dropped.
+      // Best-effort, like the create's own points fallback.
+      if (points) {
+        const putRes = await cuFetch(`https://api.clickup.com/api/v2/task/${created.id}`, {
+          ...CU,
+          method: "PUT",
+          body: JSON.stringify({ points, time_estimate: Math.round(points * POINT_MS) }),
+        });
+        if (!putRes.ok) console.warn(`[approve-revision-request] resume time PUT failed: ${putRes.status} ${await putRes.text()}`);
+      }
     } else {
       const newName = swapRevisionSuffix(parent.name, row.revision_suffix);
       const customFields = (parent.custom_fields ?? [])
@@ -162,11 +191,20 @@ Deno.serve(async (req: Request) => {
       if (parent.assignees?.length) {
         createBody.assignees = parent.assignees.map((a) => a.id);
       }
+      if (points) {
+        createBody.points = points;
+        createBody.time_estimate = Math.round(points * POINT_MS);
+      }
 
-      const createRes = await cuFetch(
-        `https://api.clickup.com/api/v2/list/${parentListId}/task`,
-        { ...CU, method: "POST", body: JSON.stringify(createBody) },
-      );
+      const createUrl = `https://api.clickup.com/api/v2/list/${parentListId}/task`;
+      let createRes = await cuFetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(createBody) });
+      // ClickUp refuses some point values (too large, or off the list's
+      // scale). Retry once without them; time_estimate still carries the time.
+      if (!createRes.ok && "points" in createBody) {
+        console.warn(`[approve-revision-request] create failed with points (${createRes.status}: ${await createRes.text()}); retrying without points`);
+        const { points: _dropped, ...noPoints } = createBody;
+        createRes = await cuFetch(createUrl, { ...CU, method: "POST", body: JSON.stringify(noPoints) });
+      }
       if (!createRes.ok) {
         return json({ error: `ClickUp create ${createRes.status}: ${await createRes.text()}` }, 502);
       }
@@ -244,6 +282,7 @@ Deno.serve(async (req: Request) => {
           `REVISION:: ${JSON.stringify({
             revision_request_id: row.id,
             revision_suffix: row.revision_suffix,
+            sprint_points: points,
             new_task_id: created.id,
             approved_by: callerEmail,
           })}`,
@@ -259,6 +298,7 @@ Deno.serve(async (req: Request) => {
         approved_at: new Date().toISOString(),
         clickup_new_task_id: created.id,
         clickup_new_task_url: created.url,
+        approved_points: record ? points : null,
       })
       .eq("id", row.id);
     if (updateErr) {
@@ -275,7 +315,9 @@ Deno.serve(async (req: Request) => {
       await postChatMessage(
         clickupPat,
         chatChannelId,
-        `✅ ${mention} — your revision was approved: "${row.parent_task_name}" → ${row.revision_suffix} · ${created.url}`,
+        changed
+          ? `✅ ${mention} your revision was approved at ${fmtHours(points!)}. You asked for ${fmtHours(row.sprint_points!)}. "${row.parent_task_name}" → ${row.revision_suffix} · ${created.url}`
+          : `✅ ${mention} your revision was approved: "${row.parent_task_name}" → ${row.revision_suffix}${points ? ` · ${fmtHours(points)}` : ""} · ${created.url}`,
       );
     }
 
