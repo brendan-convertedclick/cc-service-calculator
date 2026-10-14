@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ClientOption } from "./ClientSelectField";
@@ -82,13 +83,14 @@ export function ClientListPicker({
               role="option"
               aria-selected={c.id === value}
               onClick={() => onValueChange(c.id)}
-              className={`flex w-full rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
+              className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-label-large tracking-normal transition-colors ${
                 c.id === value
                   ? "bg-m-primary-container font-medium text-m-on-primary-container"
                   : "text-m-on-surface hover:bg-m-surface-container-high"
               }`}
             >
-              {c.name}
+              <span className="min-w-0 truncate">{c.name}</span>
+              {c.id === value && <Check aria-hidden className="h-4 w-4 shrink-0" />}
             </button>
           ))}
           {visible.length === 0 && (

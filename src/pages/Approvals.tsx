@@ -6,8 +6,9 @@ import { TimePresetField } from "@/components/TimePresetField";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
-import { cn, errorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useRetainers } from "@/hooks/useRetainers";
+import { useOptimisticStatus } from "@/hooks/useOptimisticStatus";
 import { askForInfo, notifyExtension, rejectRequest } from "@/lib/extension-actions";
 import { RequestContext } from "@/components/approvals/RequestContext";
 import { Button } from "@/components/ui/button";
@@ -59,10 +60,18 @@ export function Approvals() {
   const { data: allRetainers = [] } = useRetainers();
   const [exts, setExts] = useState<ExtJoined[] | null>(null);
   const [revs, setRevs] = useState<RevJoined[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [askingId, setAskingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  const { overlay, decide: decideRow } = useOptimisticStatus();
+  /** Take the card off the queue now; the write runs behind it. */
+  const decide: typeof decideRow = (...args) => {
+    setRejectingId(null);
+    setAskingId(null);
+    setRejectReason("");
+    decideRow(...args);
+  };
 
   const loadBriefs = async () => {
     const { data, error } = await supabase
@@ -76,7 +85,7 @@ export function Approvals() {
       setBriefs([]);
       return;
     }
-    setBriefs((data ?? []) as unknown as BriefJoined[]);
+    setBriefs(overlay((data ?? []) as unknown as BriefJoined[]));
   };
   const loadExts = async () => {
     const { data, error } = await supabase
@@ -92,7 +101,7 @@ export function Approvals() {
       setExts([]);
       return;
     }
-    setExts((data ?? []) as unknown as ExtJoined[]);
+    setExts(overlay((data ?? []) as unknown as ExtJoined[]));
   };
   const loadRevs = async () => {
     const { data, error } = await supabase
@@ -106,7 +115,7 @@ export function Approvals() {
       setRevs([]);
       return;
     }
-    setRevs((data ?? []) as unknown as RevJoined[]);
+    setRevs(overlay((data ?? []) as unknown as RevJoined[]));
   };
 
   useEffect(() => {
@@ -115,14 +124,12 @@ export function Approvals() {
     loadRevs();
   }, []);
 
-  const approveBrief = async (row: BriefJoined, choice: string | null) => {
-    const id = row.id;
-    const points = overrideFor(id, row.sprint_points);
+  const approveBrief = (row: BriefJoined, choice: string | null) => {
+    const points = overrideFor(row.id, row.sprint_points);
     if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
-    setBusyId(id);
-    try {
+    decide(setBriefs, loadBriefs, row.id, "approved", async () => {
       await callEdgeFn("approve-staff-brief", {
-        staff_brief_id: id,
+        staff_brief_id: row.id,
         // Only sent when it differs, so the row keeps "approved as asked".
         sprint_points: points,
         project_id: choice === ADHOC || choice === INTERNAL ? null : choice,
@@ -133,122 +140,88 @@ export function Approvals() {
         // undefined lets the server fall back to the brief's own is_internal.
         billing: choice === ADHOC ? "adhoc" : choice === INTERNAL ? "internal" : choice ? "retainer" : undefined,
       });
-      toast.success("Approved — ClickUp task created.");
-      await loadBriefs();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyId(null);
-    }
+      return "Approved — ClickUp task created.";
+    });
   };
 
-  const approveExt = async (row: ExtJoined) => {
+  const approveExt = (row: ExtJoined) => {
     const id = row.id;
     const points = askedForPoints(row) ? overrideFor(id, row.approved_extra_points ?? row.extra_points) : undefined;
     if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
-    setBusyId(id);
-    try {
+    // Shown as approved until the reload says whether it went to the owner.
+    decide(setExts, loadExts, id, "approved", async () => {
       const body = await callEdgeFn<{ promoted?: boolean }>("approve-extension-request", {
         extension_request_id: id,
         extra_points: points,
       });
-      if (body.promoted) {
-        // Owner-tier: nothing pushed to ClickUp yet, the owner signs off next.
-        toast.success("Approved — escalated to the owner for final sign-off.");
-        notifyExtension(id);
-      } else {
-        toast.success("Approved — subtask created.");
-      }
-      await loadExts();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyId(null);
-    }
+      if (!body.promoted) return "Approved — subtask created.";
+      // Owner-tier: nothing pushed to ClickUp yet, the owner signs off next.
+      notifyExtension(id);
+      return "Approved — escalated to the owner for final sign-off.";
+    });
   };
 
-  const askExt = async (id: string) => {
-    if (!rejectReason.trim()) return toast.error("Question required.");
-    setBusyId(id);
-    try {
-      const err = await askForInfo(id, rejectReason, currentUserId);
-      if (err) return toast.error(err);
-      toast.success("Sent back to the requester.");
-      setAskingId(null);
-      setRejectReason("");
-      await loadExts();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const approveRev = async (row: RevJoined) => {
-    const id = row.id;
-    const points = overrideFor(id, row.sprint_points);
+  const approveRev = (row: RevJoined) => {
+    const points = overrideFor(row.id, row.sprint_points);
     if (points !== undefined && !(points > 0)) return toast.error("Approved time must be more than zero.");
-    setBusyId(id);
-    try {
-      await callEdgeFn("approve-revision-request", { revision_request_id: id, sprint_points: points });
-      toast.success("Approved — new task created.");
-      await loadRevs();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyId(null);
-    }
+    decide(setRevs, loadRevs, row.id, "approved", async () => {
+      await callEdgeFn("approve-revision-request", { revision_request_id: row.id, sprint_points: points });
+      return "Approved — new task created.";
+    });
   };
 
-  const rejectBrief = async (id: string) => {
-    if (!rejectReason.trim()) return toast.error("Reason required.");
-    setBusyId(id);
-    try {
+  /** Puts a failed reject or question back on its card with the words intact. */
+  const reopen = (id: string, reason: string, asking = false) => () => {
+    (asking ? setAskingId : setRejectingId)(id);
+    setRejectReason(reason);
+  };
+
+  const askExt = (id: string) => {
+    const question = rejectReason;
+    if (!question.trim()) return toast.error("Question required.");
+    decide(setExts, loadExts, id, "needs_info", async () => {
+      const err = await askForInfo(id, question, currentUserId);
+      if (err) throw new Error(err);
+      return "Sent back to the requester.";
+    }, reopen(id, question, true));
+  };
+
+  const rejectBrief = (id: string) => {
+    const reason = rejectReason;
+    if (!reason.trim()) return toast.error("Reason required.");
+    decide(setBriefs, loadBriefs, id, "rejected", async () => {
       const { error } = await supabase
         .from("staff_briefs")
-        .update({ status: "rejected", rejected_reason: rejectReason.trim() })
+        .update({ status: "rejected", rejected_reason: reason.trim() })
         .eq("id", id);
-      if (error) return toast.error(error.message);
+      if (error) throw error;
       // Tell the submitter why — best-effort, a chat outage must not fail the reject.
       callEdgeFn("notify-staff-brief", { staff_brief_id: id }).catch(() => {});
-      toast.success("Rejected.");
-      setRejectingId(null);
-      setRejectReason("");
-      await loadBriefs();
-    } finally {
-      setBusyId(null);
-    }
+      return "Rejected.";
+    }, reopen(id, reason));
   };
-  const rejectExt = async (id: string) => {
-    if (!rejectReason.trim()) return toast.error("Reason required.");
-    setBusyId(id);
-    try {
+  const rejectExt = (id: string) => {
+    const reason = rejectReason;
+    if (!reason.trim()) return toast.error("Reason required.");
+    decide(setExts, loadExts, id, "rejected", async () => {
       // Terminal by design: an admin reject never reaches the owner queue.
-      const err = await rejectRequest(id, rejectReason, currentUserId);
-      if (err) return toast.error(err);
-      toast.success("Rejected.");
-      setRejectingId(null);
-      setRejectReason("");
-      await loadExts();
-    } finally {
-      setBusyId(null);
-    }
+      const err = await rejectRequest(id, reason, currentUserId);
+      if (err) throw new Error(err);
+      return "Rejected.";
+    }, reopen(id, reason));
   };
-  const rejectRev = async (id: string) => {
-    if (!rejectReason.trim()) return toast.error("Reason required.");
-    setBusyId(id);
-    try {
+  const rejectRev = (id: string) => {
+    const reason = rejectReason;
+    if (!reason.trim()) return toast.error("Reason required.");
+    decide(setRevs, loadRevs, id, "rejected", async () => {
       const { error } = await supabase
         .from("revision_requests")
-        .update({ status: "rejected", rejected_reason: rejectReason.trim() })
+        .update({ status: "rejected", rejected_reason: reason.trim() })
         .eq("id", id);
-      if (error) return toast.error(error.message);
+      if (error) throw error;
       callEdgeFn("notify-revision-request", { revision_request_id: id }).catch(() => {});
-      toast.success("Rejected.");
-      setRejectingId(null);
-      setRejectReason("");
-      await loadRevs();
-    } finally {
-      setBusyId(null);
-    }
+      return "Rejected.";
+    }, reopen(id, reason));
   };
 
   if (briefs === null || exts === null || revs === null) {
@@ -288,7 +261,6 @@ export function Approvals() {
               <BriefCard
                 key={row.id}
                 row={row}
-                busy={busyId === row.id}
                 rejecting={rejectingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
@@ -339,7 +311,6 @@ export function Approvals() {
               <ExtCard
                 key={row.id}
                 row={row}
-                busy={busyId === row.id}
                 rejecting={rejectingId === row.id}
                 asking={askingId === row.id}
                 rejectReason={rejectReason}
@@ -393,7 +364,6 @@ export function Approvals() {
               <RevCard
                 key={row.id}
                 row={row}
-                busy={busyId === row.id}
                 rejecting={rejectingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
@@ -458,7 +428,6 @@ function BriefCard({
   onProjectChange,
   hours,
   onHoursChange,
-  busy,
   rejecting,
   rejectReason,
   setRejectReason,
@@ -473,7 +442,6 @@ function BriefCard({
   onProjectChange: (id: string | null) => void;
   hours: string;
   onHoursChange: (hours: string) => void;
-  busy: boolean;
   rejecting: boolean;
   rejectReason: string;
   setRejectReason: (v: string) => void;
@@ -526,7 +494,6 @@ function BriefCard({
             onChange={setRejectReason}
             onCancel={onRejectCancel}
             onConfirm={onRejectConfirm}
-            busy={busy}
           />
         ) : (
           <div className="space-y-2">
@@ -572,8 +539,7 @@ function BriefCard({
             <ActionRow
               onReject={onRejectStart}
               onApprove={onApprove}
-              busy={busy}
-              approveDisabled={(!row.is_internal && !projectId) || !(Number(hours) > 0)}
+                approveDisabled={(!row.is_internal && !projectId) || !(Number(hours) > 0)}
               approveLabel={timeChanged ? `Approve at ${Number(hours)}h & push to ClickUp` : "Approve & push to ClickUp"}
             />
           </div>
@@ -587,7 +553,6 @@ function ExtCard({
   row,
   hours,
   onHoursChange,
-  busy,
   rejecting,
   asking,
   rejectReason,
@@ -603,7 +568,6 @@ function ExtCard({
   row: ExtJoined;
   hours: string;
   onHoursChange: (hours: string) => void;
-  busy: boolean;
   rejecting: boolean;
   asking: boolean;
   rejectReason: string;
@@ -674,7 +638,6 @@ function ExtCard({
             onChange={setRejectReason}
             onCancel={onAskCancel}
             onConfirm={onAskConfirm}
-            busy={busy}
           />
         ) : rejecting ? (
           <RejectBox
@@ -682,7 +645,6 @@ function ExtCard({
             onChange={setRejectReason}
             onCancel={onRejectCancel}
             onConfirm={onRejectConfirm}
-            busy={busy}
           />
         ) : (
           <div className="space-y-2">
@@ -701,8 +663,7 @@ function ExtCard({
               onReject={onRejectStart}
               onApprove={onApprove}
               onAsk={onAskStart}
-              busy={busy}
-              approveDisabled={asksTime && !(Number(hours) > 0)}
+                approveDisabled={asksTime && !(Number(hours) > 0)}
               approveLabel={
                 isEscalation
                   ? timeChanged ? `Approve +${Number(hours)}h & send to owner` : "Approve & send to owner"
@@ -720,7 +681,6 @@ function RevCard({
   row,
   hours,
   onHoursChange,
-  busy,
   rejecting,
   rejectReason,
   setRejectReason,
@@ -732,7 +692,6 @@ function RevCard({
   row: RevJoined;
   hours: string;
   onHoursChange: (hours: string) => void;
-  busy: boolean;
   rejecting: boolean;
   rejectReason: string;
   setRejectReason: (v: string) => void;
@@ -775,7 +734,6 @@ function RevCard({
             onChange={setRejectReason}
             onCancel={onRejectCancel}
             onConfirm={onRejectConfirm}
-            busy={busy}
           />
         ) : (
           <div className="space-y-2">
@@ -785,8 +743,7 @@ function RevCard({
             <ActionRow
               onReject={onRejectStart}
               onApprove={onApprove}
-              busy={busy}
-              approveDisabled={hours !== "" && !(Number(hours) > 0)}
+                approveDisabled={hours !== "" && !(Number(hours) > 0)}
               approveLabel={hours !== "" && isChanged(hours, row.sprint_points) ? `Approve at ${Number(hours)}h & create task` : "Approve & create task"}
             />
           </div>
@@ -858,13 +815,11 @@ function RejectBox({
   onChange,
   onCancel,
   onConfirm,
-  busy,
 }: {
   value: string;
   onChange: (v: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
-  busy: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -875,10 +830,10 @@ function RejectBox({
         rows={3}
       />
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="destructive" size="sm" onClick={onConfirm} disabled={busy}>
+        <Button variant="destructive" size="sm" onClick={onConfirm}>
           Confirm reject
         </Button>
       </div>
@@ -900,13 +855,11 @@ function AskBox({
   onChange,
   onCancel,
   onConfirm,
-  busy,
 }: {
   value: string;
   onChange: (v: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
-  busy: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -917,10 +870,10 @@ function AskBox({
         rows={3}
       />
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button size="sm" onClick={onConfirm} disabled={busy}>
+        <Button size="sm" onClick={onConfirm}>
           Send question
         </Button>
       </div>
@@ -932,36 +885,32 @@ export function ActionRow({
   onReject,
   onApprove,
   onAsk,
-  busy,
-  /** Approve is not available yet — a precondition is unmet. Distinct from
-   *  `busy`, which means a request is genuinely in flight. Only `busy` may
-   *  relabel the button or block Reject: refusing a brief never requires the
-   *  precondition to be satisfied first. */
+  /** Approve is not available yet — a precondition is unmet. Reject stays
+   *  open: refusing a brief never requires the precondition first. */
   approveDisabled = false,
   approveLabel,
 }: {
   onReject: () => void;
   onApprove: () => void;
   onAsk?: () => void;
-  busy: boolean;
   approveDisabled?: boolean;
   approveLabel: string;
 }) {
   return (
     <div className="flex justify-end gap-2">
       {onAsk && (
-        <Button variant="ghost" size="sm" onClick={onAsk} disabled={busy} className="gap-2">
+        <Button variant="ghost" size="sm" onClick={onAsk} className="gap-2">
           <HelpCircle className="h-4 w-4" />
           Ask for info
         </Button>
       )}
-      <Button variant="ghost" size="sm" onClick={onReject} disabled={busy} className="gap-2">
+      <Button variant="ghost" size="sm" onClick={onReject} className="gap-2">
         <XCircle className="h-4 w-4" />
         Reject
       </Button>
-      <Button onClick={onApprove} disabled={busy || approveDisabled} className="gap-2">
+      <Button onClick={onApprove} disabled={approveDisabled} className="gap-2">
         <CheckCircle2 className="h-4 w-4" />
-        {busy ? "Approving…" : approveLabel}
+        {approveLabel}
       </Button>
     </div>
   );

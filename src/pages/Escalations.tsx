@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { callEdgeFn } from "@/lib/edge";
-import { errorMessage, toggleInSet } from "@/lib/utils";
+import { toggleInSet } from "@/lib/utils";
+import { useOptimisticStatus } from "@/hooks/useOptimisticStatus";
 import { askForInfo, rejectRequest } from "@/lib/extension-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export function Escalations() {
   const { currentUserId } = useAuth();
   const [rows, setRows] = useState<EscalationRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { overlay, decide } = useOptimisticStatus();
   const [compose, setCompose] = useState<{ id: string; kind: "reject" | "ask" } | null>(null);
   const [draft, setDraft] = useState("");
   // Extra time the owner is granting, per request, when they change it.
@@ -78,8 +79,8 @@ export function Escalations() {
       return;
     }
     setLoadError(null);
-    setRows((data ?? []) as unknown as EscalationRow[]);
-  }, []);
+    setRows(overlay((data ?? []) as unknown as EscalationRow[]));
+  }, [overlay]);
 
   useEffect(() => {
     load();
@@ -188,57 +189,54 @@ export function Escalations() {
     ).length;
   }, [all, selected]);
 
-  const approve = async (row: EscalationRow) => {
+  /** Puts a failed reject or question back in the sheet with the words intact. */
+  const reopen = (id: string, kind: "reject" | "ask", text: string) => () => {
+    setParams({ id }, { replace: true });
+    setCompose({ id, kind });
+    setDraft(text);
+  };
+
+  // Each decision closes the sheet and moves the row at the click; the write
+  // runs behind it (see useOptimisticStatus).
+  const approve = (row: EscalationRow) => {
     const id = row.id;
     const h = grantHours[id];
     const pts = h === undefined || !askedForPoints(row) ? undefined : hoursToPoints(Number(h));
     if (pts !== undefined && !(pts > 0)) return toast.error("Extra time must be more than zero.");
-    setBusyId(id);
-    try {
+    close();
+    // Shown as approved until the reload says whether an admin-leg approve
+    // went up to the owner instead.
+    decide(setRows, load, id, "approved", async () => {
       await callEdgeFn("approve-extension-request", {
         extension_request_id: id,
         // Only when it differs from what is already on the row (the admin's
         // figure, or the ask), so an unchanged approve records nothing new.
         extra_points: pts !== undefined && pts !== Number(row.approved_extra_points ?? row.extra_points) ? pts : undefined,
       });
-      toast.success("Approved.");
-      close();
-      await load();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyId(null);
-    }
+      return "Approved.";
+    });
   };
 
-  const reject = async (id: string) => {
+  const reject = (id: string) => {
     const reason = draft.trim();
     if (!reason) return toast.error("A reason is required — the requester sees it.");
-    setBusyId(id);
-    try {
+    close();
+    decide(setRows, load, id, "rejected", async () => {
       const err = await rejectRequest(id, reason, currentUserId);
-      if (err) return toast.error(err);
-      toast.success("Rejected.");
-      close();
-      await load();
-    } finally {
-      setBusyId(null);
-    }
+      if (err) throw new Error(err);
+      return "Rejected.";
+    }, reopen(id, "reject", reason));
   };
 
-  const ask = async (id: string) => {
+  const ask = (id: string) => {
     const question = draft.trim();
     if (!question) return toast.error("Write the question first.");
-    setBusyId(id);
-    try {
+    close();
+    decide(setRows, load, id, "needs_info", async () => {
       const err = await askForInfo(id, question, currentUserId);
-      if (err) return toast.error(err);
-      toast.success("Sent back to the requester.");
-      close();
-      await load();
-    } finally {
-      setBusyId(null);
-    }
+      if (err) throw new Error(err);
+      return "Sent back to the requester.";
+    }, reopen(id, "ask", question));
   };
 
   if (rows === null) {
@@ -413,7 +411,6 @@ export function Escalations() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={busyId === selected.id}
                           onClick={() => {
                             setCompose(null);
                             setDraft("");
@@ -424,18 +421,11 @@ export function Escalations() {
                         <Button
                           size="sm"
                           variant={compose.kind === "reject" ? "destructive" : "default"}
-                          disabled={busyId === selected.id}
                           onClick={() =>
                             compose.kind === "reject" ? reject(selected.id) : ask(selected.id)
                           }
                         >
-                          {busyId === selected.id
-                            ? compose.kind === "reject"
-                              ? "Rejecting…"
-                              : "Sending…"
-                            : compose.kind === "reject"
-                              ? "Confirm reject"
-                              : "Send question"}
+                          {compose.kind === "reject" ? "Confirm reject" : "Send question"}
                         </Button>
                       </div>
                     </div>
@@ -461,7 +451,6 @@ export function Escalations() {
                           variant="ghost"
                           size="sm"
                           className="gap-2"
-                          disabled={busyId === selected.id}
                           onClick={() => {
                             setCompose({ id: selected.id, kind: "ask" });
                             setDraft("");
@@ -474,7 +463,6 @@ export function Escalations() {
                           variant="ghost"
                           size="sm"
                           className="gap-2"
-                          disabled={busyId === selected.id}
                           onClick={() => {
                             setCompose({ id: selected.id, kind: "reject" });
                             setDraft("");
@@ -486,11 +474,10 @@ export function Escalations() {
                         <Button
                           size="sm"
                           className="gap-2"
-                          disabled={busyId === selected.id}
                           onClick={() => approve(selected)}
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          {busyId === selected.id ? "Approving…" : approveLabel(selected)}
+                          {approveLabel(selected)}
                         </Button>
                       </div>
                     </div>
