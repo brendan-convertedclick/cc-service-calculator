@@ -226,11 +226,13 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
   const handleCreate = async () => {
     try {
-      const extras = [
+      // Success leads: it is the line the assignee most needs and the one
+      // that got lost below a long description.
+      const composedDescription = [
         successCriteria.trim() && `**What success looks like**\n${successCriteria.trim()}`,
+        description.trim(),
         measurableOutcome.trim() && `**Expected output**\n${measurableOutcome.trim()}`,
-      ].filter(Boolean) as string[];
-      const composedDescription = [description.trim(), ...extras].filter(Boolean).join("\n\n");
+      ].filter(Boolean).join("\n\n");
       // The link lives on the brief, not on the ClickUp task — it is what makes
       // this work show up against the retainer.
       if (billingType === "retainer" && projectId !== NO_PROJECT && projectId !== brief.parent_project_id) {

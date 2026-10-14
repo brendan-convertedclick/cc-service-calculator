@@ -197,12 +197,12 @@ Deno.serve(async (req: Request) => {
     }
     const docsSection = renderDocLinks(docLinks);
 
-    // Compose description: the three answers, the reference docs, then an
-    // audit footer.
+    // Compose description: the three answers with success first (it is the
+    // line the assignee needs and it got lost lower down), the reference
+    // docs, then an audit footer. No title heading: ClickUp shows the name.
     const description =
-      `# ${brief.task_name}\n\n` +
-      `**Goal**\n${brief.goal}\n\n` +
       `**What success looks like**\n${brief.success_criteria}\n\n` +
+      `**Goal**\n${brief.goal}\n\n` +
       `**Measurable outcome**\n${brief.measurable_outcome}\n\n` +
       (docsSection ? `${docsSection}\n\n` : "") +
       `---\n` +

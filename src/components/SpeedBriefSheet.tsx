@@ -253,11 +253,11 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
       // The link lives on the brief: it is what counts this work against the retainer.
       if (retainerId) await supabase.from("briefs").update({ parent_project_id: retainerId }).eq("id", briefId);
       // Same composition as QuickBriefSheet, so the ClickUp task reads the same.
-      const extras = [
+      const composed = [
         success.trim() && `**What success looks like**\n${success.trim()}`,
+        description.trim(),
         outCount && `**Expected output**\n${outCount} ${outUnit}`.trim(),
-      ].filter(Boolean) as string[];
-      const composed = [description.trim(), ...extras].filter(Boolean).join("\n\n");
+      ].filter(Boolean).join("\n\n");
       const { clickup_task_url } = await createTask.mutateAsync({
         brief_id: briefId,
         task_name: name.trim(),
