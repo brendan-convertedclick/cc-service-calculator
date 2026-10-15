@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { invokeErrorMessage } from "@/lib/edge";
 
 export type CreateQuickBriefArgs = {
   brief_id: string;
@@ -45,7 +46,7 @@ export function useCreateQuickBriefTask(): UseMutationResult<
       const { data, error } = await supabase.functions.invoke("create-quick-brief-task", {
         body,
       });
-      if (error) throw error;
+      if (error) throw new Error(await invokeErrorMessage(error));
       const result = data as (CreateQuickBriefResult & { error?: string }) | null;
       if (result?.error) throw new Error(result.error);
       return result as CreateQuickBriefResult;
