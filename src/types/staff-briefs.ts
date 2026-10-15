@@ -4,7 +4,7 @@
 
 export type TeamMemberRole = "staff" | "admin" | "owner";
 
-export type StaffBriefStatus = "pending_approval" | "approved" | "rejected";
+export type StaffBriefStatus = "pending_approval" | "approved" | "rejected" | "changes_requested";
 
 export type StaffBriefRow = {
   id: string;
@@ -26,6 +26,8 @@ export type StaffBriefRow = {
   approved_by: string | null;
   approved_at: string | null;
   rejected_reason: string | null;
+  /** What the approver asked to change. Kept after resubmit so they see it beside the new version. */
+  change_request: string | null;
   clickup_task_id: string | null;
   clickup_task_url: string | null;
   created_at: string;

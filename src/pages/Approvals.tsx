@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, HelpCircle, PencilLine, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fmtPtH, hoursToPoints, pointsToHours } from "@/lib/sprint-points";
 import { TimePresetField } from "@/components/TimePresetField";
@@ -62,6 +62,7 @@ export function Approvals() {
   const [revs, setRevs] = useState<RevJoined[] | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [askingId, setAskingId] = useState<string | null>(null);
+  const [changingId, setChangingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const { overlay, decide: decideRow } = useOptimisticStatus();
@@ -69,6 +70,7 @@ export function Approvals() {
   const decide: typeof decideRow = (...args) => {
     setRejectingId(null);
     setAskingId(null);
+    setChangingId(null);
     setRejectReason("");
     decideRow(...args);
   };
@@ -200,6 +202,30 @@ export function Approvals() {
       return "Rejected.";
     }, reopen(id, reason));
   };
+  /** Send a brief back to its submitter to edit and resubmit. A changed time
+   *  becomes their new ask, so the form they reopen already says it. */
+  const requestBriefChanges = (row: BriefJoined) => {
+    const note = rejectReason;
+    if (!note.trim()) return toast.error("Say what needs to change.");
+    const points = overrideFor(row.id, row.sprint_points);
+    if (points !== undefined && !(points > 0)) return toast.error("Time must be more than zero.");
+    decide(setBriefs, loadBriefs, row.id, "changes_requested", async () => {
+      const { error } = await supabase
+        .from("staff_briefs")
+        .update({
+          status: "changes_requested",
+          change_request: note.trim(),
+          ...(points !== undefined ? { sprint_points: points } : {}),
+        })
+        .eq("id", row.id);
+      if (error) throw error;
+      callEdgeFn("notify-staff-brief", { staff_brief_id: row.id }).catch(() => {});
+      return "Sent back for changes.";
+    }, () => {
+      setChangingId(row.id);
+      setRejectReason(note);
+    });
+  };
   const rejectExt = (id: string) => {
     const reason = rejectReason;
     if (!reason.trim()) return toast.error("Reason required.");
@@ -262,6 +288,7 @@ export function Approvals() {
                 key={row.id}
                 row={row}
                 rejecting={rejectingId === row.id}
+                changing={changingId === row.id}
                 rejectReason={rejectReason}
                 setRejectReason={setRejectReason}
                 retainers={allRetainers}
@@ -279,6 +306,15 @@ export function Approvals() {
                   setRejectReason("");
                 }}
                 onRejectConfirm={() => rejectBrief(row.id)}
+                onChangesStart={() => {
+                  setChangingId(row.id);
+                  setRejectReason("");
+                }}
+                onChangesCancel={() => {
+                  setChangingId(null);
+                  setRejectReason("");
+                }}
+                onChangesConfirm={() => requestBriefChanges(row)}
               />
             ))
           )}
@@ -429,12 +465,16 @@ function BriefCard({
   hours,
   onHoursChange,
   rejecting,
+  changing,
   rejectReason,
   setRejectReason,
   onApprove,
   onRejectStart,
   onRejectCancel,
   onRejectConfirm,
+  onChangesStart,
+  onChangesCancel,
+  onChangesConfirm,
 }: {
   row: BriefJoined;
   retainers: { id: string; name: string; client_id: string | null; status: string }[];
@@ -443,12 +483,16 @@ function BriefCard({
   hours: string;
   onHoursChange: (hours: string) => void;
   rejecting: boolean;
+  changing: boolean;
   rejectReason: string;
   setRejectReason: (v: string) => void;
   onApprove: () => void;
   onRejectStart: () => void;
   onRejectCancel: () => void;
   onRejectConfirm: () => void;
+  onChangesStart: () => void;
+  onChangesCancel: () => void;
+  onChangesConfirm: () => void;
 }) {
   const clientRetainers = retainers.filter(
     (r) => r.status === "in_progress" && r.client_id === row.client?.id,
@@ -488,7 +532,26 @@ function BriefCard({
           <Answer label="Success" value={row.success_criteria} />
           <Answer label="Measurable" value={row.measurable_outcome} />
         </div>
-        {rejecting ? (
+        {row.change_request && (
+          <p className="rounded-lg bg-m-surface-container-low p-3 text-body-small text-m-on-surface-variant whitespace-pre-wrap">
+            <span className="text-m-on-surface">Resubmitted. You asked for: </span>
+            {row.change_request}
+          </p>
+        )}
+        {changing ? (
+          <div className="space-y-3">
+            <ApproveAt id={row.id} label="Suggest" hours={hours} onChange={onHoursChange} asked={row.sprint_points} who={row.submitter?.full_name} />
+            <RejectBox
+              value={rejectReason}
+              onChange={setRejectReason}
+              onCancel={onChangesCancel}
+              onConfirm={onChangesConfirm}
+              placeholder="What should change? The submitter edits the brief and sends it back."
+              confirmLabel="Send back for changes"
+              destructive={false}
+            />
+          </div>
+        ) : rejecting ? (
           <RejectBox
             value={rejectReason}
             onChange={setRejectReason}
@@ -538,8 +601,9 @@ function BriefCard({
             )}
             <ActionRow
               onReject={onRejectStart}
+              onRequestChanges={onChangesStart}
               onApprove={onApprove}
-                approveDisabled={(!row.is_internal && !projectId) || !(Number(hours) > 0)}
+              approveDisabled={(!row.is_internal && !projectId) || !(Number(hours) > 0)}
               approveLabel={timeChanged ? `Approve at ${Number(hours)}h & push to ClickUp` : "Approve & push to ClickUp"}
             />
           </div>
@@ -815,26 +879,32 @@ function RejectBox({
   onChange,
   onCancel,
   onConfirm,
+  placeholder = "Reason for rejection (visible to submitter)",
+  confirmLabel = "Confirm reject",
+  destructive = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
+  placeholder?: string;
+  confirmLabel?: string;
+  destructive?: boolean;
 }) {
   return (
     <div className="space-y-2">
       <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Reason for rejection (visible to submitter)"
+        placeholder={placeholder}
         rows={3}
       />
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="destructive" size="sm" onClick={onConfirm}>
-          Confirm reject
+        <Button variant={destructive ? "destructive" : "default"} size="sm" onClick={onConfirm}>
+          {confirmLabel}
         </Button>
       </div>
     </div>
@@ -885,6 +955,7 @@ export function ActionRow({
   onReject,
   onApprove,
   onAsk,
+  onRequestChanges,
   /** Approve is not available yet — a precondition is unmet. Reject stays
    *  open: refusing a brief never requires the precondition first. */
   approveDisabled = false,
@@ -893,6 +964,7 @@ export function ActionRow({
   onReject: () => void;
   onApprove: () => void;
   onAsk?: () => void;
+  onRequestChanges?: () => void;
   approveDisabled?: boolean;
   approveLabel: string;
 }) {
@@ -902,6 +974,12 @@ export function ActionRow({
         <Button variant="ghost" size="sm" onClick={onAsk} className="gap-2">
           <HelpCircle className="h-4 w-4" />
           Ask for info
+        </Button>
+      )}
+      {onRequestChanges && (
+        <Button variant="ghost" size="sm" onClick={onRequestChanges} className="gap-2">
+          <PencilLine className="h-4 w-4" />
+          Request changes
         </Button>
       )}
       <Button variant="ghost" size="sm" onClick={onReject} className="gap-2">
@@ -980,6 +1058,7 @@ function recentBadgeVariant(
 ): "default" | "secondary" | "destructive" | "outline" | "muted" | "success" | "warning" {
   if (status === "approved" || status === "auto_approved") return "success";
   if (status === "rejected") return "destructive";
+  if (status === "changes_requested") return "warning";
   return "muted";
 }
 

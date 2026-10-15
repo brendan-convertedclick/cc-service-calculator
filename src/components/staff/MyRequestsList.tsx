@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, Send } from "lucide-react";
+import { ExternalLink, PencilLine, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { StaffBriefRow } from "@/types/staff-briefs";
+import { fmtPtH } from "@/lib/sprint-points";
+import { BriefFormBody } from "./BriefFormBody";
 import { askedForPoints, type ExtensionRequestRow, type ExtensionStatus } from "@/types/extension-requests";
 
 type Row = ExtensionRequestRow & { client: { name: string } | null };
@@ -187,4 +190,79 @@ function requestSummary(r: Row): string {
   }
   if (r.requested_due_date !== null) parts.push(`due → ${r.requested_due_date}`);
   return parts.join(" · ") || "—";
+}
+
+type BackRow = StaffBriefRow & {
+  system_id: string | null;
+  client: { name: string } | null;
+};
+
+/** Briefs an approver sent back for changes. Editing one reopens the brief
+ *  form on that row; resubmitting puts it back in the approvals queue. */
+export function BriefsBackWithMe() {
+  const { currentUserId } = useAuth();
+  const [rows, setRows] = useState<BackRow[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!currentUserId) return;
+    const { data, error } = await supabase
+      .from("staff_briefs")
+      .select("*, client:clients(name)")
+      .eq("submitter_id", currentUserId)
+      .eq("status", "changes_requested")
+      .order("updated_at", { ascending: false });
+    if (error) return toast.error(`Could not load your briefs: ${error.message}`);
+    setRows((data ?? []) as unknown as BackRow[]);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return rows.map((row) => (
+    <Card key={row.id} className="border-m-primary shadow-elev-1">
+      <CardContent className="space-y-3 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="text-body-medium text-m-on-surface">
+              {row.task_name}
+            </div>
+            <div className="text-label-small text-m-on-surface-variant">
+              Brief · {row.client?.name ?? "—"} · {fmtPtH(row.sprint_points)}
+            </div>
+          </div>
+          <Badge variant="warning">needs changes</Badge>
+        </div>
+        <div className="space-y-1 rounded-lg bg-m-surface-container-low p-3">
+          <div className="text-label-small text-m-on-surface-variant">
+            The approver asked you to change:
+          </div>
+          <p className="text-body-medium text-m-on-surface whitespace-pre-wrap">
+            {row.change_request}
+          </p>
+        </div>
+        {editingId === row.id ? (
+          <BriefFormBody
+            editing={row}
+            onDone={() => {
+              setEditingId(null);
+              load();
+            }}
+          />
+        ) : (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => setEditingId(row.id)}
+              className="gap-2"
+            >
+              <PencilLine className="h-4 w-4" />
+              Edit & resubmit
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ));
 }

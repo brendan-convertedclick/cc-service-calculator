@@ -106,6 +106,9 @@ Deno.serve(async (req: Request) => {
     if (brief.status === "rejected") {
       return json({ error: "Brief was already rejected" }, 400);
     }
+    if (brief.status === "changes_requested") {
+      return json({ error: "Brief is back with the submitter for changes" }, 400);
+    }
 
     // Allocation is enforced here rather than on the staff form: the submitter
     // is rarely the person who knows whether this is retainer work or something

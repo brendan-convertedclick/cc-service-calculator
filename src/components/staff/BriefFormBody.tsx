@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -15,29 +15,41 @@ import { Textarea } from "@/components/ui/textarea";
 import { NO_WORKFLOW, WorkflowSelect } from "@/components/systems/WorkflowSelect";
 import { ClientListPicker } from "./ClientListPicker";
 import { useStaffClients } from "./useStaffClients";
+import { pointsToHours } from "@/lib/sprint-points";
+import type { StaffBriefRow } from "@/types/staff-briefs";
 
 type ListOption = { id: string; name: string; work_stream?: string | null };
 
 /**
- * Phase 1 staff brief form body. Used inside StaffPortal's "New brief" tab.
+ * Phase 1 staff brief form body. Used inside StaffPortal's "New brief" tab,
+ * and pre-filled with `editing` when an approver sent a brief back for
+ * changes: submitting then updates that row and returns it to the queue.
  */
-export function BriefFormBody() {
+export function BriefFormBody({
+  editing,
+  onDone,
+}: {
+  editing?: StaffBriefRow & { system_id?: string | null };
+  onDone?: () => void;
+} = {}) {
   const { currentUserId } = useAuth();
   const clients = useStaffClients();
   const [lists, setLists] = useState<ListOption[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [listsError, setListsError] = useState<string | null>(null);
 
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<string>(editing?.client_id ?? "");
   const [listId, setListId] = useState<string>("");
-  const [taskName, setTaskName] = useState("");
-  const [hours, setHours] = useState<string>("0.25");
-  const [isInternal, setIsInternal] = useState(false);
-  const [systemId, setSystemId] = useState<string>(NO_WORKFLOW);
-  const [goal, setGoal] = useState("");
-  const [successCriteria, setSuccessCriteria] = useState("");
-  const [measurableOutcome, setMeasurableOutcome] = useState("");
+  const [taskName, setTaskName] = useState(editing?.task_name ?? "");
+  const [hours, setHours] = useState<string>(editing ? String(pointsToHours(Number(editing.sprint_points))) : "0.25");
+  const [isInternal, setIsInternal] = useState(editing?.is_internal ?? false);
+  const [systemId, setSystemId] = useState<string>(editing?.system_id ?? NO_WORKFLOW);
+  const [goal, setGoal] = useState(editing?.goal ?? "");
+  const [successCriteria, setSuccessCriteria] = useState(editing?.success_criteria ?? "");
+  const [measurableOutcome, setMeasurableOutcome] = useState(editing?.measurable_outcome ?? "");
   const [submitting, setSubmitting] = useState(false);
+  // The edited brief's list, restored once its client's lists have loaded.
+  const keepListId = useRef(editing?.clickup_list_id ?? "");
 
   useEffect(() => {
     if (!clientId) {
@@ -54,8 +66,10 @@ export function BriefFormBody() {
           client_id: clientId,
         });
         if (cancelled) return;
-        setLists(body.lists ?? []);
-        setListId("");
+        const loaded = body.lists ?? [];
+        setLists(loaded);
+        setListId(loaded.some((l) => l.id === keepListId.current) ? keepListId.current : "");
+        keepListId.current = "";
       } catch (e) {
         if (cancelled) return;
         setListsError(errorMessage(e));
@@ -105,19 +119,24 @@ export function BriefFormBody() {
         success_criteria: successCriteria.trim(),
         measurable_outcome: measurableOutcome.trim(),
       };
-      const { data: inserted, error } = await supabase
-        .from("staff_briefs")
-        .insert(insertPayload)
-        .select("id")
-        .single();
+      const { submitter_id: _submitter, ...edits } = insertPayload;
+      const { data: saved, error } = await (editing
+        ? supabase
+            .from("staff_briefs")
+            .update({ ...edits, status: "pending_approval" })
+            .eq("id", editing.id)
+            .select("id")
+            .single()
+        : supabase.from("staff_briefs").insert(insertPayload).select("id").single());
       if (error) {
         toast.error(`Submit failed: ${error.message}`);
         return;
       }
-      toast.success("Brief submitted for approval.");
+      toast.success(editing ? "Brief resubmitted for approval." : "Brief submitted for approval.");
       // Fire-and-forget: ping admins in ClickUp chat + email. Never blocks
       // the submit — the request is already saved either way.
-      callEdgeFn("notify-staff-brief", { staff_brief_id: (inserted as { id: string }).id }).catch(() => {});
+      callEdgeFn("notify-staff-brief", { staff_brief_id: (saved as { id: string }).id }).catch(() => {});
+      if (editing) return onDone?.();
       setTaskName("");
       setHours("0.25");
       setIsInternal(false);
@@ -212,7 +231,7 @@ export function BriefFormBody() {
         <div className="flex items-center justify-end pt-2">
           <Button type="submit" disabled={!canSubmit} className="gap-2">
             <Send className="h-4 w-4" />
-            {submitting ? "Submitting…" : "Submit for approval"}
+            {submitting ? "Submitting…" : editing ? "Resubmit for approval" : "Submit for approval"}
           </Button>
         </div>
       </div>

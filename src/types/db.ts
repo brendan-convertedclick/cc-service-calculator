@@ -5778,6 +5778,7 @@ export type Database = {
           approved_points: number | null
           approved_by: string | null
           auto_approved: boolean
+          change_request: string | null
           clickup_list_id: string
           clickup_list_name: string
           clickup_task_id: string | null
@@ -5804,6 +5805,7 @@ export type Database = {
           approved_points?: number | null
           approved_by?: string | null
           auto_approved?: boolean
+          change_request?: string | null
           clickup_list_id: string
           clickup_list_name: string
           clickup_task_id?: string | null
@@ -5830,6 +5832,7 @@ export type Database = {
           approved_points?: number | null
           approved_by?: string | null
           auto_approved?: boolean
+          change_request?: string | null
           clickup_list_id?: string
           clickup_list_name?: string
           clickup_task_id?: string | null

@@ -52,6 +52,16 @@ describe("ActionRow", () => {
     btn.click();
     expect(onApprove).toHaveBeenCalled();
   });
+
+  // Sending back for changes is open whenever reject is: neither needs a retainer.
+  it("offers request changes beside reject when given", () => {
+    const onRequestChanges = vi.fn();
+    render(<ActionRow onReject={noop} onRequestChanges={onRequestChanges} onApprove={noop} approveDisabled approveLabel="Approve" />);
+    const btn = screen.getByRole("button", { name: /request changes/i });
+    expect(btn).toBeEnabled();
+    btn.click();
+    expect(onRequestChanges).toHaveBeenCalled();
+  });
 });
 
 // Approving must not wait on ClickUp: the card leaves at the click, and only a

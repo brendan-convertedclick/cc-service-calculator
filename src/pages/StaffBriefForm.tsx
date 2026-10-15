@@ -4,7 +4,7 @@ import { BriefFormBody } from "@/components/staff/BriefFormBody";
 import { ExtensionFormBody } from "@/components/staff/ExtensionFormBody";
 import { MeetingFormBody } from "@/components/staff/MeetingFormBody";
 import { MyMeetingsList } from "@/components/staff/MyMeetingsList";
-import { MyRequestsList } from "@/components/staff/MyRequestsList";
+import { BriefsBackWithMe, MyRequestsList } from "@/components/staff/MyRequestsList";
 import { RevisionFormBody } from "@/components/staff/RevisionFormBody";
 import { ClickUpConnectCard } from "@/components/ClickUpConnectCard";
 
@@ -70,7 +70,8 @@ export function StaffBriefForm() {
                 <MeetingFormBody />
                 <MyMeetingsList />
               </TabsContent>
-              <TabsContent value="mine" className="space-y-0">
+              <TabsContent value="mine" className="space-y-3">
+                <BriefsBackWithMe />
                 <MyRequestsList />
               </TabsContent>
             </Tabs>
