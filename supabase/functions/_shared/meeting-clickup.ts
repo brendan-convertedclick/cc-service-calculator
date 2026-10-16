@@ -12,7 +12,7 @@
 // someone's calendar does not.
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import { resolveDropdownOption, type CuField } from "./clickup.ts";
+import { PRIORITY_NORMAL, resolveDropdownOption, type CuField } from "./clickup.ts";
 
 export const NO_CLICKUP_LIST_ERROR =
   "No Meetings, Non-Billable or Admin list found in this client's ClickUp folder - add one (then re-sync the client's lists), or set a fallback internal list in Settings -> ClickUp.";
@@ -160,6 +160,8 @@ export async function createMeetingTask(
   const CU = { headers: { Authorization: pat, "Content-Type": "application/json" } };
   const taskBody: Record<string, unknown> = {
     name: input.name,
+    // The daily dashboard only shows tasks that carry a priority.
+    priority: PRIORITY_NORMAL,
     ...input.body,
     custom_fields: input.customFields,
   };
