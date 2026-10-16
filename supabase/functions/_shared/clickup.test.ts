@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildBriefComment, buildBriefTaskBody, cuFetch, resolveListAlias } from "./clickup.ts";
+import { buildBriefComment, buildBriefTaskBody, cuFetch, PRIORITY_NORMAL, resolveListAlias } from "./clickup.ts";
 
 const aliases = [
   { work_stream: "Development", aliases: ["Development", "Dev", "Engineering"] },
@@ -95,6 +95,15 @@ Deno.test("buildBriefTaskBody omits a dropdown with no matching option, keeps te
   const cf = body.custom_fields as Array<{ id: string; value: unknown }>;
   assertEquals(cf.find((c) => c.id === "f_ws"), undefined); // unresolved dropdown omitted
   assertEquals(cf.find((c) => c.id === "f_client")?.value, "Acme"); // text field raw
+});
+
+Deno.test("buildBriefTaskBody sets priority only when asked", () => {
+  const base = {
+    name: "n", description: "d", clientName: "Acme", workStream: "SEO",
+    engagementType: "Task", sprintPoints: 1, dateOfEngagement: "2026-07-08",
+  };
+  assertEquals(buildBriefTaskBody([], base).priority, undefined);
+  assertEquals(buildBriefTaskBody([], { ...base, priority: PRIORITY_NORMAL }).priority, 3);
 });
 
 Deno.test("buildBriefTaskBody omits assignees when none + sets due_date when given", () => {

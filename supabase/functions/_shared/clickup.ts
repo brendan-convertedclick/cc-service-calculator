@@ -141,7 +141,13 @@ export type BriefTaskInput = {
   // here rather than at each call site so the ClickUp name and
   // briefs.billing_type cannot drift apart across the five creators.
   billingType?: string | null;
+  // ClickUp's native priority (1 urgent … 4 low). Staff-raised work passes
+  // PRIORITY_NORMAL: the team's daily dashboard only shows tasks that carry a
+  // priority, so a manual request created without one never appears on it.
+  priority?: number | null;
 };
+
+export const PRIORITY_NORMAL = 3;
 
 const ADHOC_PREFIX = "[Ad Hoc] ";
 
@@ -212,6 +218,7 @@ export function buildBriefTaskBody(
     custom_fields: cf,
   };
   if (input.assigneeClickupId) body.assignees = [input.assigneeClickupId];
+  if (input.priority) body.priority = input.priority;
   if (input.dueDateMs) {
     body.due_date = input.dueDateMs;
     body.due_date_time = false;

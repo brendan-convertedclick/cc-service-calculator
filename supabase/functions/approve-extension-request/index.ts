@@ -31,7 +31,7 @@ import {
   type ExtensionTier,
   type MemberRole,
 } from "../_shared/extension-logic.ts";
-import { cuFetch } from "../_shared/clickup.ts";
+import { cuFetch, PRIORITY_NORMAL } from "../_shared/clickup.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
@@ -201,6 +201,21 @@ Deno.serve(async (req: Request) => {
           notify_all: false,
         }),
       });
+    }
+
+    // The daily dashboard only shows tasks that carry a priority. Give an
+    // extended task Normal if it has none; never overwrite one somebody set.
+    // Best-effort: a missed priority must not fail an approved extension.
+    {
+      const taskUrl = `https://api.clickup.com/api/v2/task/${row.parent_clickup_task_id}`;
+      const res = await cuFetch(taskUrl, CU);
+      if (res.ok) {
+        const task = (await res.json()) as { priority?: unknown };
+        if (!task.priority) {
+          const putRes = await cuFetch(taskUrl, { ...CU, method: "PUT", body: JSON.stringify({ priority: PRIORITY_NORMAL }) });
+          if (!putRes.ok) console.warn(`[approve-extension-request] priority PUT failed: ${putRes.status} ${await putRes.text()}`);
+        }
+      }
     }
 
     if (row.requested_due_date) {

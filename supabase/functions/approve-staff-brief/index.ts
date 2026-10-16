@@ -15,7 +15,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { addClickupChecklist, buildBriefComment, buildBriefTaskBody } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, PRIORITY_NORMAL } from "../_shared/clickup.ts";
 import { renderDocLinks } from "../_shared/system-materialise.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
@@ -225,6 +225,7 @@ Deno.serve(async (req: Request) => {
       assigneeClickupId: member.clickup_user_id,
       billingType,
       dueDateMs: null,
+      priority: PRIORITY_NORMAL,
     });
 
     const taskUrl = `https://api.clickup.com/api/v2/list/${brief.clickup_list_id}/task`;

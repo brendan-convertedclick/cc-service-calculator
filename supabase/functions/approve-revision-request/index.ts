@@ -26,7 +26,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createUserClient } from "../_shared/supabase-client.ts";
 import { swapRevisionSuffix } from "../_shared/revision-logic.ts";
-import { cuFetch } from "../_shared/clickup.ts";
+import { cuFetch, PRIORITY_NORMAL } from "../_shared/clickup.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { postChatMessage, mentionToken, approvalsChannel, CONVERTED_CLICK_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 
@@ -138,6 +138,7 @@ Deno.serve(async (req: Request) => {
       name: string;
       list?: { id: string };
       assignees?: Array<{ id: number }>;
+      priority?: { id: string } | null;
       custom_fields?: CuCustomField[];
     };
     const parentListId = parent.list?.id;
@@ -187,6 +188,9 @@ Deno.serve(async (req: Request) => {
         // Omit `status` — let ClickUp use the list's default (custom status
         // sets make hardcoding a value fail with CRTSK_001).
         custom_fields: customFields,
+        // The parent's priority if it has one, else Normal: the daily dashboard
+        // only shows tasks that carry a priority.
+        priority: Number(parent.priority?.id) || PRIORITY_NORMAL,
       };
       if (parent.assignees?.length) {
         createBody.assignees = parent.assignees.map((a) => a.id);

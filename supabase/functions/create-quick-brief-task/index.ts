@@ -11,7 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { APP_URL, cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
-import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, type CuField } from "../_shared/clickup.ts";
+import { addClickupChecklist, buildBriefComment, buildBriefTaskBody, PRIORITY_NORMAL, type CuField } from "../_shared/clickup.ts";
 import { briefBriefedMessage, isMeetingWorkStream, mentionToken, MEETINGS_CHANNEL_ID, NEW_TASKS_CHANNEL_ID, postChatMessage } from "../_shared/clickup-chat.ts";
 import { renderDocLinks } from "../_shared/system-materialise.ts";
 
@@ -148,7 +148,7 @@ Deno.serve(async (req: Request) => {
       name: b.task_name, description,
       clientName: client.clickup_client_name ?? client.name, workStream: b.work_stream, engagementType: "Task",
       sprintPoints: b.sprint_points, dateOfEngagement, assigneeClickupId, dueDateMs,
-      billingType: b.billing_type,
+      billingType: b.billing_type, priority: PRIORITY_NORMAL,
     });
     // buildBriefTaskBody deliberately omits status (avoids CRTSK_001 on the
     // default list status). Only set it when the caller passed a valid status
