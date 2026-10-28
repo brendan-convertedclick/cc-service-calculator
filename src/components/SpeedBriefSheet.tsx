@@ -21,7 +21,7 @@ import { defaultListId, useClientClickUpLists } from "@/hooks/useClientClickUpLi
 import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
 import { supabase } from "@/lib/supabase";
 import { toISODate } from "@/lib/dates";
-import { cn, errorMessage } from "@/lib/utils";
+import { cn, errorMessage, toggleInSet } from "@/lib/utils";
 
 // "With the client" is not a person: the task stays unassigned and carries the
 // list's waiting-on-client status, which is what Client sign-offs reads.
@@ -123,6 +123,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const [retainerPick, setRetainer] = useState<string | null>(null);
   const [listId, setListId] = useState("");
   const [status, setStatus] = useState(STATUS_DEFAULT);
+  const [tags, setTags] = useState<string[]>([]);
   // Held across a failed Create so a retry reuses the brief it already wrote.
   // Once it exists the client is locked: the row already carries it.
   const [createdBriefId, setCreatedBriefId] = useState<string | null>(null);
@@ -151,6 +152,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const listsQuery = useClientClickUpLists(open && clientId ? clientId : null);
   const lists = useMemo(() => listsQuery.data?.lists ?? [], [listsQuery.data]);
   const workStreamOptions = listsQuery.data?.work_stream_options ?? [];
+  const tagOptions = listsQuery.data?.tags ?? [];
   // ClickUp's own Work Stream options; Conductor's department names only when
   // that fetch failed, so the brief is never blocked on it.
   const workStreamSource = workStreamOptions.length > 0 ? workStreamOptions : departments;
@@ -268,6 +270,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
         due_date: dueDate || null,
         list_id: listId || undefined,
         status: effectiveStatus === STATUS_DEFAULT ? undefined : effectiveStatus,
+        tags,
         briefed_by_member_id: briefedBy,
         billing_type: billing,
         checklist_items: checklist,
@@ -351,6 +354,7 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
     },
     { k: "List", v: selectedList?.name ?? "Server default", state: "default", step: 9 },
     { k: "Status", v: effectiveStatus === STATUS_DEFAULT ? "List default" : effectiveStatus, state: status !== STATUS_DEFAULT ? "set" : "default", step: 9 },
+    { k: "Tags", v: tags.length ? tags.join(", ") : "None", state: tags.length ? "set" : "default", step: 9 },
   ];
 
   const stepBody = (): ReactNode => {
@@ -575,6 +579,16 @@ export function SpeedBriefSheet({ open, onOpenChange }: { open: boolean; onOpenC
                 )}
               </div>
             )}
+            {tagOptions.length > 0 && (
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <Chips
+                  items={tagOptions.map((t) => ({ v: t, label: t }))}
+                  value={tags}
+                  onPick={(t) => setTags((prev) => [...toggleInSet(new Set(prev), t)])}
+                />
+              </div>
+            )}
           </>
         );
       default:
@@ -709,22 +723,24 @@ function Chips({
   disabled,
 }: {
   items: { v: string; label: string; key?: string }[];
-  value: string;
+  /** An array makes it multi-select: every value in it shows pressed. */
+  value: string | string[];
   onPick: (v: string) => void;
   disabled?: boolean;
 }) {
+  const on = (v: string) => (Array.isArray(value) ? value.includes(v) : value === v);
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((it) => (
         <button
           key={it.v}
           type="button"
-          aria-pressed={value === it.v}
+          aria-pressed={on(it.v)}
           disabled={disabled}
           onClick={() => onPick(it.v)}
           className={cn(
             "rounded-full border px-3 py-1 text-label-medium transition-colors disabled:opacity-50",
-            value === it.v ? "border-primary bg-m-primary-container text-m-on-primary-container" : "border-m-outline-variant bg-m-surface-container-low hover:border-m-outline",
+            on(it.v) ? "border-primary bg-m-primary-container text-m-on-primary-container" : "border-m-outline-variant bg-m-surface-container-low hover:border-m-outline",
           )}
         >
           {it.label}

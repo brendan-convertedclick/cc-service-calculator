@@ -13,7 +13,8 @@ export type WorkStreamOption = { id: string; name: string };
 
 /**
  * A client's ClickUp lists (with their statuses) and ClickUp's real Work Stream
- * options, from `list-client-clickup-lists`. Pass null to stay idle, so a
+ * options and the tag names of their ClickUp space, from
+ * `list-client-clickup-lists`. Pass null to stay idle, so a
  * closed sheet makes no network call.
  */
 export function useClientClickUpLists(clientId: string | null) {
@@ -21,7 +22,7 @@ export function useClientClickUpLists(clientId: string | null) {
     queryKey: ["client-clickup-lists", clientId],
     enabled: clientId != null,
     queryFn: () =>
-      callEdgeFn<{ lists?: ClickUpListOption[]; work_stream_options?: WorkStreamOption[] }>(
+      callEdgeFn<{ lists?: ClickUpListOption[]; work_stream_options?: WorkStreamOption[]; tags?: string[] }>(
         "list-client-clickup-lists",
         { client_id: clientId },
       ),

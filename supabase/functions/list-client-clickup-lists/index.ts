@@ -3,7 +3,8 @@
 // Request:  POST { client_id: string }
 // Response: 200 {
 //   lists: [{ id: string, name: string, work_stream: string | null, statuses: Array<{ status: string, color: string | null, type: string, orderindex: number }> }],
-//   work_stream_options: Array<{ id: string, name: string }>
+//   work_stream_options: Array<{ id: string, name: string }>,
+//   tags: string[]
 // }
 //
 // Returns the ClickUp lists inside a client's folder. Used by every "List"
@@ -26,6 +27,10 @@
 //
 // The "Work Stream" custom field's dropdown options are shared across the
 // folder's lists, so we fetch it once from the first list.
+//
+// Tags belong to a ClickUp SPACE, not a list, so `tags` is the union of the
+// tag names of every space the folder's lists sit in (in practice one). The
+// space id comes off the same single-list response the statuses do.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
@@ -86,17 +91,17 @@ Deno.serve(async (req: Request) => {
         const listRes = await cuFetch(`https://api.clickup.com/api/v2/list/${l.id}`, {
           headers: clickupHeaders,
         });
-        if (!listRes.ok) return { ...l, statuses: [] as ClickUpStatus[] };
-        const listBody = (await listRes.json()) as { statuses?: ClickUpStatus[] };
-        return { ...l, statuses: listBody.statuses ?? [] };
+        if (!listRes.ok) return { ...l, statuses: [] as ClickUpStatus[], space_id: null };
+        const listBody = (await listRes.json()) as { statuses?: ClickUpStatus[]; space?: { id?: string } };
+        return { ...l, statuses: listBody.statuses ?? [], space_id: listBody.space?.id ?? null };
       } catch {
-        return { ...l, statuses: [] as ClickUpStatus[] };
+        return { ...l, statuses: [] as ClickUpStatus[], space_id: null };
       }
     };
     // Four at a time, not all at once. A busy client folder holds a dozen or
     // more lists, and firing every one in parallel is what put this over
     // ClickUp's limit and returned a bare 502 to the brief sheet.
-    const listsWithStatuses: Array<{ id: string; name: string; statuses: ClickUpStatus[] }> = [];
+    const listsWithStatuses: Array<{ id: string; name: string; statuses: ClickUpStatus[]; space_id: string | null }> = [];
     for (let i = 0; i < bareLists.length; i += 4) {
       listsWithStatuses.push(...await Promise.all(bareLists.slice(i, i + 4).map(fetchStatuses)));
     }
@@ -173,7 +178,22 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ lists, work_stream_options: workStreamOptions });
+    // A failed tag fetch leaves the picker empty rather than failing the lists.
+    const spaceIds = [...new Set(listsWithStatuses.map((l) => l.space_id).filter((id): id is string => !!id))];
+    const tagNames = new Set<string>();
+    for (const spaceId of spaceIds) {
+      try {
+        const tagRes = await cuFetch(`https://api.clickup.com/api/v2/space/${spaceId}/tag`, { headers: clickupHeaders });
+        if (!tagRes.ok) continue;
+        const tagBody = (await tagRes.json()) as { tags?: Array<{ name: string }> };
+        for (const t of tagBody.tags ?? []) tagNames.add(t.name);
+      } catch {
+        // leave this space's tags out
+      }
+    }
+    const tags = [...tagNames].sort((a, b) => a.localeCompare(b));
+
+    return json({ lists, work_stream_options: workStreamOptions, tags });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

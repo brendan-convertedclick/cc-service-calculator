@@ -1,7 +1,7 @@
 // supabase/functions/create-quick-brief-task/index.ts
 //
 // Request:  POST { brief_id, task_name, assignee_member_id?, sprint_points,
-//                  work_stream, due_date?, list_id?, status?, system_id? }
+//                  work_stream, due_date?, list_id?, status?, system_id?, tags? }
 // Response: 200 { clickup_task_id, clickup_task_url }
 //
 // Turns a brief into ONE ClickUp task with no scope/SOW/quote. Idempotent:
@@ -27,6 +27,8 @@ Deno.serve(async (req: Request) => {
       list_id?: string; status?: string; briefed_by_member_id?: string | null;
       billing_type?: string; checklist_items?: string[];
       system_id?: string | null;
+      /** ClickUp tag names, from list-client-clickup-lists' `tags`. */
+      tags?: string[];
     };
     // File attachments arrive as multipart/form-data (payload = JSON string,
     // one or more "file" entries); no attachments → plain JSON, as before.
@@ -158,6 +160,8 @@ Deno.serve(async (req: Request) => {
     if (b.status && requestedList) {
       taskBody.status = b.status;
     }
+    const tags = (b.tags ?? []).map((t) => t.trim()).filter(Boolean);
+    if (tags.length) taskBody.tags = tags;
 
     const taskUrl = `https://api.clickup.com/api/v2/list/${list.id}/task`;
     let createRes = await fetch(taskUrl, { ...CU, method: "POST", body: JSON.stringify(taskBody) });

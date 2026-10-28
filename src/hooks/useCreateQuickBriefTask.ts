@@ -21,6 +21,8 @@ export type CreateQuickBriefArgs = {
    *  Sent so the task can carry that system's reference docs — the flattened
    *  checklist text no longer says where it came from. */
   system_id?: string | null;
+  /** ClickUp tag names for the task. */
+  tags?: string[];
   /** Optional files — each uploaded as a ClickUp task attachment after create. */
   attachments?: File[];
 };

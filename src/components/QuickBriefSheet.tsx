@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ClickUpListSelect } from "@/components/ClickUpListSelect";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Select,
   SelectContent,
@@ -122,6 +123,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
 
   const [listId, setListId] = useState<string>("");
   const [status, setStatus] = useState<string>(STATUS_DEFAULT);
+  const [tags, setTags] = useState<string[]>([]);
 
   // Prefill each time the sheet opens.
   useEffect(() => {
@@ -137,6 +139,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
     setDueDate(draft.due_date ?? "");
     setBriefedBy(UNASSIGNED);
     setStatus(STATUS_DEFAULT);
+    setTags([]);
     // Anything the DB already holds is a valid choice here; only an absent
     // or unrecognised value falls back to retainer.
     setBillingType(
@@ -155,6 +158,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
   const listsQuery = useClientClickUpLists(open && brief.client_id ? brief.client_id : null);
   const lists = useMemo(() => listsQuery.data?.lists ?? [], [listsQuery.data]);
   const workStreamOptions = listsQuery.data?.work_stream_options ?? [];
+  const tagOptions = listsQuery.data?.tags ?? [];
   const loadingLists = listsQuery.isFetching;
   const listsError = listsQuery.error ? errorMessage(listsQuery.error) : null;
   useEffect(() => {
@@ -255,6 +259,7 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
         // they came from — send the id too so the task can carry the system's
         // reference docs (0129).
         system_id: systemId === NO_WORKFLOW ? null : systemId,
+        tags,
         attachments,
       });
       toast.success("Task created in ClickUp", {
@@ -613,6 +618,21 @@ export function QuickBriefSheet({ open, onOpenChange, brief }: QuickBriefSheetPr
               </Select>
             </div>
           </div>
+
+          {tagOptions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="qb-tags">Tags</Label>
+              <MultiSelect
+                id="qb-tags"
+                options={tagOptions.map((t) => ({ value: t, label: t }))}
+                values={tags}
+                onChange={setTags}
+                placeholder="No tags"
+                searchPlaceholder="Search tags…"
+                className="w-full"
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             {/* Ahead of the buttons, not between them: the reason Create is off
