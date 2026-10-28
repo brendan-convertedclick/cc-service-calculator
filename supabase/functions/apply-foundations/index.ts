@@ -24,7 +24,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
-import { cuFetch } from "../_shared/clickup.ts";
+import { CU_BATCH_RETRY, cuFetch } from "../_shared/clickup.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
 
 type CuList = { id: string; name: string };
@@ -169,6 +169,7 @@ Deno.serve(async (req: Request) => {
               method: "POST",
               body: JSON.stringify({ name: baseline.label }),
             },
+            CU_BATCH_RETRY,
           );
           if (!cuRes.ok) {
             errors.push({
@@ -232,6 +233,7 @@ Deno.serve(async (req: Request) => {
                 description: t.description ?? "",
               }),
             },
+            CU_BATCH_RETRY,
           );
           if (!cuTaskRes.ok) {
             errors.push({

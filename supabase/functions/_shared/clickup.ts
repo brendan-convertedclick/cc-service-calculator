@@ -37,16 +37,28 @@ export async function cuFetch(
 
   let res = await doFetch(url, init);
   for (let attempt = 1; attempt < attempts && res.status === 429; attempt++) {
+    // ClickUp names the window's end in X-RateLimit-Reset (epoch seconds);
+    // Retry-After wins when present. +1s so we land after the reset, not on it.
     const retryAfter = Number(res.headers.get("retry-after"));
-    const wait = Math.min(
-      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : attempt * 1_000,
-      maxDelayMs,
-    );
+    const resetAt = Number(res.headers.get("x-ratelimit-reset"));
+    const hinted = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1_000
+      : Number.isFinite(resetAt) && resetAt > 0
+        ? resetAt * 1_000 - Date.now() + 1_000
+        : 0;
+    const wait = Math.min(hinted > 0 ? hinted : attempt * 1_000, maxDelayMs);
     await sleep(wait);
     res = await doFetch(url, init);
   }
   return res;
 }
+
+/**
+ * cuFetch options for a batch run (provisioners, foundations) where nobody is
+ * watching a spinner: wait out a whole rate-limit window rather than fail the
+ * row after 3s. A drained shared token is the normal case for these.
+ */
+export const CU_BATCH_RETRY = { attempts: 3, maxDelayMs: 65_000 } as const;
 
 export type AliasRow = { work_stream: string; aliases: string[] };
 export type OverrideRow = { client_id: string; work_stream: string; list_name: string };

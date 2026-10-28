@@ -28,7 +28,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
-import { cuFetch } from "../_shared/clickup.ts";
+import { CU_BATCH_RETRY, cuFetch } from "../_shared/clickup.ts";
 
 export function buildTaskName(
   member: { full_name: string },
@@ -310,6 +310,7 @@ Deno.serve(async (req: Request) => {
             billable,
           }),
         },
+        CU_BATCH_RETRY,
       );
       if (!cuRes.ok) {
         failed.push({

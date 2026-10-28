@@ -213,6 +213,28 @@ Deno.test("cuFetch retries a 429 and returns the eventual success", async () => 
   assertEquals(waits, [3_000]);
 });
 
+Deno.test("cuFetch waits for X-RateLimit-Reset when there is no Retry-After", async () => {
+  const waits: number[] = [];
+  let i = 0;
+  const resetAt = Math.ceil(Date.now() / 1_000) + 30;
+  const res = await cuFetch("https://api.clickup.com/api/v2/list/1/task", { method: "POST" }, {
+    maxDelayMs: 65_000,
+    fetchImpl: (() => Promise.resolve(
+      i++ === 0
+        ? new Response("{}", { status: 429, headers: { "x-ratelimit-reset": String(resetAt) } })
+        : new Response("{}", { status: 200 }),
+    )) as unknown as typeof fetch,
+    sleep: (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    },
+  });
+  assertEquals(res.status, 200);
+  // ~30s to the reset plus the 1s margin, not the 1s backoff.
+  assertEquals(waits.length, 1);
+  assertEquals(waits[0] > 29_000 && waits[0] <= 32_000, true);
+});
+
 Deno.test("cuFetch gives up after the attempt cap and returns the 429", async () => {
   const calls: string[] = [];
   const res = await cuFetch("https://api.clickup.com/api/v2/task/abc", undefined, {
