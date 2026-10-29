@@ -288,17 +288,16 @@ export function useRetainerAllocation(monthsBack = 6) {
           .select("project_id, clickup_task_id, month, is_closed, actual_hours, planned_hours")
           .gte("month", sinceMonth),
         trackedTaskMonths(sinceIso, new Date().toISOString()),
-        // Adopted [Ongoing] perpetual tasks book to whatever retainer their
-        // list defaults to (0171) — the TKC dashboard bucket held 19h of King's
-        // October time that no brief could see. Adopted only: the Scaffold
-        // per-client buckets (Client Comms, Finance…) sit in lists whose default
-        // is often an unrelated retainer, so they stay off until Lisa decides.
+        // [Ongoing] perpetual buckets count against the retainer they are
+        // explicitly booked to (0202) — the TKC dashboard bucket alone held 19h
+        // of King's October time that no brief could see. Explicit, not the
+        // list default: Dovetail's Admin list defaults to its feedback-meeting
+        // retainer, and account comms do not belong there.
         supabase
           .from("ongoing_tasks")
-          .select("clickup_task_id, client_lists(default_project_id)")
+          .select("clickup_task_id, project_id")
           .is("archived_at", null)
-          .eq("adopted", true)
-          .not("client_list_id", "is", null),
+          .not("project_id", "is", null),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (briefsRes.error) throw briefsRes.error;
@@ -451,11 +450,10 @@ export function useRetainerAllocation(monthsBack = 6) {
       const taskToProject = new Map<string, string>();
       for (const o of (ongoingRes.data ?? []) as unknown as Array<{
         clickup_task_id: string | null;
-        client_lists: { default_project_id: string | null } | null;
+        project_id: string | null;
       }>) {
-        const projectId = o.client_lists?.default_project_id;
-        if (o.clickup_task_id && projectId && projectsWithOwnRow.has(projectId)) {
-          taskToProject.set(o.clickup_task_id, projectId);
+        if (o.clickup_task_id && o.project_id && projectsWithOwnRow.has(o.project_id)) {
+          taskToProject.set(o.clickup_task_id, o.project_id);
         }
       }
       for (const r of recurring) {
