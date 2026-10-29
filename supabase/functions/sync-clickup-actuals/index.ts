@@ -601,9 +601,6 @@ Deno.serve(async (req: Request) => {
         );
 
         const status: string | null = task.status?.status?.toLowerCase() ?? null;
-        // Retainer provisioned tasks are perpetual (live) and never close, so
-        // they keep allDone=false for retainer projects — correct, by design
-        // (retainers must not auto-complete mid-period).
         if (status !== "complete" && status !== "closed" && status !== "done") allDone = false;
 
         // Append-only insert: a brand new row per task per tick. recorded_at
@@ -659,7 +656,10 @@ Deno.serve(async (req: Request) => {
         console.log(`[delete-sync] project ${p.id}: removed ${deletedTaskIds.length} deleted ClickUp task(s)`);
       }
 
-      if (allDone) {
+      // A retainer's tasks all being closed means this month is done, not the
+      // retainer: it ends when someone ends it. Auto-completing here silently
+      // dropped live retainers off the brief picker and the book.
+      if (allDone && p.engagement_type !== "retainer") {
         await supabase
           .from("projects")
           .update({ status: "completed", completed_at: new Date().toISOString() })
