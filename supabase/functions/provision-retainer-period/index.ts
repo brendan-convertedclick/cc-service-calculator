@@ -271,13 +271,20 @@ Deno.serve(async (req: Request) => {
         // request — a task is closed by the person who did it, or not at all.
 
         // Idempotency check: existing row?
-        const { data: existing } = await sb
+        let { data: existing } = await sb
           .from("provisioned_tasks")
           .select("id, clickup_task_ids")
           .eq("recurring_service_id", svc.id)
           .eq("assignee_id", assigneeId)
           .eq("period_start", isoDate(periodStart))
           .maybeSingle();
+        // A row with no task ids is a month nothing was made for (an old failed
+        // create, or every task deleted in ClickUp). Counting it as done is what
+        // left 12 October tasks missing; drop it so this run makes the task.
+        if (existing && !((existing as { clickup_task_ids: string[] | null }).clickup_task_ids ?? []).length) {
+          await sb.from("provisioned_tasks").delete().eq("id", (existing as { id: string }).id);
+          existing = null;
+        }
         const forceReprovision = !!force_all || (force_service_ids ?? []).includes(svc.service_id);
         if (existing && !forceReprovision) {
           if (rename_existing) {
