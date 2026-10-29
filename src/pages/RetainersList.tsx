@@ -1215,14 +1215,25 @@ export function RetainersList() {
                                     this opened to, so a retainer carrying 51h of
                                     briefs listed two monthly tasks and none of
                                     the work that made up the figure. */}
-                                {(alloc.get(r.id)?.items?.length ?? 0) > 0 && (
-                                  <>
-                                    <p className="border-t border-m-outline-variant px-12 pt-3 text-label-large text-m-on-surface">
-                                      Briefed tasks
-                                    </p>
-                                    <DeliveryItems items={alloc.get(r.id)!.items} />
-                                  </>
-                                )}
+                                {(() => {
+                                  // Only this month's work (Lisa, 2026-10-29): closed in
+                                  // it, or still open and due in it. Overdue and undated
+                                  // open briefs still count in Briefed; they just are
+                                  // not listed here.
+                                  const items = (alloc.get(r.id)?.items ?? []).filter((it) =>
+                                    it.completedAt
+                                      ? it.completedAt.slice(0, 7) === month
+                                      : it.dueDate?.slice(0, 7) === month,
+                                  );
+                                  return items.length > 0 && (
+                                    <>
+                                      <p className="border-t border-m-outline-variant px-12 pt-3 text-label-large text-m-on-surface">
+                                        Briefed tasks
+                                      </p>
+                                      <DeliveryItems items={items} />
+                                    </>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
                           )}
