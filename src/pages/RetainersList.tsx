@@ -74,7 +74,7 @@ function statusVariant(status: string): "success" | "muted" | "outline" {
 }
 
 function fmtHours(n: number): string {
-  return n ? `${Math.round(n * 10) / 10}h` : "—";
+  return `${Math.round((n || 0) * 10) / 10}h`;
 }
 
 /** Red in BOTH directions: over-delivery is a margin problem, not a win. */
@@ -118,7 +118,7 @@ function completedTitle(a: AllocationRow | undefined): string | undefined {
 // belongs in the rate, but it has not been billed and must never be added to
 // revenue (0164).
 function invoicedCell(b: ClientMonthBilling | undefined, completedHours: number): string {
-  if (!b || (b.invoicedNetCents === 0 && b.quotedNetCents === 0)) return "—";
+  if (!b || (b.invoicedNetCents === 0 && b.quotedNetCents === 0)) return formatZar(0);
   const rate = impliedRateCents(b, completedHours);
   const money = formatZar(b.invoicedNetCents + b.quotedNetCents);
   return rate == null ? money : `${money} · ${formatZar(rate)}/h`;
@@ -899,7 +899,7 @@ export function RetainersList() {
                         </TableCell>
                         {showFee && (
                           <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                            {section.fee > 0 ? formatZar(section.fee) : "—"}
+                            {formatZar(section.fee)}
                           </TableCell>
                         )}
                         {showPlanned && (
@@ -909,7 +909,7 @@ export function RetainersList() {
                         )}
                         {showInvoiced && (
                           <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                            {section.invoicedCents > 0 ? formatZar(section.invoicedCents) : "—"}
+                            {formatZar(section.invoicedCents)}
                           </TableCell>
                         )}
                         {showScheduled && (
@@ -970,7 +970,7 @@ export function RetainersList() {
                         </TableCell>
                         {showFee && (
                           <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                            {group.totalFeeCents > 0 ? formatZar(group.totalFeeCents) : "—"}
+                            {formatZar(group.totalFeeCents)}
                           </TableCell>
                         )}
                         {showPlanned && (
@@ -1069,9 +1069,7 @@ export function RetainersList() {
                             </TableCell>
                             {showFee && (
                               <TableCell className="text-right text-body-medium font-mono tabular-nums text-m-on-surface">
-                                {r.retainer_monthly_fee_cents != null
-                                  ? formatZar(r.retainer_monthly_fee_cents)
-                                  : "—"}
+                                {formatZar(r.retainer_monthly_fee_cents ?? 0)}
                               </TableCell>
                             )}
                             {showPlanned && (
@@ -1079,7 +1077,7 @@ export function RetainersList() {
                                 {fmtHours(alloc.get(r.id)?.soldHours ?? 0)}
                               </TableCell>
                             )}
-                            {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">—</TableCell>}
+                            {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">{formatZar(0)}</TableCell>}
                             {showScheduled && (
                               <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                                 {(() => {
@@ -1229,7 +1227,7 @@ export function RetainersList() {
                           </TableCell>
                           {showFee && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              —
+                              {formatZar(0)}
                             </TableCell>
                           )}
                           {showPlanned && (
@@ -1237,7 +1235,7 @@ export function RetainersList() {
                               {fmtHours(alloc.get(r.id)?.soldHours ?? 0)}
                             </TableCell>
                           )}
-                          {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">—</TableCell>}
+                          {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">{formatZar(0)}</TableCell>}
                           {showScheduled && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                               {(() => {
@@ -1313,16 +1311,16 @@ export function RetainersList() {
                           </TableCell>
                           {showFee && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              —
+                              {formatZar(0)}
                             </TableCell>
                           )}
                           {showPlanned && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              —
+                              {fmtHours(0)}
                             </TableCell>
                           )}
                           {showInvoiced && (
-                            <TableCell className="text-right text-body-medium text-m-on-surface-variant">—</TableCell>
+                            <TableCell className="text-right text-body-medium text-m-on-surface-variant">{formatZar(0)}</TableCell>
                           )}
                           {showScheduled && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
