@@ -291,26 +291,26 @@ function DeliveryItems({ items }: { items: DeliveryItem[] }) {
       <TableHeader>
         <TableRow>
           <TableHead className="pl-12">Task</TableHead>
-          <TableHead className="whitespace-nowrap text-right">Hours</TableHead>
-          <TableHead className="whitespace-nowrap">Due</TableHead>
-          <TableHead className="whitespace-nowrap">Closed</TableHead>
+          <TableHead className="whitespace-nowrap text-right">Estimated Hours</TableHead>
+          <TableHead className="whitespace-nowrap text-right">Time Tracked</TableHead>
+          <TableHead className="whitespace-nowrap">Due Date</TableHead>
+          <TableHead className="whitespace-nowrap">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {sorted.map((it) => (
           <TableRow key={it.id} className="[&>td]:py-2">
             <TableCell className="pl-12 text-body-medium text-m-on-surface">{it.name}</TableCell>
+            {/* Estimate and logged time side by side (Lisa, 2026-10-29), rather
+                than one figure that silently switched between them. */}
+            <TableCell className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+              {fmtHours(it.estimateHours ?? 0)}
+            </TableCell>
             <TableCell
               className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
-              // Same rule as the Completed column: logged time where somebody
-              // logged it, the estimate where nobody did. Saying which matters
-              // more here than in a total, because one row is one person's work.
-              title={it.measured ? "Time logged on the task" : "Estimated — nobody logged time"}
+              title="All time logged on the task in ClickUp"
             >
-              {fmtHours(it.hours)}
-              {!it.measured && it.hours > 0 && (
-                <span className="ml-1 text-label-small font-normal text-m-on-surface-variant">est</span>
-              )}
+              {fmtHours(it.trackedHours ?? 0)}
             </TableCell>
             {/* The month filter keeps anything due BY the end of the month you
                 picked, so an overdue item from June still appears in September.
@@ -326,7 +326,7 @@ function DeliveryItems({ items }: { items: DeliveryItem[] }) {
               {it.dueDate ? it.dueDate.slice(0, 10) : "No date"}
             </TableCell>
             <TableCell className="whitespace-nowrap text-label-small text-m-on-surface-variant">
-              {it.completedAt ? it.completedAt.slice(0, 10) : "Still open"}
+              {it.completedAt ? `Closed ${it.completedAt.slice(0, 10)}` : "Open"}
             </TableCell>
           </TableRow>
         ))}

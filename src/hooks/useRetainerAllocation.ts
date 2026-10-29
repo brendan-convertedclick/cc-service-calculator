@@ -84,6 +84,10 @@ export interface DeliveryItem {
    *  reads as late rather than as this month's work. Null on plenty of rows —
    *  22 briefs carry no due date at all. */
   dueDate: string | null;
+  /** Points × HOURS_PER_POINT — what it was estimated at. */
+  estimateHours: number;
+  /** Time logged on the task in ClickUp, all-time; null when nobody logged. */
+  trackedHours: number | null;
 }
 
 export interface AllocationRow {
@@ -415,6 +419,8 @@ export function useRetainerAllocation(monthsBack = 6) {
           measured: false,
           completedAt: null,
           dueDate: b.original_due_date ?? null,
+          estimateHours: pts * HOURS_PER_POINT,
+          trackedHours: Number(b.actual_hours ?? 0) > 0 ? Number(b.actual_hours) : null,
         };
         if (bucket.kind === "project") {
           openItemsByProject.set(bucket.projectId, [
@@ -469,6 +475,8 @@ export function useRetainerAllocation(monthsBack = 6) {
             name: b.raw_subject ?? "Untitled brief",
             completedAt: b.completed_at,
             dueDate: b.original_due_date ?? null,
+            estimateHours: estimate,
+            trackedHours: Number(b.actual_hours ?? 0) > 0 ? Number(b.actual_hours) : null,
           };
           if (bucket.kind === "project") {
             const cur = deliveredByProject.get(bucket.projectId) ?? emptyDelivery();
