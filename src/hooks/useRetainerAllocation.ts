@@ -264,7 +264,7 @@ export function useRetainerAllocation(monthsBack = 6) {
 
       const sinceMonth = monthKey(sinceIso);
 
-      const [projectsRes, briefsRes, clientsRes, recurringRes, trackedRes] = await Promise.all([
+      const [projectsRes, briefsRes, clientsRes, recurringRes, trackedRes, ongoingRes] = await Promise.all([
         supabase
           .from("projects")
           .select("id, name, client_id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, is_internal, clients(name)")
@@ -288,12 +288,24 @@ export function useRetainerAllocation(monthsBack = 6) {
           .select("project_id, clickup_task_id, month, is_closed, actual_hours, planned_hours")
           .gte("month", sinceMonth),
         trackedTaskMonths(sinceIso, new Date().toISOString()),
+        // Adopted [Ongoing] perpetual tasks book to whatever retainer their
+        // list defaults to (0171) — the TKC dashboard bucket held 19h of King's
+        // October time that no brief could see. Adopted only: the Scaffold
+        // per-client buckets (Client Comms, Finance…) sit in lists whose default
+        // is often an unrelated retainer, so they stay off until Lisa decides.
+        supabase
+          .from("ongoing_tasks")
+          .select("clickup_task_id, client_lists(default_project_id)")
+          .is("archived_at", null)
+          .eq("adopted", true)
+          .not("client_list_id", "is", null),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (briefsRes.error) throw briefsRes.error;
       if (clientsRes.error) throw clientsRes.error;
       if (recurringRes.error) throw recurringRes.error;
       if (trackedRes.error) throw trackedRes.error;
+      if (ongoingRes.error) throw ongoingRes.error;
 
       const projects = (projectsRes.data ?? []) as unknown as ProjectRow[];
       const briefs = (briefsRes.data ?? []) as unknown as BriefRow[];
@@ -437,6 +449,15 @@ export function useRetainerAllocation(monthsBack = 6) {
       // closed, recurring first so a task that is also a brief takes the
       // brief's bucket — the same precedence delivery uses.
       const taskToProject = new Map<string, string>();
+      for (const o of (ongoingRes.data ?? []) as unknown as Array<{
+        clickup_task_id: string | null;
+        client_lists: { default_project_id: string | null } | null;
+      }>) {
+        const projectId = o.client_lists?.default_project_id;
+        if (o.clickup_task_id && projectId && projectsWithOwnRow.has(projectId)) {
+          taskToProject.set(o.clickup_task_id, projectId);
+        }
+      }
       for (const r of recurring) {
         if (r.clickup_task_id) taskToProject.set(r.clickup_task_id, r.project_id);
       }
