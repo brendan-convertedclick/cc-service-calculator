@@ -130,7 +130,7 @@ function billingTitle(b: ClientMonthBilling | undefined, completedHours: number)
     .map((d) => `${d.number ?? "(no number)"}${d.kind === "quote" ? " (quote, not yet invoiced)" : ""} — ${formatZar(d.netCents)} net, ${d.issuedOn}`);
   const rate = impliedRateCents(b, completedHours);
   if (rate != null) {
-    parts.push(`${fmtHours(completedHours)} completed → ${formatZar(rate)} an hour`);
+    parts.push(`${fmtHours(completedHours)} tracked → ${formatZar(rate)} an hour`);
   }
   return parts.join("\n");
 }
@@ -145,6 +145,13 @@ function billingTitle(b: ClientMonthBilling | undefined, completedHours: number)
 // briefs are ever counted as open). Nothing new has to be queried for it.
 function briefedHoursOf(a: AllocationRow): number {
   return a.deliveredHours - a.recurringHours + a.openPoints * HOURS_PER_POINT;
+}
+
+// What the month's work actually earned an hour: the fee over the hours
+// tracked against it. No fee or no time yet is a dash, not R0 or infinity.
+function rateCell(feeCents: number, tracked: number): string {
+  if (feeCents <= 0 || tracked <= 0) return "—";
+  return `${formatZar(Math.round(feeCents / tracked))}/h`;
 }
 
 function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destructive" | "outline" {
@@ -174,7 +181,7 @@ function stillDueCell(basis: number, completed: number): string {
 
 function stillDueTitle(basis: number, completed: number, basisLabel: string): string | undefined {
   if (basis <= 0) return undefined;
-  return `${fmtHours(basis)} ${basisLabel}, ${fmtHours(completed)} completed`;
+  return `${fmtHours(basis)} ${basisLabel}, ${fmtHours(completed)} tracked`;
 }
 
 // Client is the group header; every row is a retainer — so strip the redundant
@@ -203,13 +210,11 @@ function ColumnKey({
   showFee,
   showPlanned,
   showScheduled,
-  showBriefed,
   showInvoiced,
 }: {
   showFee: boolean;
   showPlanned: boolean;
   showScheduled: boolean;
-  showBriefed: boolean;
   showInvoiced: boolean;
 }) {
   const terms: Array<[string, string]> = [
@@ -221,37 +226,33 @@ function ColumnKey({
       ? [["Invoiced", "What was actually charged for this client's ad hoc work this month, ex-VAT, with what that works out to an hour beside it. Invoices issued in the month plus any accepted quote not yet billed — hover for the documents behind it."] as [string, string]]
       : []),
     ...(showScheduled
-      ? [["Scheduled", "The recurring tasks actually created for this month — the reports, plugin sweeps and standing meetings. Not what the setup adds up to on paper: what got made."] as [string, string]]
+      ? [["On the board", "Estimated hours of the work booked to the retainer this month: the recurring tasks created for it plus the briefs that came in. The planned load, as against the time actually spent."] as [string, string]]
       : []),
-    ...(showBriefed
-      ? [["Briefed", "Work someone asked for this month — the briefs that closed plus the ones still running. Scheduled repeats on its own; this is the work that had to be requested."] as [string, string]]
-      : []),
-    [
-      "Completed",
-      "What actually closed this month, scheduled tasks and briefs both. Each one counts its logged time where somebody tracked it and its estimate where nobody did — hover any figure for the split.",
-    ],
     [
       "Tracked",
-      "All time logged in ClickUp this month on any task booked to the retainer, briefed or scheduled, open or closed. Completed only counts work that closed; this is the time actually spent.",
+      "All time logged in ClickUp this month on any task booked here, briefed, scheduled or ongoing, open or closed. Whether a task has closed no longer decides whether its hours count. Hover for what closed.",
     ],
+    ...(showFee
+      ? [["Rate", "Monthly fee divided by the hours tracked this month: what the work actually earned an hour. Below R1,150 means the retainer is being over-serviced."] as [string, string]]
+      : []),
     [
-      "Still due",
-      `What the retainer still has to deliver this month: ${showPlanned ? "Planned" : "Scheduled"} minus Completed, never below zero. A dash means there is no ${showPlanned ? "planned" : "scheduled"} figure to measure against.`,
+      "Remaining",
+      `${showPlanned ? "Planned" : "On the board"} minus Tracked, never below zero: the hours the retainer still has this month. A dash means there is nothing to measure against.`,
     ],
     // The badge follows whichever basis the tab shows, so the key has to say
     // which one — an Under measured against a column that is not on screen is
     // the thing this whole key exists to prevent.
     [
       "Ahead · On pace · Behind",
-      `While the month is running: Completed against the share of ${showPlanned ? "Planned" : "Scheduled"} expected by today, counted in working days. Behind on the 16th means behind the pace, not short for the month.`,
+      `While the month is running: Tracked against the share of ${showPlanned ? "Planned" : "On the board"} expected by today, counted in working days. Behind on the 16th means behind the pace, not short for the month.`,
     ],
     [
       "Over · Under · On track",
-      `Over means Completed has passed ${showPlanned ? "Planned" : "Scheduled"} for the whole month. Under and On track are only said once the month has ended.`,
+      `Over means Tracked has passed ${showPlanned ? "Planned" : "On the board"} for the whole month. Under and On track are only said once the month has ended.`,
     ],
     [
       "Progress ring",
-      "Completed as a share of the month's allowance. The grey arc is how far the month has run, so the two should roughly keep pace.",
+      "Tracked as a share of the month's allowance. The grey arc is how far the month has run, so the two should roughly keep pace.",
     ],
   ];
 
@@ -280,7 +281,14 @@ function ColumnKey({
 // Newest first: the question being asked is "what came in", and the most recent
 // thing is the most likely thing you are looking for. Still-open work sorts to
 // the top of that, because it is the half you can still do something about.
-function DeliveryItems({ items }: { items: DeliveryItem[] }) {
+function DeliveryItems({
+  items,
+  trackedByBrief = {},
+}: {
+  items: DeliveryItem[];
+  /** Brief id → hours logged on it in the selected month. */
+  trackedByBrief?: Record<string, number>;
+}) {
   const sorted = [...items].sort((a, b) => {
     if (!a.completedAt && b.completedAt) return -1;
     if (a.completedAt && !b.completedAt) return 1;
@@ -292,7 +300,8 @@ function DeliveryItems({ items }: { items: DeliveryItem[] }) {
         <TableRow>
           <TableHead className="pl-12">Task</TableHead>
           <TableHead className="whitespace-nowrap text-right">Estimated Hours</TableHead>
-          <TableHead className="whitespace-nowrap text-right">Time Tracked</TableHead>
+          <TableHead className="whitespace-nowrap text-right">Tracked This Month</TableHead>
+          <TableHead className="whitespace-nowrap text-right">Tracked To Date</TableHead>
           <TableHead className="whitespace-nowrap">Due Date</TableHead>
           <TableHead className="whitespace-nowrap">Status</TableHead>
         </TableRow>
@@ -305,6 +314,9 @@ function DeliveryItems({ items }: { items: DeliveryItem[] }) {
                 than one figure that silently switched between them. */}
             <TableCell className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
               {fmtHours(it.estimateHours ?? 0)}
+            </TableCell>
+            <TableCell className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface">
+              {fmtHours(trackedByBrief[it.id] ?? 0)}
             </TableCell>
             <TableCell
               className="whitespace-nowrap text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
@@ -475,6 +487,10 @@ export function RetainersList() {
     const m = allocMonths.find((x) => x.month === month) ?? allocMonths[0];
     return new Map((m?.rows ?? []).filter((r) => r.projectId).map((r) => [r.projectId!, r]));
   }, [allocMonths, month]);
+  const trackedByBrief = useMemo(
+    () => (allocMonths.find((x) => x.month === month)?.trackedByBrief ?? {}),
+    [allocMonths, month],
+  );
 
   // Every line the month produced that is NOT one of the retainers listed
   // above: ad hoc work, retainer work with no retainer to hang off, our own
@@ -487,7 +503,7 @@ export function RetainersList() {
     const byClient = new Map<string, AllocationRow[]>();
     for (const r of m?.rows ?? []) {
       if (r.projectId && retainerIds.has(r.projectId)) continue;
-      if (r.deliveredHours <= 0 && r.openPoints <= 0) continue;
+      if (r.trackedHours <= 0 && r.deliveredHours <= 0 && r.openPoints <= 0) continue;
       (byClient.get(r.clientName) ?? byClient.set(r.clientName, []).get(r.clientName)!).push(r);
     }
     return byClient;
@@ -574,8 +590,8 @@ export function RetainersList() {
       committed: billed.reduce((sum, r) => sum + (alloc.get(r.id)?.committedHours ?? 0), 0),
       // Completed counts everything: work done is work done, whoever paid.
       delivered:
-        retainerRows.reduce((sum, r) => sum + (alloc.get(r.id)?.deliveredHours ?? 0), 0) +
-        extras.reduce((sum, r) => sum + r.deliveredHours, 0),
+        retainerRows.reduce((sum, r) => sum + (alloc.get(r.id)?.trackedHours ?? 0), 0) +
+        extras.reduce((sum, r) => sum + r.trackedHours, 0),
       };
     });
   }, [sortedRetainers, alloc, extrasByClient]);
@@ -612,12 +628,11 @@ export function RetainersList() {
         committed: hours(rows, (a) => a.committedHours),
         // Completed counts everything on the tab: work done is work done.
         delivered:
-          hours([...rows, ...unbilled], (a) => a.deliveredHours) +
-          extras.reduce((n, x) => n + x.deliveredHours, 0),
+          hours([...rows, ...unbilled], (a) => a.trackedHours) +
+          extras.reduce((n, x) => n + x.trackedHours, 0),
         briefed:
           hours([...rows, ...unbilled], briefedHoursOf) +
           extras.reduce((n, x) => n + briefedHoursOf(x), 0),
-        tracked: hours([...rows, ...unbilled], (a) => a.trackedHours),
       };
     };
   }, [alloc]);
@@ -629,7 +644,6 @@ export function RetainersList() {
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
       briefed: groups.reduce((n, g) => n + g.briefed, 0),
-      tracked: groups.reduce((n, g) => n + g.tracked, 0),
       // Summed from the same per-client lookup the rows use, so the total can
       // never disagree with the rows under it.
       invoicedCents: groups.reduce((n, g) => {
@@ -699,7 +713,7 @@ export function RetainersList() {
         .filter((g) => !g.isInternal)
         .reduce(
           (n, g) => n + g.extras.filter((x) => x.kind === "unlinked")
-            .reduce((m, x) => m + x.deliveredHours, 0),
+            .reduce((m, x) => m + x.trackedHours, 0),
           0,
         ),
       internal: totalOf("internal"),
@@ -735,19 +749,13 @@ export function RetainersList() {
   // and not on the ad hoc / no-retainer lines beneath — an invoice does not
   // divide between them, and printing it on both would count it twice.
   const showInvoiced = tab === "adhoc";
-  // Briefed joins the client tab too (Lisa, 2026-09-08). It is what turns
-  // Trellidor's row from "nothing happened" into "nothing was even asked for
-  // against this retainer" — Planned 49.2h, Scheduled 13.5h, Briefed 0h. Not on
-  // Ad Hoc or Recurring: everything on the first is briefed by definition and
-  // nothing on the second is, so both would print a column that never varies.
-  const showBriefed = tab === "internal" || tab === "client";
-  // Seven columns every tab has — chevron, Name, Completed, Tracked, Still due, Status and
-  // the trailing actions cell — plus whichever optional ones this tab shows.
-  // The expanded panel spans it, and a wrong count leaves a white step down the
-  // right of every open row.
+  // Six columns every tab has — chevron, Name, Tracked, Remaining, Status and
+  // the trailing actions cell — plus whichever optional ones this tab shows
+  // (Rate rides with the fee). The expanded panel spans it, and a wrong count
+  // leaves a white step down the right of every open row.
   const columnCount =
-    7 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
-    Number(showBriefed) + Number(showInvoiced);
+    6 + 2 * Number(showFee) + Number(showPlanned) + Number(showScheduled) +
+    Number(showInvoiced);
 
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -827,7 +835,6 @@ export function RetainersList() {
           showFee={showFee}
           showPlanned={showPlanned}
           showScheduled={showScheduled}
-          showBriefed={showBriefed}
           showInvoiced={showInvoiced}
         />
 
@@ -845,7 +852,7 @@ export function RetainersList() {
               <ProgressRing done={sec.delivered} expected={r.expected} total={basis} label={`${pct}%`} size={96} />
               <div className="space-y-1 text-label-small text-m-on-surface-variant">
                 <div className="text-title-small text-m-on-surface">
-                  {fmtHours(sec.delivered)} completed of {fmtHours(basis)} {showPlanned ? "planned" : "scheduled"}
+                  {fmtHours(sec.delivered)} tracked of {fmtHours(basis)} {showPlanned ? "planned" : "scheduled"}
                 </div>
                 {r.inProgress ? (
                   <div>
@@ -855,7 +862,7 @@ export function RetainersList() {
                 ) : (
                   <div>Month complete. {DELIVERY_LABEL[r.status]}.</div>
                 )}
-                <div>Grey arc: how far the month has run. Coloured arc: what has been completed.</div>
+                <div>Grey arc: how far the month has run. Coloured arc: time tracked.</div>
               </div>
             </div>
           );
@@ -882,14 +889,13 @@ export function RetainersList() {
                       <TableHead className="whitespace-nowrap text-right" title="What was actually charged for this client's ad hoc work this month, ex-VAT — the invoices issued in the month, plus any accepted quote not yet invoiced. Retainer fees are net too, so the two compare honestly.">Invoiced</TableHead>
                     )}
                     {showScheduled && (
-                      <TableHead className="whitespace-nowrap text-right" title="The recurring tasks actually created for this month — what the provisioner made, not what the recurring-services setup adds up to. Work briefed ad hoc is not scheduled and does not appear here.">Scheduled</TableHead>
+                      <TableHead className="whitespace-nowrap text-right" title="Estimated hours of the work booked here this month: recurring tasks created plus briefs that came in.">On the board</TableHead>
                     )}
-                    {showBriefed && (
-                      <TableHead className="whitespace-nowrap text-right" title="Work that came in as a brief this month — the closed ones plus whatever is still running. Scheduled is the work that repeats on its own; this is the work someone asked for.">Briefed</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="All time logged in ClickUp this month on any task booked here, open or closed. Hover a number for what closed.">Tracked</TableHead>
+                    {showFee && (
+                      <TableHead className="whitespace-nowrap text-right" title="Monthly fee ÷ hours tracked this month. Below R1,150 means over-servicing.">Rate</TableHead>
                     )}
-                    <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month — briefs and recurring tasks both, valued at logged time where anyone logged it and at the estimate where nobody did. Hover a number for the split.">Completed</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title="Time logged in ClickUp this month on any task booked to the retainer, open or closed.">Tracked</TableHead>
-                    <TableHead className="whitespace-nowrap text-right" title={`${showPlanned ? "Planned" : "Scheduled"} minus Completed: what the retainer still has to deliver this month.`}>Still due</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title={`${showPlanned ? "Planned" : "On the board"} minus Tracked: the hours the retainer still has this month.`}>Remaining</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
                   </TableRow>
@@ -920,20 +926,17 @@ export function RetainersList() {
                         )}
                         {showScheduled && (
                           <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {fmtHours(section.committed)}
-                          </TableCell>
-                        )}
-                        {showBriefed && (
-                          <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {fmtHours(section.briefed)}
+                            {fmtHours(section.committed + section.briefed)}
                           </TableCell>
                         )}
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(section.delivered)}
                         </TableCell>
-                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                          {fmtHours(section.tracked)}
-                        </TableCell>
+                        {showFee && (
+                          <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {rateCell(section.fee, section.delivered)}
+                          </TableCell>
+                        )}
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                           {stillDueCell(showPlanned ? section.sold : section.committed, section.delivered)}
                         </TableCell>
@@ -1002,20 +1005,17 @@ export function RetainersList() {
                         )}
                         {showScheduled && (
                           <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {fmtHours(group.committed)}
-                          </TableCell>
-                        )}
-                        {showBriefed && (
-                          <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {fmtHours(group.briefed)}
+                            {fmtHours(group.committed + group.briefed)}
                           </TableCell>
                         )}
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(group.delivered)}
                         </TableCell>
-                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">
-                          {fmtHours(group.tracked)}
-                        </TableCell>
+                        {showFee && (
+                          <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {rateCell(group.totalFeeCents, group.delivered)}
+                          </TableCell>
+                        )}
                         <TableCell
                           title={stillDueTitle(showPlanned ? group.sold : group.committed, group.delivered, showPlanned ? "planned" : "scheduled")}
                           className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
@@ -1049,8 +1049,8 @@ export function RetainersList() {
                                   className="whitespace-nowrap"
                                   title={
                                     r.inProgress
-                                      ? `${fmtHours(group.delivered)} completed, ${fmtHours(r.expected)} expected by today of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"}`
-                                      : `${fmtHours(group.delivered)} completed of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"} for the month`
+                                      ? `${fmtHours(group.delivered)} tracked, ${fmtHours(r.expected)} expected by today of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"}`
+                                      : `${fmtHours(group.delivered)} tracked of ${fmtHours(basis)} ${showPlanned ? "planned" : "scheduled"} for the month`
                                   }
                                 >
                                   {DELIVERY_LABEL[r.status]}
@@ -1104,14 +1104,9 @@ export function RetainersList() {
                             {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">—</TableCell>}
                             {showScheduled && (
                               <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                                {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
-                              </TableCell>
-                            )}
-                            {showBriefed && (
-                              <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                                 {(() => {
                                   const a = alloc.get(r.id);
-                                  return fmtHours(a ? briefedHoursOf(a) : 0);
+                                  return fmtHours(a ? a.committedHours + briefedHoursOf(a) : 0);
                                 })()}
                               </TableCell>
                             )}
@@ -1119,15 +1114,17 @@ export function RetainersList() {
                               title={completedTitle(alloc.get(r.id))}
                               className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                             >
-                              {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                               {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
                             </TableCell>
+                            {showFee && (
+                              <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                                {rateCell(r.retainer_monthly_fee_cents ?? 0, alloc.get(r.id)?.trackedHours ?? 0)}
+                              </TableCell>
+                            )}
                             {(() => {
                               const a = alloc.get(r.id);
                               const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
-                              const done = a?.deliveredHours ?? 0;
+                              const done = a?.trackedHours ?? 0;
                               return (
                                 <TableCell
                                   title={stillDueTitle(basis, done, showPlanned ? "planned" : "scheduled")}
@@ -1216,21 +1213,22 @@ export function RetainersList() {
                                     briefs listed two monthly tasks and none of
                                     the work that made up the figure. */}
                                 {(() => {
-                                  // Only this month's work (Lisa, 2026-10-29): closed in
-                                  // it, or still open and due in it. Overdue and undated
-                                  // open briefs still count in Briefed; they just are
-                                  // not listed here.
+                                  // Only this month's work (Lisa, 2026-10-29): time
+                                  // tracked in it, closed in it, or still open and due in
+                                  // it. Overdue and undated open briefs with no time this
+                                  // month are not listed.
                                   const items = (alloc.get(r.id)?.items ?? []).filter((it) =>
-                                    it.completedAt
+                                    (trackedByBrief[it.id] ?? 0) > 0 ||
+                                    (it.completedAt
                                       ? it.completedAt.slice(0, 7) === month
-                                      : it.dueDate?.slice(0, 7) === month,
+                                      : it.dueDate?.slice(0, 7) === month),
                                   );
                                   return items.length > 0 && (
                                     <>
                                       <p className="border-t border-m-outline-variant px-12 pt-3 text-label-large text-m-on-surface">
                                         Briefed tasks
                                       </p>
-                                      <DeliveryItems items={items} />
+                                      <DeliveryItems items={items} trackedByBrief={trackedByBrief} />
                                     </>
                                   );
                                 })()}
@@ -1269,14 +1267,9 @@ export function RetainersList() {
                           {showInvoiced && <TableCell className="text-right text-body-medium text-m-on-surface-variant">—</TableCell>}
                           {showScheduled && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              {fmtHours(alloc.get(r.id)?.committedHours ?? 0)}
-                            </TableCell>
-                          )}
-                          {showBriefed && (
-                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                               {(() => {
                                 const a = alloc.get(r.id);
-                                return fmtHours(a ? briefedHoursOf(a) : 0);
+                                return fmtHours(a ? a.committedHours + briefedHoursOf(a) : 0);
                               })()}
                             </TableCell>
                           )}
@@ -1284,15 +1277,17 @@ export function RetainersList() {
                             title={completedTitle(alloc.get(r.id))}
                             className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                           >
-                            {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
                           </TableCell>
+                          {showFee && (
+                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                              {rateCell(r.retainer_monthly_fee_cents ?? 0, alloc.get(r.id)?.trackedHours ?? 0)}
+                            </TableCell>
+                          )}
                           {(() => {
                             const a = alloc.get(r.id);
                             const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
-                            const done = a?.deliveredHours ?? 0;
+                            const done = a?.trackedHours ?? 0;
                             return (
                               <TableCell
                                 title={stillDueTitle(basis, done, showPlanned ? "planned" : "scheduled")}
@@ -1363,11 +1358,6 @@ export function RetainersList() {
                           )}
                           {showScheduled && (
                             <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              —
-                            </TableCell>
-                          )}
-                          {showBriefed && (
-                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                               {fmtHours(briefedHoursOf(x))}
                             </TableCell>
                           )}
@@ -1375,10 +1365,11 @@ export function RetainersList() {
                             title={completedTitle(x)}
                             className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                           >
-                            {fmtHours(x.deliveredHours)}
+                            {fmtHours(x.trackedHours)}
                           </TableCell>
-                          {/* Tracked is booked per retainer; these client-level lines have none. */}
-                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">—</TableCell>
+                          {showFee && (
+                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">—</TableCell>
+                          )}
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             {/* Nobody planned or scheduled ad hoc work, so there is nothing to be due against. */}
                             —
@@ -1397,7 +1388,7 @@ export function RetainersList() {
                         {expanded[x.key] && x.items.length > 0 && (
                           <TableRow className="hover:bg-transparent">
                             <TableCell colSpan={columnCount} className="bg-m-surface-container-low p-0">
-                              <DeliveryItems items={x.items} />
+                              <DeliveryItems items={x.items} trackedByBrief={trackedByBrief} />
                             </TableCell>
                           </TableRow>
                         )}

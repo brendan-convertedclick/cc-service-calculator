@@ -130,14 +130,16 @@ export interface AllocationRow {
    *  is only meaningful on the current month. */
   openPoints: number;
   /** Time logged in ClickUp during this month on any task booked here, open or
-   *  closed (0201). Completed only counts work that closed; this is the time
-   *  actually spent. Retainer and fixed rows only — 0 on the client buckets. */
+   *  closed (0201). The book's measure of work since 2026-10-29 — whether a
+   *  task has closed no longer decides whether its hours count. */
   trackedHours: number;
 }
 
 export interface AllocationMonth {
   month: string;
   rows: AllocationRow[];
+  /** Brief id → hours logged on its task in this month. */
+  trackedByBrief: Record<string, number>;
 }
 
 interface ProjectRow {
@@ -295,9 +297,8 @@ export function useRetainerAllocation(monthsBack = 6) {
         // retainer, and account comms do not belong there.
         supabase
           .from("ongoing_tasks")
-          .select("clickup_task_id, project_id")
-          .is("archived_at", null)
-          .not("project_id", "is", null),
+          .select("clickup_task_id, project_id, client_id")
+          .is("archived_at", null),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (briefsRes.error) throw briefsRes.error;
@@ -447,34 +448,61 @@ export function useRetainerAllocation(monthsBack = 6) {
       // Tracked time (0201): every ClickUp task booked to a project, open or
       // closed, recurring first so a task that is also a brief takes the
       // brief's bucket — the same precedence delivery uses.
-      const taskToProject = new Map<string, string>();
+      // Every task maps to the ROW its time lands on: a project id, or the
+      // `${kind}:${clientId}` key of a client-level line (ad hoc, internal, or
+      // not booked to any retainer). Time on a client's task that reaches no
+      // retainer still shows, on that client's unbooked line.
+      const taskToKey = new Map<string, string>();
+      const briefIdByTask = new Map<string, string>();
       for (const o of (ongoingRes.data ?? []) as unknown as Array<{
         clickup_task_id: string | null;
         project_id: string | null;
+        client_id: string | null;
       }>) {
-        if (o.clickup_task_id && o.project_id && projectsWithOwnRow.has(o.project_id)) {
-          taskToProject.set(o.clickup_task_id, o.project_id);
+        if (!o.clickup_task_id) continue;
+        if (o.project_id && projectsWithOwnRow.has(o.project_id)) {
+          taskToKey.set(o.clickup_task_id, o.project_id);
+        } else if (o.client_id) {
+          const kind = internalClientIds.has(o.client_id) ? "internal" : "unlinked";
+          taskToKey.set(o.clickup_task_id, `${kind}:${o.client_id}`);
         }
       }
       for (const r of recurring) {
-        if (r.clickup_task_id) taskToProject.set(r.clickup_task_id, r.project_id);
+        if (r.clickup_task_id) taskToKey.set(r.clickup_task_id, r.project_id);
       }
       for (const b of briefs) {
+        if (!b.clickup_task_id) continue;
+        briefIdByTask.set(b.clickup_task_id, b.id);
         const bucket = bucketOf(b);
-        if (b.clickup_task_id && bucket?.kind === "project") {
-          taskToProject.set(b.clickup_task_id, bucket.projectId);
-        }
+        if (!bucket) continue;
+        taskToKey.set(
+          b.clickup_task_id,
+          bucket.kind === "project" ? bucket.projectId : otherKey(bucket),
+        );
       }
       // Note: buckets by SAST month (the RPC), while Completed buckets on a UTC
       // slice of completed_at — the two can disagree for work near midnight on
       // the last day of a month.
-      const trackedByProjectMonth = new Map<string, number>();
+      const trackedByKeyMonth = new Map<string, number>();
+      // Per brief, per month — what the task list shows as "this month".
+      const trackedByBriefMonth = new Map<string, number>();
       for (const t of (trackedRes.data ?? []) as Array<{ clickup_task_id: string; month: string; hours: number }>) {
-        const projectId = taskToProject.get(t.clickup_task_id);
-        if (!projectId) continue;
-        const k = `${projectId}|${t.month}`;
-        trackedByProjectMonth.set(k, (trackedByProjectMonth.get(k) ?? 0) + Number(t.hours));
+        const briefId = briefIdByTask.get(t.clickup_task_id);
+        if (briefId) {
+          const bk = `${briefId}|${t.month}`;
+          trackedByBriefMonth.set(bk, (trackedByBriefMonth.get(bk) ?? 0) + Number(t.hours));
+        }
+        const key = taskToKey.get(t.clickup_task_id);
+        if (!key) continue;
+        const k = `${key}|${t.month}`;
+        trackedByKeyMonth.set(k, (trackedByKeyMonth.get(k) ?? 0) + Number(t.hours));
       }
+      // Months with tracked time and nothing closed still need to exist.
+      for (const k of trackedByKeyMonth.keys()) {
+        const m = k.slice(k.lastIndexOf("|") + 1);
+        if (!months.includes(m)) months.push(m);
+      }
+      months.sort().reverse();
 
       return months.map((month) => {
         const inMonth = closed.filter((b) => monthKey(b.completed_at!) === month);
@@ -561,7 +589,7 @@ export function useRetainerAllocation(monthsBack = 6) {
               // so the number and the rows behind it cannot disagree.
               openPoints:
                 openForMonth(month, openItemsByProject.get(p.id) ?? []).hours / HOURS_PER_POINT,
-              trackedHours: trackedByProjectMonth.get(`${p.id}|${month}`) ?? 0,
+              trackedHours: trackedByKeyMonth.get(`${p.id}|${month}`) ?? 0,
             };
           });
 
@@ -572,6 +600,14 @@ export function useRetainerAllocation(monthsBack = 6) {
             const [kind, clientId] = k.split(":") as [AllocationKind, string];
             otherByKey.set(k, { d: emptyDelivery(), clientId, kind });
           }
+        }
+        // ...and so does one whose only sign of life is time tracked.
+        for (const [tk, hrs] of trackedByKeyMonth) {
+          if (hrs <= 0 || !tk.endsWith(`|${month}`)) continue;
+          const k = tk.slice(0, tk.lastIndexOf("|"));
+          if (!k.includes(":") || otherByKey.has(k)) continue;
+          const [kind, clientId] = k.split(":") as [AllocationKind, string];
+          otherByKey.set(k, { d: emptyDelivery(), clientId, kind });
         }
 
         for (const [k, v] of otherByKey) {
@@ -588,7 +624,7 @@ export function useRetainerAllocation(monthsBack = 6) {
               kind === "adhoc"
                 ? "Ad hoc — invoiced separately"
                 : kind === "unlinked"
-                  ? "Retainer work, no retainer"
+                  ? "Not booked to a retainer"
                   : "Internal work",
             projectId: null,
             feeCents: 0,
@@ -605,11 +641,15 @@ export function useRetainerAllocation(monthsBack = 6) {
             isInternal,
             openPoints:
               openForMonth(month, openItemsByClient.get(k) ?? []).hours / HOURS_PER_POINT,
-            trackedHours: 0,
+            trackedHours: trackedByKeyMonth.get(`${k}|${month}`) ?? 0,
           });
         }
 
-        return { month, rows };
+        const trackedByBrief: Record<string, number> = {};
+        for (const [bk, hrs] of trackedByBriefMonth) {
+          if (bk.endsWith(`|${month}`)) trackedByBrief[bk.slice(0, bk.lastIndexOf("|"))] = hrs;
+        }
+        return { month, rows, trackedByBrief };
       });
     },
   });

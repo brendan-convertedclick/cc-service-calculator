@@ -64,6 +64,7 @@ vi.mock("@/hooks/useRetainerAllocation", async (importOriginal) => ({
             soldHours: 10,
             committedHours: 8,
             deliveredHours: 6,
+            trackedHours: 6,
             measuredHours: 0,
             deliveredItems: 3,
             measuredItems: 0,
@@ -118,14 +119,14 @@ beforeEach(() => {
 describe("RetainersList sync controls", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("rolls a client up to planned, scheduled and completed before any drilldown", () => {
+  it("rolls a client up to planned, on the board and tracked before any drilldown", () => {
     render(<RetainersList />);
     // The rollup is the default view: the client's numbers are on its own row
     // and its retainers are not on screen at all.
     const row = screen.getByLabelText("Show retainers for Test Conductor").textContent!;
-    expect(row).toContain("10h");
-    expect(row).toContain("8h");
-    expect(row).toContain("6h");
+    expect(row).toContain("10h"); // planned
+    expect(row).toContain("12h"); // on the board: 8h scheduled + briefed
+    expect(row).toContain("6h"); // tracked
     expect(screen.queryByLabelText("Sync Test Conductor retainer")).not.toBeInTheDocument();
   });
 
@@ -222,30 +223,28 @@ describe("RetainersList client vs internal", () => {
   // Lisa, 2026-09-08: "under Internal — lets remove the column for monthly fee
   // as that doesn't apply here. Planned is also not applicable." Both are facts
   // about an invoice, and there is no invoice on our own work.
-  it("drops the two invoice columns on Internal and shows Briefed instead", async () => {
+  it("drops the fee, planned and rate columns on Internal", async () => {
     retainers.rows = [CLIENT_RETAINER, GRANITE];
     render(<RetainersList />);
     expect(screen.getByRole("columnheader", { name: "Monthly fee" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Planned" })).toBeInTheDocument();
-    // Briefed is on the client tab too — it is what tells a retainer with no
-    // delivery apart from one nobody even asked for work against.
-    expect(screen.getByRole("columnheader", { name: "Briefed" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Rate" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
     expect(screen.queryByRole("columnheader", { name: "Monthly fee" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Planned" })).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Briefed" })).toBeInTheDocument();
-    // Scheduled and Completed are on both — Lisa kept Scheduled explicitly.
-    expect(screen.getByRole("columnheader", { name: "Scheduled" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Completed" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Still due" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Rate" })).not.toBeInTheDocument();
+    // Time is the measure on every tab (Lisa, 2026-10-29).
+    expect(screen.getByRole("columnheader", { name: "On the board" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Tracked" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Remaining" })).toBeInTheDocument();
 
     // The key follows the columns. Explaining a column that is not on screen is
     // how a key stops being trusted.
     const terms = [...document.querySelectorAll("details dt")].map((d) => d.textContent);
     expect(terms).not.toContain("Monthly fee");
     expect(terms).not.toContain("Planned");
-    expect(terms).toContain("Briefed");
+    expect(terms).toContain("Tracked");
   });
 
   // 0162. The case the client-level flag could never express: a paying client
