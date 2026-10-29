@@ -7205,6 +7205,14 @@ export type Database = {
           hours: number
         }[]
       }
+      tracked_hours_by_task_month: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          clickup_task_id: string
+          month: string
+          hours: number
+        }[]
+      }
     }
     Enums: {
       brief_source: "email" | "manual" | "gmail_relay"

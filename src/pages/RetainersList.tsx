@@ -231,6 +231,10 @@ function ColumnKey({
       "What actually closed this month, scheduled tasks and briefs both. Each one counts its logged time where somebody tracked it and its estimate where nobody did — hover any figure for the split.",
     ],
     [
+      "Tracked",
+      "All time logged in ClickUp this month on any task booked to the retainer, briefed or scheduled, open or closed. Completed only counts work that closed; this is the time actually spent.",
+    ],
+    [
       "Still due",
       `What the retainer still has to deliver this month: ${showPlanned ? "Planned" : "Scheduled"} minus Completed, never below zero. A dash means there is no ${showPlanned ? "planned" : "scheduled"} figure to measure against.`,
     ],
@@ -613,6 +617,7 @@ export function RetainersList() {
         briefed:
           hours([...rows, ...unbilled], briefedHoursOf) +
           extras.reduce((n, x) => n + briefedHoursOf(x), 0),
+        tracked: hours([...rows, ...unbilled], (a) => a.trackedHours),
       };
     };
   }, [alloc]);
@@ -624,6 +629,7 @@ export function RetainersList() {
       committed: groups.reduce((n, g) => n + g.committed, 0),
       delivered: groups.reduce((n, g) => n + g.delivered, 0),
       briefed: groups.reduce((n, g) => n + g.briefed, 0),
+      tracked: groups.reduce((n, g) => n + g.tracked, 0),
       // Summed from the same per-client lookup the rows use, so the total can
       // never disagree with the rows under it.
       invoicedCents: groups.reduce((n, g) => {
@@ -735,12 +741,12 @@ export function RetainersList() {
   // Ad Hoc or Recurring: everything on the first is briefed by definition and
   // nothing on the second is, so both would print a column that never varies.
   const showBriefed = tab === "internal" || tab === "client";
-  // Six columns every tab has — chevron, Name, Completed, Still due, Status and
+  // Seven columns every tab has — chevron, Name, Completed, Tracked, Still due, Status and
   // the trailing actions cell — plus whichever optional ones this tab shows.
   // The expanded panel spans it, and a wrong count leaves a white step down the
   // right of every open row.
   const columnCount =
-    6 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
+    7 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
     Number(showBriefed) + Number(showInvoiced);
 
 
@@ -882,6 +888,7 @@ export function RetainersList() {
                       <TableHead className="whitespace-nowrap text-right" title="Work that came in as a brief this month — the closed ones plus whatever is still running. Scheduled is the work that repeats on its own; this is the work someone asked for.">Briefed</TableHead>
                     )}
                     <TableHead className="whitespace-nowrap text-right" title="Work that actually closed this month — briefs and recurring tasks both, valued at logged time where anyone logged it and at the estimate where nobody did. Hover a number for the split.">Completed</TableHead>
+                    <TableHead className="whitespace-nowrap text-right" title="Time logged in ClickUp this month on any task booked to the retainer, open or closed.">Tracked</TableHead>
                     <TableHead className="whitespace-nowrap text-right" title={`${showPlanned ? "Planned" : "Scheduled"} minus Completed: what the retainer still has to deliver this month.`}>Still due</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
@@ -923,6 +930,9 @@ export function RetainersList() {
                         )}
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(section.delivered)}
+                        </TableCell>
+                        <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface">
+                          {fmtHours(section.tracked)}
                         </TableCell>
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                           {stillDueCell(showPlanned ? section.sold : section.committed, section.delivered)}
@@ -1002,6 +1012,9 @@ export function RetainersList() {
                         )}
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(group.delivered)}
+                        </TableCell>
+                        <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface">
+                          {fmtHours(group.tracked)}
                         </TableCell>
                         <TableCell
                           title={stillDueTitle(showPlanned ? group.sold : group.committed, group.delivered, showPlanned ? "planned" : "scheduled")}
@@ -1107,6 +1120,9 @@ export function RetainersList() {
                               className="text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface"
                             >
                               {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                              {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
                             </TableCell>
                             {(() => {
                               const a = alloc.get(r.id);
@@ -1259,6 +1275,9 @@ export function RetainersList() {
                           >
                             {fmtHours(alloc.get(r.id)?.deliveredHours ?? 0)}
                           </TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
+                            {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
+                          </TableCell>
                           {(() => {
                             const a = alloc.get(r.id);
                             const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
@@ -1347,6 +1366,8 @@ export function RetainersList() {
                           >
                             {fmtHours(x.deliveredHours)}
                           </TableCell>
+                          {/* Tracked is booked per retainer; these client-level lines have none. */}
+                          <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">—</TableCell>
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             {/* Nobody planned or scheduled ad hoc work, so there is nothing to be due against. */}
                             —

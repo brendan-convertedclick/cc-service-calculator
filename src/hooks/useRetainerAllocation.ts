@@ -125,6 +125,10 @@ export interface AllocationRow {
   /** Points raised against this row and not yet closed. A "now" figure, so it
    *  is only meaningful on the current month. */
   openPoints: number;
+  /** Time logged in ClickUp during this month on any task booked here, open or
+   *  closed (0201). Completed only counts work that closed; this is the time
+   *  actually spent. Retainer and fixed rows only — 0 on the client buckets. */
+  trackedHours: number;
 }
 
 export interface AllocationMonth {
@@ -156,10 +160,12 @@ interface BriefRow {
   created_at: string;
   completed_at: string | null;
   original_due_date: string | null;
+  clickup_task_id: string | null;
 }
 
 interface RecurringRow {
   project_id: string;
+  clickup_task_id: string | null;
   month: string;
   is_closed: boolean;
   actual_hours: number | null;
@@ -229,6 +235,21 @@ function addToDelivery(
   };
 }
 
+// PostgREST caps a response at 1,000 rows without saying so, and six months is
+// ~1,500 task-months — the first version silently dropped a third of the time.
+async function trackedTaskMonths(start: string, end: string) {
+  const PAGE = 1000;
+  const data: Array<{ clickup_task_id: string; month: string; hours: number }> = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await supabase
+      .rpc("tracked_hours_by_task_month", { p_start: start, p_end: end })
+      .range(from, from + PAGE - 1);
+    if (res.error) return { data: null, error: res.error };
+    data.push(...(res.data ?? []));
+    if ((res.data ?? []).length < PAGE) return { data, error: null };
+  }
+}
+
 export function useRetainerAllocation(monthsBack = 6) {
   return useQuery({
     queryKey: ["retainer_allocation", monthsBack],
@@ -239,7 +260,7 @@ export function useRetainerAllocation(monthsBack = 6) {
 
       const sinceMonth = monthKey(sinceIso);
 
-      const [projectsRes, briefsRes, clientsRes, recurringRes] = await Promise.all([
+      const [projectsRes, briefsRes, clientsRes, recurringRes, trackedRes] = await Promise.all([
         supabase
           .from("projects")
           .select("id, name, client_id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, is_internal, clients(name)")
@@ -247,7 +268,7 @@ export function useRetainerAllocation(monthsBack = 6) {
           .neq("status", "archived"),
         supabase
           .from("briefs")
-          .select("id, raw_subject, parent_project_id, client_id, billing_type, original_points, actual_hours, created_at, completed_at, original_due_date")
+          .select("id, raw_subject, parent_project_id, client_id, billing_type, original_points, actual_hours, created_at, completed_at, original_due_date, clickup_task_id")
           .or(`completed_at.gte.${sinceIso},completed_at.is.null`)
           .in("status", ["briefed", "accepted", "quoted", "scoped"]),
         // Read from the clients table, not from the projects join: a client
@@ -260,13 +281,15 @@ export function useRetainerAllocation(monthsBack = 6) {
         // than a second copy of it here.
         supabase
           .from("retainer_recurring_delivery")
-          .select("project_id, month, is_closed, actual_hours, planned_hours")
+          .select("project_id, clickup_task_id, month, is_closed, actual_hours, planned_hours")
           .gte("month", sinceMonth),
+        trackedTaskMonths(sinceIso, new Date().toISOString()),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (briefsRes.error) throw briefsRes.error;
       if (clientsRes.error) throw clientsRes.error;
       if (recurringRes.error) throw recurringRes.error;
+      if (trackedRes.error) throw trackedRes.error;
 
       const projects = (projectsRes.data ?? []) as unknown as ProjectRow[];
       const briefs = (briefsRes.data ?? []) as unknown as BriefRow[];
@@ -404,6 +427,30 @@ export function useRetainerAllocation(monthsBack = 6) {
         }
       }
 
+      // Tracked time (0201): every ClickUp task booked to a project, open or
+      // closed, recurring first so a task that is also a brief takes the
+      // brief's bucket — the same precedence delivery uses.
+      const taskToProject = new Map<string, string>();
+      for (const r of recurring) {
+        if (r.clickup_task_id) taskToProject.set(r.clickup_task_id, r.project_id);
+      }
+      for (const b of briefs) {
+        const bucket = bucketOf(b);
+        if (b.clickup_task_id && bucket?.kind === "project") {
+          taskToProject.set(b.clickup_task_id, bucket.projectId);
+        }
+      }
+      // Note: buckets by SAST month (the RPC), while Completed buckets on a UTC
+      // slice of completed_at — the two can disagree for work near midnight on
+      // the last day of a month.
+      const trackedByProjectMonth = new Map<string, number>();
+      for (const t of (trackedRes.data ?? []) as Array<{ clickup_task_id: string; month: string; hours: number }>) {
+        const projectId = taskToProject.get(t.clickup_task_id);
+        if (!projectId) continue;
+        const k = `${projectId}|${t.month}`;
+        trackedByProjectMonth.set(k, (trackedByProjectMonth.get(k) ?? 0) + Number(t.hours));
+      }
+
       return months.map((month) => {
         const inMonth = closed.filter((b) => monthKey(b.completed_at!) === month);
 
@@ -487,6 +534,7 @@ export function useRetainerAllocation(monthsBack = 6) {
               // so the number and the rows behind it cannot disagree.
               openPoints:
                 openForMonth(month, openItemsByProject.get(p.id) ?? []).hours / HOURS_PER_POINT,
+              trackedHours: trackedByProjectMonth.get(`${p.id}|${month}`) ?? 0,
             };
           });
 
@@ -530,6 +578,7 @@ export function useRetainerAllocation(monthsBack = 6) {
             isInternal,
             openPoints:
               openForMonth(month, openItemsByClient.get(k) ?? []).hours / HOURS_PER_POINT,
+            trackedHours: 0,
           });
         }
 
