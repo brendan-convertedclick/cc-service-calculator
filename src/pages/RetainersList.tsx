@@ -1194,6 +1194,19 @@ export function RetainersList() {
                                     place you would most want to reclassify. */}
                                 <InternalSwitch retainer={r} />
                                 <RetainerSubItems projectId={r.id} />
+                                {/* The briefs behind the Briefed column. The
+                                    provisioned tasks above were the only thing
+                                    this opened to, so a retainer carrying 51h of
+                                    briefs listed two monthly tasks and none of
+                                    the work that made up the figure. */}
+                                {(alloc.get(r.id)?.items?.length ?? 0) > 0 && (
+                                  <>
+                                    <p className="border-t border-m-outline-variant px-12 pt-3 text-label-large text-m-on-surface">
+                                      Briefed tasks
+                                    </p>
+                                    <DeliveryItems items={alloc.get(r.id)!.items} />
+                                  </>
+                                )}
                               </TableCell>
                             </TableRow>
                           )}
