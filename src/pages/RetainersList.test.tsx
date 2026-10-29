@@ -223,17 +223,15 @@ describe("RetainersList client vs internal", () => {
   // Lisa, 2026-09-08: "under Internal — lets remove the column for monthly fee
   // as that doesn't apply here. Planned is also not applicable." Both are facts
   // about an invoice, and there is no invoice on our own work.
-  it("drops the fee, planned and rate columns on Internal", async () => {
+  it("drops the fee and planned columns on Internal", async () => {
     retainers.rows = [CLIENT_RETAINER, GRANITE];
     render(<RetainersList />);
     expect(screen.getByRole("columnheader", { name: "Monthly fee" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Planned" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Rate" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: /internal/i }));
     expect(screen.queryByRole("columnheader", { name: "Monthly fee" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Planned" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Rate" })).not.toBeInTheDocument();
     // Time is the measure on every tab (Lisa, 2026-10-29).
     expect(screen.getByRole("columnheader", { name: "On the board" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Tracked" })).toBeInTheDocument();

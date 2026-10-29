@@ -147,13 +147,6 @@ function briefedHoursOf(a: AllocationRow): number {
   return a.deliveredHours - a.recurringHours + a.openPoints * HOURS_PER_POINT;
 }
 
-// What the month's work actually earned an hour: the fee over the hours
-// tracked against it. No fee or no time yet is a dash, not R0 or infinity.
-function rateCell(feeCents: number, tracked: number): string {
-  if (feeCents <= 0 || tracked <= 0) return "—";
-  return `${formatZar(Math.round(feeCents / tracked))}/h`;
-}
-
 function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destructive" | "outline" {
   // Over is the one that costs money, so it is the one that shouts.
   if (s === "over") return "destructive";
@@ -232,9 +225,6 @@ function ColumnKey({
       "Tracked",
       "All time logged in ClickUp this month on any task booked here, briefed, scheduled or ongoing, open or closed. Whether a task has closed no longer decides whether its hours count. Hover for what closed.",
     ],
-    ...(showFee
-      ? [["Rate", "Monthly fee divided by the hours tracked this month: what the work actually earned an hour. Below R1,150 means the retainer is being over-serviced."] as [string, string]]
-      : []),
     [
       "Remaining",
       `${showPlanned ? "Planned" : "On the board"} minus Tracked, never below zero: the hours the retainer still has this month. A dash means there is nothing to measure against.`,
@@ -751,10 +741,10 @@ export function RetainersList() {
   const showInvoiced = tab === "adhoc";
   // Six columns every tab has — chevron, Name, Tracked, Remaining, Status and
   // the trailing actions cell — plus whichever optional ones this tab shows
-  // (Rate rides with the fee). The expanded panel spans it, and a wrong count
+  // The expanded panel spans it, and a wrong count
   // leaves a white step down the right of every open row.
   const columnCount =
-    6 + 2 * Number(showFee) + Number(showPlanned) + Number(showScheduled) +
+    6 + Number(showFee) + Number(showPlanned) + Number(showScheduled) +
     Number(showInvoiced);
 
 
@@ -892,9 +882,6 @@ export function RetainersList() {
                       <TableHead className="whitespace-nowrap text-right" title="Estimated hours of the work booked here this month: recurring tasks created plus briefs that came in.">On the board</TableHead>
                     )}
                     <TableHead className="whitespace-nowrap text-right" title="All time logged in ClickUp this month on any task booked here, open or closed. Hover a number for what closed.">Tracked</TableHead>
-                    {showFee && (
-                      <TableHead className="whitespace-nowrap text-right" title="Monthly fee ÷ hours tracked this month. Below R1,150 means over-servicing.">Rate</TableHead>
-                    )}
                     <TableHead className="whitespace-nowrap text-right" title={`${showPlanned ? "Planned" : "On the board"} minus Tracked: the hours the retainer still has this month.`}>Remaining</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-px" />
@@ -932,11 +919,6 @@ export function RetainersList() {
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(section.delivered)}
                         </TableCell>
-                        {showFee && (
-                          <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {rateCell(section.fee, section.delivered)}
-                          </TableCell>
-                        )}
                         <TableCell className="bg-m-surface-container pb-1 pt-4 text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                           {stillDueCell(showPlanned ? section.sold : section.committed, section.delivered)}
                         </TableCell>
@@ -1011,11 +993,6 @@ export function RetainersList() {
                         <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium font-semibold text-m-on-surface">
                           {fmtHours(group.delivered)}
                         </TableCell>
-                        {showFee && (
-                          <TableCell className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {rateCell(group.totalFeeCents, group.delivered)}
-                          </TableCell>
-                        )}
                         <TableCell
                           title={stillDueTitle(showPlanned ? group.sold : group.committed, group.delivered, showPlanned ? "planned" : "scheduled")}
                           className="border-b border-m-outline-variant bg-m-surface-container-low text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant"
@@ -1116,11 +1093,6 @@ export function RetainersList() {
                             >
                               {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
                             </TableCell>
-                            {showFee && (
-                              <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                                {rateCell(r.retainer_monthly_fee_cents ?? 0, alloc.get(r.id)?.trackedHours ?? 0)}
-                              </TableCell>
-                            )}
                             {(() => {
                               const a = alloc.get(r.id);
                               const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
@@ -1279,11 +1251,6 @@ export function RetainersList() {
                           >
                             {fmtHours(alloc.get(r.id)?.trackedHours ?? 0)}
                           </TableCell>
-                          {showFee && (
-                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                              {rateCell(r.retainer_monthly_fee_cents ?? 0, alloc.get(r.id)?.trackedHours ?? 0)}
-                            </TableCell>
-                          )}
                           {(() => {
                             const a = alloc.get(r.id);
                             const basis = (showPlanned ? a?.soldHours : a?.committedHours) ?? 0;
@@ -1367,9 +1334,6 @@ export function RetainersList() {
                           >
                             {fmtHours(x.trackedHours)}
                           </TableCell>
-                          {showFee && (
-                            <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">—</TableCell>
-                          )}
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
                             {/* Nobody planned or scheduled ad hoc work, so there is nothing to be due against. */}
                             —
