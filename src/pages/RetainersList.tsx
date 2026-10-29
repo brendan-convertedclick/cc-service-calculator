@@ -162,14 +162,15 @@ function deliveryVariant(s: RetainerStatus): "default" | "secondary" | "destruct
 // Completed is a plain number and this is its own column. On a tab with no
 // Planned column the basis is Scheduled, the same rule the Status badge uses.
 // No basis at all (ad hoc, internal lumps) is a dash, not a zero.
-function stillDue(basis: number, completed: number): number | null {
-  if (basis <= 0) return null;
-  return Math.max(0, basis - completed);
+// Lisa, 2026-10-29: always a number, negative when the month has gone past
+// what was planned. A floor at zero hid exactly the overrun worth seeing.
+function stillDue(basis: number, completed: number): number {
+  return basis - completed;
 }
 
 function stillDueCell(basis: number, completed: number): string {
-  const v = stillDue(basis, completed);
-  return v == null ? "—" : fmtHours(v);
+  const v = Math.round(stillDue(basis, completed) * 10) / 10;
+  return `${v}h`;
 }
 
 function stillDueTitle(basis: number, completed: number, basisLabel: string): string | undefined {
@@ -227,7 +228,7 @@ function ColumnKey({
     ],
     [
       "Remaining",
-      `${showPlanned ? "Planned" : "On the board"} minus Tracked, never below zero: the hours the retainer still has this month. A dash means there is nothing to measure against.`,
+      `${showPlanned ? "Planned" : "On the board"} minus Tracked: the hours the retainer still has this month. Negative means the month has used more than was planned.`,
     ],
     // The badge follows whichever basis the tab shows, so the key has to say
     // which one — an Under measured against a column that is not on screen is
@@ -1335,8 +1336,8 @@ export function RetainersList() {
                             {fmtHours(x.trackedHours)}
                           </TableCell>
                           <TableCell className="text-right font-mono tabular-nums text-body-medium text-m-on-surface-variant">
-                            {/* Nobody planned or scheduled ad hoc work, so there is nothing to be due against. */}
-                            —
+                            {/* Nothing planned for these lines, so everything tracked is over. */}
+                            {stillDueCell(0, x.trackedHours)}
                           </TableCell>
                           <TableCell className="text-label-small text-m-on-surface-variant">
                             {/* Counts what expanding actually shows. briefCount
