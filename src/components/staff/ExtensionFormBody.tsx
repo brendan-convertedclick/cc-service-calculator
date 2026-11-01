@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
 import { TimePresetField } from "@/components/TimePresetField";
 import { hoursToPoints } from "@/lib/sprint-points";
 import {
@@ -249,6 +250,15 @@ export function ExtensionFormBody() {
           </Select>
           {tasksError && <p className="text-body-small text-destructive">{tasksError}</p>}
         </div>
+
+        {clientId && (
+          <ClientBudgetPanel
+            clientId={clientId}
+            clientName={clients.find((c) => c.id === clientId)?.name}
+            clickupTaskId={taskId || null}
+            askHours={Number(extraHours) || 0}
+          />
+        )}
 
         {selectedTask && pointsRequested && selectedTask.sprint_points === null && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-body-small text-amber-900">
