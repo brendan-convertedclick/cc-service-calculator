@@ -68,6 +68,9 @@ export interface RetainerBudget {
   departments: Array<{ group: DeptGroup; alloc: number; spent: number; toDo: number }>;
 }
 
+// Hours are numeric(6,2). Round where derived so the verdict agrees with the figure on screen.
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 export function summariseBudget(rows: BudgetRow[]): RetainerBudget[] {
   const out = new Map<string, RetainerBudget>();
   for (const r of rows) {
@@ -99,8 +102,15 @@ export function summariseBudget(rows: BudgetRow[]): RetainerBudget[] {
     b.toDo += Number(r.todo_hours);
   }
   for (const b of out.values()) {
-    b.free = b.budget - b.spent - b.toDo;
-    b.unspent = b.budget - b.spent;
+    b.spent = r2(b.spent);
+    b.toDo = r2(b.toDo);
+    b.free = r2(b.budget - b.spent - b.toDo);
+    b.unspent = r2(b.budget - b.spent);
+    for (const d of b.departments) {
+      d.alloc = r2(d.alloc);
+      d.spent = r2(d.spent);
+      d.toDo = r2(d.toDo);
+    }
   }
   return [...out.values()].sort((a, c) => c.budget - a.budget);
 }

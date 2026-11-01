@@ -47,8 +47,8 @@ describe("summariseBudget", () => {
 
   it("coerces numeric strings", () => {
     const [b] = summariseBudget([
-      row({ spent_hours: "4.50" as unknown as number, budget_hours: "14.40" as unknown as number }),
-      row({ department_name: "SEO", spent_hours: "1.50" as unknown as number }),
+      row({ spent_hours: "4.50", budget_hours: "14.40" }),
+      row({ department_name: "SEO", spent_hours: "1.50" }),
     ]);
     expect(b.spent).toBe(6);
     expect(b.budget).toBe(14.4);
@@ -87,6 +87,17 @@ describe("budgetVerdict", () => {
   });
 });
 
+describe("rounding", () => {
+  it("verdict agrees with the displayed figure", () => {
+    const [b] = summariseBudget([
+      row({ budget_hours: 10, spent_hours: 1.1 }),
+      row({ department_name: "SEO", spent_hours: 2.2 }),
+    ]);
+    expect(b.free).toBe(6.7);
+    expect(budgetVerdict(b, 6.7)).toBe("fits");
+  });
+});
+
 describe("currentBudgetMonth", () => {
   it("uses SAST, not UTC", () => {
     expect(currentBudgetMonth(new Date("2026-10-31T23:30:00Z"))).toBe("2026-11");
@@ -95,14 +106,29 @@ describe("currentBudgetMonth", () => {
 });
 
 describe("DEPT_GROUP", () => {
-  it("maps every live department", () => {
-    const live = [
-      "Strategy", "Project Management", "Development", "SEO", "Paid Media",
-      "Creative Production", "Video / 3D / Motion Production", "Content & Copywriting",
-      "Social Media", "Software / Spend / Pass-Through / Non-Delivery", "Client Meeting",
-      "Internal Meeting", "Admin", "New Business", "Finance", "Human Resources",
-      "Marketing", "Sales", "Account Owner",
-    ];
-    for (const n of live) expect(DEPT_GROUP[n], n).toBeDefined();
+  it("maps every live department to its group", () => {
+    const live: Record<string, string> = {
+      Strategy: "strategy",
+      "Project Management": "admin",
+      Development: "dev",
+      SEO: "seo",
+      "Paid Media": "paid",
+      "Creative Production": "creative",
+      "Video / 3D / Motion Production": "creative",
+      "Content & Copywriting": "creative",
+      "Social Media": "social",
+      "Software / Spend / Pass-Through / Non-Delivery": "admin",
+      "Client Meeting": "admin",
+      "Internal Meeting": "admin",
+      Admin: "admin",
+      "New Business": "admin",
+      Finance: "admin",
+      "Human Resources": "admin",
+      Marketing: "admin",
+      Sales: "admin",
+      "Account Owner": "admin",
+    };
+    expect(Object.keys(live)).toHaveLength(19);
+    for (const [n, g] of Object.entries(live)) expect(DEPT_GROUP[n], n).toBe(g);
   });
 });
