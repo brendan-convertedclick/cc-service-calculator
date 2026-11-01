@@ -39,7 +39,20 @@
     "surfaceContainerHighest": { "light": "#DDD6FE", "dark": "#3F3F46" },
 
     "outline":                 { "light": "#C4B5FD", "dark": "#52525B" },
-    "outlineVariant":          { "light": "#EDE9FE", "dark": "#27272A" }
+    "outlineVariant":          { "light": "#EDE9FE", "dark": "#27272A" },
+
+    "deptDev":                 { "light": "#2563EB", "dark": "#60A5FA" },
+    "deptCreative":            { "light": "#DB2777", "dark": "#F472B6" },
+    "deptSeo":                 { "light": "#0D9488", "dark": "#2DD4BF" },
+    "deptPaid":                { "light": "#65A30D", "dark": "#A3E635" },
+    "deptSocial":              { "light": "#8B5CF6", "dark": "#A78BFA" },
+    "deptStrategy":            { "light": "#92400E", "dark": "#D6A06B" },
+    "deptAdmin":               { "light": "#64748B", "dark": "#94A3B8" },
+    "deptNone":                { "light": "#A1A1AA", "dark": "#71717A" },
+
+    "budgetOk":                { "light": "#15803D", "dark": "#4ADE80" },
+    "budgetWarn":              { "light": "#B45309", "dark": "#FBBF24" },
+    "budgetAsk":               { "light": "#F59E0B", "dark": "#FBBF24" }
   },
   "radius": {
     "xs":   "0.125rem",

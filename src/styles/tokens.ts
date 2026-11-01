@@ -153,5 +153,16 @@ export const mColorRoles = {
   "surface-container-high": "hsl(var(--mcolor-surface-container-high))",
   "surface-container-highest": "hsl(var(--mcolor-surface-container-highest))",
   "outline": "hsl(var(--mcolor-outline))",
-  "outline-variant": "hsl(var(--mcolor-outline-variant))"
+  "outline-variant": "hsl(var(--mcolor-outline-variant))",
+  "dept-dev": "hsl(var(--mcolor-dept-dev))",
+  "dept-creative": "hsl(var(--mcolor-dept-creative))",
+  "dept-seo": "hsl(var(--mcolor-dept-seo))",
+  "dept-paid": "hsl(var(--mcolor-dept-paid))",
+  "dept-social": "hsl(var(--mcolor-dept-social))",
+  "dept-strategy": "hsl(var(--mcolor-dept-strategy))",
+  "dept-admin": "hsl(var(--mcolor-dept-admin))",
+  "dept-none": "hsl(var(--mcolor-dept-none))",
+  "budget-ok": "hsl(var(--mcolor-budget-ok))",
+  "budget-warn": "hsl(var(--mcolor-budget-warn))",
+  "budget-ask": "hsl(var(--mcolor-budget-ask))"
 } as const;
