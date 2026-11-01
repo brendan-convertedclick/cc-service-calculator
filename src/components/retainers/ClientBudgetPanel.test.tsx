@@ -12,11 +12,15 @@ vi.mock("@/lib/supabase", () => ({
     from: () => ({
       select: () => ({
         eq: () => ({
-          limit: () => ({
-            maybeSingle: async () =>
-              lookup.error
-                ? { data: null, error: { message: "boom" } }
-                : { data: lookup.projectId ? { parent_project_id: lookup.projectId } : null, error: null },
+          not: () => ({
+            order: () => ({
+              limit: () => ({
+                maybeSingle: async () =>
+                  lookup.error
+                    ? { data: null, error: { message: "boom" } }
+                    : { data: lookup.projectId ? { parent_project_id: lookup.projectId } : null, error: null },
+              }),
+            }),
           }),
         }),
       }),

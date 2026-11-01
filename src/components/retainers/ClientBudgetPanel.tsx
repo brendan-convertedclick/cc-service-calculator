@@ -35,6 +35,8 @@ export function ClientBudgetPanel({
         .from("briefs")
         .select("parent_project_id")
         .eq("clickup_task_id", clickupTaskId!)
+        .not("parent_project_id", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;

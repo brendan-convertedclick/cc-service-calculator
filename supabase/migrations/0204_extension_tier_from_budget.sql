@@ -63,14 +63,16 @@ begin
     if v_days > 0 then d_rank := case when v_days <= 2 then 0 when v_days <= 7 then 1 else 2 end; end if;
   end if;
 
-  v_rank := greatest(p_rank, d_rank);  -- greatest ignores nulls
-  if v_rank is not null then
-    new.tier := (array['auto', 'admin', 'owner'])[v_rank + 1];
-    new.status := case when v_rank = 0 then 'auto_approved' else 'pending_admin' end;
-  end if;
+  -- greatest ignores nulls. A row neither leg can rank goes to a human as owner tier,
+  -- never through on whatever tier/status the client sent.
+  v_rank := coalesce(greatest(p_rank, d_rank), 2);
+  new.tier := (array['auto', 'admin', 'owner'])[v_rank + 1];
+  new.status := case when v_rank = 0 then 'auto_approved' else 'pending_admin' end;
   return new;
 end $$;
 
 drop trigger if exists extension_requests_decide_tier on extension_requests;
 create trigger extension_requests_decide_tier before insert on extension_requests
   for each row execute function extension_requests_decide_tier();
+
+revoke execute on function extension_requests_decide_tier() from public, anon;
