@@ -49,7 +49,7 @@ as $$
         when b.client_id is not null and (b.billing_type = 'internal' or c.is_internal) then null
         when b.parent_project_id in (select id from own) and b.billing_type is distinct from 'adhoc' then b.parent_project_id
       end as book_project,
-      (b.client_id is not null or b.parent_project_id in (select id from own)) as books
+      (b.client_id is not null or (b.parent_project_id in (select id from own) and b.billing_type is distinct from 'adhoc')) as books
     from briefs b left join clients c on c.id = b.client_id
     where b.status::text in ('briefed','accepted','quoted','scoped')
   ),
@@ -139,4 +139,7 @@ as $$
   order by p.client_name, p.name, d.name nulls last
 $$;
 
+-- Postgres grants EXECUTE to PUBLIC on creation, and the anon key ships in the
+-- browser bundle, so without this anyone could read every retainer's budget.
+revoke execute on function retainer_budget(text, uuid) from public, anon;
 grant execute on function retainer_budget(text, uuid) to authenticated;
