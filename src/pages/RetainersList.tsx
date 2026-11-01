@@ -45,6 +45,7 @@ import { todayISO } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/project-status";
 import { retainerStatus, workingDays, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
 import { ProgressRing } from "@/components/retainers/ProgressRing";
+import { RetainerBudgetBoard } from "@/components/retainers/RetainerBudgetBoard";
 import { SplitTab, type SplitContributor } from "@/components/retainers/SplitTab";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
@@ -675,7 +676,7 @@ export function RetainersList() {
     ];
   }, [clientGroups, asSection]);
 
-  type BookTab = "client" | "adhoc" | "internal" | "recurring" | "split";
+  type BookTab = "client" | "adhoc" | "internal" | "recurring" | "split" | "budget";
   const [tab, setTab] = useState<BookTab>("client");
   const section = sections.find((s) => s.key === tab) ?? sections[0];
 
@@ -815,10 +816,13 @@ export function RetainersList() {
             {/* Not a section: it reads across all four rather than being one
                 of them, so it carries no Completed figure of its own. */}
             <TabsTrigger value="split">Split</TabsTrigger>
+            <TabsTrigger value="budget">Budget</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {tab === "split" ? (
+        {tab === "budget" ? (
+          <RetainerBudgetBoard month={month} />
+        ) : tab === "split" ? (
           <SplitTab {...split} />
         ) : (
         <>
