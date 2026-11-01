@@ -89,6 +89,9 @@ export function Login() {
               </svg>
               Sign in with Google
             </Button>
+            <Button asChild variant="outline" className="w-full">
+              <a href="/auth/stitch">Sign in with Stitch</a>
+            </Button>
             {domainError && (
               <p className="text-body-small text-destructive text-center">
                 Only @convertedclick.co.za accounts are allowed.

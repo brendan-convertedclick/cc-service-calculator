@@ -28,6 +28,10 @@ Feature work defaults to **superpowers subagents with git worktrees**:
 2. Use the `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development` skills to execute independent tasks in parallel subagents.
 3. Each subagent works in its own worktree branch; changes are reviewed and merged back to main.
 
+## Sign in with Stitch
+
+`/auth/stitch` (`src/pages/StitchSignIn.tsx`, PKCE) → `stitch-sso` edge function (redeems the code with Stitch app key `STITCH_CLIENT_SECRET`, finds the auth user by the `external_id` Stitch provisioned, re-checks `@convertedclick.co.za`, syncs `team_members.full_name`) → magic-link `token_hash` → `verifyOtp`. Stitch app `conductor` is `staff_only`; its launcher URL is this page. Google + password sign-in are unchanged, and `/review/:token` never needs a login. A Stitch sign-in brings no Google refresh token: Gmail/Calendar still connect via `/settings/google`.
+
 ## Shared dev login
 
 - Email: `team@convertedclick.co.za`

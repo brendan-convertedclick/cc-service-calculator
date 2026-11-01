@@ -37,6 +37,11 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: /sign in with google/i })).toBeInTheDocument();
   });
 
+  it("links to Sign in with Stitch", () => {
+    renderLogin();
+    expect(screen.getByRole("link", { name: /sign in with stitch/i })).toHaveAttribute("href", "/auth/stitch");
+  });
+
   it("calls signInWithGoogle when the Google button is clicked", async () => {
     renderLogin();
     await userEvent.click(screen.getByRole("button", { name: /sign in with google/i }));

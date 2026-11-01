@@ -218,3 +218,6 @@ verify_jwt = false
 
 [functions.xero-sync-quotes]
 verify_jwt = false
+
+[functions.stitch-sso]
+verify_jwt = false
