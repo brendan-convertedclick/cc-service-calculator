@@ -163,20 +163,3 @@ async function loadRetainerBurn(clientId: string): Promise<RetainerBurnRow[]> {
     referenceDateForMonth(month, new Date()),
   );
 }
-
-/** Client-wide burn: one number for the summary line. */
-export function aggregateBurn(rows: RetainerBurnRow[]): {
-  hoursUsed: number;
-  hoursTarget: number;
-  pct: number;
-} | null {
-  const configured = rows.filter((r) => !r.needsSetup);
-  if (configured.length === 0) return null;
-  const hoursUsed = configured.reduce((s, r) => s + r.hoursUsed, 0);
-  const hoursTarget = configured.reduce((s, r) => s + r.hoursTarget, 0);
-  return {
-    hoursUsed: Math.round(hoursUsed * 10) / 10,
-    hoursTarget: Math.round(hoursTarget * 10) / 10,
-    pct: hoursTarget > 0 ? Math.round((hoursUsed / hoursTarget) * 100) : 0,
-  };
-}

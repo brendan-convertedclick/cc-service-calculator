@@ -6,7 +6,7 @@ import { cn, errorMessage } from "@/lib/utils";
 import { fmtPtH, pointsToHours } from "@/lib/sprint-points";
 import { consumedPct, useTaskContext } from "@/hooks/useTaskContext";
 import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
-import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
+import { useRequestLinkage } from "@/hooks/useRequestLinkage";
 import { buildVerdict, daysBetween, type VerdictTone } from "@/lib/escalation-verdict";
 import { askedForPoints, type EscalationRow } from "@/types/extension-requests";
 
@@ -48,16 +48,11 @@ export function EscalationDetail({
   );
   const { data: linkage } = useRequestLinkage(row.parent_clickup_task_id, row.client_id);
 
-  const burn = aggregateBurn(linkage?.retainers ?? []);
   // What is actually being granted: the admin's trimmed figure when there is
   // one, otherwise the ask. The verdict, burn and new budget all read it.
   const granted = row.approved_extra_points ?? row.extra_points;
   const trimmed = row.approved_extra_points != null;
   const extraHours = granted ? pointsToHours(Number(granted)) : 0;
-  const burnPctAfter =
-    burn && burn.hoursTarget > 0
-      ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
-      : null;
 
   const verdict = buildVerdict({
     requesterName: row.requester?.full_name ?? null,
@@ -69,7 +64,7 @@ export function EscalationDetail({
     requestedDueDate: row.requested_due_date,
     billing: linkage?.billing ?? null,
     billingResolved: !!linkage,
-    burnPctAfter,
+    burnPctAfter: null, // the budget bar is the one retainer picture here
     priorOverrunsThisMonth,
     hoursMissingFromBurn: linkage ? !linkage.countedInBurn && (ctx?.time_spent_ms ?? 0) > 0 : false,
   });
@@ -240,24 +235,6 @@ export function EscalationDetail({
                 <p className="mt-1 text-body-small text-m-on-surface-variant">
                   Standalone task — not part of a tracked project.
                 </p>
-              )}
-
-              {burn && (
-                <div className="mt-2.5 max-w-sm space-y-1.5">
-                  <div className="h-1.5 overflow-hidden rounded-full bg-m-surface-container-high">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        burn.pct >= 85 ? "bg-m-error" : burn.pct >= 70 ? "bg-amber-500" : "bg-emerald-600",
-                      )}
-                      style={{ width: `${Math.min(100, burn.pct)}%` }}
-                    />
-                  </div>
-                  <p className="font-mono text-label-small tabular-nums text-m-on-surface-variant">
-                    {burn.hoursUsed}h of {burn.hoursTarget}h · {burn.pct}% burned
-                    {burnPctAfter !== null && extraHours > 0 && ` → ${burnPctAfter}% after this`}
-                  </p>
-                </div>
               )}
 
               {!linkage.countedInBurn && (ctx?.time_spent_ms ?? 0) > 0 && (

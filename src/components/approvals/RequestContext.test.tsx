@@ -14,7 +14,6 @@ vi.mock("@/hooks/useRetainerBudget", () => ({
 }));
 vi.mock("@/hooks/useRequestLinkage", () => ({
   useRequestLinkage: () => ({ data: undefined }),
-  aggregateBurn: () => null,
 }));
 vi.mock("@/lib/edge", () => ({
   callEdgeFn: async () => ({
@@ -49,6 +48,7 @@ describe("RequestContext budget bar", () => {
     wrap(<RequestContext taskId="t" requestedPoints={12} clientId="c" />);
     expect(await screen.findByText("As it stands today")).toBeInTheDocument();
     expect(await screen.findByTitle("This request: 3.0h")).toBeInTheDocument();
+    expect(screen.getByText("Fits in Free. No approval needed.")).toBeInTheDocument();
   });
 
   it("shows no bar without a client", async () => {
