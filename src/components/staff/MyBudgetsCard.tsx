@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,8 @@ function useMyRetainerIds(userId: string | null, month: string) {
           .eq("assignee_id", userId!)
           .eq("status", "briefed")
           .not("parent_project_id", "is", null)
+          .is("completed_at", null)
+          .neq("billing_type", "adhoc")
           .or("clickup_task_status.is.null,clickup_task_status.neq.closed"),
         supabase
           .from("provisioned_tasks")
@@ -49,7 +51,7 @@ export function MyBudgetsCard() {
   const mine = useMyRetainerIds(currentUserId, month);
   const [showAll, setShowAll] = useState(false);
 
-  let body: React.ReactNode;
+  let body: ReactNode;
   if (budgets.isLoading || (currentUserId && mine.isLoading)) {
     body = <p className="text-body-small text-m-on-surface-variant">Loading budgets…</p>;
   } else if (budgets.isError || (currentUserId && mine.isError)) {
@@ -60,7 +62,7 @@ export function MyBudgetsCard() {
     const shared = !currentUserId;
     const mineList = shared ? all : all.filter((b) => ids?.has(b.projectId));
     const empty = !shared && mineList.length === 0;
-    const shown = shared || showAll || empty ? all : mineList;
+    const shown = shared || showAll ? all : mineList;
     body = (
       <div className="space-y-4">
         {shared && (
@@ -79,7 +81,7 @@ export function MyBudgetsCard() {
         ))}
         {!shared && (empty || mineList.length > 0) && (
           <Button variant="outline" size="sm" onClick={() => setShowAll((v) => !v)}>
-            {showAll && !empty ? "Show mine" : "Show all retainers"}
+            {showAll ? "Show mine" : "Show all retainers"}
           </Button>
         )}
       </div>

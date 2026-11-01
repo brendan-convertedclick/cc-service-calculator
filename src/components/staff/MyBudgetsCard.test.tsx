@@ -19,7 +19,7 @@ vi.mock("@/components/retainers/RetainerBudgetBar", () => ({
 vi.mock("@/lib/supabase", () => {
   const chain = (rows: unknown[]) => {
     const c: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "not", "or", "gte", "lt"]) c[m] = () => c;
+    for (const m of ["select", "eq", "not", "or", "gte", "lt", "is", "neq"]) c[m] = () => c;
     c.then = (res: (v: unknown) => unknown) => res({ data: rows, error: null });
     return c;
   };
@@ -71,7 +71,18 @@ describe("MyBudgetsCard", () => {
   it("no open work shows the empty line and Show all reveals everything", async () => {
     renderCard();
     expect(await screen.findByText("You have no open work on a retainer this month.")).toBeTruthy();
+    expect(screen.queryAllByTestId("bar")).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Show all retainers" }));
     expect(screen.getAllByTestId("bar").map((b) => b.textContent)).toEqual(["R-b", "R-c", "R-a"]);
+  });
+
+  it("toggles between mine and all when I have work", async () => {
+    s.briefIds = ["a"];
+    renderCard();
+    expect(await screen.findAllByTestId("bar")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Show all retainers" }));
+    expect(screen.getAllByTestId("bar")).toHaveLength(3);
+    await userEvent.click(screen.getByRole("button", { name: "Show mine" }));
+    expect(screen.getAllByTestId("bar")).toHaveLength(1);
   });
 });
