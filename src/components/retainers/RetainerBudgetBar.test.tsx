@@ -64,4 +64,16 @@ describe("RetainerBudgetBar", () => {
       screen.getByRole("img", { name: "29.7h spent, 7.3h to do, of 52.5h budget" }),
     ).toBeInTheDocument();
   });
+
+  it("counts only the ask past the budget when already over", () => {
+    const b = mk({ budget: 19.5, spent: 25, toDo: 0, free: -5.5, unspent: -5.5 });
+    render(<RetainerBudgetBar budget={b} askHours={3} />);
+    expect(screen.getByText(/^3\.0h past the budget/)).toBeInTheDocument();
+    expect(screen.getByText("already 5.5h over")).toBeInTheDocument();
+  });
+
+  it("shows Fully booked when free is about zero", () => {
+    render(<RetainerBudgetBar budget={mk({ free: 0.02, unspent: 4 })} />);
+    expect(screen.getByText("Fully booked")).toBeInTheDocument();
+  });
 });

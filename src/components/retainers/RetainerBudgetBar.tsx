@@ -119,7 +119,7 @@ export function RetainerBudgetBar({
         <p className={`text-body-small ${verdict === "fits" ? "text-m-budget-ok" : verdict === "uses_todo" ? "text-m-budget-warn" : "text-m-error"}`}>
           {verdict === "fits" && "Fits in Free. No approval needed."}
           {verdict === "uses_todo" && `Only ${h(Math.max(0, b.free))} is free. The rest is already promised to work in To do.`}
-          {verdict === "over_budget" && `${h(ask - b.unspent)} past the budget. Someone has to decide who pays.`}
+          {verdict === "over_budget" && `${h(ask - Math.max(0, b.unspent))} past the budget. Someone has to decide who pays.`}
         </p>
       )}
       {b.unestimated > 0 && (

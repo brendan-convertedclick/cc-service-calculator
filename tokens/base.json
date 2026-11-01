@@ -52,7 +52,7 @@
 
     "budgetOk":                { "light": "#15803D", "dark": "#4ADE80" },
     "budgetWarn":              { "light": "#B45309", "dark": "#FBBF24" },
-    "budgetAsk":               { "light": "#F59E0B", "dark": "#FBBF24" }
+    "budgetAsk":               { "light": "#F59E0B", "dark": "#FB923C" }
   },
   "radius": {
     "xs":   "0.125rem",

@@ -1,3 +1,4 @@
+import type { PostgrestError } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { summariseBudget, type BudgetRow, type RetainerBudget } from "@/lib/retainer-budget";
@@ -6,7 +7,7 @@ import { summariseBudget, type BudgetRow, type RetainerBudget } from "@/lib/reta
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   fn: string,
   args: Record<string, unknown>,
-) => PromiseLike<{ data: BudgetRow[] | null; error: Error | null }>;
+) => PromiseLike<{ data: BudgetRow[] | null; error: PostgrestError | null }>;
 
 /** Budget / Spent / To do / Free per retainer for a SAST "YYYY-MM" month, optionally one client. */
 export function useRetainerBudget(month: string, clientId?: string | null) {
