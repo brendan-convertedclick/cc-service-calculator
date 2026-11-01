@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useRetainerBudget } from "@/hooks/useRetainerBudget";
-import { currentBudgetMonth } from "@/lib/retainer-budget";
+import { currentBudgetMonth, type RetainerBudget } from "@/lib/retainer-budget";
 import { RetainerBudgetBar } from "./RetainerBudgetBar";
 
 /**
@@ -13,12 +14,15 @@ export function ClientBudgetPanel({
   clientName,
   clickupTaskId,
   askHours,
+  onResolved,
 }: {
   clientId: string;
   /** Used for the copy when the client has no budgets at all. */
   clientName?: string;
   clickupTaskId?: string | null;
   askHours: number;
+  /** The retainer the picked task books to, or null when it cannot be placed. */
+  onResolved?: (b: RetainerBudget | null) => void;
 }) {
   const budgets = useRetainerBudget(currentBudgetMonth(), clientId);
 
@@ -38,6 +42,12 @@ export function ClientBudgetPanel({
     },
   });
 
+  const resolved =
+    (clickupTaskId && lookup.data && budgets.data?.find((b) => b.projectId === lookup.data)) || null;
+  useEffect(() => {
+    onResolved?.(resolved);
+  }, [resolved, onResolved]);
+
   if (budgets.isLoading || (clickupTaskId && lookup.isLoading)) return null;
   if (budgets.isError)
     return <p className="text-body-small text-m-on-surface-variant">Couldn't load the retainer budget.</p>;
@@ -51,7 +61,7 @@ export function ClientBudgetPanel({
       </p>
     );
 
-  const match = lookup.data ? all.find((b) => b.projectId === lookup.data) : undefined;
+  const match = resolved ?? undefined;
   const shown = match ? [match] : all;
 
   return (

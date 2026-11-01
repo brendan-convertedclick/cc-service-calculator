@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
 import { TimePresetField } from "@/components/TimePresetField";
-import { hoursToPoints } from "@/lib/sprint-points";
+import { hoursToPoints, pointsToHours } from "@/lib/sprint-points";
+import { budgetVerdict, type RetainerBudget } from "@/lib/retainer-budget";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ import {
   classifyTier,
   initialStatusForTier,
   maxTier,
+  tierFromBudget,
 } from "@/types/extension-requests";
 import { ClientListPicker } from "./ClientListPicker";
 import { useStaffClients } from "./useStaffClients";
@@ -70,6 +72,7 @@ export function ExtensionFormBody() {
   const [dueDate, setDueDate] = useState("");
   const [dueDateReason, setDueDateReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [budget, setBudget] = useState<RetainerBudget | null>(null);
 
   useEffect(() => {
     if (!clientId) {
@@ -114,8 +117,11 @@ export function ExtensionFormBody() {
     const original = selectedTask?.sprint_points ?? 0;
     const extra = Number(extraPoints);
     if (!original || !extra || extra <= 0) return null;
-    return classifyTier(original, extra);
-  }, [selectedTask?.sprint_points, extraPoints]);
+    // The database decides the real tier; this only previews it. With a resolved retainer
+    // the points leg follows what it has free, otherwise the old points-delta rule.
+    const old = classifyTier(original, extra);
+    return budget ? { ...old, tier: tierFromBudget(budgetVerdict(budget, pointsToHours(extra))) } : old;
+  }, [selectedTask?.sprint_points, extraPoints, budget]);
 
   const dueDateRequested = dueDate.trim() !== "";
   const daysRequested = useMemo(() => {
@@ -152,14 +158,14 @@ export function ExtensionFormBody() {
     if (!canSubmit || !selectedTask || !tierPreview) return;
     setSubmitting(true);
     try {
-      const status = initialStatusForTier(tierPreview.tier);
       const insertPayload: Record<string, unknown> = {
         requester_id: currentUserId,
         client_id: clientId,
         parent_clickup_task_id: selectedTask.id,
         parent_task_name: selectedTask.name,
+        // Placeholders only: the insert trigger overwrites tier, status and delta_pct.
         tier: tierPreview.tier,
-        status,
+        status: initialStatusForTier(tierPreview.tier),
       };
       // The budget always goes on the row — a stated 0 is what tells the
       // approver this costs nothing, and it's the difference between "no extra
@@ -177,17 +183,18 @@ export function ExtensionFormBody() {
         .from("extension_requests")
         // @ts-expect-error extension_requests columns extended by migration 0094; shape varies by which fields are requested
         .insert(insertPayload)
-        .select("id")
+        .select("id, tier, status")
         .single();
       if (error) {
         toast.error(`Submit failed: ${error.message}`);
         return;
       }
-      // Auto-tier fires the approval pipeline immediately.
-      if (tierPreview.tier === "auto") {
+      // The database decided the tier (trigger on insert); follow the row, not the preview.
+      const row = inserted as unknown as { id: string; tier: "auto" | "admin" | "owner" };
+      if (row.tier === "auto") {
         try {
           await callEdgeFn("approve-extension-request", {
-            extension_request_id: (inserted as { id: string }).id,
+            extension_request_id: row.id,
           });
         } catch (e) {
           toast.error(`Auto-push failed (row saved): ${errorMessage(e)}`);
@@ -196,14 +203,14 @@ export function ExtensionFormBody() {
         toast.success("Auto-approved · ClickUp subtask created.");
       } else {
         toast.success(
-          tierPreview.tier === "admin"
+          row.tier === "admin"
             ? "Submitted · awaiting admin approval."
             : "Submitted · admin reviews first, then the owner signs off.",
         );
         // Fire-and-forget: ping the approver(s) in ClickUp chat + email. Never
         // blocks the submit — the request is already saved either way.
         callEdgeFn("notify-extension-request", {
-          extension_request_id: (inserted as { id: string }).id,
+          extension_request_id: row.id,
         }).catch(() => {});
       }
       setExtraHours("");
@@ -257,6 +264,7 @@ export function ExtensionFormBody() {
             clientName={clients.find((c) => c.id === clientId)?.name}
             clickupTaskId={taskId || null}
             askHours={Number(extraHours) || 0}
+            onResolved={setBudget}
           />
         )}
 

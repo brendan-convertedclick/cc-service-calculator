@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askedForPoints, classifyDueDateTier, classifyTier, initialStatusForTier, maxTier } from "./extension-requests";
+import { askedForPoints, classifyDueDateTier, classifyTier, initialStatusForTier, maxTier, tierFromBudget } from "./extension-requests";
 
 describe("classifyTier", () => {
   it("classifies <25% as auto", () => {
@@ -78,5 +78,13 @@ describe("askedForPoints", () => {
   });
   it("treats a missing budget as no ask", () => {
     expect(askedForPoints({ extra_points: null })).toBe(false);
+  });
+});
+
+describe("tierFromBudget", () => {
+  it("maps the budget verdict to an approval tier", () => {
+    expect(tierFromBudget("fits")).toBe("auto");
+    expect(tierFromBudget("uses_todo")).toBe("admin");
+    expect(tierFromBudget("over_budget")).toBe("owner");
   });
 });
