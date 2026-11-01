@@ -2,8 +2,10 @@ import { useState } from "react";
 import { RetainerBudgetBar } from "@/components/retainers/RetainerBudgetBar";
 import { Switch } from "@/components/ui/switch";
 import { useRetainerBudget } from "@/hooks/useRetainerBudget";
+import { currentBudgetMonth, formatHours as h } from "@/lib/retainer-budget";
 
-const h = (n: number) => `${Math.round(n * 10) / 10}h`;
+const monthLabel = (m: string) =>
+  new Date(`${m}-01T12:00:00Z`).toLocaleDateString("en-ZA", { month: "long", year: "numeric", timeZone: "UTC" });
 
 /** Every budgeted retainer for the month, tightest first. Admin view of the same bar staff see. */
 export function RetainerBudgetBoard({ month }: { month: string }) {
@@ -24,6 +26,11 @@ export function RetainerBudgetBoard({ month }: { month: string }) {
 
   return (
     <div className="space-y-4">
+      {month !== currentBudgetMonth() && (
+        <p className="text-body-small text-m-on-surface-variant">
+          Spent is for {monthLabel(month)}. To do and Free are as of today.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-body-medium text-m-on-surface">{summary}</p>
         <label className="flex items-center gap-2 text-body-small text-m-on-surface-variant">

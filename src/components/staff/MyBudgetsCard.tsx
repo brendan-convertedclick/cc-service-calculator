@@ -50,6 +50,7 @@ export function MyBudgetsCard() {
   const budgets = useRetainerBudget(month);
   const mine = useMyRetainerIds(currentUserId, month);
   const [showAll, setShowAll] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   let body: ReactNode;
   if (budgets.isLoading || (currentUserId && mine.isLoading)) {
@@ -62,7 +63,8 @@ export function MyBudgetsCard() {
     const shared = !currentUserId;
     const mineList = shared ? all : all.filter((b) => ids?.has(b.projectId));
     const empty = !shared && mineList.length === 0;
-    const shown = shared || showAll ? all : mineList;
+    const list = shared || showAll ? all : mineList;
+    const shown = expanded ? list : list.slice(0, 6);
     body = (
       <div className="space-y-4">
         {shared && (
@@ -79,6 +81,11 @@ export function MyBudgetsCard() {
             <RetainerBudgetBar budget={b} />
           </div>
         ))}
+        {list.length > shown.length && (
+          <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
+            Show {list.length - shown.length} more
+          </Button>
+        )}
         {!shared && (empty || mineList.length > 0) && (
           <Button variant="outline" size="sm" onClick={() => setShowAll((v) => !v)}>
             {showAll ? "Show mine" : "Show all retainers"}

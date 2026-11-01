@@ -128,3 +128,6 @@ export function budgetVerdict(b: RetainerBudget, askHours: number): BudgetVerdic
 export function currentBudgetMonth(now: Date = new Date()): string {
   return new Date(now.getTime() + 2 * 3600_000).toISOString().slice(0, 7);
 }
+
+/** Hours to one decimal, the way every budget surface prints them. */
+export const formatHours = (n: number) => `${n.toFixed(1)}h`;

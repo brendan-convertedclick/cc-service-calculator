@@ -24,6 +24,18 @@ describe("RetainerBudgetBar", () => {
     expect(screen.getByText("9.9h unspent")).toBeInTheDocument();
   });
 
+  it("hatches red only for spent past the box, not for To do past it", () => {
+    const { container, unmount } = render(<RetainerBudgetBar budget={dovetail} />);
+    expect(container.querySelector('[data-hatch="error"]')).toBeNull();
+    unmount();
+    const over = mk({
+      budget: 10, spent: 12, toDo: 0, free: -2, unspent: -2,
+      departments: [{ group: "dev", alloc: 10, spent: 12, toDo: 0 }],
+    });
+    const r = render(<RetainerBudgetBar budget={over} />);
+    expect(r.container.querySelector('[data-hatch="error"]')).not.toBeNull();
+  });
+
   it("clamps free at 0 in the verdict when the ask does not fit", () => {
     render(<RetainerBudgetBar budget={dovetail} askHours={3} />);
     expect(screen.getByText(/Only 0\.0h is free/)).toBeInTheDocument();

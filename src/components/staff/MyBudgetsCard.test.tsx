@@ -85,4 +85,13 @@ describe("MyBudgetsCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show mine" }));
     expect(screen.getAllByTestId("bar")).toHaveLength(1);
   });
+
+  it("shows six bars until Show more is clicked", async () => {
+    s.userId = null;
+    s.budgets = { data: Array.from({ length: 8 }, (_, i) => mk(String(i), i)), isLoading: false, isError: false };
+    renderCard();
+    expect(await screen.findAllByTestId("bar")).toHaveLength(6);
+    await userEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    expect(screen.getAllByTestId("bar")).toHaveLength(8);
+  });
 });

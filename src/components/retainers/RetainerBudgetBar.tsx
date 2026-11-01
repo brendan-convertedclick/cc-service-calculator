@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import {
   budgetVerdict,
   DEPT_GROUP_LABEL,
+  formatHours as h,
   type DeptGroup,
   type RetainerBudget,
 } from "@/lib/retainer-budget";
@@ -16,7 +17,6 @@ const EDGE: Record<DeptGroup, string> = {
   social: "border-m-dept-social", strategy: "border-m-dept-strategy", admin: "border-m-dept-admin", none: "border-m-dept-none",
 };
 
-const h = (n: number) => `${n.toFixed(1)}h`;
 const hatch = (colour: string): CSSProperties => ({
   backgroundImage: `repeating-linear-gradient(135deg, hsl(var(--mcolor-${colour})) 0 5px, transparent 5px 9px)`,
 });
@@ -59,7 +59,7 @@ export function RetainerBudgetBar({
       : <div key={s.key + from} title={s.title} className={`${cls} rounded-[3px] border-[1.5px] border-dashed bg-m-surface-container ${EDGE[g]}`} style={style} />;
   };
 
-  // A segment crossing the box edge is split: the inside as drawn, the rest faded with a red hatch.
+  // A segment crossing the box edge is split: the inside as drawn, the rest faded (spent also gets a red hatch).
   const nodes = segs.flatMap((s) => {
     const inside = Math.max(0, Math.min(s.size, b.budget - s.from));
     const out = s.size - inside;
@@ -67,7 +67,8 @@ export function RetainerBudgetBar({
     if (inside > 0) parts.push(render(s, s.from, inside, false));
     if (out > 0) {
       parts.push(render(s, s.from + inside, out, true));
-      parts.push(<div key={`o-${s.key}`} className="absolute top-[3px] bottom-[3px]" style={{ left: `${pc(s.from + inside)}%`, width: `${pc(out)}%`, ...hatch("error") }} />);
+      // Only spent hours past the box are "over". To do past it is "short" and keeps its faded dashed outline.
+      if (s.kind === "spent") parts.push(<div key={`o-${s.key}`} data-hatch="error" className="absolute top-[3px] bottom-[3px]" style={{ left: `${pc(s.from + inside)}%`, width: `${pc(out)}%`, ...hatch("error") }} />);
     }
     return parts;
   });

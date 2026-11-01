@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { RetainerBudget } from "@/lib/retainer-budget";
+import { currentBudgetMonth, type RetainerBudget } from "@/lib/retainer-budget";
 
 const state = vi.hoisted(() => ({ s: { data: [] as unknown[], isLoading: false, isError: false } }));
 vi.mock("@/hooks/useRetainerBudget", () => ({ useRetainerBudget: () => state.s }));
@@ -33,7 +33,16 @@ describe("RetainerBudgetBoard", () => {
   it("drops the short sentence and treats ~0 as neither", () => {
     set([mk("A", 4), mk("B", 0.02)]);
     render(<RetainerBudgetBoard month="2026-10" />);
-    expect(screen.getByText("1 with 4h free.")).toBeTruthy();
+    expect(screen.getByText("1 with 4.0h free.")).toBeTruthy();
+  });
+
+  it("says which month Spent is for when it is not the current one", () => {
+    set([mk("A", 4)]);
+    const { unmount } = render(<RetainerBudgetBoard month="2026-10" />);
+    expect(screen.getByText("Spent is for October 2026. To do and Free are as of today.")).toBeTruthy();
+    unmount();
+    render(<RetainerBudgetBoard month={currentBudgetMonth()} />);
+    expect(screen.queryByText(/Spent is for/)).toBeNull();
   });
 
   it("shows loading and error without throwing", () => {
