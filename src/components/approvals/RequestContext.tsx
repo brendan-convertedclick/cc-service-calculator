@@ -294,7 +294,6 @@ export function RequestContext({
       <BillingAndProject
         linkage={linkage}
         requestedPoints={requestedPoints ?? null}
-        taskHours={ctx.time_spent_ms / 3_600_000}
       />
 
       <Disclosure
@@ -360,14 +359,12 @@ function BillingBadge({ billing }: { billing?: "retainer" | "adhoc" | null }) {
 function BillingAndProject({
   linkage,
   requestedPoints,
-  taskHours,
 }: {
   linkage: ReturnType<typeof useRequestLinkage>["data"];
   requestedPoints: number | null;
-  taskHours: number;
 }) {
   if (!linkage) return null;
-  const { billing, project, countedInBurn } = linkage;
+  const { billing, project } = linkage;
 
   return (
     <div className="space-y-2 border-t border-m-outline-variant/60 pt-3">
@@ -413,16 +410,6 @@ function BillingAndProject({
             Standalone task — not part of a tracked project
           </span>
         </div>
-      )}
-
-      {/* Always visible, and not gated on a retainer existing: an approver
-          reading any burn or budget number needs to know this task's hours
-          aren't in it. */}
-      {!countedInBurn && taskHours > 0 && (
-        <p className="max-w-prose text-body-small text-m-error">
-          This task's <Fig>{Math.round(taskHours * 10) / 10}h</Fig> has not been mapped to a project by
-          actuals sync, so it is missing from every hours figure below — the real burn is higher.
-        </p>
       )}
     </div>
   );

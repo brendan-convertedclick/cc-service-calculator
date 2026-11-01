@@ -49,7 +49,7 @@ export function EscalationDetail({
   const { data: linkage } = useRequestLinkage(row.parent_clickup_task_id, row.client_id);
 
   // What is actually being granted: the admin's trimmed figure when there is
-  // one, otherwise the ask. The verdict, burn and new budget all read it.
+  // one, otherwise the ask. The verdict and new budget both read it.
   const granted = row.approved_extra_points ?? row.extra_points;
   const trimmed = row.approved_extra_points != null;
   const extraHours = granted ? pointsToHours(Number(granted)) : 0;
@@ -234,17 +234,6 @@ export function EscalationDetail({
               ) : (
                 <p className="mt-1 text-body-small text-m-on-surface-variant">
                   Standalone task — not part of a tracked project.
-                </p>
-              )}
-
-              {!linkage.countedInBurn && (ctx?.time_spent_ms ?? 0) > 0 && (
-                <p className="mt-2 max-w-prose text-body-small text-m-error">
-                  This task's{" "}
-                  <span className="font-mono tabular-nums">
-                    {Math.round(((ctx?.time_spent_ms ?? 0) / 3_600_000) * 10) / 10}h
-                  </span>{" "}
-                  has not been mapped to a project by the actuals sync, so it is missing from the
-                  retainer figures above — the real burn is higher.
                 </p>
               )}
             </>
