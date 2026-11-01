@@ -7,6 +7,7 @@ import { callEdgeFn } from "@/lib/edge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pointsToHours } from "@/lib/sprint-points";
+import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
 import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
 
 type TaskContext = {
@@ -184,6 +185,18 @@ export function RequestContext({
 
   return (
     <div className={`space-y-3 ${PANEL}`}>
+      {clientId && (
+        <div className="space-y-1.5">
+          <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">
+            As it stands today
+          </p>
+          <ClientBudgetPanel
+            clientId={clientId}
+            clickupTaskId={taskId}
+            askHours={pointsToHours(requestedPoints ?? 0)}
+          />
+        </div>
+      )}
       {/* Everything an approver needs to decide sits on this one line; the
           supporting detail is a disclosure away. Native <details> — no
           collapsible primitive in the design system to reach for. */}

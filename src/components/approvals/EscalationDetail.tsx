@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn, errorMessage } from "@/lib/utils";
 import { fmtPtH, pointsToHours } from "@/lib/sprint-points";
 import { consumedPct, useTaskContext } from "@/hooks/useTaskContext";
+import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
 import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
 import { buildVerdict, daysBetween, type VerdictTone } from "@/lib/escalation-verdict";
 import { askedForPoints, type EscalationRow } from "@/types/extension-requests";
@@ -105,6 +106,15 @@ export function EscalationDetail({
       )}
 
       <dl className="divide-y divide-m-outline-variant overflow-hidden rounded-lg bg-m-surface shadow-elev-1">
+        {row.client_id && (
+          <Block label="As it stands today">
+            <ClientBudgetPanel
+              clientId={row.client_id}
+              clickupTaskId={row.parent_clickup_task_id}
+              askHours={extraHours}
+            />
+          </Block>
+        )}
         <Block label="Approving">
           {pointsAsked ? (
             <p>
