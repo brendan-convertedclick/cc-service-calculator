@@ -785,8 +785,13 @@ function plannedTaskDates(
   const stride = Math.max(1, Math.floor(totalDays / target));
   let d = new Date(periodStart);
   while (out.length < target && d.getTime() <= endMs) {
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) out.push(new Date(d));
+    // A weekend slot rolls forward to Monday rather than being dropped: with a
+    // 14-day stride, a month starting on a Sunday (Nov 2026) lands every slot
+    // on a Sunday, and skipping them gave a biweekly service zero tasks.
+    let w = new Date(d);
+    while (w.getUTCDay() === 0 || w.getUTCDay() === 6) w = new Date(w.getTime() + 86_400_000);
+    const last = out[out.length - 1];
+    if (w.getTime() <= endMs && (!last || w.getTime() > last.getTime())) out.push(w);
     d = new Date(d.getTime() + stride * 86_400_000);
   }
   return out;

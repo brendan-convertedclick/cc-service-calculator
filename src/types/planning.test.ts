@@ -31,6 +31,17 @@ describe("plannedTaskDates", () => {
       expect([1, 2, 3, 4, 5]).toContain(d.getUTCDay());
     }
   });
+  it("biweekly in a Sunday-start month rolls weekend slots to Monday", () => {
+    // Nov 2026 starts on a Sunday: every 14-day slot is a Sunday.
+    const dates = plannedTaskDates(
+      new Date(2026, 10, 1),
+      new Date(2026, 10, 30),
+      "biweekly",
+      2,
+    );
+    expect(dates.length).toBe(2);
+    for (const d of dates) expect(d.getDay()).toBe(1);
+  });
   it("returns nothing if end < start", () => {
     expect(
       plannedTaskDates(new Date("2026-02-10"), new Date("2026-02-01"), "daily", 5),

@@ -63,8 +63,12 @@ export function plannedTaskDates(
   const stride = Math.max(1, Math.floor(totalDays / target));
   let d = new Date(periodStart);
   while (out.length < target && d.getTime() <= endMs) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) out.push(new Date(d));
+    // A weekend slot rolls to Monday instead of being dropped (mirror of the
+    // provisioner): a Sunday-start month put every 14-day slot on a Sunday.
+    let w = new Date(d);
+    while (w.getDay() === 0 || w.getDay() === 6) w = nextDay(w);
+    const last = out[out.length - 1];
+    if (w.getTime() <= endMs && (!last || w.getTime() > last.getTime())) out.push(w);
     d = new Date(d.getTime() + stride * 86_400_000);
   }
   return out;
