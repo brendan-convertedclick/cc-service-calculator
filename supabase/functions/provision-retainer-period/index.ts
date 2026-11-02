@@ -187,10 +187,16 @@ Deno.serve(async (req: Request) => {
       cadence: string,
       label?: string,
       labelAsName?: boolean,
+      contentMonthOffset?: number | null,
     ): string => {
       const serviceName = serviceNameById.get(serviceId) ?? "Service";
       const hasLabel = !!(label && label.trim());
-      const week = cadence === "monthly" ? "" : `Week ${weekOfMonth(d)} - `;
+      // Social posts are made months ahead: name the month they are for, not
+      // the month they are made in (0203).
+      const contentMonth = contentMonthOffset == null ? "" : new Date(
+        Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + contentMonthOffset, 1),
+      ).toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }) + " - ";
+      const week = contentMonth + (cadence === "monthly" ? "" : `Week ${weekOfMonth(d)} - `);
       // labelAsName: the label IS the task name — drop the service name entirely
       // (for services whose labels are full task descriptions).
       if (labelAsName && hasLabel) {
@@ -234,6 +240,7 @@ Deno.serve(async (req: Request) => {
       occurrence_due_days: number[] | null;
       roll_up_monthly: boolean | null;
       recur_weekday: number | null;
+      content_month_offset: number | null;
     }>) {
       // Shared mode: when a service has per-occurrence labels (e.g. one task per
       // website), every listed assignee sits on the SAME labelled tasks (doer +
@@ -308,6 +315,7 @@ Deno.serve(async (req: Request) => {
                   weekdayMode ? "weekly" : svc.cadence,
                   svc.occurrence_labels?.[i],
                   svc.label_as_task_name,
+                  svc.content_month_offset,
                 );
               const engagementMs = (mode === "live" || isMonthly ? periodStart : d).getTime();
               const cf = buildCustomFields(svc.service_id, engagementMs);
@@ -444,6 +452,7 @@ Deno.serve(async (req: Request) => {
               weekdayMode ? "weekly" : rollUp ? "monthly" : svc.cadence,
               svc.occurrence_labels?.[i],
               svc.label_as_task_name,
+              svc.content_month_offset,
             );
             const cf = buildCustomFields(svc.service_id, engagementMs);
             let id: string | null = null;
