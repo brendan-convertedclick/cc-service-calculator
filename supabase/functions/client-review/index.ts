@@ -73,7 +73,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { cors, json } from "../_shared/helpers.ts";
 import { createServiceRoleClient } from "../_shared/supabase-client.ts";
-import { timingSafeEqualHex } from "../_shared/hmac.ts";
+import { sha256Hex, timingSafeEqualHex } from "../_shared/hmac.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { suggestClientTitle, UNTITLED_WORK } from "../_shared/client-title.ts";
 import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
@@ -424,13 +424,6 @@ const APPROVAL_COLUMNS =
   "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
 
 // --- token hashing + verification (pure, no I/O) ------------------------
-
-async function sha256Hex(input: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 /** null = verified. Order matters: a revoked link is reported as revoked even
  * past its expiry, not expired — the check that made it dead. */

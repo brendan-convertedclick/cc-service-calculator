@@ -52,3 +52,11 @@ export function newPlaintextToken(): string {
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 }
+
+/** Hex sha256, identical to what the browser computes when minting a review link. */
+export async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
