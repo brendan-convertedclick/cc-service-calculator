@@ -221,3 +221,11 @@ verify_jwt = false
 
 [functions.stitch-sso]
 verify_jwt = false
+
+# Stitch calls it without a Supabase JWT; it checks its own credentials (the OIDC code exchange).
+[functions.signoffs-sso]
+verify_jwt = false
+
+# Stitch calls it without a Supabase JWT; it checks its own credentials (the STITCH_WAITING_SECRET bearer).
+[functions.stitch-waiting]
+verify_jwt = false
