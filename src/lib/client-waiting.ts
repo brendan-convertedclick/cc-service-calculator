@@ -18,39 +18,17 @@
 //
 // Pure. No network, no React, no Date.now() default that a test can't pin.
 
-import { WAITING_STATUSES } from "@/hooks/useSignoffCandidates";
+import {
+  courtOf,
+  splitAt,
+  type Court,
+  type WaitingSource,
+  type WaitSplit,
+} from "../../supabase/functions/_shared/stop-clock";
 
-/** ClickUp statuses that mean the work is finished and nobody is waiting. */
-const DONE_STATUSES = new Set(["complete", "closed", "done"]);
-
-/** Whose move it is right now. `done` is not a delay — the work landed. */
-export type Court = "client" | "us" | "done";
-
-/** The fields of a brief this module reasons about. Deliberately narrow. */
-export type WaitingSource = {
-  clickup_task_status: string | null;
-  clickup_status_synced_at: string | null;
-  client_wait_ms: number | null;
-  internal_wait_ms: number | null;
-  completed_at: string | null;
-};
-
-export type WaitSplit = {
-  court: Court;
-  /** Banked + the clock still running, in ms. */
-  clientMs: number;
-  internalMs: number;
-};
-
-export function courtOf(
-  // Narrower than WaitingSource on purpose: the court is a fact about the
-  // status, and the client-facing payload carries no clocks-synced timestamp.
-  row: Pick<WaitingSource, "clickup_task_status" | "completed_at">,
-): Court {
-  const status = (row.clickup_task_status ?? "").toLowerCase();
-  if (row.completed_at || DONE_STATUSES.has(status)) return "done";
-  return (WAITING_STATUSES as readonly string[]).includes(status) ? "client" : "us";
-}
+// The court and the clock arithmetic live in _shared so the Deno edge functions
+// run the same ones; importers of this module are unchanged.
+export { courtOf, splitAt, type Court, type WaitingSource, type WaitSplit };
 
 /**
  * The two clocks as at `now`, with the running one extrapolated forward from
@@ -61,31 +39,6 @@ export function courtOf(
  * clock-skewed `synced_at` in the future must not subtract time from a total
  * we are about to show a client.
  */
-/**
- * The clock arithmetic on its own, once the court is known.
- *
- * Split out because the client's page reasons about the same two clocks but
- * has no ClickUp status to derive a court from — it is handed one on the wire.
- * One copy of "add the running clock to whoever is holding it", not two.
- */
-export function splitAt(
-  court: Court,
-  row: Pick<WaitingSource, "client_wait_ms" | "internal_wait_ms" | "clickup_status_synced_at">,
-  now: number,
-): WaitSplit {
-  let clientMs = Math.max(0, row.client_wait_ms ?? 0);
-  let internalMs = Math.max(0, row.internal_wait_ms ?? 0);
-
-  if (court !== "done" && row.clickup_status_synced_at) {
-    const since = new Date(row.clickup_status_synced_at).getTime();
-    const running = Number.isNaN(since) ? 0 : Math.max(0, now - since);
-    if (court === "client") clientMs += running;
-    else internalMs += running;
-  }
-
-  return { court, clientMs, internalMs };
-}
-
 export function waitSplit(row: WaitingSource, now: number): WaitSplit {
   return splitAt(courtOf(row), row, now);
 }

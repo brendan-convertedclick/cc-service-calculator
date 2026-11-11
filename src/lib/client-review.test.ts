@@ -12,6 +12,7 @@ import {
   heldLine,
   holdingRows,
   isOverdue,
+  linkedSelection,
   queueFor,
   workBucketOf,
   sortForQueue,
@@ -229,6 +230,17 @@ describe("queueFor", () => {
   it("buckets briefed work by the same rule an ask uses", () => {
     expect(workBucketOf(w({ id: "a", court: "client" }))).toBe("your-move");
     expect(workBucketOf(w({ id: "b", court: "us" }))).toBe("with-us");
+  });
+
+  it("a linked ask or task opens under its own tab", () => {
+    const items = [item({ id: "i", state: "approved" })];
+    const work = [w({ id: "k", court: "us" }), w({ id: "m", court: "client" })];
+    expect(linkedSelection(items, work, "i")).toEqual({ id: "i", bucket: bucketOf(items[0]) });
+    expect(linkedSelection(items, work, "i")?.bucket).not.toBe("your-move");
+    expect(linkedSelection(items, work, "k")).toEqual({ id: "k", bucket: "with-us" });
+    expect(linkedSelection(items, work, "m")).toEqual({ id: "m", bucket: "your-move" });
+    expect(linkedSelection(items, work, "gone")).toBeNull();
+    expect(linkedSelection(items, work, null)).toBeNull();
   });
 
   it("counts work in the rail, or the badge and the list disagree", () => {

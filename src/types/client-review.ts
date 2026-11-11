@@ -16,26 +16,18 @@
 //     never crosses the wire, only what survives the sanitiser.
 //
 // The edge function mirrors these types at the top of its own file, because
-// Deno cannot import from src/. Change one, change both.
+// Deno cannot import from src/. Change one, change both. The exception is the
+// four unions below, which live in _shared/client-buckets.ts (no imports) so
+// both runtimes read one definition.
 
-/** Which pane an item belongs to. Derived, never stored. */
-export type ReviewBucket = "your-move" | "with-us" | "signed-off" | "coming-up";
+import type {
+  ReviewBucket,
+  ReviewDecision,
+  ReviewItemState,
+  ReviewItemType,
+} from "../../supabase/functions/_shared/client-buckets";
 
-/** What a client can decide. Matches client_approvals.state's non-pending values. */
-export type ReviewDecision = "approved" | "changes_requested";
-
-/**
- * client_approvals.state, verbatim.
- *
- * 'parked' is staff-only — an item that exists but whose time is not right.
- * 'noted' belongs to events and to nothing else (0149): a date nobody acts on.
- * Both are undecided, so neither carries a decided_at.
- *
- * The client-review function filters it out of the list query and the staff
- * preview mirrors that filter, so a parked item never reaches this page at
- * all. It is in the union because the staff table renders the same rows.
- */
-export type ReviewItemState = "pending" | "parked" | "noted" | ReviewDecision;
+export type { ReviewBucket, ReviewDecision, ReviewItemState, ReviewItemType };
 
 /**
  * The "And you are?" picker. Names only — a contact's email never crosses the
@@ -47,25 +39,6 @@ export type ReviewContact = {
   id: string;
   full_name: string;
 };
-
-/**
- * What kind of thing the client is looking at. Three asks, three controls:
- *   brief     — a deliverable awaiting APPROVAL       (Approve / Request changes)
- *   question  — something we asked, awaiting an ANSWER (answer box + Send)
- *   agreement — something they committed to, awaiting DOING (Done / Not yet)
- *   idea      — worth considering, not planned. NO controls, because it never
- *               reaches a client: an idea is always parked (0148) and parked
- *               rows are filtered out server-side.
- *   event     — a date in the client's world, which THEY can add (0149). The
- *               only type nobody acts on, so it has no controls and its own
- *               state ('noted') rather than a type exclusion in every count.
- *
- * 'brief' is the value a task has carried since 0139 and is deliberately not
- * renamed to 'task' — the ClickUp candidates flow, the existing rows and
- * client_approvals_brief_ref_chk all key off it. "Task" is the label the UI
- * puts on it, nothing more.
- */
-export type ReviewItemType = "brief" | "question" | "agreement" | "idea" | "event";
 
 /** One row in the queue. `id` is client_approvals.id — never briefs.id. */
 export type ReviewItem = {
