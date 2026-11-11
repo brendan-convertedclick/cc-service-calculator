@@ -26,15 +26,22 @@ Deno.serve(async (req: Request) => {
   if (typeof code !== "string" || typeof code_verifier !== "string" || typeof redirect_uri !== "string")
     return json({ error: "invalid_body" }, 400);
 
-  const res = await fetch(`${STITCH}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      authorization: `Basic ${btoa(`signoffs:${Deno.env.get("STITCH_SIGNOFFS_SECRET") ?? ""}`)}`,
-    },
-    body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier, redirect_uri }),
-  });
-  const tokens = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string };
+  let res: Response;
+  let tokens: { id_token?: string; error?: string };
+  try {
+    res = await fetch(`${STITCH}/oauth/token`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        authorization: `Basic ${btoa(`signoffs:${Deno.env.get("STITCH_SIGNOFFS_SECRET") ?? ""}`)}`,
+      },
+      body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier, redirect_uri }),
+    });
+    tokens = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string };
+  } catch (e) {
+    console.error("signoffs-sso token exchange unreachable", e instanceof Error ? e.name : "error");
+    return json({ error: "sign_in_failed" }, 500);
+  }
   if (!res.ok || !tokens.id_token) {
     console.error("signoffs-sso token exchange failed", res.status, tokens.error);
     return json({ error: "stitch_rejected" }, 401);
@@ -45,11 +52,15 @@ Deno.serve(async (req: Request) => {
   const admin = createServiceRoleClient();
   // By id first; if staff deleted and re-added the contact (the house rule for a
   // wrong address) the id is dead, so fall back to the client's contact by email.
-  let { data: contact } = await admin
+  let { data: contact, error: lookupErr } = await admin
     .from("contacts").select("id, full_name").eq("id", who.contactId).eq("client_id", who.clientId).maybeSingle();
-  if (!contact) {
-    ({ data: contact } = await admin
+  if (!lookupErr && !contact) {
+    ({ data: contact, error: lookupErr } = await admin
       .from("contacts").select("id, full_name").eq("client_id", who.clientId).eq("email", who.email.toLowerCase()).maybeSingle());
+  }
+  if (lookupErr) {
+    console.error("signoffs-sso contact lookup failed", lookupErr.message);
+    return json({ error: "sign_in_failed" }, 500);
   }
   // A nameless contact would hit "And you are?" and fail every decision.
   if (!contact?.full_name?.trim()) return json({ error: "not_set_up" }, 403);

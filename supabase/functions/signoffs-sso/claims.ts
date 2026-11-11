@@ -28,7 +28,7 @@ export function signoffsClaimsOf(
   const c = claims(idToken);
   if (!c) return null;
   const aud = Array.isArray(c.aud) ? c.aud : [c.aud];
-  if (c.iss !== issuer || !aud.includes("signoffs") || !((c.exp as number) > now)) return null;
+  if (c.iss !== issuer || !aud.includes("signoffs") || typeof c.exp !== "number" || !(c.exp > now)) return null;
   const clientId = str(c.org_ref), contactId = str(c.external_id), email = str(c.email);
   return clientId && contactId && email ? { clientId, contactId, email } : null;
 }

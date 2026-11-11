@@ -23,6 +23,7 @@ Deno.test("wrong issuer, expired, or a missing claim gives nothing", () => {
   for (const c of [
     { ...good, iss: "https://evil.example" },
     { ...good, exp: NOW - 1 },
+    { ...good, exp: String(NOW + 60) },
     { ...good, org_ref: undefined },
     { ...good, external_id: undefined },
     { ...good, email: undefined },
