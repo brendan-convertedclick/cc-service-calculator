@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
   CalendarPlus,
@@ -95,6 +95,13 @@ const TOKEN_FAILURE_COPY: Record<TokenFailure["status"], { title: string; body: 
   },
 };
 
+/** A Stitch-minted link lives 12 hours and a newer Stitch sign-in revokes the
+ *  older one, so both ends read as "session", not "link". */
+const STITCH_ENDED_COPY = {
+  title: "This session has ended.",
+  body: "Open it again from Stitch to carry on.",
+};
+
 const RAISE_INVALID_COPY = {
   missing_title: "Give it a short name first.",
   missing_body: "Write your question first.",
@@ -163,6 +170,9 @@ export function ClientReview({
 } = {}) {
   const { token = "" } = useParams<{ token: string }>();
   const preview = !!previewClientId;
+  const [searchParams] = useSearchParams();
+  const viaStitch = searchParams.get("via") === "stitch";
+  const itemParam = searchParams.get("item");
   const tokenQuery = useReviewList(preview ? "" : token);
   const previewQuery = useClientReviewPreview(previewClientId);
   const listQuery = preview ? previewQuery : tokenQuery;
@@ -257,6 +267,15 @@ export function ClientReview({
   useEffect(() => {
     if (didInit.current || !ok) return;
     didInit.current = true;
+    // An explicit link (?item=, from Stitch) beats the mobile list rule: they
+    // asked for this one, so open it on any viewport.
+    const linked =
+      itemParam &&
+      (ok.items.find((i) => i.id === itemParam) ?? ok.work.find((w) => w.id === itemParam));
+    if (linked) {
+      setSelectedId(linked.id);
+      return;
+    }
     // Desktop only — on mobile this selection would pop the Sheet open over
     // a queue the client hasn't seen yet. A phone visitor lands on the list.
     if (!isDesktop) return;
@@ -391,14 +410,21 @@ export function ClientReview({
 
   // --- token failure -------------------------------------------------------
   if (data && isTokenFailure(data)) {
-    const copy = TOKEN_FAILURE_COPY[data.status];
+    const stitchEnded = viaStitch && (data.status === "expired" || data.status === "revoked");
+    const copy = stitchEnded ? STITCH_ENDED_COPY : TOKEN_FAILURE_COPY[data.status];
     return (
       <CenteredCard>
         <p className="text-title-small text-m-on-surface">{copy.title}</p>
         <p className="mt-2 text-body-medium text-m-on-surface-variant">{copy.body}</p>
         <p className="mt-2 text-body-medium text-m-on-surface-variant">— Converted Click</p>
         <Button asChild variant="outline" className="mt-4">
-          <a href={`mailto:${REVIEW_REPLY_TO}`}>Email us</a>
+          {stitchEnded ? (
+            <a href={`/signoffs/stitch${itemParam ? `?item=${encodeURIComponent(itemParam)}` : ""}`}>
+              Open from Stitch
+            </a>
+          ) : (
+            <a href={`mailto:${REVIEW_REPLY_TO}`}>Email us</a>
+          )}
         </Button>
       </CenteredCard>
     );
