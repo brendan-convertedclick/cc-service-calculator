@@ -374,12 +374,12 @@ export function MeetingFormBody({ meeting, onSaved }: MeetingFormBodyProps) {
                       ? "Pick a client first"
                       : loadingLists
                         ? "Loading…"
-                        : "Project/list default"
+                        : "Internal Meeting (default)"
                   }
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_WORK_STREAM}>Project/list default</SelectItem>
+                <SelectItem value={NO_WORK_STREAM}>Internal Meeting (default)</SelectItem>
                 {workStreamSource.map((d) => (
                   <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
                 ))}
