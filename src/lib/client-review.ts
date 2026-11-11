@@ -10,17 +10,29 @@
 
 import type { CalendarEntry } from "@/lib/calendar-month";
 import { todayISO, toISODate } from "@/lib/dates";
-import type { StopClockSource } from "@/lib/stop-clock";
+import { bucketOf, workBucketOf } from "../../supabase/functions/_shared/client-buckets";
 import type {
   ReviewBucket,
   ReviewItem,
-  ReviewItemType,
   ReviewMessage,
   ReviewMove,
   ReviewOpen,
   ReviewScheduleRow,
   ReviewWork,
 } from "@/types/client-review";
+
+// The moved definitions keep their old home as far as importers can tell.
+export {
+  bucketCounts,
+  bucketOf,
+  TYPE_LABEL,
+  typeLabelFor,
+  workBucketOf,
+} from "../../supabase/functions/_shared/client-buckets";
+export {
+  holdingRows,
+  type HoldingRow,
+} from "../../supabase/functions/_shared/stop-clock";
 
 /**
  * The address a client replies to. Deliberately a team mailbox, never a
@@ -33,39 +45,6 @@ import type {
  * lands nowhere. It is a constant precisely so that is a one-line change.
  */
 export const REVIEW_REPLY_TO = "hello@convertedclick.co.za";
-
-/**
- * Which pane an item sits in. The ball is with whoever has to act next:
- *   pending           → the client has not decided, so it is their move…
- *   …unless owed_by is "us": an agreement WE made is ours to deliver, so it
- *                       sits under "With us" and carries no buttons. Putting
- *                       our own commitment in their "Your move" pile would
- *                       ask them to close something they cannot do.
- *   …unless the linked task's own ClickUp clock says the work has come back
- *                       to our side: whoever is HOLDING IT UP is whose pane it
- *                       is in. An approval we asked for that we are now
- *                       reworking is not their move, and listing it under
- *                       "Your move" asks them to act on something they cannot.
- *   changes_requested → they answered and it came back to us
- *   approved          → done, kept for the record
- *   noted             → an event: a date, in nobody's court at all
- *
- * A finished task (court "done") does NOT settle anything: the work landing is
- * not the client agreeing to it, and moving an undecided ask into "Signed off"
- * would claim a sign-off nobody gave. It stays their move, which is what it is
- * — we are done, they have not answered.
- */
-export function bucketOf(item: ReviewItem): ReviewBucket {
-  // An event is a date, not a job. It is in nobody's court, which is exactly
-  // why it has its own state (0149) rather than being filtered out of the
-  // three that are all about whose move it is.
-  if (item.state === "noted") return "coming-up";
-  if (item.state === "pending") {
-    return item.owed_by === "us" || item.court === "us" ? "with-us" : "your-move";
-  }
-  if (item.state === "changes_requested") return "with-us";
-  return "signed-off";
-}
 
 /**
  * Past its due date and still undecided. A decided item is never overdue —
@@ -88,18 +67,6 @@ export function daysOverdue(item: ReviewItem): number {
   const due = new Date(`${item.due_date}T00:00:00`);
   const today = new Date(`${todayISO()}T00:00:00`);
   return Math.max(0, Math.round((today.getTime() - due.getTime()) / 86_400_000));
-}
-
-/**
- * Which pane a piece of briefed work sits in. THE SAME RULE `bucketOf` uses
- * for an ask, deliberately: whoever is holding it up is whose pane it is in.
- * Not a third rule, or the two halves of one list would disagree about what
- * "with us" means.
- *
- * Work is never settled and never a date, so only the two live panes apply.
- */
-export function workBucketOf(w: ReviewWork): ReviewBucket {
-  return w.court === "client" ? "your-move" : "with-us";
 }
 
 /**
@@ -147,27 +114,6 @@ export function queueFor(
     const bp = b.kind === "item" ? pressureDays(b.item) : workPressureDays(b.work);
     return bp - ap;
   });
-}
-
-/**
- * How many things sit in each pane. Every bucket is present, even at zero.
- *
- * `work` counts too, or the rail says 2 while the list shows 5 — the counts
- * and the rows must come from one accounting.
- */
-export function bucketCounts(
-  items: ReviewItem[],
-  work: ReviewWork[] = [],
-): Record<ReviewBucket, number> {
-  const counts: Record<ReviewBucket, number> = {
-    "your-move": 0,
-    "with-us": 0,
-    "signed-off": 0,
-    "coming-up": 0,
-  };
-  for (const item of items) counts[bucketOf(item)] += 1;
-  for (const w of work) counts[workBucketOf(w)] += 1;
-  return counts;
 }
 
 /**
@@ -264,116 +210,6 @@ export function heldLine(item: ReviewItem): string | null {
 }
 
 /**
- * One row of "who's holding it up", ready for stopClock and the same
- * RunwayChart staff argue from. Nothing here says where the row came from.
- */
-export type HoldingRow = StopClockSource & { id: string; title: string };
-
-/**
- * When something with no linked task landed with whoever owes it.
- *
- * An agreement started when they made it, not when we typed it up. A question
- * started when the email went out. Everything else falls back to the row's own
- * creation. `created_at` alone would date a commitment made in a meeting on
- * the 4th to the day someone got round to recording it.
- */
-function heldSince(item: ReviewItem): string {
-  return item.agreed_at ?? item.emailed_at ?? item.created_at;
-}
-
-/**
- * EVERYTHING OPEN, and whose hands it is sitting in. Three sources, because a
- * client looking at this wants the whole position:
- *
- *   their asks       questions and agreements, which have no ClickUp task and
- *                    so had no clock and no row at all until now
- *   linked tasks     an ask drafted from a brief, carrying ClickUp's clocks
- *   `work`           briefed tasks that never became an ask — the ones staff
- *                    could see and the client could not
- *
- * That last one is the whole reason this function changed. The two sides of
- * this tab read different tables, so a client with seven live tasks and one
- * agreement saw one row. `work` titles are sanitised SERVER-SIDE (ReviewWork),
- * because raw_subject reads "DFT V1.1" and must never cross.
- *
- * Two clocks, one rule for each kind of row:
- *   linked task     ClickUp's own banked totals, and the client's days move
- *                   the due date — that date is our delivery promise, and
- *                   days they held it are days we did not have.
- *   everything else no banked total to read, so the clock runs from the moment
- *                   it landed with them and the whole of it belongs to
- *                   whoever owes it. The date does NOT move: it is the date
- *                   they were asked to hit. See `stop_clock` in stop-clock.ts.
- *
- * Settled items are out. How long something took is our record to keep, not a
- * reproach to keep showing them. Sorting belongs to the caller, which has the
- * clocks: the elapsed time on an unlinked row is not on the row itself.
- */
-export function holdingRows(items: ReviewItem[], work: ReviewWork[] = []): HoldingRow[] {
-  const rows: HoldingRow[] = [];
-
-  // Briefed work first only in construction order; the caller sorts on the
-  // clock. A `done` row never reaches here — the server leaves finished work
-  // out, matching the staff tab's Open default and the rule that how long
-  // something took is our record, not a reproach.
-  for (const w of work) {
-    if (w.court === "done") continue;
-    rows.push({
-      id: w.id,
-      title: w.title,
-      court: w.court,
-      client_wait_ms: w.waiting_ms,
-      internal_wait_ms: w.our_ms,
-      clickup_status_synced_at: null,
-      original_due_date: w.due_date,
-      created_at: w.work_since,
-      // Points are an internal estimate and never cross the wire; without them
-      // the chart simply does not draw the "tight" verdict.
-      original_points: null,
-      // The client's page is our delivery date on a briefed task, so their
-      // days DO move it — the default, and the opposite of an ask they owe.
-    });
-  }
-
-  for (const item of items) {
-    if (item.state !== "pending") continue;
-    const base = { id: item.id, title: item.client_title, original_points: null };
-
-    if (item.court && item.work_since) {
-      rows.push({
-        ...base,
-        court: item.court,
-        client_wait_ms: item.waiting_ms,
-        internal_wait_ms: item.our_ms,
-        // No running-clock extrapolation on a linked task: the banked totals
-        // are at most half an hour old (the sync cron) and nothing here is
-        // finer than a day.
-        clickup_status_synced_at: null,
-        original_due_date: item.due_date,
-        created_at: item.work_since,
-      });
-      continue;
-    }
-
-    // Nothing banked, so the whole elapsed time is the running clock — which
-    // is exactly what splitAt does with a zero total and a "synced at" of the
-    // moment it landed. One copy of that arithmetic, not a second one here.
-    const since = heldSince(item);
-    rows.push({
-      ...base,
-      court: item.owed_by === "us" ? "us" : "client",
-      client_wait_ms: 0,
-      internal_wait_ms: 0,
-      clickup_status_synced_at: since,
-      original_due_date: item.due_date,
-      created_at: since,
-      stop_clock: false,
-    });
-  }
-  return rows;
-}
-
-/**
  * Queue order: what needs them most, first.
  *   1. undecided before decided
  *   2. within undecided, longest-waiting first (see pressureDays) — an item 31
@@ -437,34 +273,6 @@ export function formatAsAt(iso: string): string {
   const h = String(d.getHours()).padStart(2, "0");
   const m = String(d.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
-}
-
-/**
- * What the client is being asked to do, in their words. The chip is the only
- * thing that tells three very different asks apart in a single queue, so it
- * says the ACT, not the record type: "Question", not "client_approvals row of
- * type question".
- */
-export const TYPE_LABEL: Record<ReviewItemType, string> = {
-  brief: "Sign-off",
-  question: "Question",
-  agreement: "You agreed",
-  // Staff-only. An idea is always parked (0148) and parked rows never cross to
-  // a client, so this label is only ever read by the staff table.
-  idea: "Idea",
-  event: "Date",
-};
-
-/**
- * The chip. Two types read differently depending on which way they run: an
- * agreement depends on who made the promise, and a question depends on who
- * asked — "Question" over something the client themselves sent us reads as
- * though we are asking them their own question back.
- */
-export function typeLabelFor(item: ReviewItem): string {
-  if (item.item_type === "agreement") return item.owed_by === "us" ? "We agreed" : "You agreed";
-  if (item.item_type === "question" && item.raised_by === "client") return "You asked";
-  return TYPE_LABEL[item.item_type];
 }
 
 const VIA_PHRASE: Record<string, string> = {

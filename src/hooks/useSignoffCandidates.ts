@@ -17,8 +17,12 @@ import { useAuth } from "@/context/AuthContext";
 import { errorMessage } from "@/lib/utils";
 import { suggestClientTitle } from "@/lib/client-title";
 
-/** The ClickUp statuses that mean the ball is in the client's court. */
-export const WAITING_STATUSES = ["waiting on client", "send to client"] as const;
+import { WAITING_STATUSES } from "../../supabase/functions/_shared/stop-clock";
+
+/** The ClickUp statuses that mean the ball is in the client's court. Defined in
+ *  _shared/stop-clock.ts so client-waiting.ts need not import this hook (and the
+ *  browser Supabase client with it). */
+export { WAITING_STATUSES };
 
 export type SignoffCandidate = {
   briefId: string;

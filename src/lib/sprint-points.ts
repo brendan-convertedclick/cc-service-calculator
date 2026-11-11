@@ -2,15 +2,13 @@
 //   hours × MINS_PER_HOUR / MINS_PER_POINT = points
 //   hours × 4 = points
 
-export const MINS_PER_POINT = 15;
-export const POINTS_PER_HOUR = 60 / MINS_PER_POINT; // 4
+import { POINTS_PER_HOUR, pointsToHours } from "../../supabase/functions/_shared/stop-clock";
+
+// The three live in _shared (the stop clock turns points into hours on Deno too).
+export { MINS_PER_POINT, POINTS_PER_HOUR, pointsToHours } from "../../supabase/functions/_shared/stop-clock";
 
 export function hoursToPoints(hours: number): number {
   return hours * POINTS_PER_HOUR;
-}
-
-export function pointsToHours(points: number): number {
-  return points / POINTS_PER_HOUR;
 }
 
 // Most briefs are small; the box covers the rest. The speed brief binds keys

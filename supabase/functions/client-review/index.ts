@@ -77,33 +77,19 @@ import { timingSafeEqualHex } from "../_shared/hmac.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { suggestClientTitle, UNTITLED_WORK } from "../_shared/client-title.ts";
 import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
+import type {
+  ReviewDecision,
+  ReviewItemState,
+  ReviewItemType,
+} from "../_shared/client-buckets.ts";
 
 // --- wire types --------------------------------------------------------
-// Mirrors src/types/client-review.ts. If you change one, change both.
-
-type ReviewDecision = "approved" | "changes_requested";
-/** 'parked' (0148) is staff-only and filtered out of every query below.
- *  'noted' (0149) belongs to events: a date nobody acts on. */
-type ReviewItemState = "pending" | "parked" | "noted" | ReviewDecision;
+// Mirrors src/types/client-review.ts. If you change one, change both. The
+// three state/type unions are the exception: they come from _shared/client-buckets.ts.
 
 const DECISIONS: ReviewDecision[] = ["approved", "changes_requested"];
 
 type ReviewContact = { id: string; full_name: string };
-
-/**
- * What kind of thing the client is looking at. They are three different asks
- * and the portal renders three different controls:
- *   brief     — a deliverable awaiting APPROVAL     (Approve / Request changes)
- *   question  — something we asked, awaiting an ANSWER (answer box + Send)
- *   agreement — something they committed to, awaiting DOING (Done / Not yet)
- *   idea      — worth considering, not planned. Never reaches this page: an
- *               idea is always parked (0148) and parked rows are filtered out.
- *   event     — a date in the client's world, which they can add themselves
- *               (0149). Nobody acts on it, so it carries state 'noted' and no
- *               controls at all.
- * 'brief' is the historical value for a task and is not renamed.
- */
-type ReviewItemType = "brief" | "question" | "agreement" | "idea" | "event";
 
 type ReviewItem = {
   id: string; // client_approvals.id — NOT briefs.id
