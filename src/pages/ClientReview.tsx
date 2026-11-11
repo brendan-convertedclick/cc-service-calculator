@@ -33,6 +33,7 @@ import { useClientReviewPreview } from "@/hooks/useClientSignoffs";
 import {
   bucketCounts,
   bucketOf,
+  linkedSelection,
   calendarEntriesFor,
   formatAsAt,
   isOverdue,
@@ -269,10 +270,9 @@ export function ClientReview({
     didInit.current = true;
     // An explicit link (?item=, from Stitch) beats the mobile list rule: they
     // asked for this one, so open it on any viewport.
-    const linked =
-      itemParam &&
-      (ok.items.find((i) => i.id === itemParam) ?? ok.work.find((w) => w.id === itemParam));
+    const linked = linkedSelection(ok.items, ok.work, itemParam);
     if (linked) {
+      setBucket(linked.bucket);
       setSelectedId(linked.id);
       return;
     }
@@ -281,7 +281,7 @@ export function ClientReview({
     if (!isDesktop) return;
     const first = sortForQueue(ok.items).filter((item) => bucketOf(item) === "your-move")[0];
     if (first) setSelectedId(first.id);
-  }, [ok, isDesktop]);
+  }, [ok, isDesktop, itemParam]);
 
   function selectBucket(next: ReviewBucket) {
     setBucket(next);

@@ -94,6 +94,20 @@ export type QueueEntry =
   | { kind: "item"; id: string; item: ReviewItem }
   | { kind: "work"; id: string; work: ReviewWork };
 
+/** What `?item=` selects: the ask or briefed task with that id, and the tab it
+ *  lives under, so the list beside the detail shows the same row. */
+export function linkedSelection(
+  items: ReviewItem[],
+  work: ReviewWork[],
+  id: string | null,
+): { id: string; bucket: ReviewBucket } | null {
+  if (!id) return null;
+  const item = items.find((i) => i.id === id);
+  if (item) return { id, bucket: bucketOf(item) };
+  const w = work.find((x) => x.id === id);
+  return w ? { id, bucket: workBucketOf(w) } : null;
+}
+
 export function queueFor(
   items: ReviewItem[],
   work: ReviewWork[],
