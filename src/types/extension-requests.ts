@@ -1,3 +1,5 @@
+import type { BudgetVerdict } from "@/lib/retainer-budget";
+
 // Hand-written interface for extension_requests until 0053 lands in db.ts.
 
 export type ExtensionTier = "auto" | "admin" | "owner";
@@ -148,4 +150,9 @@ const TIER_RANK: Record<ExtensionTier, number> = { auto: 0, admin: 1, owner: 2 }
  * points and a due-date push, each classified independently. */
 export function maxTier(a: ExtensionTier, b: ExtensionTier): ExtensionTier {
   return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
+}
+
+/** The points leg when the retainer's budget is known: Free -> auto, To do -> admin, past the budget -> owner. */
+export function tierFromBudget(v: BudgetVerdict): ExtensionTier {
+  return v === "fits" ? "auto" : v === "uses_todo" ? "admin" : "owner";
 }

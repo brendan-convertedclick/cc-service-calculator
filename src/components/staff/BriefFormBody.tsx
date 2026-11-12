@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ClickUpListSelect } from "@/components/ClickUpListSelect";
+import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
 import { TimePresetField } from "@/components/TimePresetField";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -189,6 +190,14 @@ export function BriefFormBody({
           <Label htmlFor="brief-hours">Estimated time</Label>
           <TimePresetField id="brief-hours" value={hours} onChange={setHours} />
         </div>
+
+        {clientId && (
+          <ClientBudgetPanel
+            clientId={clientId}
+            clientName={clients.find((c) => c.id === clientId)?.name}
+            askHours={Number(hours) || 0}
+          />
+        )}
 
         <WorkflowSelect
           id="brief-workflow"
