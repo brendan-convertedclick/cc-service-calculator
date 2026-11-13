@@ -68,7 +68,7 @@ export function Projects() {
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<DerivedStatus>>(new Set());
-  const [view, setView] = useState<"active" | "completed" | "archived">("active");
+  const [view, setView] = useState<"active" | "completed" | "archived" | "all">("active");
   const q = search.trim().toLowerCase();
 
   const archivedCount = useMemo(
@@ -102,7 +102,10 @@ export function Projects() {
     () =>
       enriched.filter(({ project, status }) => {
         // Completed and archived projects each live in their own view tab.
-        if (view === "archived") {
+        // "All" is every project that is not archived (Lisa, 2026-11-13).
+        if (view === "all") {
+          if (status === "archived") return false;
+        } else if (view === "archived") {
           if (status !== "archived") return false;
         } else if (view === "completed") {
           if (status !== "complete") return false;
@@ -211,14 +214,16 @@ export function Projects() {
           <div className="flex items-center gap-4">
             <h1 className="text-headline-medium">Projects</h1>
             <div className="inline-flex rounded-md border border-m-outline-variant p-0.5">
-              {(["active", "completed", "archived"] as const).map((v) => {
+              {(["active", "completed", "archived", "all"] as const).map((v) => {
                 const active = view === v;
                 const label =
                   v === "active"
                     ? "Active"
                     : v === "completed"
                       ? `Completed${completedCount > 0 ? ` (${completedCount})` : ""}`
-                      : `Archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`;
+                      : v === "archived"
+                        ? `Archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`
+                        : "All";
                 return (
                   <button
                     key={v}
