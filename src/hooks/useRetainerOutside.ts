@@ -10,7 +10,7 @@ const rpc = supabase.rpc.bind(supabase) as unknown as (
   args: Record<string, unknown>,
 ) => PromiseLike<{ data: OutsideRow[] | null; error: PostgrestError | null }>;
 
-export interface RetainerOption { id: string; name: string; clientId: string }
+export interface RetainerOption { id: string; name: string; clientId: string; open: boolean }
 
 /** Retainer-client time in a SAST "YYYY-MM" month that lands on none of the client's retainers, plus the retainers it could go to. */
 export function useRetainerOutside(month: string) {
@@ -21,19 +21,24 @@ export function useRetainerOutside(month: string) {
         rpc("retainer_outside_work", { p_month: month }),
         supabase
           .from("projects")
-          .select("id, name, client_id")
+          .select("id, name, client_id, retainer_monthly_fee_cents, retainer_hours_target")
           .eq("engagement_type", "retainer")
           .eq("status", "in_progress")
-          // Only a budgeted retainer counts time (retainer_task_project's `own`).
-          // Booking to an open one would send the row straight back here.
-          .or("retainer_monthly_fee_cents.not.is.null,retainer_hours_target.not.is.null")
           .order("name"),
       ]);
       if (out.error) throw out.error;
       if (proj.error) throw proj.error;
       return {
         clients: groupOutside(out.data ?? []),
-        retainers: (proj.data ?? []).map((p) => ({ id: p.id, name: p.name, clientId: p.client_id as string })),
+        // A retainer with no fee and no target (Trellidor Adhoc) has no budget
+        // to count against: work booked there is billed for the month, so it
+        // leaves the hidden pile as "invoice separately" (0210).
+        retainers: (proj.data ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          clientId: p.client_id as string,
+          open: p.retainer_monthly_fee_cents == null && p.retainer_hours_target == null,
+        })),
       };
     },
   });

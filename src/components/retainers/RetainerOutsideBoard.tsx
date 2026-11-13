@@ -100,7 +100,9 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
                             </SelectTrigger>
                             <SelectContent>
                               {options.map((o) => (
-                                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                                <SelectItem key={o.id} value={o.id}>
+                                  {o.open ? `${o.name} (no budget, invoiced)` : o.name}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
