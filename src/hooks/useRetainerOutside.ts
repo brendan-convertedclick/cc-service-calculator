@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAssignBriefToProject } from "@/hooks/useAssignBriefToProject";
 import { callEdgeFn } from "@/lib/edge";
-import { adhocName, groupOutside, type OutsideClient, type OutsideRow } from "@/lib/retainer-outside";
+import { adhocName, groupOutside, type DismissKind, type OutsideClient, type OutsideRow } from "@/lib/retainer-outside";
 
 // retainer_outside_work is not in the generated db types yet, so the rpc is untyped here.
 const rpc = supabase.rpc.bind(supabase) as unknown as (
@@ -118,14 +118,14 @@ type Untyped = {
 };
 const dismissals = () => (supabase as unknown as Untyped).from("retainer_outside_dismissals");
 
-/** "Confirm internal": genuinely our time. Who and when are stamped by the database. */
+/** "Confirm internal" or "Mark as sales" (0213). Who and when are stamped by the database. */
 export function useDismissOutside() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ row, undo }: { row: OutsideRow; undo?: boolean }) => {
+    mutationFn: async ({ row, kind = "internal", undo }: { row: OutsideRow; kind?: DismissKind; undo?: boolean }) => {
       const { error } = undo
         ? await dismissals().delete().eq("clickup_task_id", row.clickup_task_id)
-        : await dismissals().insert({ clickup_task_id: row.clickup_task_id });
+        : await dismissals().insert({ clickup_task_id: row.clickup_task_id, kind });
       if (error) throw error;
     },
     onSuccess: () => invalidateOutside(qc),

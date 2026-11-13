@@ -4,7 +4,7 @@ import { adhocName, canBook, canConvertToAdhoc, groupOutside, totalOutside, type
 const row = (o: Partial<OutsideRow>): OutsideRow => ({
   client_id: "c1", client_name: "Dovetail RSA", clickup_task_id: "t1", task_name: "x",
   reason: "meeting", hours: 1, brief_id: null, brief_billing_type: null, meeting_id: "m1", ongoing_task_id: null,
-  dismissed_at: null, dismissed_by_name: null,
+  dismissed_at: null, dismissed_by_name: null, dismissed_kind: null,
   ...o,
 });
 
@@ -16,12 +16,13 @@ describe("groupOutside", () => {
       row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t3", reason: "internal", hours: 2.5, brief_id: "b3", meeting_id: null }),
       row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t4", reason: "unlinked", hours: 1, brief_id: "b4", meeting_id: null }),
       row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t5", reason: "archived", hours: 4, brief_id: "b5", meeting_id: null }),
-      row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t6", reason: "internal", hours: 2, brief_id: "b6", meeting_id: null, dismissed_at: "2026-11-13T10:00:00Z" }),
+      row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t6", reason: "internal", hours: 2, brief_id: "b6", meeting_id: null, dismissed_at: "2026-11-13T10:00:00Z", dismissed_kind: "internal" }),
+      row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t7", reason: "unlinked", hours: 1.5, brief_id: "b7", meeting_id: null, dismissed_at: "2026-11-13T10:00:00Z", dismissed_kind: "sales" }),
     ]);
     expect(out.map((c) => c.clientName)).toEqual(["Trellidor", "Dovetail RSA"]);
-    expect(out[0]).toMatchObject({ internal: 4.5, other: 1, hidden: 3.5, archived: 4, dismissed: 2 });
+    expect(out[0]).toMatchObject({ internal: 4.5, other: 2.5, hidden: 3.5, archived: 4, dismissed: 2, sales: 1.5 });
     expect(out[1]).toMatchObject({ meeting: 0.75, hidden: 0.75, adhoc: 3 });
-    expect(totalOutside(out)).toMatchObject({ hidden: 4.25, adhoc: 3, dismissed: 2 });
+    expect(totalOutside(out)).toMatchObject({ hidden: 4.25, adhoc: 3, dismissed: 2, sales: 1.5 });
   });
 
   it("offers the fixes only on undismissed leaks, and ad hoc only on briefs", () => {

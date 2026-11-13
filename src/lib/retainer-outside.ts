@@ -23,7 +23,11 @@ export interface OutsideRow {
   ongoing_task_id: string | null;
   dismissed_at: string | null;
   dismissed_by_name: string | null;
+  /** What it was confirmed as (0213): ours, or sales. Null while undismissed. */
+  dismissed_kind: DismissKind | null;
 }
+
+export type DismissKind = "internal" | "sales";
 
 /**
  * The columns of the per-client table. The first three are leaks (time lost
@@ -80,6 +84,7 @@ export interface OutsideTotals {
   adhoc: number;
   archived: number;
   dismissed: number;
+  sales: number;
 }
 
 export interface OutsideClient extends OutsideTotals {
@@ -97,6 +102,7 @@ const zero = (): OutsideTotals => ({
   adhoc: 0,
   archived: 0,
   dismissed: 0,
+  sales: 0,
 });
 
 function add(t: OutsideTotals, r: OutsideRow) {
@@ -105,7 +111,7 @@ function add(t: OutsideTotals, r: OutsideRow) {
   // 2026-11-13); only the hidden total drops what has been confirmed.
   const col = OUTSIDE_COLUMN[r.reason] ?? "other";
   t[col] += h;
-  if (r.dismissed_at) t.dismissed += h;
+  if (r.dismissed_at) t[r.dismissed_kind === "sales" ? "sales" : "dismissed"] += h;
   else if (HIDDEN.includes(col)) t.hidden += h;
 }
 

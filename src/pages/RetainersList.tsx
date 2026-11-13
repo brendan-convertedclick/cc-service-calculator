@@ -47,6 +47,8 @@ import { retainerStatus, workingDays, STATUS_LABEL as DELIVERY_LABEL, type Retai
 import { ProgressRing } from "@/components/retainers/ProgressRing";
 import { RetainerBudgetBoard } from "@/components/retainers/RetainerBudgetBoard";
 import { RetainerOutsideBoard } from "@/components/retainers/RetainerOutsideBoard";
+import { useRetainerOutside } from "@/hooks/useRetainerOutside";
+import { salesMarked } from "@/lib/retainer-split";
 import { SplitTab, type SplitContributor } from "@/components/retainers/SplitTab";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
@@ -686,13 +688,23 @@ export function RetainersList() {
   // disagree. Unlinked is pulled out of ad hoc by kind because on a three-way
   // bar it would otherwise read as ad hoc creeping up, when it is retainer
   // work briefed against no retainer.
+  // Time marked as sales on the Outside tab (0213) leaves whichever of ad hoc
+  // or internal the Book had it in and becomes its own row.
+  const outside = useRetainerOutside(month);
   const split = useMemo(() => {
-    const totalOf = (key: string) => sections.find((s) => s.key === key)?.delivered ?? 0;
+    const marked = salesMarked((outside.data?.clients ?? []).flatMap((c) => c.rows));
+    const sumOf = (m: Map<string, number>) => [...m.values()].reduce((n, h) => n + h, 0);
+    const less = (key: string) =>
+      key === "adhoc" ? marked.fromAdhoc : key === "internal" ? marked.fromInternal : new Map<string, number>();
+    const totalOf = (key: string) =>
+      Math.max(0, (sections.find((s) => s.key === key)?.delivered ?? 0) - sumOf(less(key)));
     const contributorsOf = (key: string): SplitContributor[] =>
       (sections.find((s) => s.key === key)?.groups ?? [])
-        .map((g) => ({ clientName: g.clientName, hours: g.delivered }))
+        .map((g) => ({ clientName: g.clientName, hours: Math.max(0, g.delivered - (less(key).get(g.clientName) ?? 0)) }))
         .filter((c) => c.hours > 0)
         .sort((a, b) => b.hours - a.hours);
+    const sales = new Map(marked.fromAdhoc);
+    for (const [k, v] of marked.fromInternal) sales.set(k, (sales.get(k) ?? 0) + v);
     // Retainer absorbs the recurring tab, so its client list has to as well.
     const merged = new Map<string, number>();
     for (const c of [...contributorsOf("client"), ...contributorsOf("recurring")]) {
@@ -707,18 +719,22 @@ export function RetainersList() {
         .reduce(
           (n, g) => n + g.extras.filter((x) => x.kind === "unlinked")
             .reduce((m, x) => m + x.trackedHours, 0),
-          0,
+          -sumOf(marked.fromAdhoc),
         ),
       internal: totalOf("internal"),
+      sales: sumOf(sales),
       contributors: {
         retainer: [...merged.entries()]
           .map(([clientName, hours]) => ({ clientName, hours }))
           .sort((a, b) => b.hours - a.hours),
         adhoc: contributorsOf("adhoc"),
         internal: contributorsOf("internal"),
+        sales: [...sales.entries()]
+          .map(([clientName, hours]) => ({ clientName, hours }))
+          .sort((a, b) => b.hours - a.hours),
       },
     };
-  }, [sections, clientGroups]);
+  }, [sections, clientGroups, outside.data]);
   // The Internal tab answers a different question, so it gets a different set
   // of columns (Lisa, 2026-09-08). Monthly fee and Planned are both facts about
   // an invoice — a notional fee we pay ourselves, and the hours that fee buys —

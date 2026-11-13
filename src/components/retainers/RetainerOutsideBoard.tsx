@@ -34,6 +34,7 @@ import {
   OUTSIDE_COLUMN,
   OUTSIDE_REASON_LABEL,
   totalOutside,
+  type DismissKind,
   type OutsideRow,
   type OutsideTotals,
 } from "@/lib/retainer-outside";
@@ -131,12 +132,15 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
       onSuccess: () => toast.success("Converted to ad hoc, in ClickUp too"),
       onError: (e) => toast.error(`Couldn't convert it: ${errorMessage(e)}`),
     });
-  const onDismiss = (row: OutsideRow, undo = false) =>
+  /** Confirm as ours or as sales, or with no kind, Undo. */
+  const onDismiss = (row: OutsideRow, kind?: DismissKind) =>
     dismiss.mutate(
-      { row, undo },
+      { row, kind, undo: !kind },
       {
         onSuccess: () =>
-          toast.success(undo ? "Back on the report" : "Confirmed as internal"),
+          toast.success(
+            !kind ? "Back on the report" : kind === "sales" ? "Marked as sales" : "Confirmed as internal",
+          ),
         onError: (e) => toast.error(`Couldn't save that: ${errorMessage(e)}`),
       },
     );
@@ -197,10 +201,11 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
                           {c.clientName}
                         </span>
                       </div>
-                      {(c.dismissed > 0 || c.archived > 0) && (
+                      {(c.dismissed > 0 || c.sales > 0 || c.archived > 0) && (
                         <p className="pl-6 text-label-small text-m-on-surface-variant">
                           {[
                             c.dismissed > 0 && `Dismissed: ${h(c.dismissed)}`,
+                            c.sales > 0 && `Sales: ${h(c.sales)}`,
                             c.archived > 0 &&
                               `Archived briefs: ${h(c.archived)}`,
                           ]
@@ -235,9 +240,14 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
             <TableRow className="hover:bg-transparent">
               <TableCell className="text-label-large text-m-on-surface">
                 Total
-                {total.dismissed > 0 && (
+                {(total.dismissed > 0 || total.sales > 0) && (
                   <p className="text-label-small text-m-on-surface-variant">
-                    Dismissed: {h(total.dismissed)}
+                    {[
+                      total.dismissed > 0 && `Dismissed: ${h(total.dismissed)}`,
+                      total.sales > 0 && `Sales: ${h(total.sales)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 )}
               </TableCell>
@@ -265,7 +275,14 @@ const BLOCKS: Array<{ label: string; has: (r: OutsideRow) => boolean }> = [
     label: "Ad hoc, invoiced separately",
     has: (r) => !r.dismissed_at && OUTSIDE_COLUMN[r.reason] === "adhoc",
   },
-  { label: "Confirmed internal", has: (r) => Boolean(r.dismissed_at) },
+  {
+    label: "Confirmed internal",
+    has: (r) => Boolean(r.dismissed_at) && r.dismissed_kind !== "sales",
+  },
+  {
+    label: "Marked as sales",
+    has: (r) => Boolean(r.dismissed_at) && r.dismissed_kind === "sales",
+  },
   {
     label: "Archived briefs",
     has: (r) => !r.dismissed_at && r.reason === "archived",
@@ -287,7 +304,7 @@ function TaskList({
   canDismiss: boolean;
   onBook: (row: OutsideRow, projectId: string) => void;
   onConvert: (row: OutsideRow) => void;
-  onDismiss: (row: OutsideRow, undo?: boolean) => void;
+  onDismiss: (row: OutsideRow, kind?: DismissKind) => void;
 }) {
   return (
     <Table>
@@ -355,7 +372,10 @@ function TaskList({
                     {r.dismissed_at ? (
                       <div className="flex flex-wrap items-center gap-2 text-body-small text-m-on-surface-variant">
                         <span>
-                          Confirmed internal by{" "}
+                          {r.dismissed_kind === "sales"
+                            ? "Marked as sales"
+                            : "Confirmed internal"}{" "}
+                          by{" "}
                           {r.dismissed_by_name ?? "someone"},{" "}
                           {new Date(r.dismissed_at).toLocaleDateString(
                             "en-ZA",
@@ -366,7 +386,7 @@ function TaskList({
                           variant="ghost"
                           size="sm"
                           disabled={busy}
-                          onClick={() => onDismiss(r, true)}
+                          onClick={() => onDismiss(r)}
                         >
                           Undo
                         </Button>
@@ -413,17 +433,27 @@ function TaskList({
                           </Button>
                         )}
                         {canDismiss ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => onDismiss(r)}
-                          >
-                            Confirm internal
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => onDismiss(r, "internal")}
+                            >
+                              Confirm internal
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => onDismiss(r, "sales")}
+                            >
+                              Mark as sales
+                            </Button>
+                          </>
                         ) : (
                           <span className="text-body-small text-m-on-surface-variant">
-                            Sign in as yourself to confirm internal
+                            Sign in as yourself to confirm internal or mark as sales
                           </span>
                         )}
                       </div>
