@@ -340,6 +340,7 @@ Deno.serve(async (req: Request) => {
           console.warn(`[time-entries] ${gone.length} of ${heldIds.length} missing from ClickUp's reply; not deleting`);
           gone.length = 0;
         }
+        if (gone.length > 0) console.log(`[time-entries] gone from ClickUp: ${gone.join(",")}`);
         for (let i = 0; i < gone.length; i += 200) {
           const { error } = await supabase.from("clickup_time_entries").delete().in("id", gone.slice(i, i + 200));
           if (!error) timeEntriesDeleted += Math.min(200, gone.length - i);
