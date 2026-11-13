@@ -8,13 +8,31 @@ type Actual = Database["public"]["Views"]["project_actuals_current"]["Row"];
 
 export type ProjectWithActuals = Project & { actuals: Actual[] };
 
+// PostgREST stops at 1,000 rows without saying so, and the latest-snapshot view
+// held 958 by November 2026: past that, projects would silently lose their tasks.
+async function allCurrentActuals() {
+  const PAGE = 1000;
+  const data: Actual[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await supabase
+      .from("project_actuals_current")
+      .select("*")
+      .order("project_id")
+      .order("clickup_task_id")
+      .range(from, from + PAGE - 1);
+    if (res.error) return { data: null, error: res.error };
+    data.push(...(res.data ?? []));
+    if ((res.data ?? []).length < PAGE) return { data, error: null };
+  }
+}
+
 export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
     queryFn: async (): Promise<ProjectWithActuals[]> => {
       const [projectsRes, actualsRes] = await Promise.all([
         supabase.from("projects").select("*").order("started_at", { ascending: false }),
-        supabase.from("project_actuals_current").select("*"),
+        allCurrentActuals(),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (actualsRes.error) throw actualsRes.error;
