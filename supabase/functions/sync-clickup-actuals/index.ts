@@ -239,6 +239,7 @@ Deno.serve(async (req: Request) => {
       const windowEnd = Date.now();
       const windowStart = windowEnd - timeEntryDays * 86_400_000;
       const rows: Array<Record<string, unknown>> = [];
+      let everyChunkRead = true;
       for (let from = windowStart; from < windowEnd; from += CHUNK_MS) {
         const to = Math.min(from + CHUNK_MS, windowEnd);
         try {
@@ -259,6 +260,7 @@ Deno.serve(async (req: Request) => {
             CU,
           );
           if (!res.ok) {
+            everyChunkRead = false;
             console.warn(`[time-entries] ${res.status}: ${(await res.text()).slice(0, 200)}`);
             continue;
           }
@@ -280,6 +282,7 @@ Deno.serve(async (req: Request) => {
             });
           }
         } catch (err) {
+          everyChunkRead = false;
           console.warn(`[time-entries] threw: ${err instanceof Error ? err.message : err}`);
         }
       }
@@ -292,6 +295,39 @@ Deno.serve(async (req: Request) => {
         if (error) console.error(`[time-entries] upsert failed: ${error.message}`);
         else timeEntriesUpserted += Math.min(500, rows.length - i);
       }
+      // An entry deleted in ClickUp just stops coming back, so without this it
+      // would be counted forever (0214 sums every row into the brief's hours).
+      // Only when every chunk was read: one failed call must not read as three
+      // weeks of deletions. Scoped to the users we asked about, since nobody
+      // else's entries were in the reply.
+      // ponytail: only the 21-day window is checked; an entry deleted or edited
+      // more than 21 days after it started is not seen. Widen time_entry_days
+      // on a manual run if that ever matters.
+      let timeEntriesDeleted = 0;
+      const askedUsers = [...memberByClickupUser.keys()].map(Number);
+      if (everyChunkRead && askedUsers.length > 0) {
+        const seen = new Set(rows.map((r) => r.id as string));
+        const { data: held } = await supabase
+          .from("clickup_time_entries")
+          .select("id")
+          .gte("started_at", new Date(windowStart).toISOString())
+          .lt("started_at", new Date(windowEnd).toISOString())
+          .in("clickup_user_id", askedUsers)
+          .range(0, 9999);
+        const heldIds = ((held ?? []) as Array<{ id: string }>).map((r) => r.id);
+        const gone = heldIds.filter((id) => !seen.has(id));
+        // A reply that silently came back short would read as mass deletion.
+        // People delete a handful of entries, not a fifth of three weeks.
+        if (gone.length > Math.max(20, heldIds.length * 0.2)) {
+          console.warn(`[time-entries] ${gone.length} of ${heldIds.length} missing from ClickUp's reply; not deleting`);
+          gone.length = 0;
+        }
+        for (let i = 0; i < gone.length; i += 200) {
+          const { error } = await supabase.from("clickup_time_entries").delete().in("id", gone.slice(i, i + 200));
+          if (!error) timeEntriesDeleted += Math.min(200, gone.length - i);
+        }
+      }
+      console.log(`[time-entries] ${timeEntriesUpserted} upserted, ${timeEntriesDeleted} deleted`);
     }
 
     // ---------------------------------------------------------------------
@@ -324,6 +360,7 @@ Deno.serve(async (req: Request) => {
            *  call carries the whole task, and it is the cheap way to freeze a
            *  baseline. See the patch below. */
           due_date?: string | null;
+          time_spent?: number | null;
         };
         const recent: RecentTask[] = [];
         for (let page = 0; page < sweepPages; page++) {
@@ -356,12 +393,20 @@ Deno.serve(async (req: Request) => {
             const status = t?.status?.status?.toLowerCase() ?? null;
             if (!t || !status) continue;
             const closedMs = t.date_done ?? t.date_closed ?? null;
+            // No clickup_status_synced_at here (Lisa, 2026-11-13). Stamping it
+            // told the per-task loop below this row was fresh, which sent a
+            // task to the back of a days-long queue at the moment it closed,
+            // with its hours still unread. The hours ride along instead: the
+            // bulk payload carries time_spent, and briefs_hours_from_clickup
+            // (0214) takes the higher of it and the logged entries.
             const patch: Record<string, unknown> = {
               clickup_task_status: status,
               clickup_points: t.points ?? null,
               completed_at: DONE_STATUSES.has(status) && closedMs ? new Date(Number(closedMs)).toISOString() : null,
-              clickup_status_synced_at: new Date().toISOString(),
             };
+            if (t.time_spent != null) {
+              patch.clickup_time_spent_hours = Math.round((Number(t.time_spent) / 3_600_000) * 100) / 100;
+            }
             // Freeze the accountability baseline HERE as well as in the main
             // loop below (Lisa, 2026-09-22). The main loop reads it off the
             // one-call-per-task fetch, which is the call ClickUp rate limits,
@@ -826,8 +871,11 @@ Deno.serve(async (req: Request) => {
         // August reported 56 of 278 briefs complete instead of 167.
         ...(task
           ? {
-            actual_hours: actualHours,
-            actual_points: actualPoints,
+            // ClickUp's own total (0214). actual_hours / actual_points are
+            // the higher of this and the logged entries, set by the
+            // briefs_hours_from_clickup trigger; writing them here would
+            // undo that every time this loop reached the row.
+            clickup_time_spent_hours: actualHours,
             // Live points (0170). original_points stays frozen for over_budget.
             clickup_points: task.points ?? null,
             over_budget: isComplete ? overBudget : false,
