@@ -30,6 +30,24 @@ Deno.serve(async (req: Request) => {
   try {
     const supabase = createServiceRoleClient();
 
+    // A time limit (Lisa, 2026-11-13). About half the runs were killed by the
+    // gateway (504 at 150s) or the worker limit (546) partway through, and a
+    // run killed mid-loop reports nothing and leaves whatever it was doing
+    // half-done. Each per-task loop now checks the clock and stops cleanly;
+    // every one of them picks its rows stalest-first, so the next run carries
+    // on where this one stopped. Projects get their own earlier stop because
+    // they are by far the biggest (two ClickUp calls for each of ~900 tasks)
+    // and would otherwise eat the time the brief and meeting loops need.
+    const startedAt = Date.now();
+    const STOP_AT = startedAt + 120_000;
+    const PROJECTS_STOP_AT = startedAt + 80_000;
+    let timedOut = false;
+    const outOfTime = (at = STOP_AT) => {
+      if (Date.now() < at) return false;
+      timedOut = true;
+      return true;
+    };
+
     // Optional body: { project_id } to force-sync a specific project
     // regardless of status (used by the "Sync now" button).
     let requestedProjectId: string | null = null;
@@ -450,6 +468,7 @@ Deno.serve(async (req: Request) => {
       .limit(30);
     let meetingUpdates = 0;
     for (const t of (meetingTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      if (outOfTime()) break;
       let task: { status?: { status?: string }; points?: number | null; date_closed?: string | null; date_done?: string | null; time_spent?: number | null } | null = null;
       let deleted = false;
       try {
@@ -492,6 +511,7 @@ Deno.serve(async (req: Request) => {
 
     let ongoingInserted = 0;
     for (const ot of (ongoing ?? []) as Array<{ id: string; clickup_task_id: string; billable: boolean | null }>) {
+      if (outOfTime()) break;
       const teRes = await cuFetch(
         `https://api.clickup.com/api/v2/task/${ot.clickup_task_id}/time`,
         CU,
@@ -543,6 +563,7 @@ Deno.serve(async (req: Request) => {
       dept_id: string | null;
       planned_hours: number;
       project_id: string;
+      synced_at?: string | null;
     };
     const actualsByProject = new Map<string, CurrentActual[]>();
     const projectIds = (projects ?? []).map((p) => p.id);
@@ -599,8 +620,17 @@ Deno.serve(async (req: Request) => {
     const todayIso = new Date().toISOString().slice(0, 10);
 
     let inserted = 0;
-    for (const p of projects ?? []) {
-      const actuals = actualsByProject.get(p.id) ?? [];
+    // Stalest first, at both levels, so a run that stops early hands the next
+    // one the rows it did not reach rather than starting from the top again.
+    const lastSynced = (list: CurrentActual[]) =>
+      list.reduce((m, a) => (a.synced_at && a.synced_at < m ? a.synced_at : m), "9999");
+    const projectsInOrder = [...(projects ?? [])].sort((x, y) =>
+      lastSynced(actualsByProject.get(x.id) ?? []).localeCompare(lastSynced(actualsByProject.get(y.id) ?? []))
+    );
+    for (const p of projectsInOrder) {
+      if (outOfTime(PROJECTS_STOP_AT)) break;
+      const actuals = (actualsByProject.get(p.id) ?? [])
+        .sort((x, y) => (x.synced_at ?? "").localeCompare(y.synced_at ?? ""));
 
       // Fold in current-period retainer provisioned tasks not already tracked.
       const existingTaskIds = new Set(actuals.map((a) => a.clickup_task_id));
@@ -616,6 +646,11 @@ Deno.serve(async (req: Request) => {
       const deletedTaskIds: string[] = [];
 
       for (const a of actuals) {
+        // Stopping mid-project must not read as "every task is closed".
+        if (outOfTime(PROJECTS_STOP_AT)) {
+          allDone = false;
+          break;
+        }
         // Parallelize the two ClickUp calls — they're independent. Cross-task
         // and cross-project parallelization is deferred to T3.
         const [tRes, teRes] = await Promise.all([
@@ -810,6 +845,7 @@ Deno.serve(async (req: Request) => {
 
     let briefsArchivedAsDeleted = 0;
     for (const b of briefTasks) {
+      if (outOfTime()) break;
       const wait = waitMap.get(b.clickup_task_id);
       const fetched = await fetchTask(b.clickup_task_id);
       // Deleted in ClickUp: archive the brief so it leaves the lists, the
@@ -912,6 +948,7 @@ Deno.serve(async (req: Request) => {
       .order("clickup_status_synced_at", { ascending: true, nullsFirst: true })
       .limit(60);
     for (const t of (schedTasks ?? []) as Array<{ id: string; clickup_task_id: string }>) {
+      if (outOfTime()) break;
       const status = statusOf(await fetchTask(t.clickup_task_id));
       if (status === null) continue;
       const { error } = await supabase
@@ -929,6 +966,8 @@ Deno.serve(async (req: Request) => {
       briefs_archived_as_deleted: briefsArchivedAsDeleted,
       meeting_updates: meetingUpdates,
       time_entries_upserted: timeEntriesUpserted,
+      timed_out: timedOut,
+      seconds: Math.round((Date.now() - startedAt) / 1000),
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
