@@ -1,7 +1,7 @@
 // Work for a retainer client that lands on none of its retainers (0207).
 // retainer_outside_work returns one row per task; this groups it per client.
 
-export type OutsideReason = "meeting" | "internal" | "unlinked" | "ongoing" | "adhoc" | "archived";
+export type OutsideReason = "meeting" | "internal" | "unlinked" | "ongoing" | "adhoc" | "open_retainer" | "archived";
 
 export interface OutsideRow {
   client_id: string;
@@ -25,6 +25,7 @@ export const OUTSIDE_KIND: Record<OutsideReason, OutsideKind> = {
   unlinked: "hidden",
   ongoing: "hidden",
   adhoc: "adhoc",
+  open_retainer: "adhoc",
   archived: "archived",
 };
 
@@ -34,6 +35,7 @@ export const OUTSIDE_REASON_LABEL: Record<OutsideReason, string> = {
   unlinked: "Brief not linked to a retainer",
   ongoing: "Ongoing bucket with no retainer",
   adhoc: "Ad hoc, invoice separately",
+  open_retainer: "On a retainer with no budget",
   archived: "Brief archived, so the book drops it",
 };
 

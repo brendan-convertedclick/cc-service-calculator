@@ -24,6 +24,9 @@ export function useRetainerOutside(month: string) {
           .select("id, name, client_id")
           .eq("engagement_type", "retainer")
           .eq("status", "in_progress")
+          // Only a budgeted retainer counts time (retainer_task_project's `own`).
+          // Booking to an open one would send the row straight back here.
+          .or("retainer_monthly_fee_cents.not.is.null,retainer_hours_target.not.is.null")
           .order("name"),
       ]);
       if (out.error) throw out.error;

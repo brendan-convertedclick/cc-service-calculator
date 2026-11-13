@@ -228,6 +228,12 @@ as $$
       select b.clickup_task_id, b.client_id, 1 as pri,
              case when b.status::text = 'archived' then 'archived'
                   when b.billing_type::text = 'adhoc' then 'adhoc'
+                  -- Trellidor's Adhoc Retainer shape: a retainer with no fee and
+                  -- no hours target, invoiced for whatever the month held. Billed,
+                  -- so not hidden, but not against any budget either.
+                  when exists (select 1 from projects p where p.id = b.parent_project_id
+                                 and p.engagement_type = 'retainer'
+                                 and p.retainer_monthly_fee_cents is null and p.retainer_hours_target is null) then 'open_retainer'
                   when b.billing_type::text = 'internal' then 'internal'
                   else 'unlinked' end as reason,
              b.id as brief_id, b.billing_type::text as brief_billing_type, null::uuid as meeting_id, null::uuid as ongoing_task_id

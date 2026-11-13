@@ -106,7 +106,7 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
                           </Select>
                         ) : (
                           <span className="text-body-small text-m-on-surface-variant">
-                            {r.reason === "adhoc"
+                            {r.reason === "adhoc" || r.reason === "open_retainer"
                               ? "Invoice it separately"
                               : r.reason === "archived"
                                 ? "Reopen the brief to count it"
