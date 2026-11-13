@@ -16,7 +16,9 @@ import { RetainerServicesEditor } from "@/components/retainers/RetainerServicesE
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { computeProjectProgress } from "@/lib/project-status";
 import { useDepartments } from "@/hooks/useDepartments";
-import { currentMonthKey, filterBurnActuals, monthRange } from "@/hooks/usePulseRetainerBurn";
+import { useRetainerBudget } from "@/hooks/useRetainerBudget";
+import { RetainerBudgetBar } from "@/components/retainers/RetainerBudgetBar";
+import { currentBudgetMonth } from "@/lib/retainer-budget";
 import type { Database } from "@/types/db";
 import type { ClaudePrompt } from "@/types/claude";
 
@@ -47,6 +49,13 @@ export function ProjectDetail() {
   const { data: depts = [] } = useDepartments();
   const sync = useSyncNow();
   const updateProject = useUpdateProject();
+  // Retainer burn comes from the same rule as the retainer book (retainer_budget),
+  // not project_actuals: that table only holds the tasks seeded onto the project,
+  // so a retainer whose work arrives as briefs read 0h used (Lisa, 2026-11-13).
+  const { data: budgets } = useRetainerBudget(
+    currentBudgetMonth(),
+    (data?.project as { client_id?: string | null } | undefined)?.client_id ?? null,
+  );
 
   const [recur, setRecur] = useState({
     is_recurring: false,
@@ -111,15 +120,7 @@ export function ProjectDetail() {
   const engagementType = project.engagement_type ?? "fixed";
   const isRetainer = engagementType === "retainer";
 
-  // Hours consumed this period — same month-window rules as the pulse burn
-  // view (frozen snapshots count in full for completed retainers).
-  const { start: monthStart, end: monthEnd } = monthRange(currentMonthKey());
-  const periodHours = filterBurnActuals(
-    actuals,
-    project.status === "completed" ? new Set([project.id]) : new Set(),
-    monthStart,
-    monthEnd,
-  ).reduce((s, a) => s + Number(a.actual_hours ?? 0), 0);
+  const budget = budgets?.find((b) => b.projectId === project.id);
 
   function saveRecurrence() {
     if (!id) return;
@@ -448,17 +449,11 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
       <Card>
         <CardContent className="p-4">
           {isRetainer ? (
-            project.retainer_hours_target ? (
-              <BurnChart
-                rows={[
-                  {
-                    dept_id: "retainer",
-                    dept_name: "Hours used this month",
-                    planned: project.retainer_hours_target,
-                    actual: periodHours,
-                  },
-                ]}
-              />
+            budget ? (
+              <div className="space-y-2">
+                <p className="text-label-large text-m-on-surface">Hours used this month</p>
+                <RetainerBudgetBar budget={budget} showDepartments />
+              </div>
             ) : (
               <p className="text-body-small text-m-on-surface-variant">
                 Set the monthly hours target above to track retainer burn.
