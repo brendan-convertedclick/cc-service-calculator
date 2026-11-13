@@ -327,12 +327,13 @@ Deno.serve(async (req: Request) => {
         const seen = new Set(rows.map((r) => r.id as string));
         const { data: held } = await supabase
           .from("clickup_time_entries")
-          .select("id")
+          .select("id, clickup_task_id, task_name, clickup_user_id, started_at, duration_ms, billable, synced_at")
           .gte("started_at", new Date(windowStart).toISOString())
           .lt("started_at", new Date(windowEnd).toISOString())
           .in("clickup_user_id", askedUsers)
           .range(0, 9999);
-        const heldIds = ((held ?? []) as Array<{ id: string }>).map((r) => r.id);
+        const heldRows = (held ?? []) as Array<Record<string, unknown> & { id: string }>;
+        const heldIds = heldRows.map((r) => r.id);
         const gone = heldIds.filter((id) => !seen.has(id));
         // A reply that silently came back short would read as mass deletion.
         // People delete a handful of entries, not a fifth of three weeks.
@@ -341,12 +342,33 @@ Deno.serve(async (req: Request) => {
           gone.length = 0;
         }
         if (gone.length > 0) console.log(`[time-entries] gone from ClickUp: ${gone.join(",")}`);
-        for (let i = 0; i < gone.length; i += 200) {
-          const { error } = await supabase.from("clickup_time_entries").delete().in("id", gone.slice(i, i + 200));
-          if (!error) timeEntriesDeleted += Math.min(200, gone.length - i);
+        // Hidden, not destroyed (0215): the row is kept in
+        // clickup_time_entries_removed first, and only deleted here once that
+        // copy is safely written, so a wrong removal can be put back.
+        const goneSet = new Set(gone);
+        const keep = heldRows.filter((r) => goneSet.has(r.id));
+        for (let i = 0; i < keep.length; i += 200) {
+          const batch = keep.slice(i, i + 200);
+          const { error: keepErr } = await supabase
+            .from("clickup_time_entries_removed")
+            .upsert(batch.map((r) => ({ ...r, removed_at: new Date().toISOString(), source: "sync" })), { onConflict: "id" });
+          if (keepErr) {
+            console.error(`[time-entries] could not keep removed entries, not deleting: ${keepErr.message}`);
+            break;
+          }
+          const { error } = await supabase.from("clickup_time_entries").delete().in("id", batch.map((r) => r.id));
+          if (!error) timeEntriesDeleted += batch.length;
         }
       }
-      console.log(`[time-entries] ${timeEntriesUpserted} upserted, ${timeEntriesDeleted} deleted`);
+      // Anything ClickUp returned is real, so if it was hidden earlier it is
+      // back in the main table now (the upsert above) and leaves the hidden one.
+      if (rows.length > 0) {
+        const ids = rows.map((r) => r.id as string);
+        for (let i = 0; i < ids.length; i += 500) {
+          await supabase.from("clickup_time_entries_removed").delete().in("id", ids.slice(i, i + 500));
+        }
+      }
+      console.log(`[time-entries] ${timeEntriesUpserted} upserted, ${timeEntriesDeleted} hidden`);
     }
 
     // ---------------------------------------------------------------------
