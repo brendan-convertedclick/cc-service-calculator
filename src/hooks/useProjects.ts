@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { currentBudgetMonth } from "@/lib/retainer-budget";
 import type { Database } from "@/types/db";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
@@ -30,12 +31,30 @@ export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
     queryFn: async (): Promise<ProjectWithActuals[]> => {
-      const [projectsRes, actualsRes] = await Promise.all([
+      const [projectsRes, actualsRes, monthRes] = await Promise.all([
         supabase.from("projects").select("*").order("started_at", { ascending: false }),
         allCurrentActuals(),
+        // This month's provisioned retainer tasks (0160's view).
+        supabase
+          .from("retainer_recurring_delivery")
+          .select("project_id, clickup_task_id")
+          .eq("month", currentBudgetMonth()),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (actualsRes.error) throw actualsRes.error;
+      if (monthRes.error) throw monthRes.error;
+
+      // A retainer's seeded tasks pile up month after month, so its ring sat
+      // at the lifetime share (Dovetail SEO: 19/24) and barely moved (Lisa,
+      // 2026-11-13). A retainer with tasks provisioned this month shows this
+      // month's; one with none keeps the old lifetime view.
+      const monthTasks = new Map<string, Set<string>>();
+      for (const r of (monthRes.data ?? []) as Array<{ project_id: string | null; clickup_task_id: string | null }>) {
+        if (!r.project_id || !r.clickup_task_id) continue;
+        const set = monthTasks.get(r.project_id) ?? new Set<string>();
+        set.add(r.clickup_task_id);
+        monthTasks.set(r.project_id, set);
+      }
 
       const byProject = new Map<string, Actual[]>();
       for (const a of actualsRes.data ?? []) {
@@ -45,10 +64,14 @@ export function useProjects() {
         byProject.set(a.project_id, list);
       }
 
-      return (projectsRes.data ?? []).map((p) => ({
-        ...p,
-        actuals: byProject.get(p.id) ?? [],
-      }));
+      return (projectsRes.data ?? []).map((p) => {
+        const all = byProject.get(p.id) ?? [];
+        const month = p.engagement_type === "retainer" ? monthTasks.get(p.id) : undefined;
+        return {
+          ...p,
+          actuals: month ? all.filter((a) => a.clickup_task_id && month.has(a.clickup_task_id)) : all,
+        };
+      });
     },
   });
 }

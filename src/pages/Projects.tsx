@@ -59,8 +59,12 @@ export function Projects() {
   const enriched = useMemo(
     () =>
       projects.map((p) => {
-        const { status, progress } = deriveProjectStatusFromActuals(p.status, p.actuals);
-        return { project: p, status, progress };
+        const derived = deriveProjectStatusFromActuals(p.status, p.actuals);
+        // A running retainer is in progress until someone ends it. Deriving it
+        // from the month's tasks read "Backlog" every 1st, before anyone started.
+        const status =
+          p.engagement_type === "retainer" && p.status === "in_progress" ? "in_progress" as const : derived.status;
+        return { project: p, status, progress: derived.progress };
       }),
     [projects],
   );
