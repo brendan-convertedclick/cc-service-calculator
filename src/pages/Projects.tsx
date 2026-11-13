@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/table";
 import { ProgressRing } from "@/components/ProgressRing";
 import { useProjects, useUpdateProject } from "@/hooks/useProjects";
+import { useRetainerBudget } from "@/hooks/useRetainerBudget";
+import { currentBudgetMonth } from "@/lib/retainer-budget";
 import { useClients } from "@/hooks/useClients";
 import {
   STATUS_LABEL,
@@ -29,6 +31,10 @@ const STATUS_ORDER: DerivedStatus[] = ["backlog", "in_progress", "complete", "ca
 
 export function Projects() {
   const navigate = useNavigate();
+  // A retainer's ring is this month's time against its budget (Lisa,
+  // 2026-11-13), from the same rule as the Budget tab.
+  const { data: budgets } = useRetainerBudget(currentBudgetMonth());
+  const budgetByProject = useMemo(() => new Map((budgets ?? []).map((b) => [b.projectId, b])), [budgets]);
   const { data: projects = [] } = useProjects();
   const { data: clients = [] } = useClients();
   const updateProject = useUpdateProject();
@@ -296,8 +302,12 @@ export function Projects() {
                     </TableRow>
                     {group.rows.map(({ project: p, status, progress }) => {
                       const isArchived = status === "archived";
-                      const showRing = progress.taskTotal > 0;
-                      const ringTitle = `Tasks ${progress.taskComplete}/${progress.taskTotal} (${Math.round(progress.taskPct * 100)}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${Math.round(progress.timePct * 100)}%)`;
+                      const budget = p.engagement_type === "retainer" ? budgetByProject.get(p.id) : undefined;
+                      const budgetPct = budget && budget.budget > 0 ? budget.spent / budget.budget : null;
+                      const showRing = budgetPct != null || progress.taskTotal > 0;
+                      const ringTitle = budget
+                        ? `${budget.spent.toFixed(1)}h of ${budget.budget.toFixed(1)}h budget used this month`
+                        : `Tasks ${progress.taskComplete}/${progress.taskTotal} (${Math.round(progress.taskPct * 100)}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${Math.round(progress.timePct * 100)}%)`;
                       return (
                         <TableRow
                           key={p.id}
@@ -318,8 +328,9 @@ export function Projects() {
                           <TableCell>
                             {showRing ? (
                               <ProgressRing
-                                taskPct={progress.taskPct}
-                                timePct={progress.timePct}
+                                taskPct={budgetPct ?? progress.taskPct}
+                                timePct={budgetPct ?? progress.timePct}
+                                labelPct={budgetPct ?? undefined}
                                 title={ringTitle}
                               />
                             ) : (
