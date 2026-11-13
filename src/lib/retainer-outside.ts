@@ -1,4 +1,4 @@
-// Work for a retainer client that lands on none of its retainers (0207).
+// Work for a retainer client that lands on none of its retainers (0207, 0211).
 // retainer_outside_work returns one row per task; this groups it per client.
 
 export type OutsideReason = "meeting" | "internal" | "unlinked" | "ongoing" | "adhoc" | "open_retainer" | "archived";
@@ -14,20 +14,30 @@ export interface OutsideRow {
   brief_billing_type: string | null;
   meeting_id: string | null;
   ongoing_task_id: string | null;
+  dismissed_at: string | null;
+  dismissed_by_name: string | null;
 }
 
-/** Hidden: nobody sees it against a budget and nobody bills it. Ad hoc is billed. Archived is a sync gap. */
-export type OutsideKind = "hidden" | "adhoc" | "archived";
+/**
+ * The columns of the per-client table. The first three are leaks (time lost
+ * unless it is booked to a retainer) and sum to the hidden total; ad hoc is
+ * billable and only needs invoicing; archived is shown for reference, since
+ * its fix is reopening the brief, not booking it.
+ */
+export type OutsideColumn = "internal" | "meeting" | "other" | "adhoc" | "archived";
 
-export const OUTSIDE_KIND: Record<OutsideReason, OutsideKind> = {
-  meeting: "hidden",
-  internal: "hidden",
-  unlinked: "hidden",
-  ongoing: "hidden",
+export const OUTSIDE_COLUMN: Record<OutsideReason, OutsideColumn> = {
+  internal: "internal",
+  meeting: "meeting",
+  unlinked: "other",
+  ongoing: "other",
   adhoc: "adhoc",
   open_retainer: "adhoc",
   archived: "archived",
 };
+
+const HIDDEN: OutsideColumn[] = ["internal", "meeting", "other"];
+export const isHidden = (r: OutsideRow) => HIDDEN.includes(OUTSIDE_COLUMN[r.reason]);
 
 export const OUTSIDE_REASON_LABEL: Record<OutsideReason, string> = {
   meeting: "Meeting with no retainer",
@@ -39,40 +49,68 @@ export const OUTSIDE_REASON_LABEL: Record<OutsideReason, string> = {
   archived: "Brief archived, so the book drops it",
 };
 
-/** Only these can be booked to a retainer from the tab. Ad hoc is billed on its own; an archived brief has to be reopened. */
+/** Booking and dismissing are for leaks with a Conductor record behind them. */
 export const canBook = (r: OutsideRow) =>
-  OUTSIDE_KIND[r.reason] === "hidden" && Boolean(r.brief_id || r.meeting_id || r.ongoing_task_id);
+  isHidden(r) && !r.dismissed_at && Boolean(r.brief_id || r.meeting_id || r.ongoing_task_id);
 
-export interface OutsideClient {
-  clientId: string;
-  clientName: string;
+/** Only a brief can become ad hoc: a meeting or bucket has no billing type of its own. */
+export const canConvertToAdhoc = (r: OutsideRow) => isHidden(r) && !r.dismissed_at && Boolean(r.brief_id);
+
+export const ADHOC_PREFIX = "[Ad Hoc] ";
+export const adhocName = (name: string) => (name.startsWith(ADHOC_PREFIX) ? name : `${ADHOC_PREFIX}${name}`);
+
+export interface OutsideTotals {
+  internal: number;
+  meeting: number;
+  other: number;
   hidden: number;
   adhoc: number;
   archived: number;
-  total: number;
+  dismissed: number;
+}
+
+export interface OutsideClient extends OutsideTotals {
+  clientId: string;
+  clientName: string;
   rows: OutsideRow[];
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const zero = (): OutsideTotals => ({ internal: 0, meeting: 0, other: 0, hidden: 0, adhoc: 0, archived: 0, dismissed: 0 });
 
-/** Per client, most hidden time first; rows inside a client largest first. */
+function add(t: OutsideTotals, r: OutsideRow) {
+  const h = Number(r.hours) || 0;
+  if (r.dismissed_at) {
+    t.dismissed += h;
+    return;
+  }
+  const col = OUTSIDE_COLUMN[r.reason] ?? "other";
+  t[col] += h;
+  if (HIDDEN.includes(col)) t.hidden += h;
+}
+
+const round = <T extends OutsideTotals>(t: T): T => {
+  for (const k of Object.keys(zero()) as Array<keyof OutsideTotals>) t[k] = r2(t[k]);
+  return t;
+};
+
+/** Per client, most hidden time first; rows inside a client largest first. Dismissed time is counted apart. */
 export function groupOutside(rows: OutsideRow[]): OutsideClient[] {
   const by = new Map<string, OutsideClient>();
   for (const r of rows) {
-    const c = by.get(r.client_id) ?? {
-      clientId: r.client_id, clientName: r.client_name, hidden: 0, adhoc: 0, archived: 0, total: 0, rows: [],
-    };
-    const h = Number(r.hours) || 0;
-    c[OUTSIDE_KIND[r.reason] ?? "hidden"] += h;
-    c.total += h;
+    const c = by.get(r.client_id) ?? { clientId: r.client_id, clientName: r.client_name, rows: [], ...zero() };
+    add(c, r);
     c.rows.push(r);
     by.set(r.client_id, c);
   }
   return [...by.values()]
-    .map((c) => ({
-      ...c,
-      hidden: r2(c.hidden), adhoc: r2(c.adhoc), archived: r2(c.archived), total: r2(c.total),
-      rows: [...c.rows].sort((a, b) => Number(b.hours) - Number(a.hours)),
-    }))
-    .sort((a, b) => b.hidden - a.hidden || b.total - a.total);
+    .map((c) => round({ ...c, rows: [...c.rows].sort((a, b) => Number(b.hours) - Number(a.hours)) }))
+    .sort((a, b) => b.hidden - a.hidden || b.adhoc - a.adhoc);
+}
+
+/** The month's headline: every column summed across clients. */
+export function totalOutside(clients: OutsideClient[]): OutsideTotals {
+  const t = zero();
+  for (const c of clients) for (const k of Object.keys(t) as Array<keyof OutsideTotals>) t[k] += c[k];
+  return round(t);
 }

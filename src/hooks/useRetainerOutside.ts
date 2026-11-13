@@ -2,7 +2,8 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAssignBriefToProject } from "@/hooks/useAssignBriefToProject";
-import { groupOutside, type OutsideClient, type OutsideRow } from "@/lib/retainer-outside";
+import { callEdgeFn } from "@/lib/edge";
+import { adhocName, groupOutside, type OutsideClient, type OutsideRow } from "@/lib/retainer-outside";
 
 // retainer_outside_work is not in the generated db types yet, so the rpc is untyped here.
 const rpc = supabase.rpc.bind(supabase) as unknown as (
@@ -78,5 +79,55 @@ export function useBookOutside() {
       qc.invalidateQueries({ queryKey: ["retainer_budget"] });
       qc.invalidateQueries({ queryKey: ["retainer_allocation"] });
     },
+  });
+}
+
+const invalidateOutside = (qc: ReturnType<typeof useQueryClient>) => {
+  qc.invalidateQueries({ queryKey: ["retainer_outside"] });
+  qc.invalidateQueries({ queryKey: ["retainer_budget"] });
+  qc.invalidateQueries({ queryKey: ["retainer_allocation"] });
+};
+
+/**
+ * Make a leaked brief billable ad hoc, in ClickUp as well as here: invoicing
+ * reads the ClickUp task, so the "[Ad Hoc] " prefix goes on its name through
+ * update-briefed-task, which writes billing_type in the same call.
+ */
+export function useConvertOutsideToAdhoc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (row: OutsideRow) => {
+      if (!row.brief_id) throw new Error("Only a brief can be converted to ad hoc.");
+      await callEdgeFn("update-briefed-task", {
+        brief_id: row.brief_id,
+        task_name: adhocName(row.task_name ?? ""),
+        billing_type: "adhoc",
+        parent_project_id: null,
+      });
+    },
+    onSuccess: () => invalidateOutside(qc),
+  });
+}
+
+// retainer_outside_dismissals (0211) is not in the generated types yet.
+type Untyped = {
+  from: (t: string) => {
+    insert: (v: object) => PromiseLike<{ error: PostgrestError | null }>;
+    delete: () => { eq: (col: string, v: string) => PromiseLike<{ error: PostgrestError | null }> };
+  };
+};
+const dismissals = () => (supabase as unknown as Untyped).from("retainer_outside_dismissals");
+
+/** "Confirm internal": genuinely our time. Who and when are stamped by the database. */
+export function useDismissOutside() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ row, undo }: { row: OutsideRow; undo?: boolean }) => {
+      const { error } = undo
+        ? await dismissals().delete().eq("clickup_task_id", row.clickup_task_id)
+        : await dismissals().insert({ clickup_task_id: row.clickup_task_id });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateOutside(qc),
   });
 }
