@@ -323,10 +323,20 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                 Started {new Date(project.started_at).toLocaleDateString("en-ZA")} · Status:{" "}
                 {project.status}
               </div>
-              <div className="mt-2">
-                Planned: <strong>{totalPlanned.toFixed(1)}h</strong> · Actual:{" "}
-                <strong>{totalActual.toFixed(1)}h</strong>
-              </div>
+              {/* A retainer's seeded tasks pile up month after month, so their
+                  sum (26.8h on Dovetail SEO by November) read as a monthly plan.
+                  For a retainer the header is this month, from the book. */}
+              {isRetainer && budget ? (
+                <div className="mt-2">
+                  This month: budget <strong>{budget.budget.toFixed(1)}h</strong> · Spent{" "}
+                  <strong>{budget.spent.toFixed(1)}h</strong>
+                </div>
+              ) : (
+                <div className="mt-2">
+                  Planned: <strong>{totalPlanned.toFixed(1)}h</strong> · Actual:{" "}
+                  <strong>{totalActual.toFixed(1)}h</strong>
+                </div>
+              )}
               {progress.taskTotal > 0 && (
                 <div
                   className="mt-3 max-w-md"
