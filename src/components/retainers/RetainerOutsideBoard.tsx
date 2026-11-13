@@ -166,7 +166,7 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
               <TableHead className="text-right">Marked Internal</TableHead>
               <TableHead className="text-right">Meeting, no retainer</TableHead>
               <TableHead className="text-right">Other, no retainer</TableHead>
-              <TableHead className="text-right">Hidden total</TableHead>
+              <TableHead className="text-right">Hidden, still to fix</TableHead>
               <TableHead className="border-l border-m-outline-variant text-right">
                 Ad hoc
               </TableHead>
@@ -248,10 +248,11 @@ export function RetainerOutsideBoard({ month }: { month: string }) {
       </div>
 
       <p className="max-w-prose text-body-small text-m-on-surface-variant">
-        Hidden is time nobody bills unless it's booked to a retainer. Archived
-        briefs are listed for reference and not counted in Hidden: reopen the
-        brief to count it. Sales time is left out, and so is any ClickUp task
-        Conductor has never seen.
+        The first three columns show all the month's time. Hidden is what is
+        left of it once confirmed-internal time comes off: time nobody bills
+        unless it's booked to a retainer. Archived briefs are listed for
+        reference and not counted in Hidden: reopen the brief to count it. Sales
+        time is left out, and so is any ClickUp task Conductor has never seen.
       </p>
     </div>
   );

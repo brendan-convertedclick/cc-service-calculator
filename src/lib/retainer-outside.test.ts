@@ -9,7 +9,7 @@ const row = (o: Partial<OutsideRow>): OutsideRow => ({
 });
 
 describe("groupOutside", () => {
-  it("puts leaks in their own columns, keeps ad hoc, archived and dismissed out of the hidden total", () => {
+  it("puts leaks in their own columns, keeps ad hoc, archived and dismissed out of the hidden total; dismissed stays in its column", () => {
     const out = groupOutside([
       row({ hours: "0.75" }),
       row({ clickup_task_id: "t2", reason: "adhoc", hours: 3, brief_id: "b2", meeting_id: null }),
@@ -19,7 +19,7 @@ describe("groupOutside", () => {
       row({ client_id: "c2", client_name: "Trellidor", clickup_task_id: "t6", reason: "internal", hours: 2, brief_id: "b6", meeting_id: null, dismissed_at: "2026-11-13T10:00:00Z" }),
     ]);
     expect(out.map((c) => c.clientName)).toEqual(["Trellidor", "Dovetail RSA"]);
-    expect(out[0]).toMatchObject({ internal: 2.5, other: 1, hidden: 3.5, archived: 4, dismissed: 2 });
+    expect(out[0]).toMatchObject({ internal: 4.5, other: 1, hidden: 3.5, archived: 4, dismissed: 2 });
     expect(out[1]).toMatchObject({ meeting: 0.75, hidden: 0.75, adhoc: 3 });
     expect(totalOutside(out)).toMatchObject({ hidden: 4.25, adhoc: 3, dismissed: 2 });
   });
