@@ -318,21 +318,31 @@ Deno.serve(async (req: Request) => {
       // Only when every chunk was read: one failed call must not read as three
       // weeks of deletions. Scoped to the users we asked about, since nobody
       // else's entries were in the reply.
-      // ponytail: only the 21-day window is checked; an entry deleted or edited
-      // more than 21 days after it started is not seen. Widen time_entry_days
-      // on a manual run if that ever matters.
+      // Only the 21-day window is checked on the half-hourly run; a weekly
+      // pg_cron job (0216) runs it with time_entry_days 180 so a Rize rewrite
+      // of older time is caught before invoicing.
       let timeEntriesDeleted = 0;
       const askedUsers = [...memberByClickupUser.keys()].map(Number);
       if (everyChunkRead && askedUsers.length > 0) {
         const seen = new Set(rows.map((r) => r.id as string));
-        const { data: held } = await supabase
-          .from("clickup_time_entries")
-          .select("id, clickup_task_id, task_name, clickup_user_id, started_at, duration_ms, billable, synced_at")
-          .gte("started_at", new Date(windowStart).toISOString())
-          .lt("started_at", new Date(windowEnd).toISOString())
-          .in("clickup_user_id", askedUsers)
-          .range(0, 9999);
-        const heldRows = (held ?? []) as Array<Record<string, unknown> & { id: string }>;
+        // Paged: PostgREST caps a reply at 1,000 rows, and three weeks already
+        // holds more than that, so one .range(0, 9999) silently compared only
+        // the first thousand and left the rest (a stale 0.35h on SobAlert)
+        // counted forever.
+        const heldRows: Array<Record<string, unknown> & { id: string }> = [];
+        for (let from = 0; ; from += 1000) {
+          const { data: page, error: heldErr } = await supabase
+            .from("clickup_time_entries")
+            .select("id, clickup_task_id, task_name, clickup_user_id, started_at, duration_ms, billable, synced_at")
+            .gte("started_at", new Date(windowStart).toISOString())
+            .lt("started_at", new Date(windowEnd).toISOString())
+            .in("clickup_user_id", askedUsers)
+            .order("id")
+            .range(from, from + 999);
+          if (heldErr) { heldRows.length = 0; console.error(`[time-entries] could not read held entries: ${heldErr.message}`); break; }
+          heldRows.push(...((page ?? []) as typeof heldRows));
+          if (!page || page.length < 1000) break;
+        }
         const heldIds = heldRows.map((r) => r.id);
         const gone = heldIds.filter((id) => !seen.has(id));
         // A reply that silently came back short would read as mass deletion.
