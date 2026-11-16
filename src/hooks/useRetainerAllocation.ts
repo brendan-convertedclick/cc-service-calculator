@@ -140,6 +140,10 @@ export interface AllocationMonth {
   rows: AllocationRow[];
   /** Brief id → hours logged on its task in this month. */
   trackedByBrief: Record<string, number>;
+  /** ClickUp task id → the row key its time lands on (a project id, or
+   *  `${kind}:${clientId}`). The same map for every month; exposed so the
+   *  Split's time types join tasks to bars exactly as the tabs do. */
+  taskToKey: Map<string, string>;
 }
 
 interface ProjectRow {
@@ -679,7 +683,7 @@ export function useRetainerAllocation(monthsBack = 6) {
         for (const [bk, hrs] of trackedByBriefMonth) {
           if (bk.endsWith(`|${month}`)) trackedByBrief[bk.slice(0, bk.lastIndexOf("|"))] = hrs;
         }
-        return { month, rows, trackedByBrief };
+        return { month, rows, trackedByBrief, taskToKey };
       });
     },
   });

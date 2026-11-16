@@ -36,11 +36,9 @@ export function SplitTab({ contributors, ...input }: SplitTabProps) {
   return (
     <div className="space-y-4">
       <p className="max-w-3xl text-label-small text-m-on-surface-variant">
-        How the month's completed hours divide between them. Counted the
-        same way the Completed column is: logged time where somebody tracked it,
-        the points on the task where nobody did. That is a different basis from
-        the capacity page, which is points only, so the two will not match hour
-        for hour.
+        How the month's tracked hours divide between them. Counted the same
+        way the Completed column is: time logged in ClickUp during the month,
+        on any task booked to that tab, open or closed.
       </p>
 
       {/* One bar, three segments, so the shares are compared against each

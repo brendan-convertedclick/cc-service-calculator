@@ -248,6 +248,7 @@ Deno.serve(async (req: Request) => {
       type RawEntry = {
         id?: string;
         task?: { id?: string; name?: string } | null;
+        task_location?: { list_id?: string | number } | null;
         user?: { id?: number } | null;
         start?: string | number;
         duration?: string | number;
@@ -292,6 +293,8 @@ Deno.serve(async (req: Request) => {
               id: String(e.id),
               clickup_task_id: e.task?.id ?? null,
               task_name: e.task?.name ?? null,
+              // For the "client delivery list" time-type rule (0217).
+              clickup_list_id: e.task_location?.list_id != null ? String(e.task_location.list_id) : null,
               clickup_user_id: Number(e.user.id),
               started_at: new Date(start).toISOString(),
               duration_ms: duration,
@@ -333,7 +336,7 @@ Deno.serve(async (req: Request) => {
         for (let from = 0; ; from += 1000) {
           const { data: page, error: heldErr } = await supabase
             .from("clickup_time_entries")
-            .select("id, clickup_task_id, task_name, clickup_user_id, started_at, duration_ms, billable, synced_at")
+            .select("id, clickup_task_id, task_name, clickup_list_id, clickup_user_id, started_at, duration_ms, billable, synced_at")
             .gte("started_at", new Date(windowStart).toISOString())
             .lt("started_at", new Date(windowEnd).toISOString())
             .in("clickup_user_id", askedUsers)

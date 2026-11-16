@@ -50,6 +50,8 @@ import { RetainerOutsideBoard } from "@/components/retainers/RetainerOutsideBoar
 import { useRetainerOutside } from "@/hooks/useRetainerOutside";
 import { salesMarked } from "@/lib/retainer-split";
 import { SplitTab, type SplitContributor } from "@/components/retainers/SplitTab";
+import { TimeTypeSplit } from "@/components/retainers/TimeTypeSplit";
+import type { SplitCategory } from "@/lib/time-types";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
 // uses "complete". Normalise both so the badge never shows a raw lowercase token.
@@ -735,6 +737,32 @@ export function RetainersList() {
       },
     };
   }, [sections, clientGroups, outside.data]);
+  // Which Split bar a ClickUp task's time lands on, for the time types (0217):
+  // task → Book row through the allocation hook's own map, row → tab through
+  // the sections above, so a bar cut by type adds up to the tab's hours. A
+  // task with no row is Not on the Book; one marked sales on the Outside tab
+  // is Sales, as the split above already treats it.
+  // ponytail: the row → tab map is the selected month's; for the trend's
+  // other months a row that changed tab since then reads as today's tab.
+  const categoryOf = useMemo(() => {
+    const taskToKey = allocMonths[0]?.taskToKey ?? new Map<string, string>();
+    const keyCat = new Map<string, SplitCategory>();
+    const tabCat = { client: "retainer", recurring: "retainer", adhoc: "adhoc", internal: "internal" } as const;
+    for (const sec of sections) {
+      for (const g of sec.groups) {
+        for (const r of [...g.rows, ...g.unbilled]) keyCat.set(r.id, tabCat[sec.key]);
+        for (const x of g.extras) keyCat.set(x.key, tabCat[sec.key]);
+      }
+    }
+    const sales = new Set(
+      (outside.data?.clients ?? []).flatMap((c) => c.rows).filter((r) => r.dismissed_kind === "sales").map((r) => r.clickup_task_id),
+    );
+    return (taskId: string): SplitCategory => {
+      if (sales.has(taskId)) return "sales";
+      const key = taskToKey.get(taskId);
+      return (key && keyCat.get(key)) || "offbook";
+    };
+  }, [allocMonths, sections, outside.data]);
   // The Internal tab answers a different question, so it gets a different set
   // of columns (Lisa, 2026-09-08). Monthly fee and Planned are both facts about
   // an invoice — a notional fee we pay ourselves, and the hours that fee buys —
@@ -843,7 +871,10 @@ export function RetainersList() {
         ) : tab === "outside" ? (
           <RetainerOutsideBoard month={month} />
         ) : tab === "split" ? (
-          <SplitTab {...split} />
+          <div className="space-y-8">
+            <SplitTab {...split} />
+            <TimeTypeSplit month={month} currentMonth={currentMonthKey()} categoryOf={categoryOf} />
+          </div>
         ) : (
         <>
         <ColumnKey
