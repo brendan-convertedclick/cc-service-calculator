@@ -30,7 +30,6 @@ import { formatHours as h } from "@/lib/retainer-budget";
 import {
   canBook,
   canConvertToAdhoc,
-  canDismissRow,
   isHidden,
   OUTSIDE_COLUMN,
   OUTSIDE_REASON_LABEL,
@@ -392,13 +391,12 @@ function TaskList({
                           Undo
                         </Button>
                       </div>
-                    ) : canDismissRow(r) ? (
+                    ) : canBook(r) ? (
                       <div className="flex flex-wrap items-center gap-2">
                         {/* A brief goes ad hoc by Convert, the route the ad hoc invoice reads
                       (billing_type adhoc, no parent project). The open retainer is
                       only offered to meetings and buckets, which cannot convert. */}
-                        {canBook(r) &&
-                          (r.brief_id ? options.filter((o) => !o.open) : options)
+                        {(r.brief_id ? options.filter((o) => !o.open) : options)
                           .length > 0 && (
                           <Select
                             disabled={busy}
@@ -408,7 +406,13 @@ function TaskList({
                               className="w-56"
                               aria-label={`Book ${r.task_name ?? "task"} to a retainer`}
                             >
-                              <SelectValue placeholder="Book to a retainer" />
+                              <SelectValue
+                                placeholder={
+                                  r.reason === "clickup_only"
+                                    ? "Create brief on a retainer"
+                                    : "Book to a retainer"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {(r.brief_id

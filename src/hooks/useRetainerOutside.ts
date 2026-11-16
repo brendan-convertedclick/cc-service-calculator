@@ -56,7 +56,25 @@ export function useBookOutside() {
   const assign = useAssignBriefToProject();
   return useMutation({
     mutationFn: async ({ row, projectId }: { row: OutsideRow; projectId: string }) => {
-      if (row.brief_id) {
+      if (row.reason === "clickup_only") {
+        // No record yet: make the brief from the ClickUp task, then book it the
+        // same way as any other brief, so the task moves under the retainer.
+        const { data, error } = await supabase
+          .from("briefs")
+          .insert({
+            client_id: row.client_id,
+            source: "manual",
+            status: "briefed",
+            raw_subject: row.task_name ?? "ClickUp task",
+            raw_body: "Created from the ClickUp task on the Outside report: the work was already under way in ClickUp with no brief.",
+            billing_type: "retainer",
+            clickup_task_id: row.clickup_task_id,
+          } as never)
+          .select("id")
+          .single();
+        if (error) throw error;
+        await assign.mutateAsync({ briefId: (data as { id: string }).id, projectId });
+      } else if (row.brief_id) {
         await assign.mutateAsync({ briefId: row.brief_id, projectId });
         if (row.brief_billing_type === "internal") {
           const { error } = await supabase.from("briefs").update({ billing_type: "retainer" }).eq("id", row.brief_id);

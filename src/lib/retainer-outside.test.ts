@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adhocName, canBook, canConvertToAdhoc, canDismissRow, groupOutside, totalOutside, type OutsideRow } from "./retainer-outside";
+import { adhocName, canBook, canConvertToAdhoc, groupOutside, totalOutside, type OutsideRow } from "./retainer-outside";
 
 const row = (o: Partial<OutsideRow>): OutsideRow => ({
   client_id: "c1", client_name: "Dovetail RSA", clickup_task_id: "t1", task_name: "x",
@@ -31,10 +31,10 @@ describe("groupOutside", () => {
     expect(canConvertToAdhoc(row({ reason: "internal", brief_id: "b", meeting_id: null }))).toBe(true);
     expect(canBook(row({ reason: "adhoc", brief_id: "b", meeting_id: null }))).toBe(false);
     expect(canBook(row({ dismissed_at: "2026-11-13T10:00:00Z" }))).toBe(false);
-    // A ClickUp-only task has nothing to book through, but can still be confirmed.
+    // A ClickUp-only task books by getting a brief, so it books like the rest.
     const clickupOnly = row({ reason: "clickup_only", meeting_id: null, brief_id: null });
-    expect(canBook(clickupOnly)).toBe(false);
-    expect(canDismissRow(clickupOnly)).toBe(true);
+    expect(canBook(clickupOnly)).toBe(true);
+    expect(canConvertToAdhoc(clickupOnly)).toBe(false);
   });
 
   it("prefixes [Ad Hoc] once", () => {

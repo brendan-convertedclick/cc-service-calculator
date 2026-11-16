@@ -65,14 +65,14 @@ export const OUTSIDE_REASON_LABEL: Record<OutsideReason, string> = {
   clickup_only: "ClickUp task with no brief",
 };
 
-/** Booking and dismissing are for leaks with a Conductor record behind them. */
+/**
+ * Booking and dismissing are for leaks with a Conductor record behind them,
+ * or a ClickUp-only task, which booking gives a brief first.
+ */
 export const canBook = (r: OutsideRow) =>
   isHidden(r) &&
   !r.dismissed_at &&
-  Boolean(r.brief_id || r.meeting_id || r.ongoing_task_id);
-
-/** Confirm internal and Mark as sales key on the ClickUp task, so they need no record. */
-export const canDismissRow = (r: OutsideRow) => isHidden(r) && !r.dismissed_at;
+  Boolean(r.brief_id || r.meeting_id || r.ongoing_task_id || r.reason === "clickup_only");
 
 /** Only a brief can become ad hoc: a meeting or bucket has no billing type of its own. */
 export const canConvertToAdhoc = (r: OutsideRow) =>
