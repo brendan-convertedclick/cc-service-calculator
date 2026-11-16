@@ -8,7 +8,8 @@ export type OutsideReason =
   | "ongoing"
   | "adhoc"
   | "open_retainer"
-  | "archived";
+  | "archived"
+  | "clickup_only";
 
 export interface OutsideRow {
   client_id: string;
@@ -46,6 +47,7 @@ export const OUTSIDE_COLUMN: Record<OutsideReason, OutsideColumn> = {
   adhoc: "adhoc",
   open_retainer: "adhoc",
   archived: "archived",
+  clickup_only: "other",
 };
 
 const HIDDEN: OutsideColumn[] = ["internal", "meeting", "other"];
@@ -60,6 +62,7 @@ export const OUTSIDE_REASON_LABEL: Record<OutsideReason, string> = {
   adhoc: "Ad hoc, invoice separately",
   open_retainer: "On a retainer with no budget",
   archived: "Brief archived, so the book drops it",
+  clickup_only: "ClickUp task with no brief",
 };
 
 /** Booking and dismissing are for leaks with a Conductor record behind them. */
@@ -67,6 +70,9 @@ export const canBook = (r: OutsideRow) =>
   isHidden(r) &&
   !r.dismissed_at &&
   Boolean(r.brief_id || r.meeting_id || r.ongoing_task_id);
+
+/** Confirm internal and Mark as sales key on the ClickUp task, so they need no record. */
+export const canDismissRow = (r: OutsideRow) => isHidden(r) && !r.dismissed_at;
 
 /** Only a brief can become ad hoc: a meeting or bucket has no billing type of its own. */
 export const canConvertToAdhoc = (r: OutsideRow) =>
