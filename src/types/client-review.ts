@@ -27,6 +27,13 @@ import type {
   ReviewItemType,
 } from "../../supabase/functions/_shared/client-buckets";
 
+/**
+ * One proof file from a hand-over (0204): a frozen copy in the private
+ * signoff-proof bucket, served as a URL that expires within the hour. Optional
+ * because only hand-over rows carry any.
+ */
+export type ReviewProof = { name: string; url: string; is_image: boolean };
+
 export type { ReviewBucket, ReviewDecision, ReviewItemState, ReviewItemType };
 
 /**
@@ -117,6 +124,11 @@ export type ReviewItem = {
    * and copy. These render as chips they can click.
    */
   links: string[];
+  /**
+   * Proof files from a hand-over (0204): frozen copies, served as signed URLs
+   * that expire within the hour. Optional — only hand-over rows carry any.
+   */
+  proof?: ReviewProof[];
   /**
    * When the email carrying this ask actually went out, or null if it never
    * did. It is on the wire because "we did tell you, on the 14th" is the one

@@ -89,7 +89,7 @@ export type SignoffRow = ReviewItem & {
 // rule 1 — see the header of supabase/functions/client-review. It carries the
 // two clocks and what the status means, never the status text itself.
 const ITEM_COLUMNS =
-  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
+  "id, client_id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, proof, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
 
 /**
  * The evidence behind one decision (0142). Staff-only — none of it crosses to
@@ -337,6 +337,20 @@ export function useClientReviewPreview(clientId: string | undefined) {
         .filter((c): c is { id: string; full_name: string } => !!c.full_name)
         .map((c) => ({ id: c.id, full_name: c.full_name }));
 
+      // Proof files (0204), signed the way the edge function signs them, so the
+      // preview shows the pictures the client will see. Not fatal.
+      const proofPaths = (itemRes.data ?? []).flatMap((r) =>
+        ((r as { proof?: { path: string }[] | null }).proof ?? []).map((p) => p.path),
+      );
+      const signed = new Map<string, string>();
+      if (proofPaths.length) {
+        const { data: urls, error: signErr } = await supabase.storage
+          .from("signoff-proof")
+          .createSignedUrls(proofPaths, 3600);
+        if (signErr) console.error("[preview] proof:", signErr.message);
+        for (const u of urls ?? []) if (u.path && u.signedUrl) signed.set(u.path, u.signedUrl);
+      }
+
       const items: ReviewItem[] = (itemRes.data ?? []).map((r) => ({
         id: r.id,
         item_type: r.item_type as ReviewItem["item_type"],
@@ -356,6 +370,9 @@ export function useClientReviewPreview(clientId: string | undefined) {
         created_at: r.created_at,
         client_note: r.client_note,
         links: r.links ?? [],
+        proof: ((r as { proof?: { name: string; path: string; mime: string }[] | null }).proof ?? [])
+          .filter((p) => signed.has(p.path))
+          .map((p) => ({ name: p.name, url: signed.get(p.path)!, is_image: /^image\//.test(p.mime) })),
         emailed_at: sentAtOf(r.outbound_emails),
         // 'parked' is dropped HERE and not in the panel, exactly as the edge
         // function drops it: parked is a staff-only state (0148) and its name

@@ -117,6 +117,34 @@ export function ItemDetail({
         </div>
       ) : null}
 
+      {item.proof && item.proof.length > 0 ? (
+        <div>
+          {/* Hand-over proof (0204): frozen copies of what the team attached. */}
+          <h2 className="text-title-small text-m-on-surface">The proof</h2>
+          <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {item.proof.map((p) => (
+              <li key={p.url}>
+                <a
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={p.name}
+                  className="block overflow-hidden rounded-md border border-m-outline-variant hover:shadow-elev-1"
+                >
+                  {p.is_image ? (
+                    <img src={p.url} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
+                  ) : null}
+                  <span className="flex items-center gap-1 truncate px-2 py-1 text-label-small text-m-on-surface-variant">
+                    <span className="truncate">{p.name}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {item.detail ? (
         <div>
           <h2 className="text-title-small text-m-on-surface">The detail</h2>

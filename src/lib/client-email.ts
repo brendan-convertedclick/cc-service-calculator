@@ -261,6 +261,31 @@ export function buildMessageEmail(args: {
 }
 
 /**
+ * Work we finished, sent for their approval (0204). The quoted part is the
+ * doer's own closing comment from ClickUp, as the client will also read it on
+ * the page; the proof itself is on the page, not attached, so there is one
+ * place to look and one place to answer.
+ */
+export function buildWorkDoneEmail(args: {
+  title: string;
+  whatWeDid: string;
+  url: string;
+  contactName?: string | null;
+  counts?: StageCounts | null;
+}): ClientEmail {
+  return render({
+    subject: `Done: ${args.title}`,
+    lead: `${args.title} is done. Here's what we did:`,
+    quoted: args.whatWeDid,
+    callToAction: "The proof is on your page. Approve it there, or tell us what to change. No login needed.",
+    buttonLabel: "See it and approve",
+    url: args.url,
+    contactName: args.contactName,
+    counts: args.counts,
+  });
+}
+
+/**
  * A chase across a client's whole list, addressed to no item in particular.
  *
  * Everything specific in it comes from the counts block the shell already

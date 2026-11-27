@@ -21,6 +21,14 @@ import type { ReviewItemState, ReviewItemType } from "./client-buckets.ts";
 
 export type ReviewContact = { id: string; full_name: string };
 
+/**
+ * One proof file from a hand-over (0204): a frozen copy in the private
+ * signoff-proof bucket, served as a URL that expires within the hour. Optional
+ * because only hand-over rows carry any.
+ */
+export type ReviewProof = { name: string; url: string; is_image: boolean };
+
+
 export type ReviewItem = {
   id: string; // client_approvals.id — NOT briefs.id
   item_type: ReviewItemType;
@@ -47,6 +55,8 @@ export type ReviewItem = {
   work_since: string | null;
   /** Web addresses this ask is about (0162). CLIENT-VISIBLE by construction. */
   links: string[];
+  /** Frozen proof files from a hand-over (0204), as short-lived signed URLs. */
+  proof?: ReviewProof[];
   /** When the email carrying this ask went out. Addresses are NOT sent. */
   emailed_at: string | null;
   /** Every time this changed sides. No staff name, no 'parked', ever. */
@@ -180,6 +190,8 @@ export type ApprovalRow = {
   raised_by_name: string | null;
   client_note: string | null;
   links: string[] | null;
+  /** 0204: storage paths in signoff-proof. Paths never cross; signed URLs do. */
+  proof?: { name: string; path: string; mime: string; size: number }[] | null;
   // The joined brief, one named column. See rule 1 at the top of this file.
   // PostgREST returns a to-one embed as an object at runtime but types it as
   // an array, so both shapes are accepted and normalised in toReviewItem.
@@ -245,6 +257,7 @@ export function toReviewItem(
   row: ApprovalRow,
   messages: ReviewMessage[] = [],
   moves: ReviewMove[] = [],
+  signed: Map<string, string> = new Map(),
 ): ReviewItem {
   return {
     id: row.id,
@@ -273,14 +286,37 @@ export function toReviewItem(
     court: courtOf(row.briefs),
     work_since: briefOf(row.briefs)?.created_at ?? null,
     links: row.links ?? [],
+    proof: (row.proof ?? [])
+      .filter((p) => signed.has(p.path))
+      .map((p) => ({ name: p.name, url: signed.get(p.path)!, is_image: /^image\//.test(p.mime) })),
     emailed_at: sentAtOf(row.outbound_emails),
     moves,
     messages,
   };
 }
 
+/**
+ * Signed URLs for every proof file on these rows, keyed by storage path. One
+ * hour: long enough to read the page, short enough that a forwarded screenshot
+ * of the HTML is not a permanent way in. Never throws — a client must still be
+ * able to answer an ask whose pictures failed to load.
+ */
+export async function signProof(sb: SupabaseClient, rows: ApprovalRow[]): Promise<Map<string, string>> {
+  const paths = rows.flatMap((r) => (r.proof ?? []).map((p) => p.path));
+  const out = new Map<string, string>();
+  if (!paths.length) return out;
+  try {
+    const { data, error } = await sb.storage.from("signoff-proof").createSignedUrls(paths, 3600);
+    if (error) throw error;
+    for (const d of data ?? []) if (d.path && d.signedUrl) out.set(d.path, d.signedUrl);
+  } catch (e) {
+    console.error("[client-review] proof signing failed:", e instanceof Error ? e.message : e);
+  }
+  return out;
+}
+
 export const APPROVAL_COLUMNS =
-  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
+  "id, item_type, client_title, ask, detail, due_date, weighty, state, decided_at, decided_by_name, agreed_at, agreed_via, owed_by, raised_by, raised_by_name, created_at, client_note, links, proof, briefs(created_at, client_wait_ms, internal_wait_ms, clickup_task_status, completed_at), outbound_emails(sent_at, status)";
 export async function loadReviewList(
   sb: SupabaseClient,
   clientId: string,
@@ -522,6 +558,7 @@ export async function loadReviewList(
   const opens: ReviewOpen[] = [...latestOpen.entries()].map(([name, at]) => ({ name, at }));
 
   const contacts = (contactsRaw ?? []) as ReviewContact[];
+  const signed = await signProof(sb, items);
   const resp: ListPayload = {
     status: "ok",
     company_name: companyName,
@@ -529,7 +566,7 @@ export async function loadReviewList(
     contacts,
     opens,
     items: items.map((row) =>
-      toReviewItem(row, byApproval.get(row.id) ?? [], movesByApproval.get(row.id) ?? []),
+      toReviewItem(row, byApproval.get(row.id) ?? [], movesByApproval.get(row.id) ?? [], signed),
     ),
     schedule: (scheduleRaw ?? []) as unknown as ReviewScheduleRow[],
     work,

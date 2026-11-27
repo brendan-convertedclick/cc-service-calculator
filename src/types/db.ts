@@ -1191,6 +1191,9 @@ export type Database = {
           item_id: string | null
           item_type: string
           links: string[]
+          handed_over_at: string | null
+          handed_over_by: string | null
+          proof: Json
           outbound_email_id: string | null
           owed_by: string
           raised_by: string
@@ -1222,6 +1225,9 @@ export type Database = {
           item_id?: string | null
           item_type?: string
           links?: string[]
+          handed_over_at?: string | null
+          handed_over_by?: string | null
+          proof?: Json
           outbound_email_id?: string | null
           owed_by?: string
           raised_by?: string
@@ -1253,6 +1259,9 @@ export type Database = {
           item_id?: string | null
           item_type?: string
           links?: string[]
+          handed_over_at?: string | null
+          handed_over_by?: string | null
+          proof?: Json
           outbound_email_id?: string | null
           owed_by?: string
           raised_by?: string

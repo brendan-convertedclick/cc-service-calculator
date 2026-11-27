@@ -19,6 +19,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { DraftSignoffsDialog } from "@/components/signoffs/DraftSignoffsDialog";
+import { HandoverQueue } from "@/components/signoffs/HandoverQueue";
 import { AskQuestionDialog } from "@/components/signoffs/AskQuestionDialog";
 import { SendUpdateDialog } from "@/components/signoffs/SendUpdateDialog";
 import { LogAgreementDialog } from "@/components/signoffs/LogAgreementDialog";
@@ -697,6 +698,11 @@ export function ClientSignoffs() {
               ? ` ${owedByUs} ${owedByUs === 1 ? "thing is" : "things are"} waiting on us.`
               : ""}
           </p>
+        </div>
+
+        {/* Hand-overs waiting for a Send (0204). Renders nothing when empty. */}
+        <div className="px-6 pt-4 empty:hidden">
+          <HandoverQueue clientId={clientId} />
         </div>
 
         {isError ? (
