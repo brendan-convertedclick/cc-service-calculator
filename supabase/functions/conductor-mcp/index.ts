@@ -27,14 +27,17 @@
 // where to sign in (RFC 9728). Deploy with --no-verify-jwt: the platform's own
 // 401 carries no such header, so discovery would never start.
 //
-// Stateless: one server and one transport per request, nothing held between
-// calls — the same shape as mcp-server/src/http.ts.
+// PROTOCOL. MCP 2026-07-28 through the v2 SDK: stateless by design (no
+// initialize handshake, no session id; every request carries its own _meta),
+// which suits an edge function that holds nothing between calls. Clients
+// still on 2025-era MCP are served too: createMcpHandler's `legacy:
+// "stateless"` answers their initialize/tools/call per request, so neither era
+// is turned away while claude.ai and other clients move over.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import { McpServer } from "npm:@modelcontextprotocol/sdk@1.30.0/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "npm:@modelcontextprotocol/sdk@1.30.0/server/webStandardStreamableHttp.js";
-import { z } from "npm:zod@3.25.76";
+import { createMcpHandler, McpServer } from "npm:@modelcontextprotocol/server@2.4.0";
+import { z } from "npm:zod@4.3.6";
 import { APP_URL } from "../_shared/helpers.ts";
 import {
   emailOf,
@@ -52,7 +55,7 @@ const METADATA_URL = `${RESOURCE}/.well-known/oauth-protected-resource`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, mcp-session-id, mcp-protocol-version, last-event-id",
+  "Access-Control-Allow-Headers": "authorization, content-type, mcp-session-id, mcp-protocol-version, mcp-method, mcp-name, last-event-id",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Expose-Headers": "mcp-session-id, www-authenticate",
 };
@@ -171,11 +174,11 @@ function buildServer(caller: Caller): McpServer {
         "who signs things off, this month's retainer hours, open and recently finished work, the ClickUp lists, work streams " +
         "and tags to brief into, and the team with their departments and skills. Call this before drafting a brief. " +
         "Pass client_id instead of sender_email when the client is already known.",
-      inputSchema: {
+      inputSchema: z.object({
         sender_email: z.string().optional().describe("The email's From, e.g. \"Jane <jane@acme.co.za>\""),
         client_id: z.string().uuid().optional().describe("Skip sender matching when you already know the client"),
         gmail_thread_id: z.string().optional().describe("If this thread was already briefed, the existing brief is returned"),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ sender_email, client_id, gmail_thread_id }: { sender_email?: string; client_id?: string; gmail_thread_id?: string }) => {
@@ -281,7 +284,7 @@ function buildServer(caller: Caller): McpServer {
         "Records the brief in Conductor and creates its ClickUp task in one step, so the task's time counts toward the " +
         "client's retainer and its completion can go through sign-off. Idempotent on gmail_thread_id: a thread already " +
         "briefed returns its existing task. Attach files to the returned task afterwards with ClickUp's own tool.",
-      inputSchema: {
+      inputSchema: z.object({
         client_id: z.string().uuid(),
         task_name: z.string().min(3).max(200),
         description: z.string().max(20000).describe("The brief the doer reads: what, why, done-when"),
@@ -296,7 +299,7 @@ function buildServer(caller: Caller): McpServer {
         email_body: z.string().max(50000).optional().describe("The client's words, kept on the brief"),
         sender_email: z.string().optional(),
         gmail_thread_id: z.string().optional(),
-      },
+      }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
     async (a: BriefIn) => {
@@ -368,10 +371,10 @@ function buildServer(caller: Caller): McpServer {
         "Briefed work that has finished or is on its way to the client, newest first, with where each one stands: " +
         "handed over and waiting for Send, with the client, approved, changes asked for, or done in ClickUp with no sign-off. " +
         "Each carries the Gmail thread it came from, so a reply can go back into that thread.",
-      inputSchema: {
+      inputSchema: z.object({
         client_id: z.string().uuid().optional(),
         days: z.number().int().min(1).max(90).optional().describe("How far back finished work goes (default 14)"),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ client_id, days }: { client_id?: string; days?: number }) => {
@@ -431,7 +434,7 @@ function buildServer(caller: Caller): McpServer {
       description:
         "One brief with its ClickUp task, hours, and its sign-off: what the doer said was done, the proof files, and the " +
         "client's decision. Use it to write the reply to the client's original email.",
-      inputSchema: { brief_id: z.string().uuid() },
+      inputSchema: z.object({ brief_id: z.string().uuid() }),
       annotations: { readOnlyHint: true },
     },
     async ({ brief_id }: { brief_id: string }) => {
@@ -512,11 +515,13 @@ Deno.serve(async (req: Request) => {
   const caller = await authenticate(req);
   if (caller instanceof Response) return caller;
 
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  const server = buildServer(caller);
-  await server.connect(transport);
+  const handler = createMcpHandler(() => buildServer(caller), {
+    legacy: "stateless",
+    responseMode: "json",
+    onerror: (e) => console.error("[conductor-mcp]", e.message),
+  });
   try {
-    return withCors(await transport.handleRequest(req));
+    return withCors(await handler.fetch(req));
   } catch (e) {
     console.error("[conductor-mcp]", e instanceof Error ? e.message : e);
     return jsonRes({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error" }, id: null }, 500);
