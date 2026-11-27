@@ -77,9 +77,11 @@ import { sha256Hex, timingSafeEqualHex } from "../_shared/hmac.ts";
 import { getOperatorClickupToken } from "../_shared/clickup-token.ts";
 import { postChatMessage, APPROVALS_CHANNEL_ID } from "../_shared/clickup-chat.ts";
 import type { ReviewDecision } from "../_shared/client-buckets.ts";
+import { closeHandoverLoop } from "../_shared/handover-close.ts";
 import {
   APPROVAL_COLUMNS,
   loadReviewList,
+  signProof,
   toReviewItem,
   type ApprovalRow,
   type ReviewItem,
@@ -509,7 +511,8 @@ async function handleDecide(
   }
 
   if (updatedRaw) {
-    const item = toReviewItem(updatedRaw as unknown as ApprovalRow);
+    const row = updatedRaw as unknown as ApprovalRow;
+    const item = toReviewItem(row, [], [], await signProof(sb, [row]));
     // Fired after the update succeeds, wrapped so it can never sink this
     // response — awaited only so it actually runs before the isolate is
     // recycled, never so its outcome is reported back to the client.
@@ -517,6 +520,9 @@ async function handleDecide(
     // client seeing their approval land, and must never fail it.
     notifyDecision(req, sb, clientId, item, decision, resolved.name, trimmedComment)
       .then(() => {}, () => {});
+    // A hand-over (0204) closes its ClickUp task on approval and reopens it
+    // with their note on changes. Same rule: never allowed to touch the reply.
+    closeHandoverLoop(sb, item.id, decision, resolved.name, trimmedComment).then(() => {}, () => {});
     return json({ status: "ok", item } satisfies DecideResponse);
   }
 

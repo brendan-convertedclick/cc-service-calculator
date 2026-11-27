@@ -3,6 +3,8 @@
 // Receives POST events from ClickUp webhooks.
 //
 // Handles:
+//   - taskStatusUpdated to "send to client": hands the task to
+//     handover-signoffs, which drafts the client sign-off (0204).
 //   - taskStatusUpdated: when history_items[*].after === 'complete',
 //     looks up the project via project_actuals_current.clickup_task_id and:
 //       * sets projects.completed_at = event date (if currently null)
@@ -35,6 +37,28 @@ Deno.serve(async (req: Request) => {
   }
 
   const historyItems = (body["history_items"] as Array<Record<string, unknown>>) ?? [];
+
+  // A doer's hand-over (0204): moved to "send to client". handover-signoffs
+  // gates it and drafts the sign-off; its 10-minute cron is the backstop if
+  // this call is lost, so it is awaited only to run, never to fail the hook.
+  const handedOver = historyItems.some((item) => {
+    const after = item["after"] as unknown;
+    const status = typeof after === "string" ? after : (after as { status?: string } | null)?.status;
+    return typeof status === "string" && status.toLowerCase() === "send to client";
+  });
+  if (handedOver && typeof body["task_id"] === "string") {
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/handover-signoffs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: body["task_id"] }),
+      });
+    } catch (e) {
+      console.error("clickup-webhook: handover call failed:", e);
+    }
+    return json({ ok: true, handover: true });
+  }
+
   const isComplete = historyItems.some(
     (item) =>
       typeof item["after"] === "string" &&
