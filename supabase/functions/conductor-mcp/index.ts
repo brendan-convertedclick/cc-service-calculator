@@ -98,23 +98,25 @@ async function callFn<T>(caller: Caller, name: string, body: unknown): Promise<T
   return parsed as T;
 }
 
+type Client = { id: string; name: string; clickup_folder_id: string | null };
+
 async function findClient(sb: SupabaseClient, sender: string) {
   const host = normalizeHost(emailOf(sender));
   if (!host) return null;
-  const { data: cds } = await sb.from("client_domains").select("domain, client:clients!inner(id, name)");
+  const { data: cds } = await sb.from("client_domains").select("domain, client:clients!inner(id, name, clickup_folder_id)");
   const cd = (cds ?? []).find((r) => hostMatches(host, normalizeHost(r.domain as string)));
-  if (cd) return one(cd.client as { id: string; name: string } | { id: string; name: string }[]);
-  const { data: clients } = await sb.from("clients").select("id, name, primary_domain").not("primary_domain", "is", null);
+  if (cd) return one(cd.client as Client | Client[]);
+  const { data: clients } = await sb.from("clients").select("id, name, clickup_folder_id, primary_domain").not("primary_domain", "is", null);
   const hit = (clients ?? []).find((c) => hostMatches(host, normalizeHost(c.primary_domain as string)));
-  if (hit) return { id: hit.id as string, name: hit.name as string };
+  if (hit) return { id: hit.id as string, name: hit.name as string, clickup_folder_id: hit.clickup_folder_id as string | null };
   const { data: msgs } = await sb
     .from("brief_messages")
-    .select("brief:briefs!inner(client:clients!inner(id, name))")
+    .select("brief:briefs!inner(client:clients!inner(id, name, clickup_folder_id))")
     .ilike("from_email", `%@${host}`)
     .eq("direction", "inbound")
     .limit(1);
   const brief = one(msgs?.[0]?.brief as unknown as { client: unknown } | null);
-  return one(brief?.client as { id: string; name: string } | null);
+  return one(brief?.client as Client | null);
 }
 
 async function retainerFor(sb: SupabaseClient, clientId: string) {
@@ -179,7 +181,7 @@ function buildServer(caller: Caller): McpServer {
     async ({ sender_email, client_id, gmail_thread_id }: { sender_email?: string; client_id?: string; gmail_thread_id?: string }) => {
       try {
         const client = client_id
-          ? one((await sb.from("clients").select("id, name").eq("id", client_id).limit(1)).data)
+          ? one((await sb.from("clients").select("id, name, clickup_folder_id").eq("id", client_id).limit(1)).data)
           : sender_email
           ? await findClient(sb, sender_email)
           : null;
@@ -261,7 +263,7 @@ function buildServer(caller: Caller): McpServer {
             name: t.full_name,
             department: one(t.department as never)?.["name"] ?? null,
             skills: t.skills,
-            in_clickup: t.clickup_user_id != null,
+            clickup_user_id: t.clickup_user_id,
           })),
           points_guide: "1 sprint point = 15 minutes of work.",
         });
