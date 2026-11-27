@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/table";
 import { ProgressRing } from "@/components/ProgressRing";
 import { useProjects, useUpdateProject } from "@/hooks/useProjects";
+import { useRetainerBudget } from "@/hooks/useRetainerBudget";
+import { currentBudgetMonth } from "@/lib/retainer-budget";
 import { useClients } from "@/hooks/useClients";
 import {
   STATUS_LABEL,
@@ -29,6 +31,10 @@ const STATUS_ORDER: DerivedStatus[] = ["backlog", "in_progress", "complete", "ca
 
 export function Projects() {
   const navigate = useNavigate();
+  // A retainer's ring is this month's time against its budget (Lisa,
+  // 2026-11-13), from the same rule as the Budget tab.
+  const { data: budgets } = useRetainerBudget(currentBudgetMonth());
+  const budgetByProject = useMemo(() => new Map((budgets ?? []).map((b) => [b.projectId, b])), [budgets]);
   const { data: projects = [] } = useProjects();
   const { data: clients = [] } = useClients();
   const updateProject = useUpdateProject();
@@ -59,8 +65,12 @@ export function Projects() {
   const enriched = useMemo(
     () =>
       projects.map((p) => {
-        const { status, progress } = deriveProjectStatusFromActuals(p.status, p.actuals);
-        return { project: p, status, progress };
+        const derived = deriveProjectStatusFromActuals(p.status, p.actuals);
+        // A running retainer is in progress until someone ends it. Deriving it
+        // from the month's tasks read "Backlog" every 1st, before anyone started.
+        const status =
+          p.engagement_type === "retainer" && p.status === "in_progress" ? "in_progress" as const : derived.status;
+        return { project: p, status, progress: derived.progress };
       }),
     [projects],
   );
@@ -68,7 +78,7 @@ export function Projects() {
   const [search, setSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<DerivedStatus>>(new Set());
-  const [view, setView] = useState<"active" | "completed" | "archived">("active");
+  const [view, setView] = useState<"active" | "completed" | "archived" | "all">("active");
   const q = search.trim().toLowerCase();
 
   const archivedCount = useMemo(
@@ -102,7 +112,10 @@ export function Projects() {
     () =>
       enriched.filter(({ project, status }) => {
         // Completed and archived projects each live in their own view tab.
-        if (view === "archived") {
+        // "All" is every project that is not archived (Lisa, 2026-11-13).
+        if (view === "all") {
+          if (status === "archived") return false;
+        } else if (view === "archived") {
           if (status !== "archived") return false;
         } else if (view === "completed") {
           if (status !== "complete") return false;
@@ -211,14 +224,16 @@ export function Projects() {
           <div className="flex items-center gap-4">
             <h1 className="text-headline-medium">Projects</h1>
             <div className="inline-flex rounded-md border border-m-outline-variant p-0.5">
-              {(["active", "completed", "archived"] as const).map((v) => {
+              {(["active", "completed", "archived", "all"] as const).map((v) => {
                 const active = view === v;
                 const label =
                   v === "active"
                     ? "Active"
                     : v === "completed"
                       ? `Completed${completedCount > 0 ? ` (${completedCount})` : ""}`
-                      : `Archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`;
+                      : v === "archived"
+                        ? `Archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`
+                        : "All";
                 return (
                   <button
                     key={v}
@@ -287,8 +302,12 @@ export function Projects() {
                     </TableRow>
                     {group.rows.map(({ project: p, status, progress }) => {
                       const isArchived = status === "archived";
-                      const showRing = progress.taskTotal > 0;
-                      const ringTitle = `Tasks ${progress.taskComplete}/${progress.taskTotal} (${Math.round(progress.taskPct * 100)}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${Math.round(progress.timePct * 100)}%)`;
+                      const budget = p.engagement_type === "retainer" ? budgetByProject.get(p.id) : undefined;
+                      const budgetPct = budget && budget.budget > 0 ? budget.spent / budget.budget : null;
+                      const showRing = budgetPct != null || progress.taskTotal > 0;
+                      const ringTitle = budget
+                        ? `${budget.spent.toFixed(1)}h of ${budget.budget.toFixed(1)}h budget used this month`
+                        : `Tasks ${progress.taskComplete}/${progress.taskTotal} (${Math.round(progress.taskPct * 100)}%) · Hours ${progress.actualHours.toFixed(1)}/${progress.plannedHours.toFixed(1)} (${Math.round(progress.timePct * 100)}%)`;
                       return (
                         <TableRow
                           key={p.id}
@@ -309,8 +328,9 @@ export function Projects() {
                           <TableCell>
                             {showRing ? (
                               <ProgressRing
-                                taskPct={progress.taskPct}
-                                timePct={progress.timePct}
+                                taskPct={budgetPct ?? progress.taskPct}
+                                timePct={budgetPct ?? progress.timePct}
+                                labelPct={budgetPct ?? undefined}
                                 title={ringTitle}
                               />
                             ) : (

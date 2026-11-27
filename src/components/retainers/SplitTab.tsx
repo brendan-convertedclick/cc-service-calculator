@@ -14,11 +14,12 @@ export interface SplitContributor {
 
 export interface SplitTabProps extends SplitInput {
   /** Per category, who the hours belonged to. Already sorted by the caller. */
-  contributors: Record<"retainer" | "adhoc" | "internal", SplitContributor[]>;
+  contributors: Record<"retainer" | "adhoc" | "internal" | "sales", SplitContributor[]>;
 }
 
 const fmtHours = (h: number) => `${Math.round(h * 10) / 10}h`;
 const TOP_N = 5;
+const SWATCH = ["bg-m-primary", "bg-m-tertiary", "bg-m-outline", "bg-m-secondary"];
 
 export function SplitTab({ contributors, ...input }: SplitTabProps) {
   const rows = splitHours(input);
@@ -35,11 +36,9 @@ export function SplitTab({ contributors, ...input }: SplitTabProps) {
   return (
     <div className="space-y-4">
       <p className="max-w-3xl text-label-small text-m-on-surface-variant">
-        How the month's completed hours divide between the three. Counted the
-        same way the Completed column is: logged time where somebody tracked it,
-        the points on the task where nobody did. That is a different basis from
-        the capacity page, which is points only, so the two will not match hour
-        for hour.
+        How the month's tracked hours divide between them. Counted the same
+        way the Completed column is: time logged in ClickUp during the month,
+        on any task booked to that tab, open or closed.
       </p>
 
       {/* One bar, three segments, so the shares are compared against each
@@ -49,9 +48,7 @@ export function SplitTab({ contributors, ...input }: SplitTabProps) {
           r.pct > 0 && (
             <div
               key={r.key}
-              className={
-                i === 0 ? "bg-m-primary" : i === 1 ? "bg-m-tertiary" : "bg-m-outline"
-              }
+              className={SWATCH[i]}
               style={{ width: `${r.pct}%` }}
               title={`${r.label} ${fmtHours(r.hours)}`}
             />
@@ -69,9 +66,7 @@ export function SplitTab({ contributors, ...input }: SplitTabProps) {
               <div className="flex items-baseline justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      i === 0 ? "bg-m-primary" : i === 1 ? "bg-m-tertiary" : "bg-m-outline"
-                    }`}
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${SWATCH[i]}`}
                   />
                   <span className="text-title-small text-m-on-surface">{r.label}</span>
                 </div>

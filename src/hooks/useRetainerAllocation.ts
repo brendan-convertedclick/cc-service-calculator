@@ -140,6 +140,10 @@ export interface AllocationMonth {
   rows: AllocationRow[];
   /** Brief id → hours logged on its task in this month. */
   trackedByBrief: Record<string, number>;
+  /** ClickUp task id → the row key its time lands on (a project id, or
+   *  `${kind}:${clientId}`). The same map for every month; exposed so the
+   *  Split's time types join tasks to bars exactly as the tabs do. */
+  taskToKey: Map<string, string>;
 }
 
 interface ProjectRow {
@@ -266,7 +270,7 @@ export function useRetainerAllocation(monthsBack = 6) {
 
       const sinceMonth = monthKey(sinceIso);
 
-      const [projectsRes, briefsRes, clientsRes, recurringRes, trackedRes, ongoingRes] = await Promise.all([
+      const [projectsRes, briefsRes, clientsRes, recurringRes, trackedRes, ongoingRes, meetingsRes, meetingTasksRes] = await Promise.all([
         supabase
           .from("projects")
           .select("id, name, client_id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, is_internal, clients(name)")
@@ -299,6 +303,17 @@ export function useRetainerAllocation(monthsBack = 6) {
           .from("ongoing_tasks")
           .select("clickup_task_id, project_id, client_id")
           .is("archived_at", null),
+        // Meetings (0207): a work meeting costs time, so one booked to a
+        // retainer counts against it, the same as retainer_task_project.
+        // Lowest precedence, below briefs, recurring tasks and buckets.
+        supabase
+          .from("internal_meetings")
+          .select("clickup_task_id, project_id, client_id")
+          .not("clickup_task_id", "is", null),
+        supabase
+          .from("internal_meeting_tasks")
+          .select("clickup_task_id, internal_meetings(project_id, client_id)")
+          .not("clickup_task_id", "is", null),
       ]);
       if (projectsRes.error) throw projectsRes.error;
       if (briefsRes.error) throw briefsRes.error;
@@ -306,6 +321,8 @@ export function useRetainerAllocation(monthsBack = 6) {
       if (recurringRes.error) throw recurringRes.error;
       if (trackedRes.error) throw trackedRes.error;
       if (ongoingRes.error) throw ongoingRes.error;
+      if (meetingsRes.error) throw meetingsRes.error;
+      if (meetingTasksRes.error) throw meetingTasksRes.error;
 
       const projects = (projectsRes.data ?? []) as unknown as ProjectRow[];
       const briefs = (briefsRes.data ?? []) as unknown as BriefRow[];
@@ -454,6 +471,23 @@ export function useRetainerAllocation(monthsBack = 6) {
       // retainer still shows, on that client's unbooked line.
       const taskToKey = new Map<string, string>();
       const briefIdByTask = new Map<string, string>();
+      type MeetingRef = { clickup_task_id: string | null; project_id: string | null; client_id: string | null };
+      const meetingRefs: MeetingRef[] = [
+        ...((meetingsRes.data ?? []) as unknown as MeetingRef[]),
+        ...((meetingTasksRes.data ?? []) as unknown as Array<{
+          clickup_task_id: string | null;
+          internal_meetings: { project_id: string | null; client_id: string | null } | null;
+        }>).map((t) => ({ clickup_task_id: t.clickup_task_id, ...(t.internal_meetings ?? { project_id: null, client_id: null }) })),
+      ];
+      for (const m of meetingRefs) {
+        if (!m.clickup_task_id) continue;
+        if (m.project_id && projectsWithOwnRow.has(m.project_id)) {
+          taskToKey.set(m.clickup_task_id, m.project_id);
+        } else if (m.client_id) {
+          const kind = internalClientIds.has(m.client_id) ? "internal" : "unlinked";
+          taskToKey.set(m.clickup_task_id, `${kind}:${m.client_id}`);
+        }
+      }
       for (const o of (ongoingRes.data ?? []) as unknown as Array<{
         clickup_task_id: string | null;
         project_id: string | null;
@@ -649,7 +683,7 @@ export function useRetainerAllocation(monthsBack = 6) {
         for (const [bk, hrs] of trackedByBriefMonth) {
           if (bk.endsWith(`|${month}`)) trackedByBrief[bk.slice(0, bk.lastIndexOf("|"))] = hrs;
         }
-        return { month, rows, trackedByBrief };
+        return { month, rows, trackedByBrief, taskToKey };
       });
     },
   });

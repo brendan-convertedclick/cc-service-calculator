@@ -19,6 +19,11 @@
 //     off no budgeted retainer — retainer work that was briefed against the
 //     wrong project. Left unlabelled it reads as ad hoc creeping up when the
 //     real story is a routing mistake.
+//
+// Sales (Lisa, 2026-11-13) is the fourth row, and only shows when there is
+// some. It is time on the Outside tab somebody marked as sales (0213): it is
+// taken OUT of the ad hoc or internal figure it was sitting in, by the
+// caller, so the shares still add up to the same month.
 
 export interface SplitInput {
   /** The Client Retainers tab's Completed total. */
@@ -31,13 +36,15 @@ export interface SplitInput {
   adhocUnlinked: number;
   /** The Internal tab's. */
   internal: number;
+  /** Hours marked as sales on the Outside tab, already taken out of adhoc / internal. */
+  sales: number;
 }
 
 export interface SplitRow {
-  key: "retainer" | "adhoc" | "internal";
+  key: "retainer" | "adhoc" | "internal" | "sales";
   label: string;
   hours: number;
-  /** Share of the three, 0-100. Zero total gives zero, never NaN. */
+  /** Share of the month, 0-100. Zero total gives zero, never NaN. */
   pct: number;
   /** The sub-line under the bar, or null when there is nothing to say. */
   note: string | null;
@@ -47,7 +54,7 @@ const fmt = (h: number) => `${Math.round(h * 10) / 10}h`;
 
 export function splitHours(input: SplitInput): SplitRow[] {
   const retainer = input.retainer + input.recurring;
-  const total = retainer + input.adhoc + input.internal;
+  const total = retainer + input.adhoc + input.internal + input.sales;
   const pct = (h: number) => (total > 0 ? (h / total) * 100 : 0);
 
   return [
@@ -76,5 +83,30 @@ export function splitHours(input: SplitInput): SplitRow[] {
       pct: pct(input.internal),
       note: null,
     },
+    ...(input.sales > 0
+      ? [{ key: "sales" as const, label: "Sales", hours: input.sales, pct: pct(input.sales), note: null }]
+      : []),
   ];
+}
+
+/** Outside-tab rows marked as sales, split by where the Book had counted them. */
+export interface SalesMarked {
+  /** Booked to no retainer, so the Book has them in ad hoc (as unlinked work). */
+  fromAdhoc: Map<string, number>;
+  /** A brief marked Internal on a paying client, so the Book has it in internal. */
+  fromInternal: Map<string, number>;
+}
+
+export function salesMarked(
+  rows: Array<{ client_name: string; reason: string; hours: number | string; dismissed_kind: string | null }>,
+): SalesMarked {
+  const out: SalesMarked = { fromAdhoc: new Map(), fromInternal: new Map() };
+  for (const r of rows) {
+    if (r.dismissed_kind !== "sales") continue;
+    // Only time that would otherwise be hidden can be marked, so the reason is
+    // one of internal / meeting / unlinked / ongoing.
+    const m = r.reason === "internal" ? out.fromInternal : out.fromAdhoc;
+    m.set(r.client_name, (m.get(r.client_name) ?? 0) + (Number(r.hours) || 0));
+  }
+  return out;
 }

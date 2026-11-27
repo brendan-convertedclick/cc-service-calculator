@@ -7,6 +7,7 @@ import { MyMeetingsList } from "@/components/staff/MyMeetingsList";
 import { BriefsBackWithMe, MyRequestsList } from "@/components/staff/MyRequestsList";
 import { RevisionFormBody } from "@/components/staff/RevisionFormBody";
 import { ClickUpConnectCard } from "@/components/ClickUpConnectCard";
+import { MyBudgetsCard } from "@/components/staff/MyBudgetsCard";
 
 /**
  * "My work" — everyone's own request desk, and where staff land after signing
@@ -40,6 +41,7 @@ export function StaffBriefForm() {
       />
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-10">
         <ClickUpConnectCard />
+        <MyBudgetsCard />
         <Card className="shadow-elev-2">
           <CardHeader>
             <CardTitle className="text-headline-small">Submit work</CardTitle>
