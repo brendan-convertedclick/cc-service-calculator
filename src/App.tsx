@@ -9,6 +9,7 @@ import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { Login } from "@/pages/Login";
 import { StitchSignIn } from "@/pages/StitchSignIn";
 import { SignoffsStitchSignIn } from "@/pages/SignoffsStitchSignIn";
+import { OAuthConsent } from "@/pages/OAuthConsent";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { StaffBriefForm } from "@/pages/StaffBriefForm";
 
@@ -220,6 +221,9 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/auth/stitch" element={<StitchSignIn />} />
           <Route path="/signoffs/stitch" element={<SignoffsStitchSignIn />} />
+          {/* claude.ai connector consent (conductor-mcp). Outside RequireAuth
+              so a sign-in cannot drop its ?authorization_id. */}
+          <Route path="/oauth/consent" element={<OAuthConsent />} />
           {/* Client-facing sign-off inbox. Sibling of /login on purpose:
               outside <RequireAuth> (the token IS the auth) and outside
               <AppShell> (no nav rail, no staff breadcrumbs). */}
