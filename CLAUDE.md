@@ -366,6 +366,7 @@ service-role client for exactly this reason).
   entry point for the HTTP MCP transport, is launched by `ecosystem.config.cjs`
   and never imported. It
   is not dead, and is listed in `knip.json`'s entries so the gate exits clean.
+- `.githooks/post-commit` only hands over to a machine-local `.git/hooks/post-commit` if one exists (setting `core.hooksPath` would otherwise silently disable it). Keep that hand-over when adding hooks.
 - The pre-commit hook (same `.githooks`, also on by default) lints staged files with `--max-warnings 0`, so a file you touch leaves with its warnings fixed — that is how the ratchet moves now.
 - Playwright specs live in `e2e/`. `systems.spec.ts`, `pipeline.spec.ts`,
   `staff-access.spec.ts` and `school-calendar.spec.ts` **write to the live
