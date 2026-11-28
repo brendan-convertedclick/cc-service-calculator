@@ -16,9 +16,6 @@ project_id = "lpgwxacoqiqpcfpkklib"
 [functions.push-to-clickup]
 verify_jwt = false
 
-[functions.draft-scope]
-verify_jwt = false
-
 [functions.suggest-services]
 verify_jwt = false
 
@@ -105,10 +102,6 @@ verify_jwt = false
 [functions.create-recurring-tasks]
 verify_jwt = false
 
-# --- Scope map (Phase 4 SowCheck rebuild) ---
-[functions.analyze-brief-sow]
-verify_jwt = false
-
 [functions.update-retainer-services]
 verify_jwt = false
 
@@ -121,9 +114,6 @@ verify_jwt = false
 # 33 functions were undeclared and would have 401'd on their next deploy.
 
 [functions.approve-revision-request]
-verify_jwt = false
-
-[functions.auto-scope]
 verify_jwt = false
 
 [functions.clickup-oauth]
@@ -163,9 +153,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.manage-internal-meeting]
-verify_jwt = false
-
-[functions.match-tasks-to-sow]
 verify_jwt = false
 
 [functions.notify-extension-request]

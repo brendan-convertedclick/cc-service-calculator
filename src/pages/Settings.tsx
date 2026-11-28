@@ -56,9 +56,10 @@ export function Settings() {
     String(s?.productivity_goal_points ?? 40)
   );
 
+  const goalPoints = s ? (s.productivity_goal_points ?? 40) : null;
   useEffect(() => {
-    if (s) setGoalInput(String(s.productivity_goal_points ?? 40));
-  }, [s?.productivity_goal_points]);
+    if (goalPoints !== null) setGoalInput(String(goalPoints));
+  }, [goalPoints]);
 
   const xeroStatus = useXeroConnectionStatus();
 
@@ -240,7 +241,7 @@ export function Settings() {
               <CardHeader>
                 <CardTitle>Anthropic</CardTitle>
                 <CardDescription>
-                  Model for draft-scope, suggest-services, draft-sow.
+                  Model for suggest-services and draft-sow.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
