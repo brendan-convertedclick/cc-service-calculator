@@ -207,7 +207,7 @@ If a channel session ever does get stuck this way, don't just restart the launch
 
 ## conductor MCP server setup
 
-The repo ships an MCP server at `mcp-server/` exposing 24 tools: 20 for intake (clients, briefs, sender rules) and 4 for the systems library (`list-procedures`, `get-procedure`, `create-procedure`, `add-procedure-task`). `mcp-server/README.md` is the full account — setup, the procedure-writing shape, and the security position.
+The repo ships an MCP server at `mcp-server/` exposing 4 tools, all for the systems library (`list-procedures`, `get-procedure`, `create-procedure`, `add-procedure-task`). Its 20 email-intake tools (find-client, create-brief, set-brief-intent, set-brief-intelligence, evaluate-sender and the rest) were removed on 2026-11-28: the Brief Team artifact on claude.ai now reads the email and briefs through the hosted `conductor-mcp` connector below, so do not bring them back. `mcp-server/README.md` is the full account — setup, the procedure-writing shape, and the security position.
 
 **First-time setup (once per machine):**
 
@@ -238,21 +238,9 @@ Adding a tool means one entry in the `tools` table in `src/server.ts` — do not
   * **It cannot send anything to a client.** Nothing in it touches `client_approvals` state or email. A sign-off still reaches a client only through Send on `/client-signoffs`.
   * **It speaks MCP 2026-07-28 and 2025-era MCP from one handler.** `createMcpHandler` from the v2 SDK (`@modelcontextprotocol/server`, zod v4) serves the stateless revision natively and answers older clients' `initialize`/`tools/call` through `legacy: "stateless"`. Do not set `legacy: "reject"` until claude.ai and every client the team uses speaks 2026-07-28. Input schemas are `z.object(...)`; the bare-shape form is deprecated in v2. The laptop server in `mcp-server/` is still on the v1 SDK; it runs only on Brendan's machine and can move when convenient.
 
-### Sender rule enforcement in intake
+### Sender rules
 
-The intake flow must call `mcp__conductor__evaluate-sender` before
-`create-brief` for every inbound thread on a known client domain. Decision values:
-
-- `allow` — proceed and create the brief normally.
-- `block` — skip the thread; tag it `CC/Intake/Blocked` so it isn't reconsidered.
-- `pending` — sender is on a known client domain but has no rule. Proceed,
-  but a `pending_senders` row is queued automatically by `create-brief` and
-  must be resolved by the operator in **Clients → [client] → Senders**.
-- `unknown` — sender's domain is not a client domain (current ignore behavior).
-
-`create-brief` also performs a defensive block check, so an outdated intake
-flow can never insert a blocked sender. `sync-messages` drops inbound messages
-from blocked senders before upserting.
+`client_sender_rules` and `pending_senders` are still edited in **Clients → [client] → Senders**, but since the laptop intake tools were removed (2026-11-28) nothing in an intake path reads them: `gmail-relay` never did. If the Brief Team artifact ever needs to respect a block rule, `get-brief-context` on the hosted connector is where to read it.
 
 ## Supabase — use the project-scoped MCP server ONLY
 

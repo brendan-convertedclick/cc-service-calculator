@@ -1,22 +1,13 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatZar } from "@/lib/utils";
 import {
   useReconciliation,
   type ReconciliationRow,
 } from "@/hooks/useReconciliation";
 import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import type { ClaudePrompt } from "@/types/claude";
-
-const ZAR = new Intl.NumberFormat("en-ZA", {
-  style: "currency",
-  currency: "ZAR",
-});
-
-function formatZAR(cents: number): string {
-  return ZAR.format(cents / 100);
-}
 
 function formatMonthLabel(year: number, month: number): string {
   return new Date(year, month, 1).toLocaleDateString("en-ZA", {
@@ -86,7 +77,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
               {row.clientName}
             </h2>
             <p className="mt-0.5 text-label-small text-m-on-surface-variant">
-              {row.deliveredHours}h delivered · {formatZAR(row.costCents)} cost
+              {row.deliveredHours}h delivered · {formatZar(row.costCents)} cost
             </p>
           </div>
           <button
@@ -145,7 +136,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-body-small text-m-on-surface-variant">
-                        {formatZAR(inv.amountCents)}
+                        {formatZar(inv.amountCents)}
                       </span>
                       {inv.dueDate && (
                         <span className="text-label-small text-m-on-surface-variant">
@@ -192,7 +183,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                   Cost
                 </span>
                 <span className="text-label-medium text-m-on-surface">
-                  {formatZAR(row.costCents)}
+                  {formatZar(row.costCents)}
                 </span>
               </div>
               <div className="mt-1 flex items-center justify-between">
@@ -200,7 +191,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                   Invoiced
                 </span>
                 <span className="text-label-medium text-m-on-surface">
-                  {formatZAR(row.invoicedCents)}
+                  {formatZar(row.invoicedCents)}
                 </span>
               </div>
               {row.invoicedCents > 0 && row.costCents > 0 && (
@@ -216,7 +207,7 @@ function DetailDrawer({ row, onClose }: DetailDrawerProps) {
                         : "text-red-700",
                     )}
                   >
-                    {formatZAR(row.invoicedCents - row.costCents)}
+                    {formatZar(row.invoicedCents - row.costCents)}
                   </span>
                 </div>
               )}
@@ -284,7 +275,7 @@ export function ReconciliationView() {
   const { data: rows = [], isLoading } = useReconciliation(year, month);
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the Conductor connector tools: get-brief-context, get-brief, list-tickets, brief-to-clickup.`;
 
   const monthLabel = formatMonthLabel(year, month);
 
@@ -455,11 +446,11 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                           : "—"}
                       </td>
                       <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
-                        {row.costCents > 0 ? formatZAR(row.costCents) : "—"}
+                        {row.costCents > 0 ? formatZar(row.costCents) : "—"}
                       </td>
                       <td className="px-4 py-3 text-body-medium text-m-on-surface text-right tabular-nums">
                         {row.invoicedCents > 0
-                          ? formatZAR(row.invoicedCents)
+                          ? formatZar(row.invoicedCents)
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
@@ -499,10 +490,10 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                       {Math.round(totalHours * 10) / 10}h
                     </td>
                     <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
-                      {formatZAR(totalCost)}
+                      {formatZar(totalCost)}
                     </td>
                     <td className="px-4 py-3 text-label-medium font-bold text-m-on-surface text-right tabular-nums">
-                      {formatZAR(totalInvoiced)}
+                      {formatZar(totalInvoiced)}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -516,7 +507,7 @@ Output: A markdown table with columns: Client | Description | Hours | Notes. One
                         )}
                       >
                         {totalCost > 0
-                          ? `${totalInvoiced >= totalCost ? "+" : ""}${formatZAR(totalInvoiced - totalCost)} variance`
+                          ? `${totalInvoiced >= totalCost ? "+" : ""}${formatZar(totalInvoiced - totalCost)} variance`
                           : "—"}
                       </span>
                     </td>

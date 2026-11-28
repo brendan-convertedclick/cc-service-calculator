@@ -102,6 +102,9 @@ export function ProjectDetail() {
         data.project.due_date ? data.project.due_date.slice(0, 10) : "",
       );
     }
+    // Reset the drafts only when a different project loads, not on every refetch
+    // of the same one (that would wipe an edit in progress).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.project?.id]);
 
   const rows = useMemo(() => {
@@ -221,7 +224,7 @@ export function ProjectDetail() {
   }
 
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the Conductor connector tools: get-brief-context, get-brief, list-tickets, brief-to-clickup.`;
 
   const actualsSummary = rows
     .map((r) => `  ${r.dept_name}: ${r.actual}h actual / ${r.planned}h planned`)

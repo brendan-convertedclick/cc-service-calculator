@@ -70,7 +70,7 @@ export function ProjectScopeView() {
   const projectName = project?.name ?? projectMeta?.name ?? "Project";
   const clientName = client?.name ?? "Client";
 
-  const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
+  const MCP_NOTE = `You have access to the Conductor connector tools: get-brief-context, get-brief, list-tickets, brief-to-clickup.`;
   const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
 
   const totalUsed = actuals.reduce((s, a) => s + (a.actual_hours ?? 0), 0);
