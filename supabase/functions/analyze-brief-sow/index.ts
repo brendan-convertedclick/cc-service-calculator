@@ -137,6 +137,9 @@ async function seedPlacementTasks(
   }
 }
 
+// Client email is not sent to AI (company decision, 2026-11-18; the Privacy Policy says so). The heuristic does the work.
+const AI_ON_CLIENT_EMAIL: boolean = false;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -214,7 +217,7 @@ Deno.serve(async (req: Request) => {
       const available = (allSows ?? []) as SowSummary[];
 
       let suggested: string[] = [];
-      try {
+      if (AI_ON_CLIENT_EMAIL) try {
         const raw = await callAnthropic({
           model: MODEL,
           system: SUGGEST_SYSTEM,
@@ -328,7 +331,7 @@ Deno.serve(async (req: Request) => {
     }
     if (items && items.length > 0) {
       // Intelligence path complete — skip AI/heuristic extraction entirely.
-    } else if (Deno.env.get("ANTHROPIC_API_KEY")) {
+    } else if (AI_ON_CLIENT_EMAIL && Deno.env.get("ANTHROPIC_API_KEY")) {
       try {
         const raw = await callAnthropic({
           model: MODEL,

@@ -13,8 +13,8 @@ export async function handler(input: Input) {
     const { data, error } = await supabase
       .from('briefs')
       .select(`
-        id, raw_subject, raw_body, sender_email, status,
-        intent_type, draft_reply, created_at, message_count,
+        id, raw_subject, sender_email, status,
+        intent_type, created_at, message_count,
         scopes(enhanced_prose, in_scope_md, out_of_scope_md, open_questions_md, scope_type)
       `)
       .eq('id', input.brief_id)
