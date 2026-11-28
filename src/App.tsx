@@ -136,9 +136,6 @@ const Escalations = lazy(() =>
 const ComposeEmail = lazy(() =>
   import("@/pages/ComposeEmail").then((m) => ({ default: m.ComposeEmail })),
 );
-const SowCheck = lazy(() =>
-  import("@/pages/SowCheck").then((m) => ({ default: m.SowCheck })),
-);
 const SowComposer = lazy(() =>
   import("@/pages/SowComposer").then((m) => ({ default: m.SowComposer })),
 );
@@ -297,7 +294,6 @@ export default function App() {
               <Route path="briefs/new" element={<NewBrief />} />
               <Route path="briefs/:id" element={<BriefResume />} />
               <Route path="briefs/:id/scope" element={<Scope />} />
-              <Route path="briefs/:id/sow-check" element={<SowCheck />} />
               <Route path="briefs/:id/builder" element={<ProjectBuilder />} />
               <Route path="quotes" element={<Navigate to="/inbox" replace />} />
               <Route path="quotes/:id" element={<QuoteDetail />} />

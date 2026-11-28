@@ -4,7 +4,7 @@ import type { Database, Json } from "@/types/db";
 import { useAuth } from "@/context/AuthContext";
 import { SYSTEMS_KEY, SYSTEM_DETAIL_KEY } from "@/hooks/useSystemDefinitions";
 // Reused as-is from the edge function's shared lib — pure TS, no Deno APIs,
-// same cross-import pattern already used by src/lib/scope-disposition.test.ts.
+// imported straight into the browser bundle.
 import { diffSteps, type DiffStep } from "../../supabase/functions/_shared/system-diff";
 import { callEdgeFn } from "@/lib/edge";
 

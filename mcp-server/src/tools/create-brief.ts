@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { supabase } from '../supabase.js'
-import { fireAutoScope } from '../auto-scope.js'
 import { decide, type Rule } from '../sender-rules.js'
 import { guarded } from '../tool-result.js'
 
@@ -67,8 +66,6 @@ export async function handler(input: Input) {
         p_sample_brief_id: created.id,
       })
     }
-
-    fireAutoScope(created.id)
 
     return { brief_id: created.id, created: true }
   })

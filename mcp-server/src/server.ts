@@ -51,7 +51,7 @@ const tools: ToolEntry[] = [
   ['get-active-retainer', 'Get the most recent active retainer brief for a client with its scope summary. Returns { brief_id, subject, scope_summary } or null.', getActiveRetainer, true],
   ['list-briefs', 'List inbox briefs with optional filters. Returns array of brief summaries.', listBriefs, true],
   ['get-brief', 'Get a brief with its scope fields and intent_type. The email body is not returned.', getBrief, true],
-  ['create-brief', 'Idempotently create a new brief from an email. Dedupes by gmail_thread_id, fires auto-scope in background. Returns { brief_id, created: bool }.', createBrief],
+  ['create-brief', 'Idempotently create a new brief from an email. Dedupes by gmail_thread_id. Returns { brief_id, created: bool }.', createBrief],
   ['sync-messages', 'Idempotently insert new Gmail messages into brief_messages. Skips any gmail_message_id already stored. Returns { inserted, skipped }.', syncMessages],
   ['set-brief-intent', 'Update a brief with its AI-classified intent_type and store scope fields or draft_reply. Upserts scope row on conflict with brief_id.', setBriefIntent],
   ['set-brief-intelligence', 'Upsert a brief_intelligence record for a brief. Stages call this after completing their output. Appends audit_trail_entry if provided. Returns { id, brief_id, am_status }.', setBriefIntelligence],

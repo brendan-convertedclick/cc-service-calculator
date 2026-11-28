@@ -1,19 +1,16 @@
 // src/hooks/useScopeMap.ts
 //
-// Data layer for the Scope map page (/briefs/:id/sow-check). Placements live
+// Data layer for Stage 1 (In / New / Out of scope) of the brief page. Placements live
 // in brief_task_sow_placements (0059, self-contained item columns added by
-// 0061); the client→SOW link lives in client_sows (0061). Analysis runs in
-// the analyze-brief-sow edge function.
+// 0061); the client→SOW link lives in client_sows (0061). Lines are added by
+// hand — nothing analyses the client's email any more.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { callEdgeFn } from "@/lib/edge";
-import { useAuth } from "@/context/AuthContext";
 import {
   makeManualTaskRef,
   type BriefTaskSowPlacement,
-  type ClientSow,
 } from "@/types/sow-placements";
 
 // brief_task_sow_placements (0059, item columns 0061) and client_sows (0061)
@@ -22,33 +19,6 @@ import {
 const sb = supabase as unknown as SupabaseClient;
 
 export const SCOPE_MAP_KEY = (briefId: string) => ["scope-map", briefId] as const;
-export const CLIENT_SOWS_KEY = (clientId: string) => ["client-sows", clientId] as const;
-
-export type SowOption = { slug: string; title: string };
-
-export type AnalyzeBriefInput = {
-  sow_slugs?: string[];
-  persist_client_sows?: boolean;
-  force?: boolean;
-};
-
-/** First run with no client→SOW link: the fn proposes slugs, writes nothing. */
-export type AnalyzeSuggestResult = {
-  ok: true;
-  needs_sow_selection: true;
-  suggested_slugs: string[];
-  available: SowOption[];
-};
-
-/** Analysis ran: freshly inserted rows + kept approved rows. */
-export type AnalyzeRunResult = {
-  ok: true;
-  needs_sow_selection?: false;
-  sow_slugs: string[];
-  placements: BriefTaskSowPlacement[];
-};
-
-export type AnalyzeBriefResult = AnalyzeSuggestResult | AnalyzeRunResult;
 
 export function useScopeMapPlacements(briefId: string | undefined) {
   return useQuery({
@@ -66,48 +36,6 @@ export function useScopeMapPlacements(briefId: string | undefined) {
         .order("id");
       if (error) throw error;
       return (data ?? []) as unknown as BriefTaskSowPlacement[];
-    },
-  });
-}
-
-export function useClientSows(clientId: string | null | undefined) {
-  return useQuery({
-    enabled: !!clientId,
-    queryKey: clientId ? CLIENT_SOWS_KEY(clientId) : ["client-sows", "none"],
-    queryFn: async (): Promise<ClientSow[]> => {
-      if (!clientId) return [];
-      const { data, error } = await sb
-        .from("client_sows")
-        .select("*")
-        .eq("client_id", clientId)
-        .eq("status", "active")
-        .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as ClientSow[];
-    },
-  });
-}
-
-/**
- * Run the analyze-brief-sow edge function. Returns either a SOW-selection
- * request (first run, nothing persisted) or the persisted placements.
- */
-export function useAnalyzeBrief(briefId: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: AnalyzeBriefInput = {}): Promise<AnalyzeBriefResult> => {
-      if (!briefId) throw new Error("Missing brief id");
-      return callEdgeFn<AnalyzeBriefResult>("analyze-brief-sow", {
-        brief_id: briefId,
-        ...input,
-      });
-    },
-    // onSettled (not onSuccess): the edge fn deletes/reinserts rows server-side
-    // before a failure can surface, so a failed/aborted re-analysis must still
-    // resync the cache with whatever the server now holds.
-    onSettled: () => {
-      if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
-      qc.invalidateQueries({ queryKey: ["client-sows"] });
     },
   });
 }
@@ -268,31 +196,6 @@ export function useUpdatePlacementValue(briefId: string | undefined) {
       if (briefId && ctx?.previous) qc.setQueryData(SCOPE_MAP_KEY(briefId), ctx.previous);
     },
     onSettled: () => {
-      if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
-    },
-  });
-}
-
-/**
- * Stamp every placement on the brief as approved. approved_by stays null
- * under the shared team@ login (no team_members row) — allowed by 0061.
- */
-export function useApprovePlacements(briefId: string | undefined) {
-  const qc = useQueryClient();
-  const { currentUserId } = useAuth();
-  return useMutation({
-    mutationFn: async () => {
-      if (!briefId) throw new Error("Missing brief id");
-      const { error } = await sb
-        .from("brief_task_sow_placements")
-        .update({
-          approved_by: currentUserId ?? null,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("brief_id", briefId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
       if (briefId) qc.invalidateQueries({ queryKey: SCOPE_MAP_KEY(briefId) });
     },
   });

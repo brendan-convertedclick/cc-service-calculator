@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockFireAutoScope = vi.fn()
-vi.mock('../auto-scope.js', () => ({ fireAutoScope: mockFireAutoScope }))
 
 // briefs.select('id').eq(...).maybeSingle() — duplicate check
 const mockBriefsMaybeSingle = vi.fn()
@@ -50,10 +48,9 @@ describe('create-brief', () => {
     const result = await handler({ gmail_thread_id: 'thread-1', subject: 'Hi', body: 'Hello', sender_email: 'a@b.com' })
     expect(JSON.parse(result.content[0].text)).toEqual({ brief_id: 'existing-brief', created: false })
     expect(mockBriefsInsert).not.toHaveBeenCalled()
-    expect(mockFireAutoScope).not.toHaveBeenCalled()
   })
 
-  it('creates brief and fires auto-scope when thread is new and no rules apply', async () => {
+  it('creates brief when thread is new and no rules apply', async () => {
     setupBriefsFlow()
     mockBriefsMaybeSingle.mockResolvedValue({ data: null, error: null })
     mockBriefsInsertSingle.mockResolvedValue({ data: { id: 'new-brief' }, error: null })
@@ -66,12 +63,11 @@ describe('create-brief', () => {
       source: 'gmail_relay',
       status: 'new',
     }))
-    expect(mockFireAutoScope).toHaveBeenCalledWith('new-brief')
     // Decision was 'pending' (no rules) but client_id present → pending row queued
     expect(mockRpc).toHaveBeenCalled()
   })
 
-  it('blocks insert and skips auto-scope when a block rule matches', async () => {
+  it('blocks insert when a block rule matches', async () => {
     setupBriefsFlow()
     mockBriefsMaybeSingle.mockResolvedValue({ data: null, error: null })
     mockRulesEq.mockResolvedValue({
@@ -82,7 +78,6 @@ describe('create-brief', () => {
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed).toEqual({ blocked: true, reason: 'sender_blocked', rule_id: 'rule-1' })
     expect(mockBriefsInsert).not.toHaveBeenCalled()
-    expect(mockFireAutoScope).not.toHaveBeenCalled()
   })
 
   it('does not queue pending when an allow rule matches', async () => {
@@ -95,6 +90,5 @@ describe('create-brief', () => {
     })
     await handler({ gmail_thread_id: 'thread-4', subject: 'Hi', body: '...', sender_email: 'sam@x.com', client_id: 'client-1' })
     expect(mockRpc).not.toHaveBeenCalled()
-    expect(mockFireAutoScope).toHaveBeenCalled()
   })
 })

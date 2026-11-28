@@ -279,7 +279,7 @@ export function Scope() {
       });
       await updateBrief.mutateAsync({ id, patch: { status: "scoped" } });
       // Stay in the staged flow — the cost estimate is the next stage here,
-      // not a separate screen. The scope map remains at /briefs/:id/sow-check.
+      // not a separate screen.
       setOpenStage(4);
       toast.success("Scope locked — build the cost estimate next");
     } catch {
@@ -475,7 +475,6 @@ export function Scope() {
           <ScopeConfirmStage
             key={id}
             briefId={id!}
-            clientId={brief.client_id}
             confirmed={scopeConfirmed}
             confirming={confirmScope.isPending}
             onConfirm={handleConfirmScope}

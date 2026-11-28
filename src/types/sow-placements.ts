@@ -81,10 +81,8 @@ export function isBillablePlacement(p: BriefTaskSowPlacement): boolean {
 
 /**
  * Build a stable, per-brief-unique task_ref for a manually-added billable line.
- * Mirrors the edge function's makeTaskRef charset ([a-z0-9_-] only — the
- * analyze-brief-sow delete path quotes refs assuming that set) but uses a
- * `manual_` prefix so hand-added lines are distinguishable from `item_N_…` AI
- * rows. Slug is the first three words of the name; collisions against refs
+ * Keeps refs to [a-z0-9_-] with a `manual_` prefix, so hand-added lines stay
+ * distinguishable from the `item_N_…` rows the old email analysis wrote. Slug is the first three words of the name; collisions against refs
  * already on the brief get a numeric `-2`, `-3`… suffix.
  */
 export function makeManualTaskRef(name: string, existingRefs: Iterable<string>): string {
