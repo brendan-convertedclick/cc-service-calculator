@@ -3,6 +3,12 @@ import { looksInternal, suggestClientTitle } from "./client-title";
 
 // Every subject below is a real one, copied from the briefs table.
 describe("suggestClientTitle", () => {
+  it("strips the internal billing tag Conductor puts on task names", () => {
+    expect(suggestClientTitle("[Ad Hoc] Homepage banner refresh")).toBe("Homepage banner refresh");
+    expect(suggestClientTitle("[Retainer] Trellidor UK - Monthly report", "Trellidor UK")).toBe("Monthly report");
+    expect(suggestClientTitle("[TEST] keep other brackets")).toBe("[TEST] keep other brackets");
+  });
+
   it("strips the version suffix the team appends", () => {
     expect(
       suggestClientTitle(
