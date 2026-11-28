@@ -44,6 +44,12 @@ describe("closingComment", () => {
   it("ignores everything from before the last client decision", () => {
     expect(closingComment([comment("a", DONE, 100)], 200)).toBeNull();
   });
+
+  it("skips machine audit comments like BRIEF:: even when they are newest", () => {
+    const brief = comment("b", 'BRIEF:: {"client_name":"Test","sprint_points":1,"url":"https://x.example"}', 300);
+    expect(closingComment([brief], 0)).toBeNull();
+    expect(closingComment([comment("a", DONE, 100), brief], 0)?.id).toBe("a");
+  });
 });
 
 describe("gate", () => {

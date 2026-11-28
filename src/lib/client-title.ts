@@ -26,6 +26,9 @@ const VERSION_SUFFIX = /\s*[-–—]\s*(DFT|REV)\s*V?\s*\d+(?:\.\d+)*\s*$/i;
 /** A trailing "(QC)" / "(qc)" quality-check marker. */
 const QC_SUFFIX = /\s*\(\s*QC\s*\)\s*$/i;
 
+/** The billing tags Conductor puts in front of ClickUp task names (_shared/clickup.ts): "[Ad Hoc] ", "[Retainer] ", "[Ongoing] ". Internal, never client-facing. */
+const BILLING_PREFIX = /^\s*\[(Ad Hoc|Retainer|Ongoing)\]\s*/i;
+
 /** Collapse runs of whitespace and trim. */
 function tidy(s: string): string {
   return s.replace(/\s+/g, " ").trim();
@@ -44,7 +47,7 @@ function tidy(s: string): string {
  */
 export function suggestClientTitle(rawSubject: string | null, clientName?: string | null): string {
   if (!rawSubject) return "";
-  let s = tidy(rawSubject);
+  let s = tidy(rawSubject).replace(BILLING_PREFIX, "");
 
   // Suffixes can stack: "… - DFT V1.1 (QC)". Peel until nothing more comes off.
   for (let i = 0; i < 4; i++) {

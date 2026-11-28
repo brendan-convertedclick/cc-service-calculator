@@ -19,6 +19,11 @@
 /** What Conductor writes on a ClickUp task. Comments starting with it are ours, never a doer's. */
 export const CONDUCTOR_MARK = "🤖 Conductor";
 
+/** Machine audit comments (BRIEF::, EXTENSION::, REVISION::, LOG:: …) are posted
+ *  under a person's PAT on every briefed task, so they must never count as the
+ *  doer's closing comment. */
+const AUDIT_COMMENT = /^[A-Z][A-Z_]*::/;
+
 /** Shorter than this is "done" or "see attached" — not an account of the work. */
 export const MIN_COMMENT_CHARS = 20;
 
@@ -62,7 +67,7 @@ export function closingComment(comments: CuComment[], since: number): ClosingCom
       author: String(c.user?.username ?? "").trim() || "Someone",
       at: ms(c.date),
     }))
-    .filter((c) => c.text && !c.text.startsWith(CONDUCTOR_MARK) && c.at > since)
+    .filter((c) => c.text && !c.text.startsWith(CONDUCTOR_MARK) && !AUDIT_COMMENT.test(c.text) && c.at > since)
     .sort((a, b) => b.at - a.at);
   return mine[0] ?? null;
 }
