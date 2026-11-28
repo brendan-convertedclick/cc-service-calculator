@@ -1,0 +1,30 @@
+#!/bin/sh
+# The full gate, run on your machine before anything reaches GitHub. There is no
+# CI (GitHub Actions minutes cost money and two people do not need a build farm),
+# so this hook is the only thing that checks a push.
+#
+# Turned on automatically by `npm install` (the "prepare" script sets
+# core.hooksPath to .githooks). Skip it in an emergency with `git push --no-verify`,
+# and say so in the PR.
+#
+# It checks the working tree, not the commits being pushed: commit or stash
+# anything unrelated first, or a stray edit can pass or fail the run for you.
+set -e
+
+# Pushing only deletions (git push origin --delete x) has nothing to check.
+deleting_only=true
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  case "$local_sha" in
+    *[!0]*) deleting_only=false ;;
+  esac
+done
+[ "$deleting_only" = true ] && exit 0
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "pre-push: note — you have uncommitted changes; they are part of what gets checked."
+fi
+
+echo "pre-push: npm run check (typecheck, lint, unit tests, dead files, build). Skip with --no-verify."
+start=$(date +%s)
+npm run --silent check
+echo "pre-push: all checks passed in $(( $(date +%s) - start ))s"

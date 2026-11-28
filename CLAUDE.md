@@ -344,9 +344,16 @@ executed in all that time — a red X that verified nothing. The e2e job had als
 been self-skipping since the repo secrets were never added. Nothing is checked
 on push any more, so run the gates locally before you claim anything works.
 
-`npm run verify` = typecheck + lint + unit tests. Run `npm run lint:dead` and
-`npm run build` alongside it — those two were CI's job and now belong to
-whoever is making the change.
+**The pre-push hook is the gate (`.githooks/pre-push`).** `npm install` turns it
+on (the `prepare` script sets `core.hooksPath` to `.githooks`), so every clone on
+either machine runs `npm run check` before a push leaves: `verify` (typecheck +
+lint + unit tests) + `lint:dead` + `vite build`, about a minute. Do not bring
+Actions back to do this — at two people on two machines it is paying GitHub to
+run what the hook already runs. `git push --no-verify` skips it; say so in the
+PR when you do. The hook checks the working tree, not the pushed commits, so
+commit or stash unrelated edits first. Tests must not need a secret to run — the
+hook runs on clones without `.env` files (`lookup.test.ts` mocks the
+service-role client for exactly this reason).
 
 - **`npm run typecheck` is `tsc -b`, not `tsc --noEmit`.** The root tsconfig is
   references-only, so `--noEmit` type-checks *nothing* and exits 0. That false
@@ -355,11 +362,11 @@ whoever is making the change.
   is `warn`. The cap that enforced it lived in CI and went with it — the ratchet
   is now a convention, so do not let the warning count climb.
 - **`npm run lint:dead` (knip)** fails on files nothing imports. Dead files went
-  11 → 0 in the audit; this keeps them there. It currently reports one false
-  positive — `mcp-server/src/http.ts`, the pm2 entry point for the HTTP MCP
-  transport, which is launched by `ecosystem.config.cjs` and never imported. It
-  is not dead; add it to `knip.json`'s entries if you want a clean exit.
-- Optional local hook: `git config core.hooksPath .githooks` lints staged files.
+  11 → 0 in the audit; this keeps them there. `mcp-server/src/http.ts`, the pm2
+  entry point for the HTTP MCP transport, is launched by `ecosystem.config.cjs`
+  and never imported. It
+  is not dead, and is listed in `knip.json`'s entries so the gate exits clean.
+- The pre-commit hook (same `.githooks`, also on by default) lints staged files with `--max-warnings 0`, so a file you touch leaves with its warnings fixed — that is how the ratchet moves now.
 - Playwright specs live in `e2e/`. `systems.spec.ts`, `pipeline.spec.ts`,
   `staff-access.spec.ts` and `school-calendar.spec.ts` **write to the live
   database** — prefixed rows and a throwaway team member, cleaned up in

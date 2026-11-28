@@ -7,6 +7,7 @@
     "scripts/*.ts",
     "supabase/functions/*/index.ts",
     "mcp-server/src/index.ts",
+    "mcp-server/src/http.ts",
     "mcp-server/src/**/*.test.ts"
   ],
   "project": [
