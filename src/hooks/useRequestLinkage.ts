@@ -1,13 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { RetainerBurnRow } from "@/types/pulse";
-import {
-  computeRetainerBurn,
-  currentMonthKey,
-  filterBurnActuals,
-  monthRange,
-  referenceDateForMonth,
-} from "./usePulseRetainerBurn";
 
 /** How the work is paid for. `null` = the task has no brief, so we don't know. */
 export type BillingType = "retainer" | "adhoc";
@@ -25,8 +17,6 @@ export type RequestLinkage = {
   billing: BillingType | null;
   briefId: string | null;
   project: LinkedProject | null;
-  /** The client's in-progress retainers for the current month. */
-  retainers: RetainerBurnRow[];
   /**
    * Whether this task's own time reaches the retainer burn. Actuals only roll
    * up through `project_actuals_current`, so a task the sync hasn't mapped to a
@@ -83,16 +73,12 @@ export function useRequestLinkage(taskId: string, clientId: string | null) {
           ? brief.billing_type
           : null;
 
-      const [project, retainers] = await Promise.all([
-        projectId ? loadProject(projectId) : Promise.resolve(null),
-        clientId ? loadRetainerBurn(clientId) : Promise.resolve([]),
-      ]);
+      const project = projectId ? await loadProject(projectId) : null;
 
       return {
         billing,
         briefId: brief?.id ?? null,
         project,
-        retainers,
         countedInBurn: !!actual,
       };
     },
@@ -125,58 +111,5 @@ async function loadProject(projectId: string): Promise<LinkedProject | null> {
     engagementType: p.engagement_type,
     plannedHours: sums.reduce((s, r) => s + Number(r.planned_hours ?? 0), 0),
     actualHours: sums.reduce((s, r) => s + Number(r.actual_hours ?? 0), 0),
-  };
-}
-
-/**
- * Current-month burn for one client's retainers. Mirrors usePulseRetainerBurn
- * (same pure helpers, same month window) but scoped to a single client — the
- * Pulse hook fetches every retainer in the workspace.
- */
-async function loadRetainerBurn(clientId: string): Promise<RetainerBurnRow[]> {
-  const month = currentMonthKey();
-  const { start, end } = monthRange(month);
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, status, engagement_type, retainer_hours_target, retainer_monthly_fee_cents, clients(name)")
-    .eq("client_id", clientId)
-    .eq("engagement_type", "retainer")
-    .eq("status", "in_progress");
-
-  const mapped = (projects ?? []).map((p) => ({
-    ...p,
-    client_name: (p.clients as { name: string } | null)?.name ?? "Unknown",
-  }));
-  if (mapped.length === 0) return [];
-
-  const { data: actuals } = await supabase
-    .from("project_actuals_current")
-    .select("project_id, actual_hours, recorded_at")
-    .in("project_id", mapped.map((p) => p.id));
-
-  // Only in-progress retainers are queried, so nothing is treated as completed
-  // — the month window applies to every row.
-  return computeRetainerBurn(
-    mapped,
-    filterBurnActuals(actuals ?? [], new Set(), start, end),
-    referenceDateForMonth(month, new Date()),
-  );
-}
-
-/** Client-wide burn: one number for the summary line. */
-export function aggregateBurn(rows: RetainerBurnRow[]): {
-  hoursUsed: number;
-  hoursTarget: number;
-  pct: number;
-} | null {
-  const configured = rows.filter((r) => !r.needsSetup);
-  if (configured.length === 0) return null;
-  const hoursUsed = configured.reduce((s, r) => s + r.hoursUsed, 0);
-  const hoursTarget = configured.reduce((s, r) => s + r.hoursTarget, 0);
-  return {
-    hoursUsed: Math.round(hoursUsed * 10) / 10,
-    hoursTarget: Math.round(hoursTarget * 10) / 10,
-    pct: hoursTarget > 0 ? Math.round((hoursUsed / hoursTarget) * 100) : 0,
   };
 }

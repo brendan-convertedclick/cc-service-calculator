@@ -7,7 +7,8 @@ import { callEdgeFn } from "@/lib/edge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pointsToHours } from "@/lib/sprint-points";
-import { aggregateBurn, useRequestLinkage } from "@/hooks/useRequestLinkage";
+import { ClientBudgetPanel } from "@/components/retainers/ClientBudgetPanel";
+import { useRequestLinkage } from "@/hooks/useRequestLinkage";
 
 type TaskContext = {
   id: string;
@@ -180,10 +181,20 @@ export function RequestContext({
       ? Math.round((ctx.points_consumed - budgetPoints) * 100) / 100
       : null;
 
-  const burn = aggregateBurn(linkage?.retainers ?? []);
-
   return (
     <div className={`space-y-3 ${PANEL}`}>
+      {clientId && (
+        <div className="space-y-1.5">
+          <p className="text-label-small font-semibold uppercase tracking-wide text-m-on-surface-variant">
+            As it stands today
+          </p>
+          <ClientBudgetPanel
+            clientId={clientId}
+            clickupTaskId={taskId}
+            askHours={pointsToHours(requestedPoints ?? 0)}
+          />
+        </div>
+      )}
       {/* Everything an approver needs to decide sits on this one line; the
           supporting detail is a disclosure away. Native <details> — no
           collapsible primitive in the design system to reach for. */}
@@ -214,14 +225,6 @@ export function RequestContext({
               <Badge variant="outline">no extra budget</Badge>
             )}
             <BillingBadge billing={linkage?.billing} />
-            {burn && (
-              <Badge
-                variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}
-                className="font-mono tabular-nums"
-              >
-                {`retainer ${burn.pct}% · ${burn.hoursUsed}h of ${burn.hoursTarget}h`}
-              </Badge>
-            )}
           </div>
         }
       >
@@ -291,7 +294,6 @@ export function RequestContext({
       <BillingAndProject
         linkage={linkage}
         requestedPoints={requestedPoints ?? null}
-        taskHours={ctx.time_spent_ms / 3_600_000}
       />
 
       <Disclosure
@@ -357,17 +359,12 @@ function BillingBadge({ billing }: { billing?: "retainer" | "adhoc" | null }) {
 function BillingAndProject({
   linkage,
   requestedPoints,
-  taskHours,
 }: {
   linkage: ReturnType<typeof useRequestLinkage>["data"];
   requestedPoints: number | null;
-  taskHours: number;
 }) {
   if (!linkage) return null;
-  const { billing, project, retainers, countedInBurn } = linkage;
-  const burn = aggregateBurn(retainers);
-  const configured = retainers.filter((r) => !r.needsSetup);
-  const extraHours = requestedPoints ? pointsToHours(requestedPoints) : 0;
+  const { billing, project } = linkage;
 
   return (
     <div className="space-y-2 border-t border-m-outline-variant/60 pt-3">
@@ -413,71 +410,6 @@ function BillingAndProject({
             Standalone task — not part of a tracked project
           </span>
         </div>
-      )}
-
-      {/* Always visible, and not gated on a retainer existing: an approver
-          reading any burn or budget number needs to know this task's hours
-          aren't in it. */}
-      {!countedInBurn && taskHours > 0 && (
-        <p className="max-w-prose text-body-small text-m-error">
-          This task's <Fig>{Math.round(taskHours * 10) / 10}h</Fig> has not been mapped to a project by
-          actuals sync, so it is missing from every hours figure below — the real burn is higher.
-        </p>
-      )}
-
-      {configured.length > 0 && burn && (
-        <Disclosure
-          summary={
-            <div className="flex flex-wrap items-center gap-2 text-body-small">
-              <span className="text-label-small text-m-on-surface-variant">
-                {configured.length === 1 ? "Retainer" : `${configured.length} retainers`} this month
-              </span>
-              <Fig className="text-m-on-surface">{`${burn.hoursUsed}h of ${burn.hoursTarget}h`}</Fig>
-              <Badge
-                variant={burn.pct >= 85 ? "destructive" : burn.pct >= 70 ? "warning" : "muted"}
-                className="font-mono tabular-nums"
-              >
-                {`${burn.pct}% burned`}
-              </Badge>
-              {extraHours > 0 && (
-                <span className="text-m-on-surface-variant">
-                  {`this request adds ${Math.round(extraHours * 10) / 10}h → ${
-                    burn.hoursTarget > 0
-                      ? Math.round(((burn.hoursUsed + extraHours) / burn.hoursTarget) * 100)
-                      : 0
-                  }%`}
-                </span>
-              )}
-            </div>
-          }
-        >
-          <ul className="space-y-0.5">
-            {configured.map((r) => (
-              <li
-                key={r.projectId}
-                className="flex flex-wrap items-center gap-2 text-label-small text-m-on-surface-variant"
-              >
-                <Link to={`/projects/${r.projectId}`} className="text-m-primary hover:underline">
-                  open
-                </Link>
-                <Fig className="text-m-on-surface">{`${r.hoursUsed}h`}</Fig>
-                <Fig>{`of ${r.hoursTarget}h`}</Fig>
-                <span
-                  className={
-                    r.rag === "red"
-                      ? "text-m-error"
-                      : r.rag === "amber"
-                        ? "text-m-on-surface"
-                        : "text-m-on-surface-variant"
-                  }
-                >
-                  {`${r.burnPct}%`}
-                </span>
-                {r.isOverrunRisk && <span className="text-m-error">on pace to overrun</span>}
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
       )}
     </div>
   );

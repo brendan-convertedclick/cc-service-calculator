@@ -119,6 +119,41 @@ Deno.serve(async (req) => {
 
     const all = (briefs ?? []) as unknown as BriefRow[];
 
+    // actual_hours is only written when the sync's per-task fetch succeeds, so
+    // a rate-limited tick leaves it null (the line invoiced at 0h) or stale and
+    // short (11 null and 4 short of 69 closed ad hoc tasks, Sep-Nov 2026, worst
+    // 1.97h). The synced time entries are the same ClickUp time, so the line
+    // takes whichever is higher and says so when the two disagree.
+    const taskIds = all.map((r) => r.clickup_task_id).filter((id): id is string => Boolean(id));
+    const loggedHours = new Map<string, number>();
+    // Paged: PostgREST stops at 1,000 rows, and Trellidor alone has 200+ entries waiting.
+    for (let from = 0; taskIds.length > 0; from += 1000) {
+      const { data: entries, error: eErr } = await supabase
+        .from("clickup_time_entries")
+        .select("id, clickup_task_id, duration_ms")
+        .in("clickup_task_id", taskIds)
+        .order("id")
+        .range(from, from + 999);
+      if (eErr) {
+        warnings.push(`Logged time could not be read: ${eErr.message}`);
+        break;
+      }
+      for (const e of entries ?? []) {
+        loggedHours.set(e.clickup_task_id, (loggedHours.get(e.clickup_task_id) ?? 0) + Number(e.duration_ms ?? 0) / 3_600_000);
+      }
+      if ((entries ?? []).length < 1000) break;
+    }
+    const hoursFor = (b: BriefRow) => {
+      const synced = Number(b.actual_hours) || 0;
+      const logged = loggedHours.get(b.clickup_task_id!) ?? 0;
+      if (synced > 0 && logged - synced > 0.01) {
+        warnings.push(
+          `"${b.raw_subject ?? b.id}": ClickUp's total was ${synced.toFixed(2)}h but ${logged.toFixed(2)}h is logged. Using ${logged.toFixed(2)}h.`,
+        );
+      }
+      return Math.round(Math.max(synced, logged) * 100) / 100;
+    };
+
     for (const b of all.filter((r) => r.clickup_status_synced_at != null)) {
       const status = (b.clickup_task_status ?? "").toLowerCase();
       if (!CLOSED.has(status)) {
@@ -133,7 +168,7 @@ Deno.serve(async (req) => {
         name: b.raw_subject ?? "(untitled task)",
         clickup_task_url: b.clickup_task_url,
         completed_at: new Date(completedMs).toISOString(),
-        hours: Number(b.actual_hours ?? 0),
+        hours: hoursFor(b),
         amount_cents: null,
         carried_over: completedMs < startMs,
       });

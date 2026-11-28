@@ -84,6 +84,10 @@ vi.mock("@/hooks/useAdhocInvoices", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useAdhocInvoices")>()),
   useAdhocInvoices: () => ({ data: new Map() }),
 }));
+vi.mock("@/hooks/useRetainerOutside", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useRetainerOutside")>()),
+  useRetainerOutside: () => ({ data: undefined }),
+}));
 vi.mock("@/hooks/useRetainerTemplates", () => ({
   useSaveRetainerTemplate: () => ({ mutate: vi.fn(), isPending: false }),
 }));

@@ -194,6 +194,11 @@ async function safeClickupSync(
  * meeting for everyone. Edit or cancel those in Google Calendar; the next
  * sync brings the change back.
  */
+/** Work Stream when neither the meeting nor its project picks one. Brendan
+ * (2026-11-11): a meeting booked here is internal unless someone says
+ * otherwise, and a blank field left the task out of the Work Stream views. */
+const DEFAULT_WORK_STREAM = "Internal Meeting";
+
 const CALENDAR_SOURCED_ERROR =
   "This meeting came from Google Calendar, not Conductor. Change it in Google Calendar — the next sync will pick it up.";
 
@@ -429,7 +434,7 @@ async function syncClickupCreate(req: Request, ctx: ClickupSyncCreateCtx): Promi
   // Staff pick on the meeting takes priority over the linked project's
   // override; status stays unset (list default) unless staff explicitly
   // picked one — see nativeMeetingTaskBody's CRTSK_001 note.
-  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? null;
+  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? DEFAULT_WORK_STREAM;
   const customFields = meetingCustomFields(cuFields, clickupClientName, workStream);
 
   // ClickUp splits Sprint Points PER ASSIGNEE on a shared task (confirmed
@@ -548,7 +553,7 @@ async function syncClickupUpdate(req: Request, ctx: ClickupSyncUpdateCtx): Promi
     console.warn(`[manage-internal-meeting] no ClickUp list resolved for client ${ctx.client.id} — skipping custom-field refresh`);
   }
   const cuFields = listId ? await fetchListFields(pat, listId) : [];
-  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? null;
+  const workStream = ctx.meeting.work_stream_override ?? ctx.project?.clickup_work_stream_override ?? DEFAULT_WORK_STREAM;
   const customFields = meetingCustomFields(cuFields, clickupClientName, workStream);
 
   const people = Array.from(new Map([ctx.organiser, ...ctx.attendees].map((p) => [p.id, p])).values());

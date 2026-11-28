@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Copy, Pencil, RefreshCw, Save, X } from "lucide-react";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,9 @@ import { RetainerServicesEditor } from "@/components/retainers/RetainerServicesE
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { computeProjectProgress } from "@/lib/project-status";
 import { useDepartments } from "@/hooks/useDepartments";
-import { currentMonthKey, filterBurnActuals, monthRange } from "@/hooks/usePulseRetainerBurn";
+import { useRetainerBudget } from "@/hooks/useRetainerBudget";
+import { RetainerBudgetBar } from "@/components/retainers/RetainerBudgetBar";
+import { currentBudgetMonth } from "@/lib/retainer-budget";
 import type { Database } from "@/types/db";
 import type { ClaudePrompt } from "@/types/claude";
 
@@ -47,6 +49,30 @@ export function ProjectDetail() {
   const { data: depts = [] } = useDepartments();
   const sync = useSyncNow();
   const updateProject = useUpdateProject();
+  // Retainer burn comes from the same rule as the retainer book (retainer_budget),
+  // not project_actuals: that table only holds the tasks seeded onto the project,
+  // so a retainer whose work arrives as briefs read 0h used (Lisa, 2026-11-13).
+  const { data: budgets } = useRetainerBudget(
+    currentBudgetMonth(),
+    (data?.project as { client_id?: string | null } | undefined)?.client_id ?? null,
+  );
+  // A retainer with no fee and no hours target has no budget row, but its time
+  // still counts: show what was spent rather than nothing (Lisa, 2026-11-13).
+  const { data: spentNoBudget } = useQuery({
+    queryKey: ["retainer_spent", id, currentBudgetMonth()],
+    enabled: !!id && (data?.project as { engagement_type?: string } | undefined)?.engagement_type === "retainer",
+    queryFn: async () => {
+      const { data: h, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => PromiseLike<{ data: number | string | null; error: Error | null }>)("retainer_spent", {
+        p_project_id: id,
+        p_month: currentBudgetMonth(),
+      });
+      if (error) throw error;
+      return Number(h ?? 0);
+    },
+  });
 
   const [recur, setRecur] = useState({
     is_recurring: false,
@@ -111,15 +137,7 @@ export function ProjectDetail() {
   const engagementType = project.engagement_type ?? "fixed";
   const isRetainer = engagementType === "retainer";
 
-  // Hours consumed this period — same month-window rules as the pulse burn
-  // view (frozen snapshots count in full for completed retainers).
-  const { start: monthStart, end: monthEnd } = monthRange(currentMonthKey());
-  const periodHours = filterBurnActuals(
-    actuals,
-    project.status === "completed" ? new Set([project.id]) : new Set(),
-    monthStart,
-    monthEnd,
-  ).reduce((s, a) => s + Number(a.actual_hours ?? 0), 0);
+  const budget = budgets?.find((b) => b.projectId === project.id);
 
   function saveRecurrence() {
     if (!id) return;
@@ -322,10 +340,24 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
                 Started {new Date(project.started_at).toLocaleDateString("en-ZA")} · Status:{" "}
                 {project.status}
               </div>
-              <div className="mt-2">
-                Planned: <strong>{totalPlanned.toFixed(1)}h</strong> · Actual:{" "}
-                <strong>{totalActual.toFixed(1)}h</strong>
-              </div>
+              {/* A retainer's seeded tasks pile up month after month, so their
+                  sum (26.8h on Dovetail SEO by November) read as a monthly plan.
+                  For a retainer the header is this month, from the book. */}
+              {isRetainer ? (
+                <div className="mt-2">
+                  {budget ? (
+                    <>This month: budget <strong>{budget.budget.toFixed(1)}h</strong> · Spent{" "}</>
+                  ) : (
+                    <>This month: no budget · Spent{" "}</>
+                  )}
+                  <strong>{(budget ? budget.spent : spentNoBudget ?? 0).toFixed(1)}h</strong>
+                </div>
+              ) : (
+                <div className="mt-2">
+                  Planned: <strong>{totalPlanned.toFixed(1)}h</strong> · Actual:{" "}
+                  <strong>{totalActual.toFixed(1)}h</strong>
+                </div>
+              )}
               {progress.taskTotal > 0 && (
                 <div
                   className="mt-3 max-w-md"
@@ -448,21 +480,20 @@ Output: A markdown table with columns: Department | Description | Hours | Notes.
       <Card>
         <CardContent className="p-4">
           {isRetainer ? (
-            project.retainer_hours_target ? (
-              <BurnChart
-                rows={[
-                  {
-                    dept_id: "retainer",
-                    dept_name: "Hours used this month",
-                    planned: project.retainer_hours_target,
-                    actual: periodHours,
-                  },
-                ]}
-              />
+            budget ? (
+              <div className="space-y-2">
+                <p className="text-label-large text-m-on-surface">Hours used this month</p>
+                <RetainerBudgetBar budget={budget} showDepartments />
+              </div>
             ) : (
-              <p className="text-body-small text-m-on-surface-variant">
-                Set the monthly hours target above to track retainer burn.
-              </p>
+              <div className="space-y-1">
+                <p className="text-label-large text-m-on-surface">
+                  Hours used this month: {(spentNoBudget ?? 0).toFixed(1)}h
+                </p>
+                <p className="text-body-small text-m-on-surface-variant">
+                  No budget set. Add a monthly fee or hours target above to see how much is left.
+                </p>
+              </div>
             )
           ) : (
             <BurnChart rows={rows} />

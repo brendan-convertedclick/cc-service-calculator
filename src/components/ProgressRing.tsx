@@ -3,11 +3,13 @@ interface ProgressRingProps {
   timePct: number;
   size?: number;
   title?: string;
+  /** Overrides the centre figure, e.g. a retainer at 188% of its budget. */
+  labelPct?: number;
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
-export function ProgressRing({ taskPct, timePct, size = 44, title }: ProgressRingProps) {
+export function ProgressRing({ taskPct, timePct, size = 44, title, labelPct }: ProgressRingProps) {
   const stroke = 4;
   const gap = 2;
   const outerR = (size - stroke) / 2;
@@ -19,7 +21,7 @@ export function ProgressRing({ taskPct, timePct, size = 44, title }: ProgressRin
   const h = clamp(timePct);
   const overHours = timePct > 1;
 
-  const label = Math.round(t * 100);
+  const label = Math.round((labelPct ?? t) * 100);
 
   return (
     <svg

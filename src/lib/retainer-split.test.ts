@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { splitHours } from "./retainer-split";
+import { salesMarked, splitHours } from "./retainer-split";
 
-const base = { retainer: 0, recurring: 0, adhoc: 0, adhocUnlinked: 0, internal: 0 };
+const base = { retainer: 0, recurring: 0, adhoc: 0, adhocUnlinked: 0, internal: 0, sales: 0 };
 
 describe("splitHours", () => {
   it("folds recurring into retainer and says so", () => {
@@ -32,5 +32,21 @@ describe("splitHours", () => {
   it("says nothing when there is nothing to qualify", () => {
     const rows = splitHours({ ...base, retainer: 10, adhoc: 5, internal: 1 });
     expect(rows.map((r) => r.note)).toEqual([null, null, null]);
+  });
+
+  it("adds a sales row only when something was marked as sales", () => {
+    expect(splitHours({ ...base, retainer: 10 }).map((r) => r.key)).not.toContain("sales");
+    const rows = splitHours({ ...base, retainer: 6, adhoc: 2, sales: 2 });
+    expect(rows.at(-1)).toMatchObject({ key: "sales", hours: 2, pct: 20 });
+  });
+
+  it("takes sales hours from the bucket the Book had them in", () => {
+    const m = salesMarked([
+      { client_name: "Trellidor", reason: "internal", hours: "1.5", dismissed_kind: "sales" },
+      { client_name: "Trellidor", reason: "meeting", hours: 1, dismissed_kind: "sales" },
+      { client_name: "Trellidor", reason: "meeting", hours: 4, dismissed_kind: "internal" },
+    ]);
+    expect(m.fromInternal.get("Trellidor")).toBe(1.5);
+    expect(m.fromAdhoc.get("Trellidor")).toBe(1);
   });
 });

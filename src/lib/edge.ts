@@ -53,5 +53,6 @@ export async function callEdgeFn<T = unknown>(
 export async function invokeErrorMessage(error: unknown): Promise<string> {
   const res = (error as { context?: Response }).context;
   const body = res && typeof res.json === "function" ? await res.clone().json().catch(() => null) : null;
-  return (body as { error?: string } | null)?.error ?? (error instanceof Error ? error.message : String(error));
+  const message = (error as { message?: unknown } | null)?.message;
+  return (body as { error?: string } | null)?.error ?? (typeof message === "string" ? message : String(error));
 }

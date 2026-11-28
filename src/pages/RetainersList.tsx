@@ -45,7 +45,13 @@ import { todayISO } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/project-status";
 import { retainerStatus, workingDays, STATUS_LABEL as DELIVERY_LABEL, type RetainerStatus } from "@/lib/retainer-status";
 import { ProgressRing } from "@/components/retainers/ProgressRing";
+import { RetainerBudgetBoard } from "@/components/retainers/RetainerBudgetBoard";
+import { RetainerOutsideBoard } from "@/components/retainers/RetainerOutsideBoard";
+import { useRetainerOutside } from "@/hooks/useRetainerOutside";
+import { salesMarked } from "@/lib/retainer-split";
 import { SplitTab, type SplitContributor } from "@/components/retainers/SplitTab";
+import { TimeTypeSplit } from "@/components/retainers/TimeTypeSplit";
+import type { SplitCategory } from "@/lib/time-types";
 
 // The stored project_status enum uses "completed"/"in_progress"; DerivedStatus
 // uses "complete". Normalise both so the badge never shows a raw lowercase token.
@@ -675,7 +681,7 @@ export function RetainersList() {
     ];
   }, [clientGroups, asSection]);
 
-  type BookTab = "client" | "adhoc" | "internal" | "recurring" | "split";
+  type BookTab = "client" | "adhoc" | "internal" | "recurring" | "split" | "budget" | "outside";
   const [tab, setTab] = useState<BookTab>("client");
   const section = sections.find((s) => s.key === tab) ?? sections[0];
 
@@ -684,13 +690,23 @@ export function RetainersList() {
   // disagree. Unlinked is pulled out of ad hoc by kind because on a three-way
   // bar it would otherwise read as ad hoc creeping up, when it is retainer
   // work briefed against no retainer.
+  // Time marked as sales on the Outside tab (0213) leaves whichever of ad hoc
+  // or internal the Book had it in and becomes its own row.
+  const outside = useRetainerOutside(month);
   const split = useMemo(() => {
-    const totalOf = (key: string) => sections.find((s) => s.key === key)?.delivered ?? 0;
+    const marked = salesMarked((outside.data?.clients ?? []).flatMap((c) => c.rows));
+    const sumOf = (m: Map<string, number>) => [...m.values()].reduce((n, h) => n + h, 0);
+    const less = (key: string) =>
+      key === "adhoc" ? marked.fromAdhoc : key === "internal" ? marked.fromInternal : new Map<string, number>();
+    const totalOf = (key: string) =>
+      Math.max(0, (sections.find((s) => s.key === key)?.delivered ?? 0) - sumOf(less(key)));
     const contributorsOf = (key: string): SplitContributor[] =>
       (sections.find((s) => s.key === key)?.groups ?? [])
-        .map((g) => ({ clientName: g.clientName, hours: g.delivered }))
+        .map((g) => ({ clientName: g.clientName, hours: Math.max(0, g.delivered - (less(key).get(g.clientName) ?? 0)) }))
         .filter((c) => c.hours > 0)
         .sort((a, b) => b.hours - a.hours);
+    const sales = new Map(marked.fromAdhoc);
+    for (const [k, v] of marked.fromInternal) sales.set(k, (sales.get(k) ?? 0) + v);
     // Retainer absorbs the recurring tab, so its client list has to as well.
     const merged = new Map<string, number>();
     for (const c of [...contributorsOf("client"), ...contributorsOf("recurring")]) {
@@ -705,18 +721,48 @@ export function RetainersList() {
         .reduce(
           (n, g) => n + g.extras.filter((x) => x.kind === "unlinked")
             .reduce((m, x) => m + x.trackedHours, 0),
-          0,
+          -sumOf(marked.fromAdhoc),
         ),
       internal: totalOf("internal"),
+      sales: sumOf(sales),
       contributors: {
         retainer: [...merged.entries()]
           .map(([clientName, hours]) => ({ clientName, hours }))
           .sort((a, b) => b.hours - a.hours),
         adhoc: contributorsOf("adhoc"),
         internal: contributorsOf("internal"),
+        sales: [...sales.entries()]
+          .map(([clientName, hours]) => ({ clientName, hours }))
+          .sort((a, b) => b.hours - a.hours),
       },
     };
-  }, [sections, clientGroups]);
+  }, [sections, clientGroups, outside.data]);
+  // Which Split bar a ClickUp task's time lands on, for the time types (0217):
+  // task → Book row through the allocation hook's own map, row → tab through
+  // the sections above, so a bar cut by type adds up to the tab's hours. A
+  // task with no row is Not on the Book; one marked sales on the Outside tab
+  // is Sales, as the split above already treats it.
+  // ponytail: the row → tab map is the selected month's; for the trend's
+  // other months a row that changed tab since then reads as today's tab.
+  const categoryOf = useMemo(() => {
+    const taskToKey = allocMonths[0]?.taskToKey ?? new Map<string, string>();
+    const keyCat = new Map<string, SplitCategory>();
+    const tabCat = { client: "retainer", recurring: "retainer", adhoc: "adhoc", internal: "internal" } as const;
+    for (const sec of sections) {
+      for (const g of sec.groups) {
+        for (const r of [...g.rows, ...g.unbilled]) keyCat.set(r.id, tabCat[sec.key]);
+        for (const x of g.extras) keyCat.set(x.key, tabCat[sec.key]);
+      }
+    }
+    const sales = new Set(
+      (outside.data?.clients ?? []).flatMap((c) => c.rows).filter((r) => r.dismissed_kind === "sales").map((r) => r.clickup_task_id),
+    );
+    return (taskId: string): SplitCategory => {
+      if (sales.has(taskId)) return "sales";
+      const key = taskToKey.get(taskId);
+      return (key && keyCat.get(key)) || "offbook";
+    };
+  }, [allocMonths, sections, outside.data]);
   // The Internal tab answers a different question, so it gets a different set
   // of columns (Lisa, 2026-09-08). Monthly fee and Planned are both facts about
   // an invoice — a notional fee we pay ourselves, and the hours that fee buys —
@@ -815,11 +861,20 @@ export function RetainersList() {
             {/* Not a section: it reads across all four rather than being one
                 of them, so it carries no Completed figure of its own. */}
             <TabsTrigger value="split">Split</TabsTrigger>
+            <TabsTrigger value="budget">Budget</TabsTrigger>
+            <TabsTrigger value="outside">Outside</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {tab === "split" ? (
-          <SplitTab {...split} />
+        {tab === "budget" ? (
+          <RetainerBudgetBoard month={month} />
+        ) : tab === "outside" ? (
+          <RetainerOutsideBoard month={month} />
+        ) : tab === "split" ? (
+          <div className="space-y-8">
+            <SplitTab {...split} />
+            <TimeTypeSplit month={month} currentMonth={currentMonthKey()} categoryOf={categoryOf} />
+          </div>
         ) : (
         <>
         <ColumnKey
