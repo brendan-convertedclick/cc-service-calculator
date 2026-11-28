@@ -22,7 +22,9 @@
     "tokens:sync": "tsx -r dotenv/config scripts/sync-figma-tokens.ts dotenv_config_path=.env.local && tsx scripts/build-tokens.ts",
     "sync-sows": "tsx -r dotenv/config scripts/sync-sows.ts dotenv_config_path=.env.local",
     "verify": "npm run typecheck && npm run lint && npm run test",
-    "lint:dead": "knip --include files"
+    "lint:dead": "knip --include files",
+    "check": "npm run verify && npm run lint:dead && vite build",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

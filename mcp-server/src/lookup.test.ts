@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// lookup.ts imports the service-role client, which throws at import time without
+// mcp-server/.env. matchByName is pure, so the test must not need that file: a
+// machine without the secret (a fresh clone, the pre-push hook) still runs it.
+vi.mock('./supabase.js', () => ({ supabase: {} }))
+
 import { matchByName } from './lookup.js'
 
 const departments = [
