@@ -1,8 +1,8 @@
 # conductor-mcp
 
-Conductor's own MCP server: 24 tools over the agency database — clients,
-briefs, sender rules, and the systems library (procedures, processes,
-policies).
+Conductor's own MCP server: 4 tools over the systems library (procedures,
+processes, policies). Its email-intake tools were removed on 2026-11-28; the
+Brief Team artifact briefs through the hosted `conductor-mcp` connector instead.
 
 It speaks two transports from one set of tools:
 
@@ -68,13 +68,13 @@ response closes (`sessionIdGenerator: undefined`). Nothing about a call depends
 on having been preceded by another one on the same process, which is what makes
 the server safe to restart mid-conversation, put behind a proxy, or eventually
 run more than one of. The cost is constructing a server per call — registering
-24 tool schemas, no I/O — against a round trip to Postgres.
+4 tool schemas, no I/O — against a round trip to Postgres.
 
 ### The security position, stated plainly
 
 Every tool runs on the **service role key**, which bypasses RLS completely.
 Whoever holds `MCP_AUTH_TOKEN` can read every client, brief and rate in the
-agency, and can write briefs, sender rules and procedures. The token is shared,
+agency, and can write procedures. The token is shared,
 not per-person, and does not expire.
 
 That is an acceptable trade for a small internal team behind one tunnel. It is
@@ -88,11 +88,7 @@ that stays on.
 
 ## Tools
 
-Twenty of them cover intake — finding clients, deduping Gmail threads, creating
-and scoping briefs, and the per-client sender allow/block rules. See
-`src/server.ts` for the registry; each has a description the client displays.
-
-The four systems tools are the ones worth knowing about:
+See `src/server.ts` for the registry; each has a description the client displays.
 
 | Tool | What it does |
 | --- | --- |

@@ -7,22 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BriefList } from "@/components/BriefList";
 import { BriefConversation } from "@/components/BriefConversation";
 import { InboxFilterPanel } from "@/components/InboxFilterPanel";
-import { ClaudePromptPanel } from "@/components/ClaudePromptPanel";
 import {
   PIPELINE_STATUSES,
   StatusPipeline,
   type PipelineSelection,
 } from "@/components/briefs/StatusPipeline";
 import { useBrief, useBriefs, useCreateBrief } from "@/hooks/useBriefs";
-import { useBriefIntelligence } from "@/hooks/useBriefIntelligence";
 import { useInboxFilterTree } from "@/hooks/useInboxFilterTree";
 import { useCurrentUserId } from "@/context/AuthContext";
 import type { BriefScope, BriefFilterOptions, BriefSortDirection } from "@/hooks/useBriefs";
 import type { BriefStatus } from "@/lib/brief-routing";
-import type { ClaudePrompt } from "@/types/claude";
 
-const ROLE = `You are the Converted Click operations assistant working in Claude Code.`;
-const MCP_NOTE = `You have access to the conductor MCP tools: find-client, get-active-projects, get-active-retainer, list-briefs, get-brief, create-brief.`;
 
 const SCOPES: BriefScope[] = ["all", "new", "mine", "unassigned", "waiting", "archived"];
 
@@ -47,7 +42,6 @@ export function Inbox() {
   const currentUserId = useCurrentUserId();
   const navigate = useNavigate();
   const { data: selectedBrief } = useBrief(briefId);
-  const { data: selectedBriefIntel } = useBriefIntelligence(briefId);
   const createBrief = useCreateBrief();
   const { data: filterTree } = useInboxFilterTree();
 
@@ -116,27 +110,6 @@ export function Inbox() {
     ? filterTree.clients.find((c) => c.id === activeClientId)?.name
     : undefined;
 
-  const inboxPrompts: ClaudePrompt[] = selectedBrief
-    ? [
-        {
-          id: "brief-from-email",
-          label: "Brief from email",
-          build: () => `${ROLE}
-
-Context:
-Subject: ${selectedBrief.raw_subject ?? "(no subject)"}
-From: ${selectedBrief.sender_email ?? "(unknown)"}
-Notes: ${selectedBriefIntel?.am_notes ?? "(none)"}
-Brief ID: ${selectedBrief.id}
-
-${MCP_NOTE}
-
-Action: Run /intake or /brief using the email thread above as context. Look up the client via find-client using the sender email or client name. Create or update a brief in Conductor with the relevant context, classify the intent, and generate a scope or draft reply as appropriate.
-
-Output: Confirmation of brief created or updated, with intent classification and any generated scope lines or draft reply.`,
-        },
-      ]
-    : [];
 
   return (
     <div className="flex h-full">
@@ -242,11 +215,6 @@ Output: Confirmation of brief created or updated, with intent classification and
         )}
       </div>
 
-      {selectedBrief && (
-        <aside className="w-[200px] shrink-0 border-l border-m-outline-variant bg-m-surface overflow-y-auto">
-          <ClaudePromptPanel prompts={inboxPrompts} />
-        </aside>
-      )}
     </div>
   );
 }
