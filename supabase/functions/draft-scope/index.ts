@@ -15,6 +15,8 @@ const WIKI_PAT  = Deno.env.get("WIKI_GITHUB_PAT")  ?? "";
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  // Client email is not sent to AI (company decision, 2026-11-18; the Privacy Policy says so).
+  return json({ error: "AI drafting from client email is switched off. Write the scope by hand." }, 410);
 
   try {
     const { brief_id, nudge } = await req.json();

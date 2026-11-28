@@ -32,6 +32,8 @@ const RULES_PATH = "cc-vault/wiki/config/quick-response-rules.md";
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  // Client email is not sent to AI (company decision, 2026-11-18; the Privacy Policy says so). Staff scope by hand.
+  return json({ ok: true, skipped: "ai_off_for_client_email" });
 
   try {
     const { brief_id } = await req.json();

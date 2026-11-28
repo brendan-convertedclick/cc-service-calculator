@@ -48,11 +48,16 @@ Deno.serve(async (req: Request) => {
   });
   if (handedOver && typeof body["task_id"] === "string") {
     try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/handover-signoffs`, {
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/handover-signoffs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_id: body["task_id"] }),
       });
+      // The cron retries a lost hand-over, but say why this one did not land.
+      const tally = await res.json().catch(() => null) as { drafted?: number; bounced?: number } | null;
+      if (!res.ok || !(tally?.drafted || tally?.bounced)) {
+        console.error(`clickup-webhook: handover for ${body["task_id"]} did not land: ${res.status} ${JSON.stringify(tally)}`);
+      }
     } catch (e) {
       console.error("clickup-webhook: handover call failed:", e);
     }
